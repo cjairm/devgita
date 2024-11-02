@@ -10,6 +10,7 @@ import (
 	"github.com/cjairm/devgita/pkg/common"
 	"github.com/cjairm/devgita/pkg/debian"
 	"github.com/cjairm/devgita/pkg/macos"
+	macosInstall "github.com/cjairm/devgita/pkg/macos/install"
 	"github.com/spf13/cobra"
 )
 
@@ -43,9 +44,16 @@ func run(cmd *cobra.Command, args []string) {
 	switch os {
 	case "darwin":
 		macos.PreInstall()
+
+		fmt.Printf("Checking version...\n\n")
+		macosInstall.CheckVersion()
+
+		fmt.Printf("Cloning repo...\n\n")
 		if err := common.CloneDevgita(); err != nil {
 			panic(err)
 		}
+
+		fmt.Printf("Starting installation...\n\n")
 	case "linux":
 		debian.PreInstall()
 		// Check if common.CloneDevgita works here
