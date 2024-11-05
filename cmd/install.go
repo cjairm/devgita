@@ -4,7 +4,9 @@ Copyright © 2024 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
+	"context"
 	"fmt"
+	"os"
 	"runtime"
 
 	"github.com/cjairm/devgita/pkg/common"
@@ -39,9 +41,11 @@ func init() {
 func run(cmd *cobra.Command, args []string) {
 	fmt.Println(common.Devgita)
 	fmt.Printf("=> Begin installation (or abort with ctrl+c)... \n\n")
+	ctx := context.Background()
 
-	os := runtime.GOOS
-	switch os {
+	// NOTE: Confirm `brew reinstall --cask font-hack-nerd-font`
+
+	switch runtime.GOOS {
 	case "darwin":
 		macos.PreInstall()
 
@@ -50,14 +54,21 @@ func run(cmd *cobra.Command, args []string) {
 
 		fmt.Printf("Cloning repo...\n\n")
 		if err := common.CloneDevgita(); err != nil {
-			panic(err)
+			fmt.Printf("\033[31mError: %s\033[0m\n", err.Error())
+			fmt.Println("Installation stopped.")
+			os.Exit(1)
 		}
 
 		fmt.Printf("Starting installation...\n\n")
+
+		ctx = macosInstall.ChooseLanguages(ctx)
+
+		macosInstall.RunInstallers()
+		// config, ok := common.GetConfig(ctx)
 	case "linux":
 		debian.PreInstall()
 		// Check if common.CloneDevgita works here
 	default:
-		fmt.Printf("Unsupported operating system: %s\n", os)
+		fmt.Printf("Unsupported operating system: %s\n", runtime.GOOS)
 	}
 }

@@ -54,7 +54,7 @@ func CheckVersion() {
 		os.Exit(1)
 	}
 
-	// Check if the version is at least 14.0 (macOS Sonoma)
+	// NOTE: (11/2/2024) Check if the version is at least 14.0 (macOS Sonoma)
 	if major < MACOS_VERSION_NUMBER || (major == MACOS_VERSION_NUMBER && minor < 0) {
 		fmt.Printf("\033[31mError: OS requirement not met\033[0m\n")
 		fmt.Printf("You are currently running: macOS %s\n", versionStr)
