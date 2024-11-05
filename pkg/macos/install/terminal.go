@@ -34,7 +34,7 @@ func installUnzip() error {
 }
 
 // Function to run all terminal installers
-func RunInstallers() error {
+func RunTerminalInstallers() error {
 	installFunctions := []func() error{
 		upgradeHomebrew,
 		installCurl,

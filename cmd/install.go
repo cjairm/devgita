@@ -63,7 +63,7 @@ func run(cmd *cobra.Command, args []string) {
 
 		ctx = macosInstall.ChooseLanguages(ctx)
 
-		macosInstall.RunInstallers()
+		macosInstall.RunTerminalInstallers()
 		// config, ok := common.GetConfig(ctx)
 	case "linux":
 		debian.PreInstall()
