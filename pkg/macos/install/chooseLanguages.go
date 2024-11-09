@@ -20,7 +20,7 @@ var languages = []string{
 }
 
 func ChooseLanguages(ctx context.Context) context.Context {
-	selectedLanguages, err := multiSelect("Select programming languages:", languages)
+	selectedLanguages, err := multiSelect("Select programming languages", languages)
 	if err != nil {
 		fmt.Println("\033[31mError: Error selecting languages.\033[0m")
 		fmt.Println("Installation stopped.")
