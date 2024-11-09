@@ -42,6 +42,7 @@ func setupFastFetch(devgitaPath string) error {
 	configFile := filepath.Join(configDir, "config.jsonc")
 	devgitaConfig := filepath.Join(
 		devgitaPath,
+		"pkg",
 		"configs",
 		"fastfetch.jsonc",
 	)
