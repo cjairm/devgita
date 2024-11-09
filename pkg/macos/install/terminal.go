@@ -11,7 +11,7 @@ import (
 func upgradeHomebrew() error {
 	err := common.ExecCommand("Upgrating Homebrew", "Homebrew upgrated ✔", "brew", "upgrade")
 	if err != nil {
-		fmt.Println("Please try `brew doctor` to fix this issue")
+		fmt.Println("Please try `brew doctor` to fix the issue")
 		fmt.Println("Installation stopped.")
 		os.Exit(1)
 	}

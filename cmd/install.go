@@ -42,6 +42,12 @@ func run(cmd *cobra.Command, args []string) {
 	fmt.Println(common.Devgita)
 	fmt.Printf("=> Begin installation (or abort with ctrl+c)... \n\n")
 	ctx := context.Background()
+	devgitaPath, err := common.GetDevgitaPath()
+	if err != nil {
+		fmt.Printf("\033[31mError: %s\033[0m\n", err.Error())
+		fmt.Println("Installation stopped.")
+		os.Exit(1)
+	}
 
 	// NOTE: Confirm `brew reinstall --cask font-hack-nerd-font`
 
@@ -53,7 +59,7 @@ func run(cmd *cobra.Command, args []string) {
 		macosInstall.CheckVersion()
 
 		fmt.Printf("Cloning repo...\n\n")
-		if err := common.CloneDevgita(); err != nil {
+		if err := common.CloneDevgita(devgitaPath); err != nil {
 			fmt.Printf("\033[31mError: %s\033[0m\n", err.Error())
 			fmt.Println("Installation stopped.")
 			os.Exit(1)

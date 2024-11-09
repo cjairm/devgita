@@ -4,19 +4,11 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 )
 
-func CloneDevgita() error {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return fmt.Errorf("error getting home directory: %w", err)
-	}
-
-	devgitaPath := filepath.Join(homeDir, ".local", "share", "devgita")
-
+func CloneDevgita(devgitaPath string) error {
 	fmt.Printf("Cloning Devgita\n")
-	err = os.RemoveAll(devgitaPath)
+	err := os.RemoveAll(devgitaPath)
 	if err != nil {
 		return fmt.Errorf("error removing directory: %w", err)
 	}
