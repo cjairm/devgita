@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/cjairm/devgita/pkg/common"
+	macos "github.com/cjairm/devgita/pkg/macos/install/terminal"
 )
 
 // Function to upgrade Homebrew
@@ -34,12 +35,15 @@ func installUnzip() error {
 }
 
 // Function to run all terminal installers
-func RunTerminalInstallers() error {
+func RunTerminalInstallers(devgitaPath string) error {
 	installFunctions := []func() error{
 		upgradeHomebrew,
 		installCurl,
 		installGit,
 		installUnzip,
+		func() error {
+			return macos.InstallFastFetch(devgitaPath)
+		},
 	}
 	for _, installFunc := range installFunctions {
 		if err := installFunc(); err != nil {
