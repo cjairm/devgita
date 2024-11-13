@@ -44,6 +44,8 @@ func RunTerminalInstallers(devgitaPath string) error {
 		func() error {
 			return macos.InstallFastFetch(devgitaPath)
 		},
+		macos.InstallGitHubCli,
+		macos.InstallLazyDocker,
 	}
 	for _, installFunc := range installFunctions {
 		if err := installFunc(); err != nil {

@@ -94,6 +94,11 @@ func MkdirOrCopyFile(
 		}
 		return CopyFile(devgitaPathFile, filePath)
 	}
-	fmt.Printf("File for %s already exists.\n", appName)
+	fmt.Printf("File for %s already exists.\n\n", appName)
 	return nil
+}
+
+func IsCommandInstalled(command string) bool {
+	_, err := exec.LookPath(command)
+	return err == nil
 }

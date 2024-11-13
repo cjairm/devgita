@@ -1,5 +1,6 @@
 // -------------------------
 // NOTE: Write documentation or create icon to open and get information of this Mac
+// - Documentation: https://github.com/fastfetch-cli/fastfetch
 // -------------------------
 
 package macos
@@ -7,7 +8,6 @@ package macos
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 
 	"github.com/cjairm/devgita/pkg/common"
@@ -24,8 +24,7 @@ func InstallFastFetch(devgitaPath string) error {
 }
 
 func checkIfFastfetchIsInstalled() error {
-	_, err := exec.LookPath("fastfetch")
-	if err != nil {
+	if common.IsCommandInstalled("fastfetch") {
 		return installFastfetch()
 	}
 	return nil
