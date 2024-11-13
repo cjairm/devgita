@@ -1,3 +1,7 @@
+// -------------------------
+// NOTE: Write documentation or create icon to open and get information of this Mac
+// -------------------------
+
 package macos
 
 import (
@@ -47,23 +51,5 @@ func setupFastFetch(devgitaPath string) error {
 		"fastfetch.jsonc",
 	)
 
-	// Check if the configuration file already exists
-	if _, err := os.Stat(configFile); os.IsNotExist(err) {
-		// Create the config directory if it doesn't exist
-		if err := os.MkdirAll(configDir, os.ModePerm); err != nil {
-			return err
-		}
-		return copyFile(devgitaConfig, configFile)
-	}
-	fmt.Println("Configuration file for fastfetch already exists.")
-	return nil
-}
-
-// copyFile copies a file from src to dst
-func copyFile(src, dst string) error {
-	input, err := os.ReadFile(src)
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(dst, input, os.ModePerm)
+	return common.MkdirOrCopyFile(configFile, configDir, devgitaConfig, "fastfetch config")
 }

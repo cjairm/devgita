@@ -3,6 +3,7 @@ package common
 import (
 	"bufio"
 	"fmt"
+	"os"
 	"os/exec"
 	"time"
 
@@ -68,4 +69,31 @@ func ExecCommand(startMessage string, endMessage string, name string, args ...st
 	fmt.Printf(endMessage + "\n\n")
 
 	return err
+}
+
+// copyFile copies a file from src to dst
+func CopyFile(src, dst string) error {
+	input, err := os.ReadFile(src)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(dst, input, os.ModePerm)
+}
+
+func MkdirOrCopyFile(
+	filePath string,
+	dirPath string,
+	devgitaPathFile string,
+	appName string,
+) error {
+	// Check if file already exists
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		// Create the directory if it doesn't exist
+		if err := os.MkdirAll(dirPath, os.ModePerm); err != nil {
+			return err
+		}
+		return CopyFile(devgitaPathFile, filePath)
+	}
+	fmt.Printf("File for %s already exists.\n", appName)
+	return nil
 }
