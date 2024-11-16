@@ -3,6 +3,9 @@
 // - Kickstart documentation: https://github.com/nvim-lua/kickstart.nvim?tab=readme-ov-file
 // - Personal configuration: https://github.com/cjairm/devenv/blob/main/nvim/init.lua
 // - Releases: https://github.com/neovim/neovim/releases
+//
+// NOTE: Is it possible to install different themes?
+// If so, see more here: https://linovox.com/the-best-color-schemes-for-neovim-nvim/
 // -------------------------
 
 package macos
