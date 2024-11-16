@@ -3,6 +3,8 @@ package common
 import (
 	"bufio"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"time"
@@ -98,7 +100,36 @@ func MkdirOrCopyFile(
 	return nil
 }
 
+func FileAlreadyExist(filePath string) bool {
+	if _, err := os.Stat(filePath); err == nil {
+		return true
+	} else if os.IsNotExist(err) {
+		return false
+	}
+	return false
+}
+
 func IsCommandInstalled(command string) bool {
 	_, err := exec.LookPath(command)
 	return err == nil
+}
+
+func DownloadFile(url string, filepath string) error {
+	// Create the file
+	out, err := os.Create(filepath)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	// Get the data
+	resp, err := http.Get(url)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	// Write the body to file
+	_, err = io.Copy(out, resp.Body)
+	return err
 }

@@ -47,6 +47,7 @@ func RunTerminalInstallers(devgitaPath string) error {
 		macos.InstallGitHubCli,
 		macos.InstallLazyDocker,
 		macos.InstallLazyGit,
+		macos.InstallNeovim,
 	}
 	for _, installFunc := range installFunctions {
 		if err := installFunc(); err != nil {
