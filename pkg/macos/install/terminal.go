@@ -12,7 +12,7 @@ import (
 func upgradeHomebrew() error {
 	err := common.ExecCommand("Upgrating Homebrew", "Homebrew upgrated ✔", "brew", "upgrade")
 	if err != nil {
-		fmt.Println("Please try `brew doctor` to fix the issue")
+		fmt.Println("Please try `brew doctor`. It may fix the issue")
 		fmt.Println("Installation stopped.")
 		os.Exit(1)
 	}
@@ -47,7 +47,9 @@ func RunTerminalInstallers(devgitaPath string) error {
 		macos.InstallGitHubCli,
 		macos.InstallLazyDocker,
 		macos.InstallLazyGit,
-		macos.InstallNeovim,
+		func() error {
+			return macos.InstallNeovim(devgitaPath)
+		},
 	}
 	for _, installFunc := range installFunctions {
 		if err := installFunc(); err != nil {

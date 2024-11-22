@@ -7,9 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"time"
-
-	"github.com/briandowns/spinner"
+	"path/filepath"
 )
 
 var Devgita = fmt.Sprintf(`
@@ -39,9 +37,8 @@ func ExecCommand(startMessage string, endMessage string, name string, args ...st
 		return err
 	}
 
-	s := spinner.New(spinner.CharSets[9], 100*time.Millisecond)
-	s.Color("bold", "fgMagenta")
-	s.Start()
+	// To allow user to interact with the command (password)
+	cmd.Stdin = os.Stdin
 
 	// Start the command
 	if err := cmd.Start(); err != nil {
@@ -52,7 +49,7 @@ func ExecCommand(startMessage string, endMessage string, name string, args ...st
 	go func() {
 		scanner := bufio.NewScanner(stdout)
 		for scanner.Scan() {
-			s.Suffix = "\n" + scanner.Text()
+			fmt.Println(scanner.Text())
 		}
 	}()
 
@@ -60,13 +57,11 @@ func ExecCommand(startMessage string, endMessage string, name string, args ...st
 	go func() {
 		scanner := bufio.NewScanner(stderr)
 		for scanner.Scan() {
-			s.Suffix = "\n" + scanner.Text()
+			fmt.Println(scanner.Text())
 		}
 	}()
 
 	err = cmd.Wait()
-
-	s.Stop()
 
 	fmt.Printf(endMessage + "\n\n")
 
@@ -82,6 +77,33 @@ func CopyFile(src, dst string) error {
 	return os.WriteFile(dst, input, os.ModePerm)
 }
 
+// CopyDirectory copies a directory from src to dst
+func CopyDirectory(src, dst string) error {
+	entries, err := os.ReadDir(src)
+	if err != nil {
+		return err
+	}
+
+	for _, entry := range entries {
+		srcPath := filepath.Join(src, entry.Name())
+		dstPath := filepath.Join(dst, entry.Name())
+
+		if entry.IsDir() {
+			if err := os.MkdirAll(dstPath, os.ModePerm); err != nil {
+				return err
+			}
+			if err := CopyDirectory(srcPath, dstPath); err != nil {
+				return err
+			}
+		} else {
+			if err := CopyFile(srcPath, dstPath); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func MkdirOrCopyFile(
 	filePath string,
 	dirPath string,
@@ -89,7 +111,7 @@ func MkdirOrCopyFile(
 	appName string,
 ) error {
 	// Check if file already exists
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+	if !FileAlreadyExist(filePath) {
 		// Create the directory if it doesn't exist
 		if err := os.MkdirAll(dirPath, os.ModePerm); err != nil {
 			return err
@@ -101,7 +123,7 @@ func MkdirOrCopyFile(
 }
 
 func FileAlreadyExist(filePath string) bool {
-	if _, err := os.Stat(filePath); err == nil {
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		return true
 	} else if os.IsNotExist(err) {
 		return false

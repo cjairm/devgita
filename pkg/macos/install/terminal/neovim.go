@@ -13,15 +13,16 @@ package macos
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/cjairm/devgita/pkg/common"
 	"github.com/manifoldco/promptui"
 )
 
-func InstallNeovim() error {
+func InstallNeovim(devgitaPath string) error {
 	if common.FileAlreadyExist("/usr/local/bin/nvim") &&
 		common.FileAlreadyExist("/usr/local/lib/nvim") &&
-		common.FileAlreadyExist("/usr/local/share/nvim") {
+		common.FileAlreadyExist("/usr/local/share/nvim") || common.IsCommandInstalled("nvim") {
 		fmt.Println("Neovim is already installed!")
 		return nil
 	}
@@ -118,7 +119,40 @@ func InstallNeovim() error {
 		return fmt.Errorf("Error removing temporary files: %v", err)
 	}
 
+	// Configure Neovim
+	configNeovim(devgitaPath)
+
 	fmt.Println("Neovim installed successfully!")
+	return nil
+}
+
+func configNeovim(devgitaPath string) error {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("Error getting home directory: %w", err)
+	}
+
+	nvimConfigDir := filepath.Join(homeDir, ".config", "nvim")
+	// Only attempt to set configuration if Neovim has never been run
+	if common.FileAlreadyExist(nvimConfigDir) {
+		fmt.Println("Neovim configuration already exists!")
+		return nil
+	}
+
+	if err := os.MkdirAll(nvimConfigDir, os.ModePerm); err != nil {
+		return fmt.Errorf("Error creating Neovim config directory: %w", err)
+	}
+
+	// Define the source directory
+	sourceDir := filepath.Join(devgitaPath, "pkg", "configs", "neovim")
+
+	// Copy contents from sourceDir to nvimConfigDir
+	if err := common.CopyDirectory(sourceDir, nvimConfigDir); err != nil {
+		return fmt.Errorf("Error copying files: %w", err)
+	}
+
+	fmt.Println("Neovim configuration set successfully!")
+
 	return nil
 }
 
