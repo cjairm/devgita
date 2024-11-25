@@ -10,6 +10,12 @@ import (
 	"path/filepath"
 )
 
+const (
+	Reset = "\033[0m"
+	Gray  = "\033[90m"
+	Red   = "\033[31m"
+)
+
 var Devgita = fmt.Sprintf(`
 %s
     .___                .__  __          
@@ -49,7 +55,7 @@ func ExecCommand(startMessage string, endMessage string, name string, args ...st
 	go func() {
 		scanner := bufio.NewScanner(stdout)
 		for scanner.Scan() {
-			fmt.Println(scanner.Text())
+			fmt.Printf(Gray+"%s"+Reset+"\n", scanner.Text())
 		}
 	}()
 
@@ -57,7 +63,7 @@ func ExecCommand(startMessage string, endMessage string, name string, args ...st
 	go func() {
 		scanner := bufio.NewScanner(stderr)
 		for scanner.Scan() {
-			fmt.Println(scanner.Text())
+			fmt.Printf(Red+"%s"+Reset+"\n", scanner.Text())
 		}
 	}()
 
