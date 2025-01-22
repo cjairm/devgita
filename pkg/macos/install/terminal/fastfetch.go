@@ -24,7 +24,7 @@ func InstallFastFetch(devgitaPath string) error {
 }
 
 func checkIfFastfetchIsInstalled() error {
-	if common.IsCommandInstalled("fastfetch") {
+	if !common.IsCommandInstalled("fastfetch") {
 		return installFastfetch()
 	}
 	return nil

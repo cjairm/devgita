@@ -9,8 +9,8 @@ import (
 	"strings"
 )
 
-var MACOS_VERSION_NUMBER = 14
-var MACOS_VERSION_NAME = "Sonoma"
+var MACOS_VERSION_NUMBER = 13
+var MACOS_VERSION_NAME = "Ventura"
 
 func CheckVersion() {
 	// Check if the OS is macOS
@@ -54,7 +54,8 @@ func CheckVersion() {
 		os.Exit(1)
 	}
 
-	// NOTE: (11/2/2024) Check if the version is at least 14.0 (macOS Sonoma)
+	// NOTE: (11/22/2024) Check if the version is at least 13.0 (macOS Sonoma)
+	// Update to the latest version if necessary
 	if major < MACOS_VERSION_NUMBER || (major == MACOS_VERSION_NUMBER && minor < 0) {
 		fmt.Printf("\033[31mError: OS requirement not met\033[0m\n")
 		fmt.Printf("You are currently running: macOS %s\n", versionStr)
