@@ -19,22 +19,30 @@ func InstallLazyGit() error {
 
 // installLazygit installs Lazygit using Homebrew.
 func installLazygit() error {
-	return common.ExecCommand(
-		"Installing Lazygit",
-		"Lazygit installed ✔",
-		"brew",
-		"install",
-		"lazygit",
-	)
+	cmd := common.CommandInfo{
+		PreExecutionMessage:  "Installing Lazygit",
+		PostExecutionMessage: "Lazygit installed ✔",
+		IsSudo:               false,
+		Command:              "brew",
+		Args: []string{
+			"install",
+			"lazygit",
+		},
+	}
+	return common.ExecCommand(cmd)
 }
 
 // upgradeLazygit upgrades Lazygit using Homebrew.
 func upgradeLazygit() error {
-	return common.ExecCommand(
-		"Upgrading Lazygit",
-		"Lazygit upgraded ✔",
-		"brew",
-		"upgrade",
-		"lazygit",
-	)
+	cmd := common.CommandInfo{
+		PreExecutionMessage:  "Upgrading Lazygit",
+		PostExecutionMessage: "Lazygit upgraded ✔",
+		IsSudo:               false,
+		Command:              "brew",
+		Args: []string{
+			"upgrade",
+			"lazygit",
+		},
+	}
+	return common.ExecCommand(cmd)
 }

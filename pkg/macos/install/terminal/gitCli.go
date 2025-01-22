@@ -21,22 +21,30 @@ func InstallGitHubCli() error {
 
 // installGitHubCLI installs GitHub CLI using Homebrew.
 func installGitHubCLI() error {
-	return common.ExecCommand(
-		"Installing GitHub CLI",
-		"GitHub CLI installed ✔",
-		"brew",
-		"install",
-		"gh",
-	)
+	cmd := common.CommandInfo{
+		PreExecutionMessage:  "Installing GitHub CLI",
+		PostExecutionMessage: "GitHub CLI installed ✔",
+		IsSudo:               false,
+		Command:              "brew",
+		Args: []string{
+			"install",
+			"gh",
+		},
+	}
+	return common.ExecCommand(cmd)
 }
 
 // upgradeGitHubCLI upgrades GitHub CLI using Homebrew.
 func upgradeGitHubCLI() error {
-	return common.ExecCommand(
-		"Upgrading GitHub CLI",
-		"GitHub CLI upgraded ✔",
-		"brew",
-		"upgrade",
-		"gh",
-	)
+	cmd := common.CommandInfo{
+		PreExecutionMessage:  "Upgrading GitHub CLI",
+		PostExecutionMessage: "GitHub CLI upgraded ✔",
+		IsSudo:               false,
+		Command:              "brew",
+		Args: []string{
+			"upgrade",
+			"gh",
+		},
+	}
+	return common.ExecCommand(cmd)
 }

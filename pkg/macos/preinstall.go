@@ -35,17 +35,30 @@ func isHomebrewInstalled() bool {
 }
 
 func installHomebrew() error {
-	return common.ExecCommand(
-		"Installing Homebrew",
-		"Homebrew installed ✔",
-		"bash",
-		"-c",
-		"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)",
-	)
+	cmd := common.CommandInfo{
+		PreExecutionMessage:  "Installing Homebrew",
+		PostExecutionMessage: "Homebrew installed ✔",
+		IsSudo:               false,
+		Command:              "bash",
+		Args: []string{
+			"-c",
+			"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)",
+		},
+	}
+	return common.ExecCommand(cmd)
 }
 
 func updateHomebrew() error {
-	return common.ExecCommand("Updating Homebrew", "Homebrew updated ✔", "brew", "update")
+	cmd := common.CommandInfo{
+		PreExecutionMessage:  "Updating Homebrew",
+		PostExecutionMessage: "Homebrew updated ✔",
+		IsSudo:               false,
+		Command:              "brew",
+		Args: []string{
+			"update",
+		},
+	}
+	return common.ExecCommand(cmd)
 }
 
 func isGitInstalled() bool {
@@ -54,5 +67,15 @@ func isGitInstalled() bool {
 }
 
 func installGit() error {
-	return common.ExecCommand("Installing Git", "Git installed ✔", "brew", "install", "git")
+	cmd := common.CommandInfo{
+		PreExecutionMessage:  "Installing Git",
+		PostExecutionMessage: "Git installed ✔",
+		IsSudo:               false,
+		Command:              "brew",
+		Args: []string{
+			"install",
+			"git",
+		},
+	}
+	return common.ExecCommand(cmd)
 }

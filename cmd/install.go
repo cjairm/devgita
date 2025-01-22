@@ -50,7 +50,6 @@ func run(cmd *cobra.Command, args []string) {
 	}
 
 	// NOTE: Confirm `brew reinstall --cask font-hack-nerd-font`
-
 	switch runtime.GOOS {
 	case "darwin":
 		macos.PreInstall()

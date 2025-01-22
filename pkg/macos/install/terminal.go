@@ -10,7 +10,14 @@ import (
 
 // Function to upgrade Homebrew
 func upgradeHomebrew() error {
-	err := common.ExecCommand("Upgrating Homebrew", "Homebrew upgrated ✔", "brew", "upgrade")
+	cmd := common.CommandInfo{
+		PreExecutionMessage:  "Upgrating Homebrew",
+		PostExecutionMessage: "Homebrew upgrated ✔",
+		IsSudo:               false,
+		Command:              "brew",
+		Args:                 []string{"upgrade"},
+	}
+	err := common.ExecCommand(cmd)
 	if err != nil {
 		fmt.Println("Please try `brew doctor`. It may fix the issue")
 		fmt.Println("Installation stopped.")
@@ -21,17 +28,38 @@ func upgradeHomebrew() error {
 
 // Function to install curl
 func installCurl() error {
-	return common.ExecCommand("Installing curl", "curl installed ✔", "brew", "install", "curl")
+	cmd := common.CommandInfo{
+		PreExecutionMessage:  "Installing curl",
+		PostExecutionMessage: "curl installed ✔",
+		IsSudo:               false,
+		Command:              "brew",
+		Args:                 []string{"install", "curl"},
+	}
+	return common.ExecCommand(cmd)
 }
 
 // Function to install git
 func installGit() error {
-	return common.ExecCommand("Installing git", "git installed ✔", "brew", "install", "git")
+	cmd := common.CommandInfo{
+		PreExecutionMessage:  "Installing git",
+		PostExecutionMessage: "git installed ✔",
+		IsSudo:               false,
+		Command:              "brew",
+		Args:                 []string{"install", "git"},
+	}
+	return common.ExecCommand(cmd)
 }
 
 // Function to install unzip
 func installUnzip() error {
-	return common.ExecCommand("Installing unzip", "unzip installed ✔", "brew", "install", "unzip")
+	cmd := common.CommandInfo{
+		PreExecutionMessage:  "Installing unzip",
+		PostExecutionMessage: "unzip installed ✔",
+		IsSudo:               false,
+		Command:              "brew",
+		Args:                 []string{"install", "unzip"},
+	}
+	return common.ExecCommand(cmd)
 }
 
 // Function to run all terminal installers

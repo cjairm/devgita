@@ -58,64 +58,84 @@ func InstallNeovim(devgitaPath string) error {
 
 	// Extract the tar content
 	if !common.FileAlreadyExist(extractedFile) {
-		if err := common.ExecCommand("Extracting content", "Content extracted ✔", "tar", "-xf", tarFile, "-C", dest); err != nil {
+		cmd := common.CommandInfo{
+			PreExecutionMessage:  "Extracting content",
+			PostExecutionMessage: "Content extracted ✔",
+			IsSudo:               false,
+			Command:              "tar",
+			Args:                 []string{"-xf", tarFile, "-C", dest},
+		}
+		if err := common.ExecCommand(cmd); err != nil {
 			return fmt.Errorf("Error extracting content: %v", err)
 		}
 	}
 
 	// Install Neovim binary
 	if !common.FileAlreadyExist("/usr/local/bin/nvim") {
-		if err := common.ExecCommand(
-			"Installing Neovim binary",
-			"Neovim binary installed ✔",
-			"sudo",
-			"install",
-			fmt.Sprintf("%s/bin/nvim", extractedFile),
-			"/usr/local/bin/nvim",
-		); err != nil {
+		cmd := common.CommandInfo{
+			PreExecutionMessage:  "Installing Neovim binary",
+			PostExecutionMessage: "Neovim binary installed ✔",
+			IsSudo:               true,
+			Command:              "install",
+			Args: []string{
+				fmt.Sprintf("%s/bin/nvim", extractedFile),
+				"/usr/local/bin/nvim",
+			},
+		}
+		if err := common.ExecCommand(cmd); err != nil {
 			return fmt.Errorf("Error installing Neovim binary: %v", err)
 		}
 	}
 
 	// Copy lib to /usr/local
 	if !common.FileAlreadyExist("/usr/local/lib/nvim") {
-		if err := common.ExecCommand(
-			"Copying Neovim lib",
-			"lib copied ✔",
-			"sudo",
-			"cp",
-			"-R",
-			fmt.Sprintf("%s/lib", extractedFile),
-			"/usr/local/",
-		); err != nil {
+		cmd := common.CommandInfo{
+			PreExecutionMessage:  "Copying Neovim /lib",
+			PostExecutionMessage: "/lib copied ✔",
+			IsSudo:               true,
+			Command:              "cp",
+			Args: []string{
+				"-R",
+				fmt.Sprintf("%s/lib", extractedFile),
+				"/usr/local/",
+			},
+		}
+		if err := common.ExecCommand(cmd); err != nil {
 			return fmt.Errorf("Error copying lib files: %v", err)
 		}
 	}
 
 	// Copy share directories to /usr/local
 	if !common.FileAlreadyExist("/usr/local/share/nvim") {
-		if err := common.ExecCommand(
-			"Copying Neovim share",
-			"share copied ✔",
-			"sudo",
-			"cp",
-			"-R",
-			fmt.Sprintf("%s/share", extractedFile),
-			"/usr/local/",
-		); err != nil {
+		cmd := common.CommandInfo{
+			PreExecutionMessage:  "Copying Neovim /share",
+			PostExecutionMessage: "/share copied ✔",
+			IsSudo:               true,
+			Command:              "cp",
+			Args: []string{
+				"-R",
+				fmt.Sprintf("%s/share", extractedFile),
+				"/usr/local/",
+			},
+		}
+		if err := common.ExecCommand(cmd); err != nil {
 			return fmt.Errorf("Error copying share files: %v", err)
 		}
 	}
 
+	cmd := common.CommandInfo{
+		PreExecutionMessage:  "Cleaning up downloaded files",
+		PostExecutionMessage: "Downloaded files cleaned up ✔",
+		IsSudo:               false,
+		Command:              "rm",
+		Args: []string{
+			"-rf",
+			extractedFile,
+			tarFile,
+		},
+	}
 	// Clean up the downloaded files
-	if err := common.ExecCommand(
-		"Cleaning up downloaded files",
-		"Downloaded files cleaned up ✔",
-		"rm",
-		"-rf",
-		extractedFile,
-		tarFile,
-	); err != nil {
+	if err := common.ExecCommand(cmd); err != nil {
 		return fmt.Errorf("Error removing temporary files: %v", err)
 	}
 

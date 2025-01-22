@@ -16,6 +16,14 @@ const (
 	Red   = "\033[31m"
 )
 
+type CommandInfo struct {
+	PreExecutionMessage  string
+	PostExecutionMessage string
+	IsSudo               bool
+	Command              string
+	Args                 []string
+}
+
 var Devgita = fmt.Sprintf(`
 %s
     .___                .__  __          
@@ -27,9 +35,13 @@ var Devgita = fmt.Sprintf(`
 @cjairm
 %s`, "\033[1m", "\033[0m")
 
-func ExecCommand(startMessage string, endMessage string, name string, args ...string) error {
-	fmt.Printf(startMessage + "\n")
-	cmd := exec.Command(name, args...)
+func ExecCommand(cmdInfo CommandInfo) error {
+	fmt.Print(cmdInfo.PreExecutionMessage + "\n")
+	command := cmdInfo.Command
+	if cmdInfo.IsSudo {
+		command = "sudo " + command
+	}
+	cmd := exec.Command(command, cmdInfo.Args...)
 
 	// Create pipes to capture standard output
 	stdout, err := cmd.StdoutPipe()
@@ -69,7 +81,7 @@ func ExecCommand(startMessage string, endMessage string, name string, args ...st
 
 	err = cmd.Wait()
 
-	fmt.Printf(endMessage + "\n\n")
+	fmt.Print(cmdInfo.PostExecutionMessage + "\n\n")
 
 	return err
 }

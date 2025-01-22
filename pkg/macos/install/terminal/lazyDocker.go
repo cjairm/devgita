@@ -19,22 +19,30 @@ func InstallLazyDocker() error {
 
 // installLazyDocker installs LazyDocker using Homebrew.
 func installLazyDocker() error {
-	return common.ExecCommand(
-		"Installing LazyDocker",
-		"Lazydocker installed ✔",
-		"brew",
-		"install",
-		"jesseduffield/lazydocker/lazydocker",
-	)
+	cmd := common.CommandInfo{
+		PreExecutionMessage:  "Installing LazyDocker",
+		PostExecutionMessage: "Lazydocker installed ✔",
+		IsSudo:               false,
+		Command:              "brew",
+		Args: []string{
+			"install",
+			"jesseduffield/lazydocker/lazydocker",
+		},
+	}
+	return common.ExecCommand(cmd)
 }
 
 // upgradeLazyDocker upgrades LazyDocker using Homebrew.
 func upgradeLazyDocker() error {
-	return common.ExecCommand(
-		"Upgrading LazyDocker",
-		"Lazydocker upgraded ✔",
-		"brew",
-		"upgrade",
-		"jesseduffield/lazydocker/lazydocker",
-	)
+	cmd := common.CommandInfo{
+		PreExecutionMessage:  "Upgrading LazyDocker",
+		PostExecutionMessage: "Lazydocker upgraded ✔",
+		IsSudo:               false,
+		Command:              "brew",
+		Args: []string{
+			"upgrade",
+			"jesseduffield/lazydocker/lazydocker",
+		},
+	}
+	return common.ExecCommand(cmd)
 }

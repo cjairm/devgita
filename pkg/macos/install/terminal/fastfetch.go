@@ -31,13 +31,17 @@ func checkIfFastfetchIsInstalled() error {
 }
 
 func installFastfetch() error {
-	return common.ExecCommand(
-		"Installing fastfetch",
-		"fastfetch installed ✔",
-		"brew",
-		"install",
-		"fastfetch",
-	)
+	cmd := common.CommandInfo{
+		PreExecutionMessage:  "Installing fastfetch",
+		PostExecutionMessage: "fastfetch installed ✔",
+		IsSudo:               false,
+		Command:              "brew",
+		Args: []string{
+			"install",
+			"fastfetch",
+		},
+	}
+	return common.ExecCommand(cmd)
 }
 
 func setupFastFetch(devgitaPath string) error {
