@@ -164,9 +164,6 @@ vim.opt.scrolloff = 10
 vim.keymap.set('n', '<Esc>', '<cmd>nohlsearch<CR>')
 
 -- Diagnostic keymaps
--- Custom ***
-vim.keymap.set('n', '<leader>e', vim.diagnostic.open_float, { desc = 'Show diagnostic [E]rror messages' })
--- ***
 vim.keymap.set('n', '<leader>q', vim.diagnostic.setloclist, { desc = 'Open diagnostic [Q]uickfix list' })
 
 -- Exit terminal mode in the builtin terminal with a shortcut that is a bit easier
@@ -194,6 +191,9 @@ vim.keymap.set('n', '<C-k>', '<C-w><C-k>', { desc = 'Move focus to the upper win
 
 -- [[ Basic Autocommands ]]
 --  See `:help lua-guide-autocommands`
+-- Custom ***
+require('custom.options.pre')
+-- ***
 
 -- Highlight when yanking (copying) text
 --  Try it with `yap` in normal mode
@@ -229,7 +229,7 @@ vim.opt.rtp:prepend(lazypath)
 --    :Lazy update
 --
 -- NOTE: Here is where you install your plugins.
-require('lazy').setup('custom/plugins', {
+require('lazy').setup('custom.plugins', {
   ui = {
     -- If you are using a Nerd Font: set icons to an empty table which will use the
     -- default lazy.nvim defined Nerd Font icons, otherwise define a unicode icons table
@@ -255,72 +255,5 @@ require('lazy').setup('custom/plugins', {
 -- vim: ts=2 sts=2 sw=2 et
 --
 -- Custom ***
--- when creating a new line, copy the indentation from the line above
-vim.opt.autoindent = true
-vim.opt.numberwidth = 1
-
-vim.opt.cc = '80'
-vim.opt.ruler = true
-
--- Enable relative number
-vim.o.relativenumber = true
-
--- [[ Theme ]]
-vim.o.background = 'dark'
-vim.cmd [[colorscheme gruvbox]]
-
--- [[ Random ]]
-vim.keymap.set('n', '<leader>bd', ':bd<CR>', { desc = 'Close current buffer' })
-vim.keymap.set('n', '<leader>cpr', ':let @+ = expand("%")<CR>', { desc = '[C]opy [P]ath [R]elative' })
-vim.keymap.set('n', '<leader>cpa', ':let @+ = expand("%:p")<CR>', { desc = '[C]opy [P]ath [A]bsolute' })
-
--- [[ Windows ]]
-vim.keymap.set('n', '<leader>wv', ':wincmd v<CR>', { desc = 'Creates [W]indow [V]ertical' })
-vim.keymap.set('n', '<leader>wr', ':wincmd r<CR>', { desc = '[W]indow [R]otates' })
-
--- transparent background
-vim.api.nvim_set_hl(0, 'Normal', { bg = 'none' })
-vim.api.nvim_set_hl(0, 'NormalFloat', { bg = 'none' })
-vim.api.nvim_set_hl(0, 'FloatBorder', { bg = 'none' })
-vim.api.nvim_set_hl(0, 'Pmenu', { bg = 'none' })
-vim.api.nvim_set_hl(0, 'Terminal', { bg = 'none' })
-vim.api.nvim_set_hl(0, 'EndOfBuffer', { bg = 'none' })
-vim.api.nvim_set_hl(0, 'FoldColumn', { bg = 'none' })
-vim.api.nvim_set_hl(0, 'Folded', { bg = 'none' })
-vim.api.nvim_set_hl(0, 'SignColumn', { bg = 'none' })
-vim.api.nvim_set_hl(0, 'NormalNC', { bg = 'none' })
-vim.api.nvim_set_hl(0, 'WhichKeyFloat', { bg = 'none' })
-vim.api.nvim_set_hl(0, 'TelescopeBorder', { bg = 'none' })
-vim.api.nvim_set_hl(0, 'TelescopeNormal', { bg = 'none' })
-vim.api.nvim_set_hl(0, 'TelescopePromptBorder', { bg = 'none' })
-vim.api.nvim_set_hl(0, 'TelescopePromptTitle', { bg = 'none' })
-
--- transparent background for neotree
-vim.api.nvim_set_hl(0, 'NeoTreeNormal', { bg = 'none' })
-vim.api.nvim_set_hl(0, 'NeoTreeNormalNC', { bg = 'none' })
-vim.api.nvim_set_hl(0, 'NeoTreeVertSplit', { bg = 'none' })
-vim.api.nvim_set_hl(0, 'NeoTreeWinSeparator', { bg = 'none' })
-vim.api.nvim_set_hl(0, 'NeoTreeEndOfBuffer', { bg = 'none' })
-
--- transparent background for nvim-tree
-vim.api.nvim_set_hl(0, 'NvimTreeNormal', { bg = 'none' })
-vim.api.nvim_set_hl(0, 'NvimTreeVertSplit', { bg = 'none' })
-vim.api.nvim_set_hl(0, 'NvimTreeEndOfBuffer', { bg = 'none' })
-
--- transparent notify background
-vim.api.nvim_set_hl(0, 'NotifyINFOBody', { bg = 'none' })
-vim.api.nvim_set_hl(0, 'NotifyERRORBody', { bg = 'none' })
-vim.api.nvim_set_hl(0, 'NotifyWARNBody', { bg = 'none' })
-vim.api.nvim_set_hl(0, 'NotifyTRACEBody', { bg = 'none' })
-vim.api.nvim_set_hl(0, 'NotifyDEBUGBody', { bg = 'none' })
-vim.api.nvim_set_hl(0, 'NotifyINFOTitle', { bg = 'none' })
-vim.api.nvim_set_hl(0, 'NotifyERRORTitle', { bg = 'none' })
-vim.api.nvim_set_hl(0, 'NotifyWARNTitle', { bg = 'none' })
-vim.api.nvim_set_hl(0, 'NotifyTRACETitle', { bg = 'none' })
-vim.api.nvim_set_hl(0, 'NotifyDEBUGTitle', { bg = 'none' })
-vim.api.nvim_set_hl(0, 'NotifyINFOBorder', { bg = 'none' })
-vim.api.nvim_set_hl(0, 'NotifyERRORBorder', { bg = 'none' })
-vim.api.nvim_set_hl(0, 'NotifyWARNBorder', { bg = 'none' })
-vim.api.nvim_set_hl(0, 'NotifyTRACEBorder', { bg = 'none' })
-vim.api.nvim_set_hl(0, 'NotifyDEBUGBorder', { bg = 'none' })
+require('custom.options.post')
 -- ***
