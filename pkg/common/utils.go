@@ -141,12 +141,13 @@ func MkdirOrCopyFile(
 }
 
 func FileAlreadyExist(filePath string) bool {
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		return true
-	} else if os.IsNotExist(err) {
+	if _, err := os.Stat(filePath); err != nil {
+		if os.IsNotExist(err) {
+			return false
+		}
 		return false
 	}
-	return false
+	return true
 }
 
 func IsCommandInstalled(command string) bool {
