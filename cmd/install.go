@@ -48,7 +48,6 @@ func run(cmd *cobra.Command, args []string) {
 		fmt.Println("Installation stopped.")
 		os.Exit(1)
 	}
-
 	// NOTE: Confirm `brew reinstall --cask font-hack-nerd-font`
 	switch runtime.GOOS {
 	case "darwin":
@@ -63,11 +62,8 @@ func run(cmd *cobra.Command, args []string) {
 			fmt.Println("Installation stopped.")
 			os.Exit(1)
 		}
-
 		fmt.Printf("Starting installation...\n\n")
-
 		ctx = macosInstall.ChooseLanguages(ctx)
-
 		macosInstall.RunTerminalInstallers(devgitaPath)
 		// config, ok := common.GetConfig(ctx)
 	case "linux":

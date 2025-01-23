@@ -14,12 +14,10 @@ func PreInstall() error {
 			return err
 		}
 	}
-
 	if err := updateHomebrew(); err != nil {
 		log.Fatalf("Failed to update Homebrew: %v", err)
 		return err
 	}
-
 	if !isGitInstalled() {
 		if err := installGit(); err != nil {
 			log.Fatalf("Failed to install Git: %v", err)

@@ -78,6 +78,9 @@ func RunTerminalInstallers(devgitaPath string) error {
 		func() error {
 			return macos.InstallNeovim(devgitaPath)
 		},
+		func() error {
+			return macos.InstallTmux(devgitaPath)
+		},
 	}
 	for _, installFunc := range installFunctions {
 		if err := installFunc(); err != nil {
