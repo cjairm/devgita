@@ -42,8 +42,8 @@ func isBrewPackageInstalled(packageName string) (bool, error) {
 
 func BrewInstall(packageName string) error {
 	cmd := CommandInfo{
-		PreExecutionMessage:  fmt.Sprintf("Installing %s using Homebrew...\n", packageName),
-		PostExecutionMessage: fmt.Sprintf("%s installed successfully ✔\n", packageName),
+		PreExecutionMessage:  fmt.Sprintf("Installing %s using Homebrew...", packageName),
+		PostExecutionMessage: fmt.Sprintf("%s installed successfully ✔", packageName),
 		IsSudo:               false,
 		Command:              "brew",
 		Args:                 []string{"install", packageName},
@@ -53,7 +53,7 @@ func BrewInstall(packageName string) error {
 
 func BrewUpgrade(packageName string) error {
 	cmd := CommandInfo{
-		PreExecutionMessage:  fmt.Sprintf("Upgrading %s using Homebrew...\n", packageName),
+		PreExecutionMessage:  fmt.Sprintf("Upgrading %s using Homebrew...", packageName),
 		PostExecutionMessage: fmt.Sprintf("%s upgraded successfully ✔\n", packageName),
 		IsSudo:               false,
 		Command:              "brew",

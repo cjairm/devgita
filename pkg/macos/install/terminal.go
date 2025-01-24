@@ -32,15 +32,15 @@ func RunTerminalInstallers(devgitaPath string) error {
 		upgradeHomebrew,
 		// Function to install curl
 		func() error {
-			return common.BrewInstall("curl")
+			return common.InstallOrUpdateBrewPackage("curl")
 		},
 		// Function to install git
 		func() error {
-			return common.BrewInstall("git")
+			return common.InstallOrUpdateBrewPackage("git")
 		},
 		// Function to install unzip
 		func() error {
-			return common.BrewInstall("unzip")
+			return common.InstallOrUpdateBrewPackage("unzip")
 		},
 		func() error {
 			return macos.InstallFastFetch(devgitaPath)

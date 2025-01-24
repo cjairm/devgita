@@ -150,6 +150,34 @@ func FileAlreadyExist(filePath string) bool {
 	return true
 }
 
+// MoveContents moves files or folders from the source path to the target directory.
+func MoveContents(srcPath, targetDir string) error {
+	// Check if the target directory exists, if not, create it
+	if !FileAlreadyExist(targetDir) {
+		if err := os.MkdirAll(targetDir, os.ModePerm); err != nil {
+			return fmt.Errorf("error creating target directory: %w", err)
+		}
+	}
+	// Check if the source path is a directory
+	srcInfo, err := os.Stat(srcPath)
+	if err != nil {
+		return fmt.Errorf("error stating source path: %w", err)
+	}
+	if srcInfo.IsDir() {
+		// If it's a directory, copy its contents
+		if err := CopyDirectory(srcPath, targetDir); err != nil {
+			return fmt.Errorf("error copying directory: %w", err)
+		}
+	} else {
+		// If it's a file, copy it directly to the target directory
+		targetFilePath := filepath.Join(targetDir, srcInfo.Name())
+		if err := CopyFile(srcPath, targetFilePath); err != nil {
+			return fmt.Errorf("error copying file: %w", err)
+		}
+	}
+	return nil
+}
+
 func IsCommandInstalled(command string) bool {
 	_, err := exec.LookPath(command)
 	return err == nil

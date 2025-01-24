@@ -17,44 +17,14 @@ import (
 )
 
 func InstallTmux(devgitaPath string) error {
-	if common.IsCommandInstalled("tmux") {
-		if err := upgradeTmux(); err != nil {
-			return err
-		}
-	} else {
-		if err := installTmux(); err != nil {
-			return err
-		}
+	if err := common.InstallOrUpdateBrewPackage("tmux"); err != nil {
+		return err
 	}
 	// Copy .tmux.conf to the home directory
 	if err := copyTmuxConfig(devgitaPath); err != nil {
 		return fmt.Errorf("Error copying .tmux.conf: %v", err)
 	}
 	return nil
-}
-
-// installTmux installs Tmux using Homebrew.
-func installTmux() error {
-	cmd := common.CommandInfo{
-		PreExecutionMessage:  "Installing Tmux using Homebrew...",
-		PostExecutionMessage: "Tmux installed successfully ✔",
-		IsSudo:               false,
-		Command:              "brew",
-		Args:                 []string{"install", "tmux"},
-	}
-	return common.ExecCommand(cmd)
-}
-
-// upgradeTmux upgrades Tmux using Homebrew.
-func upgradeTmux() error {
-	cmd := common.CommandInfo{
-		PreExecutionMessage:  "Upgrading Tmux using Homebrew...",
-		PostExecutionMessage: "Tmux upgraded ✔",
-		IsSudo:               false,
-		Command:              "brew",
-		Args:                 []string{"upgrade", "tmux"},
-	}
-	return common.ExecCommand(cmd)
 }
 
 func copyTmuxConfig(devgitaPath string) error {
@@ -64,7 +34,7 @@ func copyTmuxConfig(devgitaPath string) error {
 	}
 	destinationFile := filepath.Join(homeDir, ".tmux.conf")
 	if common.FileAlreadyExist(destinationFile) {
-		fmt.Println("Tmux configuration already exists!")
+		fmt.Sprint("Tmux configuration already exists!\n\n")
 		return nil
 	}
 	// Define the source directory for .tmux.conf

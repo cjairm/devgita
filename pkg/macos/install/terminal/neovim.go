@@ -23,7 +23,7 @@ func InstallNeovim(devgitaPath string) error {
 	if (common.FileAlreadyExist("/usr/local/bin/nvim") &&
 		common.FileAlreadyExist("/usr/local/lib/nvim") &&
 		common.FileAlreadyExist("/usr/local/share/nvim")) || common.IsCommandInstalled("nvim") {
-		fmt.Println("Neovim is already installed!")
+		fmt.Sprint("Neovim is already installed!\n\n")
 		return nil
 	}
 

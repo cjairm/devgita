@@ -14,45 +14,25 @@ import (
 )
 
 func InstallFastFetch(devgitaPath string) error {
-	if err := checkIfFastfetchIsInstalled(); err != nil {
-		return fmt.Errorf("Error checking fastfetch: %w", err)
+	if err := common.InstallOrUpdateBrewPackage("fastfetch"); err != nil {
+		return err
 	}
-	if err := setupFastFetch(devgitaPath); err != nil {
-		return fmt.Errorf("Error setting up config: %w", err)
-	}
-	return nil
-}
-
-func checkIfFastfetchIsInstalled() error {
-	if !common.IsCommandInstalled("fastfetch") {
-		return installFastfetch()
+	if err := configureFastFetch(devgitaPath); err != nil {
+		return fmt.Errorf("Error copying fastfetch config: %v", err)
 	}
 	return nil
+
 }
 
-func installFastfetch() error {
-	cmd := common.CommandInfo{
-		PreExecutionMessage:  "Installing fastfetch",
-		PostExecutionMessage: "fastfetch installed ✔",
-		IsSudo:               false,
-		Command:              "brew",
-		Args: []string{
-			"install",
-			"fastfetch",
-		},
-	}
-	return common.ExecCommand(cmd)
-}
-
-func setupFastFetch(devgitaPath string) error {
+func configureFastFetch(devgitaPath string) error {
 	configDir := filepath.Join(os.Getenv("HOME"), ".config", "fastfetch")
-	configFile := filepath.Join(configDir, "config.jsonc")
 	devgitaConfig := filepath.Join(
 		devgitaPath,
-		"pkg",
 		"configs",
-		"fastfetch.jsonc",
+		"fastfetch",
 	)
-
-	return common.MkdirOrCopyFile(configFile, configDir, devgitaConfig, "fastfetch config")
+	if err := common.MoveContents(devgitaConfig, configDir); err != nil {
+		return fmt.Errorf("error setting up fastfetch: %w", err)
+	}
+	return nil
 }
