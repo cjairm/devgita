@@ -8,28 +8,19 @@ import (
 	macos "github.com/cjairm/devgita/pkg/macos/install/terminal"
 )
 
-// Function to upgrade Homebrew
-func upgradeHomebrew() error {
-	cmd := common.CommandInfo{
-		PreExecutionMessage:  "Upgrating Homebrew",
-		PostExecutionMessage: "Homebrew upgrated ✔",
-		IsSudo:               false,
-		Command:              "brew",
-		Args:                 []string{"upgrade"},
-	}
-	err := common.ExecCommand(cmd)
-	if err != nil {
-		fmt.Println("Please try `brew doctor`. It may fix the issue")
-		fmt.Println("Installation stopped.")
-		os.Exit(1)
-	}
-	return nil
-}
-
 // Function to run all terminal installers
 func RunTerminalInstallers(devgitaPath string) error {
 	installFunctions := []func() error{
-		upgradeHomebrew,
+		// Function to upgrade Homebrew
+		func() error {
+			err := common.BrewGlobalUpgrade()
+			if err != nil {
+				fmt.Println("Please try `brew doctor`. It may fix the issue")
+				fmt.Println("Installation stopped.")
+				os.Exit(1)
+			}
+			return nil
+		},
 		// Function to install curl
 		func() error {
 			return common.InstallOrUpdateBrewPackage("curl")
@@ -42,20 +33,35 @@ func RunTerminalInstallers(devgitaPath string) error {
 		func() error {
 			return common.InstallOrUpdateBrewPackage("unzip")
 		},
+		// Installs and configures fast-fetch
 		func() error {
 			return macos.InstallFastFetch(devgitaPath)
 		},
-		macos.InstallGitHubCli,
-		macos.InstallLazyDocker,
-		macos.InstallLazyGit,
+		// Function to install GitHub CLI
+		func() error {
+			return common.InstallOrUpdateBrewPackage("gh")
+		},
+		// Function to install Lazy Docker
+		func() error {
+			return common.InstallOrUpdateBrewPackage(
+				"jesseduffield/lazydocker/lazydocker",
+				"lazydocker",
+			)
+		},
+		// Function to install Lazy Git
+		func() error {
+			return common.InstallOrUpdateBrewPackage("lazygit")
+		},
+		// Installs and configures neovim
 		func() error {
 			return macos.InstallNeovim(devgitaPath)
 		},
+		// Installs and configures tmux
 		func() error {
 			return macos.InstallTmux(devgitaPath)
 		},
+		// installs fzf, ripgrep, bat, eza, zoxide, btop, fd-find, tldr
 		func() error {
-			// installs fzf, ripgrep, bat, eza, zoxide, btop, fd (fd-find), tldr
 			packages := []string{"fzf", "ripgrep", "bat", "eza", "zoxide", "btop", "fd", "tldr"}
 			for _, pkg := range packages {
 				if err := common.InstallOrUpdateBrewPackage(pkg); err != nil {

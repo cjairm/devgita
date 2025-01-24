@@ -25,14 +25,24 @@ func InstallFastFetch(devgitaPath string) error {
 }
 
 func configureFastFetch(devgitaPath string) error {
-	configDir := filepath.Join(os.Getenv("HOME"), ".config", "fastfetch")
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("Error getting home directory: %w", err)
+	}
+	configDir := filepath.Join(homeDir, ".config", "fastfetch")
+	configFile := filepath.Join(configDir, "config.jsonc")
 	devgitaConfig := filepath.Join(
 		devgitaPath,
 		"configs",
 		"fastfetch",
 	)
+	if common.FileAlreadyExist(configFile) {
+		fmt.Printf("%s already exist\n\n", configFile)
+		return nil
+	}
 	if err := common.MoveContents(devgitaConfig, configDir); err != nil {
 		return fmt.Errorf("error setting up fastfetch: %w", err)
 	}
+	fmt.Printf("FastFetch configuration set successfully!\n\n")
 	return nil
 }

@@ -6,8 +6,14 @@ import (
 	"os/exec"
 )
 
-func InstallOrUpdateBrewPackage(packageName string) error {
-	isInstalled, err := isBrewPackageInstalled(packageName)
+func InstallOrUpdateBrewPackage(packageName string, alias ...string) error {
+	var isInstalled bool
+	var err error
+	if len(alias) > 0 {
+		isInstalled, err = isBrewPackageInstalled(alias[0])
+	} else {
+		isInstalled, err = isBrewPackageInstalled(packageName)
+	}
 	if err != nil {
 		return err
 	}
@@ -58,6 +64,17 @@ func BrewUpgrade(packageName string) error {
 		IsSudo:               false,
 		Command:              "brew",
 		Args:                 []string{"upgrade", packageName},
+	}
+	return ExecCommand(cmd)
+}
+
+func BrewGlobalUpgrade() error {
+	cmd := CommandInfo{
+		PreExecutionMessage:  "Upgrating Homebrew",
+		PostExecutionMessage: "Homebrew upgrated ✔",
+		IsSudo:               false,
+		Command:              "brew",
+		Args:                 []string{"upgrade"},
 	}
 	return ExecCommand(cmd)
 }

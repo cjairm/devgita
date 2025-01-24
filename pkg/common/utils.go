@@ -150,10 +150,25 @@ func FileAlreadyExist(filePath string) bool {
 	return true
 }
 
+func DirAlreadyExist(folderPath string) bool {
+	info, err := os.Stat(folderPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false // Directory does not exist
+		}
+		return false // An error occurred (e.g., permission denied)
+	}
+	isDir := info.IsDir()
+	if isDir {
+		return true
+	}
+	return false
+}
+
 // MoveContents moves files or folders from the source path to the target directory.
 func MoveContents(srcPath, targetDir string) error {
 	// Check if the target directory exists, if not, create it
-	if !FileAlreadyExist(targetDir) {
+	if !DirAlreadyExist(targetDir) {
 		if err := os.MkdirAll(targetDir, os.ModePerm); err != nil {
 			return fmt.Errorf("error creating target directory: %w", err)
 		}
