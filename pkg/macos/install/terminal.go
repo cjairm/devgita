@@ -26,49 +26,22 @@ func upgradeHomebrew() error {
 	return nil
 }
 
-// Function to install curl
-func installCurl() error {
-	cmd := common.CommandInfo{
-		PreExecutionMessage:  "Installing curl",
-		PostExecutionMessage: "curl installed ✔",
-		IsSudo:               false,
-		Command:              "brew",
-		Args:                 []string{"install", "curl"},
-	}
-	return common.ExecCommand(cmd)
-}
-
-// Function to install git
-func installGit() error {
-	cmd := common.CommandInfo{
-		PreExecutionMessage:  "Installing git",
-		PostExecutionMessage: "git installed ✔",
-		IsSudo:               false,
-		Command:              "brew",
-		Args:                 []string{"install", "git"},
-	}
-	return common.ExecCommand(cmd)
-}
-
-// Function to install unzip
-func installUnzip() error {
-	cmd := common.CommandInfo{
-		PreExecutionMessage:  "Installing unzip",
-		PostExecutionMessage: "unzip installed ✔",
-		IsSudo:               false,
-		Command:              "brew",
-		Args:                 []string{"install", "unzip"},
-	}
-	return common.ExecCommand(cmd)
-}
-
 // Function to run all terminal installers
 func RunTerminalInstallers(devgitaPath string) error {
 	installFunctions := []func() error{
 		upgradeHomebrew,
-		installCurl,
-		installGit,
-		installUnzip,
+		// Function to install curl
+		func() error {
+			return common.BrewInstall("curl")
+		},
+		// Function to install git
+		func() error {
+			return common.BrewInstall("git")
+		},
+		// Function to install unzip
+		func() error {
+			return common.BrewInstall("unzip")
+		},
 		func() error {
 			return macos.InstallFastFetch(devgitaPath)
 		},
@@ -80,6 +53,16 @@ func RunTerminalInstallers(devgitaPath string) error {
 		},
 		func() error {
 			return macos.InstallTmux(devgitaPath)
+		},
+		func() error {
+			// installs fzf, ripgrep, bat, eza, zoxide, btop, fd (fd-find), tldr
+			packages := []string{"fzf", "ripgrep", "bat", "eza", "zoxide", "btop", "fd", "tldr"}
+			for _, pkg := range packages {
+				if err := common.InstallOrUpdateBrewPackage(pkg); err != nil {
+					return err
+				}
+			}
+			return nil
 		},
 	}
 	for _, installFunc := range installFunctions {
