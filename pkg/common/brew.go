@@ -78,3 +78,14 @@ func BrewGlobalUpgrade() error {
 	}
 	return ExecCommand(cmd)
 }
+
+func BrewGlobalUpdate() error {
+	cmd := CommandInfo{
+		PreExecutionMessage:  "Updating Homebrew",
+		PostExecutionMessage: "Homebrew updated ✔",
+		IsSudo:               false,
+		Command:              "brew",
+		Args:                 []string{"update"},
+	}
+	return ExecCommand(cmd)
+}

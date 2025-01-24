@@ -25,10 +25,6 @@ func RunTerminalInstallers(devgitaPath string) error {
 		func() error {
 			return common.InstallOrUpdateBrewPackage("curl")
 		},
-		// Function to install git
-		func() error {
-			return common.InstallOrUpdateBrewPackage("git")
-		},
 		// Function to install unzip
 		func() error {
 			return common.InstallOrUpdateBrewPackage("unzip")

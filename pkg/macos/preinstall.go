@@ -14,15 +14,13 @@ func PreInstall() error {
 			return err
 		}
 	}
-	if err := updateHomebrew(); err != nil {
+	if err := common.BrewGlobalUpdate(); err != nil {
 		log.Fatalf("Failed to update Homebrew: %v", err)
 		return err
 	}
-	if !isGitInstalled() {
-		if err := installGit(); err != nil {
-			log.Fatalf("Failed to install Git: %v", err)
-			return err
-		}
+	if err := common.InstallOrUpdateBrewPackage("git"); err != nil {
+		log.Fatalf("Failed to install git: %v", err)
+		return err
 	}
 	return nil
 }
@@ -41,38 +39,6 @@ func installHomebrew() error {
 		Args: []string{
 			"-c",
 			"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)",
-		},
-	}
-	return common.ExecCommand(cmd)
-}
-
-func updateHomebrew() error {
-	cmd := common.CommandInfo{
-		PreExecutionMessage:  "Updating Homebrew",
-		PostExecutionMessage: "Homebrew updated ✔",
-		IsSudo:               false,
-		Command:              "brew",
-		Args: []string{
-			"update",
-		},
-	}
-	return common.ExecCommand(cmd)
-}
-
-func isGitInstalled() bool {
-	err := exec.Command("git", "--version").Run()
-	return err == nil
-}
-
-func installGit() error {
-	cmd := common.CommandInfo{
-		PreExecutionMessage:  "Installing Git",
-		PostExecutionMessage: "Git installed ✔",
-		IsSudo:               false,
-		Command:              "brew",
-		Args: []string{
-			"install",
-			"git",
 		},
 	}
 	return common.ExecCommand(cmd)
