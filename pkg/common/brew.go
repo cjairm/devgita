@@ -46,7 +46,7 @@ func MaybeInstallBrewCask(packageName string, alias ...string) error {
 		fmt.Printf("%s is already installed\n\n", packageName)
 		return nil
 	} else {
-		return BrewInstallCask("docker")
+		return BrewInstallCask(packageName)
 	}
 
 }
