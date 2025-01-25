@@ -64,8 +64,10 @@ func run(cmd *cobra.Command, args []string) {
 		}
 		fmt.Printf("Starting installation...\n\n")
 		ctx = macosInstall.ChooseLanguages(ctx)
+		ctx = macosInstall.ChooseDatabases(ctx)
 		macosInstall.RunTerminalInstallers(devgitaPath)
-		// config, ok := common.GetConfig(ctx)
+		macosInstall.InstallDatabases(ctx)
+		macosInstall.InstallDevLanguages(ctx)
 	case "linux":
 		debian.PreInstall()
 		// Check if common.CloneDevgita works here

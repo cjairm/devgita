@@ -7,14 +7,13 @@ import (
 	"path/filepath"
 )
 
-type contextKey string
-
 const (
-	configKey contextKey = "config"
+	configKey string = "config"
 )
 
 type Config struct {
 	SelectedLanguages []string
+	SelectedDbs       []string
 }
 
 // Function to store the config in context

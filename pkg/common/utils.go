@@ -8,6 +8,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+
+	"github.com/manifoldco/promptui"
 )
 
 const (
@@ -216,4 +218,70 @@ func DownloadFile(url string, filepath string) error {
 	// Write the body to file
 	_, err = io.Copy(out, resp.Body)
 	return err
+}
+
+// Helper function to check if a slice contains a string
+func contains(slice []string, item string) bool {
+	for _, s := range slice {
+		if s == item {
+			return true
+		}
+	}
+	return false
+}
+
+// Function to remove an item from a slice
+func removeItem(slice []string, item string) []string {
+	for i, s := range slice {
+		if s == item {
+			return append(slice[:i], slice[i+1:]...)
+		}
+	}
+	return slice
+}
+
+func MultiSelect(label string, options []string) ([]string, error) {
+	var selectedLangs []string
+	availableOptions := options
+
+	for {
+		// Remove "All" and "None" if all programming languages are selected
+		if len(selectedLangs) == len(options)-3 { // Exclude "All", "None", "Done"
+			availableOptions = removeItem(availableOptions, "All")
+			availableOptions = removeItem(availableOptions, "None")
+		}
+
+		// Create a prompt for selecting languages
+		prompt := promptui.Select{
+			Label: label,
+			Items: availableOptions,
+		}
+
+		// Show the prompt to the user
+		_, result, err := prompt.Run()
+		if err != nil {
+			return nil, fmt.Errorf("prompt failed: %w", err)
+		}
+
+		// Handle special cases
+		switch result {
+		case "All":
+			// Add all languages to selectedLangs
+			selectedLangs = append(
+				selectedLangs,
+				availableOptions[3:]...)
+			return selectedLangs, nil
+		case "None":
+			return []string{}, nil
+		case "Done":
+			return selectedLangs, nil
+		default:
+			// Add the selected language to the list of selected languages
+			if !contains(selectedLangs, result) {
+				selectedLangs = append(selectedLangs, result)
+			}
+			// Remove the selected item from the available options
+			availableOptions = removeItem(availableOptions, result)
+		}
+	}
 }

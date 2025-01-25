@@ -32,21 +32,20 @@ func copyTmuxConfig(devgitaPath string) error {
 	if err != nil {
 		return fmt.Errorf("Error getting home directory: %w", err)
 	}
-	destinationFile := filepath.Join(homeDir, ".tmux.conf")
-	if common.FileAlreadyExist(destinationFile) {
-		fmt.Sprint("Tmux configuration already exists!\n\n")
+	configFile := filepath.Join(homeDir, ".tmux.conf")
+	if common.FileAlreadyExist(configFile) {
+		fmt.Printf("Tmux configuration already exists!\n\n")
 		return nil
 	}
 	// Define the source directory for .tmux.conf
-	sourceDir := filepath.Join(devgitaPath, "pkg", "configs", "tmux")
-	sourceFile := filepath.Join(sourceDir, ".tmux.conf")
+	sourceFile := filepath.Join(devgitaPath, "configs", "tmux", ".tmux.conf")
 	// Check if the source file exists
 	if common.FileAlreadyExist(sourceFile) {
 		// Copy the .tmux.conf file to the home directory
-		if err := common.CopyFile(sourceFile, destinationFile); err != nil {
+		if err := common.CopyFile(sourceFile, configFile); err != nil {
 			return fmt.Errorf("Error copying .tmux.conf: %w", err)
 		}
-		fmt.Println(".tmux.conf copied to home directory successfully!")
 	}
+	fmt.Println(".tmux.conf copied to home directory successfully!")
 	return nil
 }

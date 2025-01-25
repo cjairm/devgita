@@ -30,8 +30,46 @@ func InstallOrUpdateBrewPackage(packageName string, alias ...string) error {
 	return nil
 }
 
+// TODO: Reuse logic from `InstallOrUpdateBrewPackage`
+func MaybeInstallBrewCask(packageName string, alias ...string) error {
+	var isInstalled bool
+	var err error
+	if len(alias) > 0 {
+		isInstalled, err = isBrewCaskPackageInstalled(alias[0])
+	} else {
+		isInstalled, err = isBrewCaskPackageInstalled(packageName)
+	}
+	if err != nil {
+		return err
+	}
+	if isInstalled {
+		fmt.Printf("%s is already installed\n\n", packageName)
+		return nil
+	} else {
+		return BrewInstallCask("docker")
+	}
+
+}
+
 func isBrewPackageInstalled(packageName string) (bool, error) {
 	cmd := exec.Command("brew", "list")
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	err := cmd.Run()
+	if err != nil {
+		return false, fmt.Errorf("error running brew list: %v", err)
+	}
+	for _, line := range bytes.Split(out.Bytes(), []byte{'\n'}) {
+		if string(line) == packageName {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// TODO: Reuse logic from `isBrewCaskPackageInstalled`
+func isBrewCaskPackageInstalled(packageName string) (bool, error) {
+	cmd := exec.Command("brew", "list", "--cask")
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	err := cmd.Run()
@@ -53,6 +91,18 @@ func BrewInstall(packageName string) error {
 		IsSudo:               false,
 		Command:              "brew",
 		Args:                 []string{"install", packageName},
+	}
+	return ExecCommand(cmd)
+}
+
+// TODO: Reuse logic from `BrewInstall`
+func BrewInstallCask(packageName string) error {
+	cmd := CommandInfo{
+		PreExecutionMessage:  fmt.Sprintf("Installing %s using Homebrew...", packageName),
+		PostExecutionMessage: fmt.Sprintf("%s installed successfully ✔", packageName),
+		IsSudo:               false,
+		Command:              "brew",
+		Args:                 []string{"install", "--cask", packageName},
 	}
 	return ExecCommand(cmd)
 }
