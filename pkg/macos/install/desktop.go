@@ -138,13 +138,31 @@ func configureZsh(devgitaPath string) error {
 	customZsh := filepath.Join(homeDir, ".config", "zsh", "custom")
 	devgitaDefaultsBash := filepath.Join(
 		devgitaPath,
-		"configs",
 		"defaults",
 		"bash",
 	)
 	// Adds alias to bash
-	if err := common.MoveContents(devgitaDefaultsBash, customZsh); err != nil {
-		return fmt.Errorf("error setting up custom bash: %w", err)
+	err, isCustomAliasSet := common.ContentExistInFile(
+		zshFile,
+		"zsh/custom/aliases.zsh",
+	)
+	if !isCustomAliasSet {
+		if err := common.MoveContents(devgitaDefaultsBash, customZsh); err != nil {
+			return fmt.Errorf("error setting up custom bash: %w", err)
+		}
+		cmd := common.CommandInfo{
+			PreExecutionMessage:  "Adding alias",
+			PostExecutionMessage: "alias added ✔",
+			IsSudo:               false,
+			Command:              "sh",
+			Args: []string{
+				"-c",
+				"echo \"source $HOME/.config/zsh/custom/aliases.zsh\" >> ~/.zshrc",
+			},
+		}
+		if err := common.ExecCommand(cmd); err != nil {
+			return err
+		}
 	}
 	return nil
 }
