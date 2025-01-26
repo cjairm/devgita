@@ -50,12 +50,14 @@ func configAlacritty(devgitaPath string) error {
 		"configs",
 		"fonts",
 		"alacritty",
+		"default",
 	)
 	devgitaThemeDir := filepath.Join(
 		devgitaPath,
 		"configs",
 		"themes",
 		"alacritty",
+		"default",
 	)
 	if common.FileAlreadyExist(configFile) {
 		fmt.Printf("%s already exist\n\n", configDir)
