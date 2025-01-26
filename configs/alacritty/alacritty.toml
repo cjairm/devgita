@@ -1,8 +1,8 @@
 [env]
 TERM = "xterm-256color"
 
-[shell]
-program = "/usr/local/bin/tmux"
+[terminal.shell]
+program = "./program.sh"
 
 [window]
 padding.x = 10
@@ -12,3 +12,5 @@ decorations = "Buttonless"
 
 opacity = 0.8
 blur = true
+
+[terminal]
