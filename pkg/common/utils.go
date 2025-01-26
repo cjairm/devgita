@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/manifoldco/promptui"
 )
@@ -284,4 +285,25 @@ func MultiSelect(label string, options []string) ([]string, error) {
 			availableOptions = removeItem(availableOptions, result)
 		}
 	}
+}
+
+func UpdateFile(filePath, contentToReplace string) error {
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return err
+	}
+	// Convert the data to a string for manipulation
+	fileContent := string(data)
+	// Replace <HOME-PATH> with the actual home directory path
+	homeDir, err := os.UserHomeDir()
+	fmt.Println("contentToReplace", contentToReplace)
+	fmt.Println("homeDir", homeDir)
+	updatedContent := strings.ReplaceAll(fileContent, contentToReplace, homeDir)
+	fmt.Println("updatedContent", updatedContent)
+	// Write the updated content back to the configuration file
+	err = os.WriteFile(filePath, []byte(updatedContent), 0644)
+	if err != nil {
+		return err
+	}
+	return nil
 }

@@ -26,6 +26,10 @@ func InstallAlacritty(devgitaPath string) error {
 	if err := configAlacritty(devgitaPath); err != nil {
 		return fmt.Errorf("Error copying alacritty config: %v", err)
 	}
+	// Update config file to match installer path
+	if err := updateHomeDirPath(devgitaPath); err != nil {
+		return fmt.Errorf("Error updating alacritty config: %v", err)
+	}
 	return nil
 }
 
@@ -50,4 +54,14 @@ func configAlacritty(devgitaPath string) error {
 	}
 	fmt.Printf("Alacritty configuration set successfully!\n\n")
 	return nil
+}
+
+func updateHomeDirPath(devgitaPath string) error {
+	configFile := filepath.Join(
+		devgitaPath,
+		"configs",
+		"alacritty",
+		"alacritty.toml",
+	)
+	return common.UpdateFile(configFile, "<HOME-PATH>")
 }
