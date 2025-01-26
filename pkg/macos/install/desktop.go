@@ -38,7 +38,19 @@ func RunDesktopInstallers(devgitaPath string) error {
 		},
 		// Installs (more) nerd fonts
 		func() error {
-			return common.MaybeInstallBrewCask("font-meslo-lg-nerd-font")
+			if err := common.MaybeInstallBrewCask("font-meslo-lg-nerd-font"); err != nil {
+				return err
+			}
+			if err := common.MaybeInstallBrewCask("font-caskaydia-mono-nerd-font"); err != nil {
+				return err
+			}
+			if err := common.MaybeInstallBrewCask("font-fira-mono"); err != nil {
+				return err
+			}
+			if err := common.MaybeInstallBrewCask("font-jetbrains-mono-nerd-font"); err != nil {
+				return err
+			}
+			return nil
 		},
 		// Installs terminal utils
 		func() error {
@@ -51,6 +63,10 @@ func RunDesktopInstallers(devgitaPath string) error {
 		// Installs Brave
 		func() error {
 			return common.MaybeInstallBrewCask("brave-browser", "brave")
+		},
+		// Installs screenshot tool
+		func() error {
+			return common.MaybeInstallBrewCask("flameshot")
 		},
 	}
 	for _, installFunc := range installFunctions {

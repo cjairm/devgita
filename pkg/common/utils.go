@@ -325,3 +325,19 @@ func ContentExistInFile(filePath, substringToFind string) (error, bool) {
 	}
 	return nil, found
 }
+
+func Reboot() {
+	fmt.Print("Ready to reboot for all settings to take effect? (yes/no): ")
+	reader := bufio.NewReader(os.Stdin)
+	input, _ := reader.ReadString('\n')
+	input = strings.TrimSpace(input)
+	input = strings.ToLower(input)
+	if input == "yes" {
+		cmd := exec.Command("sudo", "reboot")
+		if err := cmd.Run(); err != nil {
+			fmt.Println("Error executing reboot:", err)
+		}
+	} else {
+		fmt.Println("Reboot canceled.")
+	}
+}

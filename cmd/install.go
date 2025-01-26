@@ -13,6 +13,7 @@ import (
 	"github.com/cjairm/devgita/pkg/debian"
 	"github.com/cjairm/devgita/pkg/macos"
 	macosInstall "github.com/cjairm/devgita/pkg/macos/install"
+	macosTerminal "github.com/cjairm/devgita/pkg/macos/install/terminal"
 	"github.com/spf13/cobra"
 )
 
@@ -48,13 +49,12 @@ func run(cmd *cobra.Command, args []string) {
 		fmt.Println("Installation stopped.")
 		os.Exit(1)
 	}
-	// NOTE: Confirm `brew reinstall --cask font-hack-nerd-font`
 	switch runtime.GOOS {
 	case "darwin":
 		macos.PreInstall()
 
 		fmt.Printf("Checking version...\n\n")
-		macosInstall.CheckVersion()
+		macos.CheckVersion()
 
 		fmt.Printf("Cloning repo...\n\n")
 		if err := common.CloneDevgita(devgitaPath); err != nil {
@@ -62,12 +62,18 @@ func run(cmd *cobra.Command, args []string) {
 			fmt.Println("Installation stopped.")
 			os.Exit(1)
 		}
+
+		ctx = macosTerminal.ChooseLanguages(ctx)
+		ctx = macosTerminal.ChooseDatabases(ctx)
+
 		fmt.Printf("Starting installation...\n\n")
-		ctx = macosInstall.ChooseLanguages(ctx)
-		ctx = macosInstall.ChooseDatabases(ctx)
 		macosInstall.RunTerminalInstallers(devgitaPath)
-		macosInstall.InstallDatabases(ctx)
-		macosInstall.InstallDevLanguages(ctx)
+
+		macosTerminal.InstallDatabases(ctx)
+		macosTerminal.InstallDevLanguages(ctx)
+
+		macosInstall.RunDesktopInstallers(devgitaPath)
+		common.Reboot()
 	case "linux":
 		debian.PreInstall()
 		// Check if common.CloneDevgita works here
