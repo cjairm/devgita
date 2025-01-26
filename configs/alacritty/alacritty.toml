@@ -6,3 +6,6 @@ decorations = "Buttonless"
 
 opacity = 0.8
 blur = true
+
+[shell]
+program = "/usr/local/bin/tmux"
