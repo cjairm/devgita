@@ -35,11 +35,16 @@ func configAlacritty(devgitaPath string) error {
 		return fmt.Errorf("Error getting home directory: %w", err)
 	}
 	configDir := filepath.Join(homeDir, ".config", "alacritty")
-	fontDir := filepath.Join(homeDir, ".config", "fonts", "alacritty")
 	configFile := filepath.Join(configDir, "alacritty.toml")
 	devgitaConfig := filepath.Join(
 		devgitaPath,
 		"configs",
+		"alacritty",
+	)
+	devgitaFontDir := filepath.Join(
+		devgitaPath,
+		"configs",
+		"fonts",
 		"alacritty",
 	)
 	if common.FileAlreadyExist(configFile) {
@@ -51,7 +56,7 @@ func configAlacritty(devgitaPath string) error {
 		return fmt.Errorf("error setting up alacritty: %w", err)
 	}
 	// Moves font config
-	if err := common.MoveContents(devgitaConfig, fontDir); err != nil {
+	if err := common.MoveContents(devgitaFontDir, configDir); err != nil {
 		return fmt.Errorf("error setting up alacritty's font: %w", err)
 	}
 	fmt.Printf("Alacritty configuration set successfully!\n\n")
