@@ -304,3 +304,24 @@ func UpdateFile(filePath, contentToReplace string) error {
 	}
 	return nil
 }
+
+func ContentExistInFile(filePath, substringToFind string) (error, bool) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return fmt.Errorf("Error opening .zshrc file:", err), false
+	}
+	defer file.Close()
+	scanner := bufio.NewScanner(file)
+	found := false
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.Contains(strings.ToLower(line), strings.ToLower(substringToFind)) {
+			found = true
+			break
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("Error reading .zshrc file:", err), false
+	}
+	return nil, found
+}

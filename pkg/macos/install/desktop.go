@@ -3,6 +3,7 @@ package macos
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/cjairm/devgita/pkg/common"
 	macosDesktop "github.com/cjairm/devgita/pkg/macos/install/desktop"
@@ -39,14 +40,18 @@ func RunDesktopInstallers(devgitaPath string) error {
 		func() error {
 			return common.MaybeInstallBrewCask("font-meslo-lg-nerd-font")
 		},
-		// Installs GIMP
+		// Installs terminal utils
 		func() error {
-			return common.MaybeInstallBrewCask("gimp")
+			return configureZsh(devgitaPath)
 		},
-		// Installs Brave
-		func() error {
-			return common.MaybeInstallBrewCask("brave-browser")
-		},
+		// // Installs GIMP
+		// func() error {
+		// 	return common.MaybeInstallBrewCask("gimp")
+		// },
+		// // Installs Brave
+		// func() error {
+		// 	return common.MaybeInstallBrewCask("brave-browser")
+		// },
 	}
 	for _, installFunc := range installFunctions {
 		if err := installFunc(); err != nil {
@@ -54,6 +59,92 @@ func RunDesktopInstallers(devgitaPath string) error {
 			fmt.Println("Installation stopped.")
 			os.Exit(1)
 		}
+	}
+	return nil
+}
+
+func configureZsh(devgitaPath string) error {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("Error getting home directory: %w", err)
+	}
+	if err := common.InstallOrUpdateBrewPackage("powerlevel10k"); err != nil {
+		return err
+	}
+	zshFile := filepath.Join(homeDir, ".zshrc")
+	err, isPowerLevelConfigured := common.ContentExistInFile(
+		zshFile,
+		"powerlevel10k.zsh-theme",
+	)
+	if !isPowerLevelConfigured {
+		cmd := common.CommandInfo{
+			PreExecutionMessage:  "Sourcing powerlevel10k",
+			PostExecutionMessage: "powerlevel10k sourced ✔",
+			IsSudo:               false,
+			Command:              "sh",
+			Args: []string{
+				"-c",
+				"echo \"source $(brew --prefix)/share/powerlevel10k/powerlevel10k.zsh-theme\" >> ~/.zshrc",
+			},
+		}
+		if err := common.ExecCommand(cmd); err != nil {
+			return err
+		}
+	}
+	if err := common.InstallOrUpdateBrewPackage("zsh-autosuggestions"); err != nil {
+		return err
+	}
+	err, isAutosuggestionsConfigured := common.ContentExistInFile(
+		zshFile,
+		"zsh-autosuggestions",
+	)
+	if !isAutosuggestionsConfigured {
+		cmd := common.CommandInfo{
+			PreExecutionMessage:  "Sourcing autosuggestions",
+			PostExecutionMessage: "autosuggestions sourced ✔",
+			IsSudo:               false,
+			Command:              "sh",
+			Args: []string{
+				"-c",
+				"echo \"source $(brew --prefix)/share/zsh-autosuggestions/zsh-autosuggestions.zsh\" >> ~/.zshrc",
+			},
+		}
+		if err := common.ExecCommand(cmd); err != nil {
+			return err
+		}
+	}
+	if err := common.InstallOrUpdateBrewPackage("zsh-syntax-highlighting"); err != nil {
+		return err
+	}
+	err, isHighlightedConfigured := common.ContentExistInFile(
+		zshFile,
+		"zsh-syntax-highlighting",
+	)
+	if !isHighlightedConfigured {
+		cmd := common.CommandInfo{
+			PreExecutionMessage:  "Sourcing highlighting",
+			PostExecutionMessage: "highlighting sourced ✔",
+			IsSudo:               false,
+			Command:              "sh",
+			Args: []string{
+				"-c",
+				"echo \"source $(brew --prefix)/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh\" >> ~/.zshrc",
+			},
+		}
+		if err := common.ExecCommand(cmd); err != nil {
+			return err
+		}
+	}
+	customZsh := filepath.Join(homeDir, ".config", "zsh", "custom")
+	devgitaDefaultsBash := filepath.Join(
+		devgitaPath,
+		"configs",
+		"defaults",
+		"bash",
+	)
+	// Adds alias to bash
+	if err := common.MoveContents(devgitaDefaultsBash, customZsh); err != nil {
+		return fmt.Errorf("error setting up custom bash: %w", err)
 	}
 	return nil
 }
