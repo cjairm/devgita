@@ -25,7 +25,6 @@ alias lzg='lazygit'
 alias lzd='lazydocker'
 
 # ---- Zoxide (better cd) ----
-eval "$(zoxide init zsh)"
 alias cd="z"
 
 # Git

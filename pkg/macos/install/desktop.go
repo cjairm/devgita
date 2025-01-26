@@ -44,14 +44,14 @@ func RunDesktopInstallers(devgitaPath string) error {
 		func() error {
 			return configureZsh(devgitaPath)
 		},
-		// // Installs GIMP
-		// func() error {
-		// 	return common.MaybeInstallBrewCask("gimp")
-		// },
-		// // Installs Brave
-		// func() error {
-		// 	return common.MaybeInstallBrewCask("brave-browser")
-		// },
+		// Installs GIMP
+		func() error {
+			return common.MaybeInstallBrewCask("gimp")
+		},
+		// Installs Brave
+		func() error {
+			return common.MaybeInstallBrewCask("brave-browser", "brave")
+		},
 	}
 	for _, installFunc := range installFunctions {
 		if err := installFunc(); err != nil {
@@ -146,18 +146,36 @@ func configureZsh(devgitaPath string) error {
 		zshFile,
 		"zsh/custom/aliases.zsh",
 	)
-	if !isCustomAliasSet {
+	// Adds init to bash
+	err, isCustomInitSet := common.ContentExistInFile(
+		zshFile,
+		"zsh/custom/init.zsh",
+	)
+	if !isCustomAliasSet && !isCustomInitSet {
 		if err := common.MoveContents(devgitaDefaultsBash, customZsh); err != nil {
 			return fmt.Errorf("error setting up custom bash: %w", err)
 		}
 		cmd := common.CommandInfo{
-			PreExecutionMessage:  "Adding alias",
-			PostExecutionMessage: "alias added ✔",
+			PreExecutionMessage:  "Adding aliases",
+			PostExecutionMessage: "aliases added✔",
 			IsSudo:               false,
 			Command:              "sh",
 			Args: []string{
 				"-c",
 				"echo \"source $HOME/.config/zsh/custom/aliases.zsh\" >> ~/.zshrc",
+			},
+		}
+		if err := common.ExecCommand(cmd); err != nil {
+			return err
+		}
+		cmd = common.CommandInfo{
+			PreExecutionMessage:  "Adding init file",
+			PostExecutionMessage: "init file added✔",
+			IsSudo:               false,
+			Command:              "sh",
+			Args: []string{
+				"-c",
+				"echo \"source $HOME/.config/zsh/custom/init.zsh\" >> ~/.zshrc",
 			},
 		}
 		if err := common.ExecCommand(cmd); err != nil {

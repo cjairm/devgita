@@ -3,7 +3,9 @@ package common
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"os/exec"
+	"strings"
 )
 
 func InstallOrUpdateBrewPackage(packageName string, alias ...string) error {
@@ -36,8 +38,14 @@ func MaybeInstallBrewCask(packageName string, alias ...string) error {
 	var err error
 	if len(alias) > 0 {
 		isInstalled, err = isBrewCaskPackageInstalled(alias[0])
+		if !isInstalled {
+			isInstalled, err = desktopApplicationExist(alias[0])
+		}
 	} else {
 		isInstalled, err = isBrewCaskPackageInstalled(packageName)
+		if !isInstalled {
+			isInstalled, err = desktopApplicationExist(packageName)
+		}
 	}
 	if err != nil {
 		return err
@@ -78,6 +86,20 @@ func isBrewCaskPackageInstalled(packageName string) (bool, error) {
 	}
 	for _, line := range bytes.Split(out.Bytes(), []byte{'\n'}) {
 		if string(line) == packageName {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func desktopApplicationExist(appName string) (bool, error) {
+	applicationsPath := "/Applications"
+	files, err := os.ReadDir(applicationsPath)
+	if err != nil {
+		return false, fmt.Errorf("Failed to read directory: %v", err)
+	}
+	for _, file := range files {
+		if strings.Contains(strings.ToLower(file.Name()), appName) {
 			return true, nil
 		}
 	}
