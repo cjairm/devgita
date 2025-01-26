@@ -51,6 +51,12 @@ func configAlacritty(devgitaPath string) error {
 		"fonts",
 		"alacritty",
 	)
+	devgitaThemeDir := filepath.Join(
+		devgitaPath,
+		"configs",
+		"themes",
+		"alacritty",
+	)
 	if common.FileAlreadyExist(configFile) {
 		fmt.Printf("%s already exist\n\n", configDir)
 		return nil
@@ -62,6 +68,10 @@ func configAlacritty(devgitaPath string) error {
 	// Moves font config
 	if err := common.MoveContents(devgitaFontDir, configDir); err != nil {
 		return fmt.Errorf("error setting up alacritty's font: %w", err)
+	}
+	// Moves theme config
+	if err := common.MoveContents(devgitaThemeDir, configDir); err != nil {
+		return fmt.Errorf("error setting up alacritty's theme: %w", err)
 	}
 	fmt.Printf("Alacritty configuration set successfully!\n\n")
 	return nil

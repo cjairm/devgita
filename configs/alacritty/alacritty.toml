@@ -5,7 +5,7 @@ TERM = "xterm-256color"
 program = "<HOME-PATH>/.config/alacritty/program.sh"
 
 [general]
-import = [ "~/.config/alacritty/font.toml", "~/.config/alacritty/font-size.toml" ]
+import = ["~/.config/alacritty/theme.toml", "~/.config/alacritty/font.toml", "~/.config/alacritty/font-size.toml" ]
 
 [window]
 padding.x = 10
