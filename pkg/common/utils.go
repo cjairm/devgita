@@ -296,10 +296,7 @@ func UpdateFile(filePath, contentToReplace string) error {
 	fileContent := string(data)
 	// Replace <HOME-PATH> with the actual home directory path
 	homeDir, err := os.UserHomeDir()
-	fmt.Println("contentToReplace", contentToReplace)
-	fmt.Println("homeDir", homeDir)
 	updatedContent := strings.ReplaceAll(fileContent, contentToReplace, homeDir)
-	fmt.Println("updatedContent", updatedContent)
 	// Write the updated content back to the configuration file
 	err = os.WriteFile(filePath, []byte(updatedContent), 0644)
 	if err != nil {

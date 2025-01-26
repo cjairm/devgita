@@ -27,7 +27,7 @@ func InstallAlacritty(devgitaPath string) error {
 		return fmt.Errorf("Error copying alacritty config: %v", err)
 	}
 	// Update config file to match installer path
-	if err := updateHomeDirPath(devgitaPath); err != nil {
+	if err := updateHomeDirPath(); err != nil {
 		return fmt.Errorf("Error updating alacritty config: %v", err)
 	}
 	return nil
@@ -56,11 +56,14 @@ func configAlacritty(devgitaPath string) error {
 	return nil
 }
 
-func updateHomeDirPath(devgitaPath string) error {
+func updateHomeDirPath() error {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("Error getting home directory: %w", err)
+	}
 	configFile := filepath.Join(
-		devgitaPath,
-		"configs",
-		"alacritty",
+		homeDir,
+		".config", "alacritty",
 		"alacritty.toml",
 	)
 	return common.UpdateFile(configFile, "<HOME-PATH>")
