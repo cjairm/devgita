@@ -16,10 +16,6 @@ func InstallAerospace(devgitaPath string) error {
 	if err := configAerospace(devgitaPath); err != nil {
 		return fmt.Errorf("Error copying aerospace config: %v", err)
 	}
-	// // Update config file to match installer path
-	// if err := updateHomeDirPath(); err != nil {
-	// 	return fmt.Errorf("Error updating alacritty config: %v", err)
-	// }
 	return nil
 }
 
@@ -46,16 +42,3 @@ func configAerospace(devgitaPath string) error {
 	fmt.Printf("Aerospace configuration set successfully!\n\n")
 	return nil
 }
-
-// func updateHomeDirPath() error {
-// 	homeDir, err := os.UserHomeDir()
-// 	if err != nil {
-// 		return fmt.Errorf("Error getting home directory: %w", err)
-// 	}
-// 	configFile := filepath.Join(
-// 		homeDir,
-// 		".config", "alacritty",
-// 		"alacritty.toml",
-// 	)
-// 	return common.UpdateFile(configFile, "<HOME-PATH>")
-// }
