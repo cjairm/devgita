@@ -46,7 +46,6 @@ func isXcodeInstalled() (bool, error) {
 	// Check if the output contains the expected path for Xcode
 	xcodePath := strings.ToLower(strings.TrimSpace(out.String()))
 	if strings.Contains(xcodePath, "xcode.app") || strings.Contains(xcodePath, "commandlinetools") {
-		strings.HasPrefix(xcodePath, "/Applications/Xcode.app/Contents/Developer") {
 		return true, nil
 	}
 
