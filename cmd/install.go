@@ -51,6 +51,8 @@ func run(cmd *cobra.Command, args []string) {
 	}
 	switch runtime.GOOS {
 	case "darwin":
+		// IMPORTANT....!!!
+		// IF you are using an M mac computer... make sure you active Rosseta first
 		macos.PreInstall()
 
 		fmt.Printf("Checking version...\n\n")
