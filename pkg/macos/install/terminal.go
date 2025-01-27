@@ -35,6 +35,12 @@ func RunTerminalInstallers(devgitaPath string) error {
 		},
 		// To have access to github wihtout passwords
 		// see documentation: https://docs.github.com/en/authentication/connecting-to-github-with-ssh/generating-a-new-ssh-key-and-adding-it-to-the-ssh-agent
+		// ssh-keygen -t rsa -b 4096
+		// eval "$(ssh-agent -s)"
+		// ssh-add -K ~/.ssh/id_rsa
+		// GITHUB STEPS
+		// pbcopy < ~/.ssh/id_rsa.pub
+		// To test it out! : ssh -T git@github.com
 		//
 		// Function to install GitHub CLI
 		func() error {
