@@ -33,6 +33,9 @@ func RunTerminalInstallers(devgitaPath string) error {
 		func() error {
 			return macos.InstallFastFetch(devgitaPath)
 		},
+		// To have access to github wihtout passwords
+		// see documentation: https://docs.github.com/en/authentication/connecting-to-github-with-ssh/generating-a-new-ssh-key-and-adding-it-to-the-ssh-agent
+		//
 		// Function to install GitHub CLI
 		func() error {
 			return common.InstallOrUpdateBrewPackage("gh")
