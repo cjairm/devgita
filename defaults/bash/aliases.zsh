@@ -19,21 +19,21 @@ alias ...='cd ../..'
 alias ....='cd ../../..'
 
 # Tools
-alias n='nvim'
-alias g='git'
 alias lzg='lazygit'
 alias lzd='lazydocker'
+
+# Neovim
+alias n='nvim'
+alias ns="fd --type f --hidden --exclude .git | fzf-tmux -p  --reverse | xargs nvim"
 
 # ---- Zoxide (better cd) ----
 alias cd="z"
 
 # Git
+alias g='git'
 alias gcm='git commit -m'
 alias gcam='git commit -a -m'
 alias gcad='git commit -a --amend'
-
-# Neovim
-alias ns="fd --type f --hidden --exclude .git | fzf-tmux -p  --reverse | xargs nvim"
 
 # Tmux
 alias tml="tmux list-sessions"
