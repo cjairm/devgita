@@ -61,3 +61,6 @@ alias decompress="tar -xzf"
 
 # Custom
 alias laravel-cli="~/.local/share/laravel-cli/laravel-cli"
+
+# Mise
+alias mx="mise x --"
