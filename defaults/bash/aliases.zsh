@@ -58,3 +58,6 @@ alias tmpython="tmn python ~/Documents/workspace/python"
 # Compression
 compress() { tar -czf "${1%/}.tar.gz" "${1%/}"; }
 alias decompress="tar -xzf"
+
+# Custom
+alias laravel-cli="~/.local/share/laravel-cli/laravel-cli"
