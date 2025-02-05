@@ -40,7 +40,6 @@ func init() {
 	gitCleanCmd.Flags().
 		StringP("destination-branch", "d", "", "The name of the destination branch after cleaning")
 	gitCleanCmd.Flags().BoolP("force-clean", "f", false, "Force the deletion of the branch")
-	gitCleanCmd.SetHelpFunc(common.PrompCustomHelp)
 }
 
 func runGitClean(cmd *cobra.Command, args []string) {
