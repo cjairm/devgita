@@ -3,20 +3,20 @@ package common
 import (
 	"bufio"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 
 	"github.com/manifoldco/promptui"
+	"github.com/spf13/cobra"
 )
 
 const (
 	Reset = "\033[0m"
 	Gray  = "\033[90m"
 	Red   = "\033[31m"
+	Bold  = "\033[1m"
 )
 
 type CommandInfo struct {
@@ -36,7 +36,20 @@ var Devgita = fmt.Sprintf(`
 \____ |\___  >\_/\___  /|__||__| (____  /
      \/    \/   /_____/               \/ 
 @cjairm
-%s`, "\033[1m", "\033[0m")
+%s`, Bold, Reset)
+
+func PrompCustomHelp(cmd *cobra.Command, args []string) {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("Usage:\n  %s\n\n", cmd.Use))
+	sb.WriteString(cmd.Long + "\n\n")
+	fmt.Println(sb.String())
+}
+
+func PrintError(err error) {
+	if err != nil {
+		fmt.Printf("%sError: %s%s\n", Red, err.Error(), Reset)
+	}
+}
 
 func ExecCommand(cmdInfo CommandInfo) error {
 	if cmdInfo.PreExecutionMessage != "" {
@@ -87,7 +100,7 @@ func ExecCommand(cmdInfo CommandInfo) error {
 	err = cmd.Wait()
 
 	if cmdInfo.PostExecutionMessage != "" {
-		fmt.Print(cmdInfo.PostExecutionMessage + "\n\n")
+		fmt.Print(cmdInfo.PostExecutionMessage + "\n")
 	}
 
 	return err
@@ -198,31 +211,6 @@ func MoveContents(srcPath, targetDir string) error {
 		}
 	}
 	return nil
-}
-
-func IsCommandInstalled(command string) bool {
-	_, err := exec.LookPath(command)
-	return err == nil
-}
-
-func DownloadFile(url string, filepath string) error {
-	// Create the file
-	out, err := os.Create(filepath)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-
-	// Get the data
-	resp, err := http.Get(url)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	// Write the body to file
-	_, err = io.Copy(out, resp.Body)
-	return err
 }
 
 // Helper function to check if a slice contains a string
