@@ -39,7 +39,9 @@ var Devgita = fmt.Sprintf(`
 %s`, "\033[1m", "\033[0m")
 
 func ExecCommand(cmdInfo CommandInfo) error {
-	fmt.Print(cmdInfo.PreExecutionMessage + "\n")
+	if cmdInfo.PreExecutionMessage != "" {
+		fmt.Print(cmdInfo.PreExecutionMessage + "\n")
+	}
 	command := cmdInfo.Command
 	if cmdInfo.IsSudo {
 		command = "sudo " + command
@@ -84,7 +86,9 @@ func ExecCommand(cmdInfo CommandInfo) error {
 
 	err = cmd.Wait()
 
-	fmt.Print(cmdInfo.PostExecutionMessage + "\n\n")
+	if cmdInfo.PostExecutionMessage != "" {
+		fmt.Print(cmdInfo.PostExecutionMessage + "\n\n")
+	}
 
 	return err
 }
