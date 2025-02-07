@@ -7,7 +7,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/cjairm/devgita/pkg/common"
+	git "github.com/cjairm/devgita/internal/commands"
+	"github.com/cjairm/devgita/pkg/utils"
 	"github.com/spf13/cobra"
 )
 
@@ -44,46 +45,39 @@ func init() {
 
 func runGitClean(cmd *cobra.Command, args []string) {
 	dstBranch, err := cmd.Flags().GetString("destination-branch")
-	if err != nil {
-		common.PrintError(err)
-		os.Exit(1)
-	}
+	exitWithError(err)
 	if dstBranch == "" {
 		dstBranch = "main"
 	}
-	err = common.GitCommand("checkout", dstBranch)
-	if err != nil {
-		common.PrintError(err)
-		os.Exit(1)
-	}
-	err = common.GitCommand("fetch", "origin")
-	if err != nil {
-		common.PrintError(err)
-		os.Exit(1)
-	}
-	err = common.GitCommand("pull", "origin", dstBranch)
-	if err != nil {
-		common.PrintError(err)
-		os.Exit(1)
-	}
+
+	g := git.NewGit()
+	err = g.SwitchBranch(dstBranch)
+	exitWithError(err)
+
+	err = g.FetchOrigin()
+	exitWithError(err)
+
+	err = g.Pull(dstBranch)
+	exitWithError(err)
+
 	branchToClean, err := cmd.Flags().GetString("branch-to-clean")
-	if err != nil {
-		common.PrintError(err)
-		os.Exit(1)
-	}
+	exitWithError(err)
+
 	forceClean, err := cmd.Flags().GetBool("force-clean")
-	if err != nil {
-		common.PrintError(err)
-		os.Exit(1)
+	exitWithError(err)
+
+	err = g.Clean(branchToClean, forceClean)
+	exitWithError(err)
+
+	// Succefully cleaned branch
+	utils.PrintSuccess(fmt.Sprintf("Branch %s cleaned successfully", branchToClean))
+	os.Exit(0)
+}
+
+func exitWithError(err error) {
+	if err == nil {
+		return
 	}
-	deleteArg := "-d"
-	if forceClean {
-		deleteArg = "-D"
-	}
-	err = common.GitCommand("branch", deleteArg, branchToClean)
-	if err != nil {
-		common.PrintError(err)
-		os.Exit(1)
-	}
-	return
+	utils.PrintError(err.Error())
+	os.Exit(1)
 }

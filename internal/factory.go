@@ -2,8 +2,19 @@ package commands
 
 import "runtime"
 
-// cmdImpl := commands.NewCommand()
-// cmdImpl.PrintSomething()
+type Command interface {
+	MaybeInstallPackage(packageName string, alias ...string) error
+	MaybeInstallDesktopApp(desktopAppName string, alias ...string) error
+	InstallPackage(packageName string) error
+	InstallDesktopApp(packageName string) error
+	UpgradePackage(packageName string) error
+	UpgradePackageManager() error
+	UpdatePackageManager() error
+
+	// Git commands
+	GitCommand(args ...string) error
+}
+
 func NewCommand() Command {
 	switch runtime.GOOS {
 	case "darwin":
