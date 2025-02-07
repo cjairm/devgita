@@ -45,36 +45,36 @@ func init() {
 
 func runGitClean(cmd *cobra.Command, args []string) {
 	dstBranch, err := cmd.Flags().GetString("destination-branch")
-	exitWithError(err)
+	maybeExitWithError(err)
 	if dstBranch == "" {
 		dstBranch = "main"
 	}
 
 	g := git.NewGit()
 	err = g.SwitchBranch(dstBranch)
-	exitWithError(err)
+	maybeExitWithError(err)
 
 	err = g.FetchOrigin()
-	exitWithError(err)
+	maybeExitWithError(err)
 
 	err = g.Pull(dstBranch)
-	exitWithError(err)
+	maybeExitWithError(err)
 
 	branchToClean, err := cmd.Flags().GetString("branch-to-clean")
-	exitWithError(err)
+	maybeExitWithError(err)
 
 	forceClean, err := cmd.Flags().GetBool("force-clean")
-	exitWithError(err)
+	maybeExitWithError(err)
 
 	err = g.Clean(branchToClean, forceClean)
-	exitWithError(err)
+	maybeExitWithError(err)
 
 	// Succefully cleaned branch
 	utils.PrintSuccess(fmt.Sprintf("Branch %s cleaned successfully", branchToClean))
 	os.Exit(0)
 }
 
-func exitWithError(err error) {
+func maybeExitWithError(err error) {
 	if err == nil {
 		return
 	}
