@@ -26,27 +26,28 @@ func ExecCommand(cmd CommandParams) error {
 		command = "sudo " + command
 	}
 	execCommand := exec.Command(command, cmd.Args...)
-	if cmd.Verbose {
-		// Create pipes to capture standard output
-		stdout, err := execCommand.StdoutPipe()
-		if err != nil {
-			return err
-		}
 
-		// Create pipes to capture standard error
-		stderr, err := execCommand.StderrPipe()
-		if err != nil {
-			return err
-		}
+	// Create pipes to capture standard output
+	stdout, err := execCommand.StdoutPipe()
+	if err != nil {
+		return err
+	}
 
-		// To allow user to interact with the command (password)
-		execCommand.Stdin = os.Stdin
+	// Create pipes to capture standard error
+	stderr, err := execCommand.StderrPipe()
+	if err != nil {
+		return err
+	}
 
-		// Start the command
-		if err := execCommand.Start(); err != nil {
-			return err
-		}
+	// To allow user to interact with the command (password)
+	execCommand.Stdin = os.Stdin
 
+	// Start the command
+	if err := execCommand.Start(); err != nil {
+		return err
+	}
+
+	if cmd.Verbose == true {
 		// Create a scanner for stdout
 		go func() {
 			scanner := bufio.NewScanner(stdout)
@@ -63,7 +64,8 @@ func ExecCommand(cmd CommandParams) error {
 			}
 		}()
 	}
-	err := execCommand.Wait()
+
+	err = execCommand.Wait()
 	if cmd.PostExecMsg != "" && err == nil {
 		utils.Print(cmd.PostExecMsg, "")
 	}

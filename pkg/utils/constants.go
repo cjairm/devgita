@@ -3,15 +3,20 @@ package utils
 import "fmt"
 
 const (
-	Reset = "\033[0m"
-	Gray  = "\033[90m"
-	Red   = "\033[31m"
-	Green = "\033[32m"
-	Bold  = "\033[1m"
+	Reset                       = "\033[0m"
+	Gray                        = "\033[90m"
+	Red                         = "\033[31m" // Error color
+	Green                       = "\033[32m" // Success color
+	Blue                        = "\033[34m" // Informative color
+	Yellow                      = "\033[33m" // Warning color
+	Bold                        = "\033[1m"
+	ConfigKey                   = "devgita-config"
+	SupportedMacOSVersionNumber = 13
+	SupportedMacOSVersionName   = "Ventura"
+	DevgitaRepositoryUrl        = "https://github.com/cjairm/devgita.git"
 )
 
-var Devgita = fmt.Sprintf(`
-%s
+var Devgita = fmt.Sprint(`
     .___                .__  __          
   __| _/_______  ______ |__|/  |______   
  / __ |/ __ \  \/ / ___\|  \   __\__  \  
@@ -19,4 +24,4 @@ var Devgita = fmt.Sprintf(`
 \____ |\___  >\_/\___  /|__||__| (____  /
      \/    \/   /_____/               \/ 
 @cjairm
-%s`, Bold, Reset)
+`)

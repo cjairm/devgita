@@ -7,12 +7,17 @@ type Command interface {
 	MaybeInstallDesktopApp(desktopAppName string, alias ...string) error
 	InstallPackage(packageName string) error
 	InstallDesktopApp(packageName string) error
+	IsMac() bool
+	IsLinux() bool
 	UpgradePackage(packageName string) error
-	UpgradePackageManager() error
-	UpdatePackageManager() error
+	ValidateOSVersion() error
 
-	// Git commands
-	GitCommand(args ...string) error
+	// PackageManager
+	MaybeInstallPackageManager() error
+	InstallPackageManager() error
+	IsPackageManagerInstalled() bool
+	UpgradePackageManager(verbose bool) error
+	UpdatePackageManager() error
 }
 
 func NewCommand() Command {

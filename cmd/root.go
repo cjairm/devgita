@@ -6,7 +6,7 @@ package cmd
 import (
 	"os"
 
-	"github.com/cjairm/devgita/pkg/common"
+	"github.com/cjairm/devgita/pkg/utils"
 	"github.com/spf13/cobra"
 )
 
@@ -14,7 +14,7 @@ import (
 var rootCmd = &cobra.Command{
 	Use:   "devgita",
 	Short: "Command-line tool for macOS Ventura that automates the setup of development environments, streamlining installations of essential apps like Raycast, Homebrew, and iTerm2 with clear documentation.",
-	Long:  common.Devgita,
+	Long:  utils.Devgita,
 
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
@@ -25,9 +25,7 @@ var rootCmd = &cobra.Command{
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
 	err := rootCmd.Execute()
-	if err != nil {
-		os.Exit(1)
-	}
+	utils.MaybeExitWithError(err)
 }
 
 func init() {
@@ -40,5 +38,19 @@ func init() {
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
 	// rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
-	rootCmd.SetHelpFunc(common.PrompCustomHelp)
+	rootCmd.SetHelpFunc(utils.PrompCustomHelp)
+
+	utils.MaybeExitWithError(setDevgitaPath())
+}
+
+func setDevgitaPath() error {
+	devgitaInstallPath, err := utils.GetDevgitaPath()
+	if err != nil {
+		return nil
+	}
+	err = os.MkdirAll(devgitaInstallPath, 0755)
+	if err != nil {
+		return nil
+	}
+	return nil
 }

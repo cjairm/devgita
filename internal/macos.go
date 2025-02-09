@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
+
+	"github.com/cjairm/devgita/pkg/utils"
 )
 
 type MacOSCommand struct{}
@@ -71,6 +74,14 @@ func (m *MacOSCommand) InstallDesktopApp(packageName string) error {
 	return ExecCommand(cmd)
 }
 
+func (m *MacOSCommand) IsMac() bool {
+	return true
+}
+
+func (m *MacOSCommand) IsLinux() bool {
+	return false
+}
+
 func (m *MacOSCommand) UpgradePackage(packageName string) error {
 	cmd := CommandParams{
 		PreExecMsg:  fmt.Sprintf("Upgrading %s...", strings.ToLower(packageName)),
@@ -83,11 +94,11 @@ func (m *MacOSCommand) UpgradePackage(packageName string) error {
 	return ExecCommand(cmd)
 }
 
-func (m *MacOSCommand) UpgradePackageManager() error {
+func (m *MacOSCommand) UpgradePackageManager(verbose bool) error {
 	cmd := CommandParams{
 		PreExecMsg:  "Upgrating Homebrew",
 		PostExecMsg: "",
-		Verbose:     false,
+		Verbose:     verbose,
 		IsSudo:      false,
 		Command:     "brew",
 		Args:        []string{"upgrade"},
@@ -107,16 +118,66 @@ func (m *MacOSCommand) UpdatePackageManager() error {
 	return ExecCommand(cmd)
 }
 
-func (m *MacOSCommand) GitCommand(args ...string) error {
+func (m *MacOSCommand) MaybeInstallPackageManager() error {
+	isInstalled := m.IsPackageManagerInstalled()
+	if isInstalled {
+		return nil
+	}
+	return m.InstallPackageManager()
+}
+
+func (m *MacOSCommand) IsPackageManagerInstalled() bool {
+	err := exec.Command("brew", "--version").Run()
+	return err == nil
+}
+
+func (m *MacOSCommand) InstallPackageManager() error {
 	cmd := CommandParams{
-		PreExecMsg:  "",
-		PostExecMsg: "",
-		Verbose:     true,
+		PreExecMsg:  "Installing Homebrew",
+		PostExecMsg: "Homebrew installed ✔",
+		Verbose:     false,
 		IsSudo:      false,
-		Command:     "git",
-		Args:        args,
+		Command:     "/bin/bash",
+		Args: []string{
+			"-c",
+			"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)",
+		},
 	}
 	return ExecCommand(cmd)
+}
+
+func (m *MacOSCommand) ValidateOSVersion() error {
+	// Get the macOS version
+	version, err := exec.Command("sw_vers", "-productVersion").Output()
+	if err != nil {
+		return err
+	}
+	// Trim whitespace and split the version string
+	versionStr := strings.TrimSpace(string(version))
+	versionParts := strings.Split(versionStr, ".")
+	if len(versionParts) < 2 {
+		return fmt.Errorf("Unable to parse macOS version")
+	}
+	// Convert the major and minor version to integers
+	major, err := strconv.Atoi(versionParts[0])
+	if err != nil {
+		return err
+	}
+	minor, err := strconv.Atoi(versionParts[1])
+	if err != nil {
+		return err
+	}
+	// NOTE: (11/22/2024) Check if the version is at least 13.0 (macOS Sonoma)
+	// Update to the latest version if necessary
+	if major < utils.SupportedMacOSVersionNumber ||
+		(major == utils.SupportedMacOSVersionNumber && minor < 0) {
+		return fmt.Errorf(
+			"OS requirement not met\nOS required: macOS %s (%d.0) or higher",
+			utils.SupportedMacOSVersionName,
+			utils.SupportedMacOSVersionNumber,
+		)
+	}
+	return nil
 }
 
 func isPackageInstalled(packageName string) (bool, error) {

@@ -9,11 +9,18 @@ import (
 	"os"
 	"runtime"
 
+	commands "github.com/cjairm/devgita/internal"
+	"github.com/cjairm/devgita/internal/commands/databases"
+	devlanguages "github.com/cjairm/devgita/internal/commands/devLanguages"
+	git "github.com/cjairm/devgita/internal/commands/git"
+	"github.com/cjairm/devgita/internal/commands/terminal"
 	"github.com/cjairm/devgita/pkg/common"
 	"github.com/cjairm/devgita/pkg/debian"
+	"github.com/cjairm/devgita/pkg/files"
 	"github.com/cjairm/devgita/pkg/macos"
 	macosInstall "github.com/cjairm/devgita/pkg/macos/install"
 	macosTerminal "github.com/cjairm/devgita/pkg/macos/install/terminal"
+	"github.com/cjairm/devgita/pkg/utils"
 	"github.com/spf13/cobra"
 )
 
@@ -40,26 +47,61 @@ func init() {
 }
 
 func run(cmd *cobra.Command, args []string) {
-	fmt.Println(common.Devgita)
-	fmt.Printf("=> Begin installation (or abort with ctrl+c)... \n\n")
+	devgitaInstallPath, err := utils.GetDevgitaPath()
+	utils.MaybeExitWithError(err)
+
+	utils.PrintBold(utils.Devgita)
+	utils.Print("=> Begin installation (or abort with ctrl+c)...", "")
+	utils.Print("===============================================", "")
+
 	ctx := context.Background()
-	devgitaPath, err := common.GetDevgitaPath()
-	if err != nil {
-		fmt.Printf("\033[31mError: %s\033[0m\n", err.Error())
-		fmt.Println("Installation stopped.")
-		os.Exit(1)
-	}
+
+	osCmd := commands.NewCommand()
+
+	utils.PrintInfo("- Validate versions before start installation")
+	utils.MaybeExitWithError(osCmd.ValidateOSVersion())
+
+	utils.PrintInfo("- Check if package manager exist and install if needed")
+	utils.MaybeExitWithError(osCmd.MaybeInstallPackageManager())
+
+	utils.PrintInfo("- Install git dependency")
+	utils.MaybeExitWithError(osCmd.MaybeInstallPackage("git"))
+
+	utils.PrintInfo("- Install devgita")
+	g := git.NewGit()
+	utils.MaybeExitWithError(files.CleanDestinationDir(devgitaInstallPath))
+	utils.MaybeExitWithError(g.Clone(utils.DevgitaRepositoryUrl, devgitaInstallPath))
+
+	utils.PrintInfo("Preparing to install essential tools and packages...")
+	t := terminal.NewTerminal()
+	t.InstallAll()
+
+	utils.PrintInfo("Installing development languages")
+	dl := devlanguages.NewDevLanguages()
+	ctx, err = dl.ChooseLanguages(ctx)
+	utils.MaybeExitWithError(err)
+	dl.InstallChosen(ctx)
+
+	utils.PrintInfo("Installing databases")
+	db := databases.NewDatabases()
+	ctx, err = db.ChooseDatabases(ctx)
+	utils.MaybeExitWithError(err)
+	db.InstallChosen(ctx)
+
+	os.Exit(0)
+
 	switch runtime.GOOS {
 	case "darwin":
 		// IMPORTANT....!!!
 		// IF you are using an M mac computer... make sure you active Rosseta first
+		/////////////////////////
 		macos.PreInstall()
 
 		fmt.Printf("Checking version...\n\n")
 		macos.CheckVersion()
 
 		fmt.Printf("Cloning repo...\n\n")
-		if err := common.CloneDevgita(devgitaPath); err != nil {
+		if err := common.CloneDevgita(devgitaInstallPath); err != nil {
 			fmt.Printf("\033[31mError: %s\033[0m\n", err.Error())
 			fmt.Println("Installation stopped.")
 			os.Exit(1)
@@ -69,12 +111,12 @@ func run(cmd *cobra.Command, args []string) {
 		ctx = macosTerminal.ChooseDatabases(ctx)
 
 		fmt.Printf("Starting installation...\n\n")
-		macosInstall.RunTerminalInstallers(devgitaPath)
+		macosInstall.RunTerminalInstallers(devgitaInstallPath)
 
 		macosTerminal.InstallDatabases(ctx)
 		macosTerminal.InstallDevLanguages(ctx)
 
-		macosInstall.RunDesktopInstallers(devgitaPath)
+		macosInstall.RunDesktopInstallers(devgitaInstallPath)
 		common.Reboot()
 	case "linux":
 		debian.PreInstall()

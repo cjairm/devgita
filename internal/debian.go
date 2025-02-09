@@ -26,12 +26,20 @@ func (d *DebianCommand) InstallDesktopApp(packageName string) error {
 	return nil
 }
 
+func (d *DebianCommand) IsMac() bool {
+	return false
+}
+
+func (d *DebianCommand) IsLinux() bool {
+	return true
+}
+
 func (d *DebianCommand) UpgradePackage(packageName string) error {
 	fmt.Println("Executing `UpgradePackage` on Debian")
 	return nil
 }
 
-func (d *DebianCommand) UpgradePackageManager() error {
+func (d *DebianCommand) UpgradePackageManager(verbose bool) error {
 	fmt.Println("Executing `UpgradePackageManager` on Debian")
 	return nil
 }
@@ -41,7 +49,22 @@ func (d *DebianCommand) UpdatePackageManager() error {
 	return nil
 }
 
-func (d *DebianCommand) GitCommand(args ...string) error {
-	fmt.Println("Executing `GitCommand` on Debian")
+func (d *DebianCommand) MaybeInstallPackageManager() error {
+	fmt.Println("Executing `MaybeInstallPackageManager` on Debian")
+	return nil
+}
+
+func (d *DebianCommand) InstallPackageManager() error {
+	fmt.Println("Executing `InstallPackageManager` on Debian")
+	return nil
+}
+
+func (d *DebianCommand) IsPackageManagerInstalled() bool {
+	fmt.Println("Executing `IsPackageManagerInstalled` on Debian")
+	return false
+}
+
+func (d *DebianCommand) ValidateOSVersion() error {
+	fmt.Println("Executing `ValidateOSVersion` on Debian")
 	return nil
 }

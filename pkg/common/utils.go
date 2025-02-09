@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/manifoldco/promptui"
-	"github.com/spf13/cobra"
 )
 
 const (
@@ -25,24 +24,6 @@ type CommandInfo struct {
 	IsSudo               bool
 	Command              string
 	Args                 []string
-}
-
-var Devgita = fmt.Sprintf(`
-%s
-    .___                .__  __          
-  __| _/_______  ______ |__|/  |______   
- / __ |/ __ \  \/ / ___\|  \   __\__  \  
-/ /_/ \  ___/\   / /_/  >  ||  |  / __ \_
-\____ |\___  >\_/\___  /|__||__| (____  /
-     \/    \/   /_____/               \/ 
-@cjairm
-%s`, Bold, Reset)
-
-func PrompCustomHelp(cmd *cobra.Command, args []string) {
-	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("Usage:\n  %s\n\n", cmd.Use))
-	sb.WriteString(cmd.Long + "\n\n")
-	fmt.Println(sb.String())
 }
 
 func PrintError(err error) {
