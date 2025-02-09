@@ -2,7 +2,7 @@
 TERM = "xterm-256color"
 
 [terminal.shell]
-program = "<HOME-PATH>/.config/alacritty/program.sh"
+program = "<ALACRITTY-CONFIG-PATH>/alacritty/program.sh"
 
 [general]
 import = ["~/.config/alacritty/theme.toml", "~/.config/alacritty/font.toml", "~/.config/alacritty/font-size.toml" ]
