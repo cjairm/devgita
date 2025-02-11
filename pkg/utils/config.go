@@ -38,3 +38,12 @@ func GetLocalConfigPath() (string, error) {
 	}
 	return filepath.Join(homeDir, ".config"), nil
 }
+
+func GetDevgitaConfigDir() (string, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	localConfig := filepath.Join(homeDir, ".config", "devgita")
+	return localConfig, err
+}

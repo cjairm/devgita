@@ -50,6 +50,27 @@ func (m *MacOSCommand) MaybeInstallDesktopApp(desktopAppName string, alias ...st
 	return m.InstallDesktopApp(pkgToInstall)
 }
 
+// NOTE: Logic copied from `MaybeInstallDesktopApp`
+func (m *MacOSCommand) MaybeInstallFont(desktopAppName string, alias ...string) error {
+	var isInstalled bool
+	var err error
+	pkgToInstall := desktopAppName
+	if len(alias) > 0 {
+		pkgToInstall = alias[0]
+	}
+	isInstalled, err = isDesktopAppInstalled(pkgToInstall)
+	if !isInstalled {
+		isInstalled, err = fontExist(pkgToInstall)
+	}
+	if err != nil {
+		return err
+	}
+	if isInstalled {
+		return nil
+	}
+	return m.InstallDesktopApp(pkgToInstall)
+}
+
 func (m *MacOSCommand) InstallPackage(packageName string) error {
 	cmd := CommandParams{
 		PreExecMsg:  fmt.Sprintf("Installing %s...", strings.ToLower(packageName)),

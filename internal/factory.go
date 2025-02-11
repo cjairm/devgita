@@ -5,6 +5,7 @@ import "runtime"
 type Command interface {
 	MaybeInstallPackage(packageName string, alias ...string) error
 	MaybeInstallDesktopApp(desktopAppName string, alias ...string) error
+	MaybeInstallFont(desktopAppName string, alias ...string) error
 	InstallPackage(packageName string) error
 	InstallDesktopApp(packageName string) error
 	IsMac() bool

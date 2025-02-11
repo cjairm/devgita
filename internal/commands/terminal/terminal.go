@@ -96,6 +96,10 @@ func (t *Terminal) InstallAll() error {
 	return nil
 }
 
+func (t *Terminal) ConfigureZsh() error {
+	return nil
+}
+
 func (t *Terminal) VerifyPackageManagerBeforeInstall(verbose bool) error {
 	return t.Cmd.UpgradePackageManager(verbose)
 }

@@ -16,6 +16,11 @@ func (d *DebianCommand) MaybeInstallDesktopApp(desktopAppName string, alias ...s
 	return nil
 }
 
+func (d *DebianCommand) MaybeInstallFont(desktopAppName string, alias ...string) error {
+	fmt.Println("Executing `MaybeInstallFont` on Debian")
+	return nil
+}
+
 func (d *DebianCommand) InstallPackage(packageName string) error {
 	fmt.Println("Executing `InstallPackage` on Debian")
 	return nil
