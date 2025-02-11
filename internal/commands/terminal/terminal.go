@@ -30,14 +30,7 @@ func NewTerminal() *Terminal {
 }
 
 func (t *Terminal) InstallAll() error {
-	err := t.VerifyPackageManagerBeforeInstall(true)
-	if err != nil {
-		utils.PrintError("Please try `brew doctor`. It may fix the issue")
-		utils.PrintError(err.Error())
-		return err
-	}
-
-	err = t.DisplayGithubInstructions()
+	err := t.DisplayGithubInstructions()
 	ifErrorDisplayMessage(err, "instructions")
 
 	utils.PrintInfo("Installing curl (if no previously installed)...")

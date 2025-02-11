@@ -19,15 +19,8 @@ func NewDesktop() *Desktop {
 }
 
 func (d *Desktop) InstallAll() error {
-	err := d.VerifyPackageManagerBeforeInstall(true)
-	if err != nil {
-		utils.PrintError("Please try `brew doctor`. It may fix the issue")
-		utils.PrintError(err.Error())
-		return err
-	}
-
 	utils.PrintInfo("Installing docker (if no previously installed)...")
-	err = d.InstallDocker()
+	err := d.InstallDocker()
 	ifErrorDisplayMessage(err, "docker")
 
 	utils.PrintInfo("Installing and setting up alacritty (if no previous configuration)...")
