@@ -10,10 +10,9 @@ import (
 	"runtime"
 
 	commands "github.com/cjairm/devgita/internal"
-	"github.com/cjairm/devgita/internal/commands/databases"
-	devlanguages "github.com/cjairm/devgita/internal/commands/devLanguages"
 	git "github.com/cjairm/devgita/internal/commands/git"
-	"github.com/cjairm/devgita/internal/commands/terminal"
+	"github.com/cjairm/devgita/internal/commands/powerlevel10k"
+	bash "github.com/cjairm/devgita/internal/commands/zsh"
 	"github.com/cjairm/devgita/pkg/common"
 	"github.com/cjairm/devgita/pkg/debian"
 	"github.com/cjairm/devgita/pkg/files"
@@ -72,21 +71,36 @@ func run(cmd *cobra.Command, args []string) {
 	utils.MaybeExitWithError(files.CleanDestinationDir(devgitaInstallPath))
 	utils.MaybeExitWithError(g.Clone(utils.DevgitaRepositoryUrl, devgitaInstallPath))
 
-	utils.PrintInfo("Preparing to install essential tools and packages...")
-	t := terminal.NewTerminal()
-	t.InstallAll()
+	// utils.PrintInfo("Preparing to install essential tools and packages...")
+	// t := terminal.NewTerminal()
+	// t.InstallAll()
+	//
+	// utils.PrintInfo("Installing development languages")
+	// dl := devlanguages.NewDevLanguages()
+	// ctx, err = dl.ChooseLanguages(ctx)
+	// utils.MaybeExitWithError(err)
+	// dl.InstallChosen(ctx)
+	//
+	// utils.PrintInfo("Installing databases")
+	// db := databases.NewDatabases()
+	// ctx, err = db.ChooseDatabases(ctx)
+	// utils.MaybeExitWithError(err)
+	// db.InstallChosen(ctx)
+	//
+	// utils.PrintInfo("Preparing to install desktop apps...")
+	// d := desktop.NewDesktop()
+	// d.InstallAll()
 
-	utils.PrintInfo("Installing development languages")
-	dl := devlanguages.NewDevLanguages()
-	ctx, err = dl.ChooseLanguages(ctx)
+	utils.PrintInfo("Configuring custom commands...")
+	b := bash.NewBash()
+	err = b.CopyCustomConfig()
 	utils.MaybeExitWithError(err)
-	dl.InstallChosen(ctx)
 
-	utils.PrintInfo("Installing databases")
-	db := databases.NewDatabases()
-	ctx, err = db.ChooseDatabases(ctx)
-	utils.MaybeExitWithError(err)
-	db.InstallChosen(ctx)
+	utils.PrintInfo("Installing terminal theme...")
+	p := powerlevel10k.NewPowerLevel10k()
+	p.MaybeInstall()
+	p.MaybeSetup()
+	p.Reconfigure()
 
 	os.Exit(0)
 
