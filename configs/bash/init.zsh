@@ -1,5 +1,5 @@
 if command -v mise &> /dev/null; then
-  eval "$(~/.local/bin/mise activate zsh)"
+  eval "$(mise activate zsh)"
 fi
 
 if command -v zoxide &> /dev/null; then

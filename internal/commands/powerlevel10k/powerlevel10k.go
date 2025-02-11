@@ -54,11 +54,11 @@ func (p *PowerLevel10k) Setup() error {
 }
 
 func (p *PowerLevel10k) MaybeSetup() error {
-	customDevgitaConfigDir, err := utils.GetLocalConfigPath()
+	devgitaCustomDir, err := utils.GetDevgitaConfigDir()
 	if err != nil {
 		return err
 	}
-	devgitaConfigFile := filepath.Join(customDevgitaConfigDir, "devgita.zsh")
+	devgitaConfigFile := filepath.Join(devgitaCustomDir, "devgita.zsh")
 	isConfigured, err := files.ContentExistsInFile(
 		devgitaConfigFile,
 		"powerlevel10k.zsh-theme",

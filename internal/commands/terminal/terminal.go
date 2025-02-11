@@ -8,10 +8,14 @@ import (
 
 	cmd "github.com/cjairm/devgita/internal"
 	commands "github.com/cjairm/devgita/internal"
+	"github.com/cjairm/devgita/internal/commands/autosuggestions"
 	"github.com/cjairm/devgita/internal/commands/fastfetch"
 	"github.com/cjairm/devgita/internal/commands/mise"
 	"github.com/cjairm/devgita/internal/commands/neovim"
+	"github.com/cjairm/devgita/internal/commands/powerlevel10k"
+	"github.com/cjairm/devgita/internal/commands/syntaxhighlighting"
 	"github.com/cjairm/devgita/internal/commands/tmux"
+	bash "github.com/cjairm/devgita/internal/commands/zsh"
 	"github.com/cjairm/devgita/pkg/promptui"
 	"github.com/cjairm/devgita/pkg/utils"
 )
@@ -97,7 +101,56 @@ func (t *Terminal) InstallAll() error {
 }
 
 func (t *Terminal) ConfigureZsh() error {
-	return nil
+	utils.PrintInfo("Adding config custom files...")
+	b := bash.NewBash()
+	err := b.MaybeCopyCustomConfig()
+	if err != nil {
+		return err
+	}
+
+	utils.PrintInfo("Installing terminal theme...")
+	p := powerlevel10k.NewPowerLevel10k()
+	err = p.MaybeInstall()
+	if err != nil {
+		return err
+	}
+	err = p.MaybeSetup()
+	if err != nil {
+		return err
+	}
+
+	utils.PrintInfo("Installing zsh-autosuggestions...")
+	za := autosuggestions.NewAutosuggestions()
+	err = za.MaybeInstall()
+	if err != nil {
+		return err
+	}
+	err = za.MaybeSetup()
+	if err != nil {
+		return err
+	}
+
+	utils.PrintInfo("Installing zsh-syntax-highlighting...")
+	sh := syntaxhighlighting.New()
+	err = sh.MaybeInstall()
+	if err != nil {
+		return err
+	}
+	err = sh.MaybeSetup()
+	if err != nil {
+		return err
+	}
+
+	utils.PrintInfo("Sourcing custom files...")
+	err = b.MaybeSetupCustom("source $HOME/.config/devgita/aliases.zsh", "aliases.zsh")
+	if err != nil {
+		return err
+	}
+	err = b.MaybeSetupCustom("source $HOME/.config/devgita/init.zsh", "init.zsh")
+	if err != nil {
+		return err
+	}
+	return b.MaybeSetupCustom("source $HOME/.config/devgita/devgita.zsh", "devgita.zsh")
 }
 
 func (t *Terminal) VerifyPackageManagerBeforeInstall(verbose bool) error {

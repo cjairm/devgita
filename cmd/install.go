@@ -5,20 +5,14 @@ package cmd
 
 import (
 	"context"
-	"fmt"
-	"os"
-	"runtime"
 
 	commands "github.com/cjairm/devgita/internal"
+	"github.com/cjairm/devgita/internal/commands/databases"
+	"github.com/cjairm/devgita/internal/commands/desktop"
+	devlanguages "github.com/cjairm/devgita/internal/commands/devLanguages"
 	git "github.com/cjairm/devgita/internal/commands/git"
-	"github.com/cjairm/devgita/internal/commands/powerlevel10k"
-	bash "github.com/cjairm/devgita/internal/commands/zsh"
-	"github.com/cjairm/devgita/pkg/common"
-	"github.com/cjairm/devgita/pkg/debian"
+	"github.com/cjairm/devgita/internal/commands/terminal"
 	"github.com/cjairm/devgita/pkg/files"
-	"github.com/cjairm/devgita/pkg/macos"
-	macosInstall "github.com/cjairm/devgita/pkg/macos/install"
-	macosTerminal "github.com/cjairm/devgita/pkg/macos/install/terminal"
 	"github.com/cjairm/devgita/pkg/utils"
 	"github.com/spf13/cobra"
 )
@@ -71,71 +65,26 @@ func run(cmd *cobra.Command, args []string) {
 	utils.MaybeExitWithError(files.CleanDestinationDir(devgitaInstallPath))
 	utils.MaybeExitWithError(g.Clone(utils.DevgitaRepositoryUrl, devgitaInstallPath))
 
-	// utils.PrintInfo("Preparing to install essential tools and packages...")
-	// t := terminal.NewTerminal()
-	// t.InstallAll()
-	//
-	// utils.PrintInfo("Installing development languages")
-	// dl := devlanguages.NewDevLanguages()
-	// ctx, err = dl.ChooseLanguages(ctx)
-	// utils.MaybeExitWithError(err)
-	// dl.InstallChosen(ctx)
-	//
-	// utils.PrintInfo("Installing databases")
-	// db := databases.NewDatabases()
-	// ctx, err = db.ChooseDatabases(ctx)
-	// utils.MaybeExitWithError(err)
-	// db.InstallChosen(ctx)
-	//
-	// utils.PrintInfo("Preparing to install desktop apps...")
-	// d := desktop.NewDesktop()
-	// d.InstallAll()
+	utils.PrintInfo("Preparing to install essential tools and packages...")
+	t := terminal.NewTerminal()
+	t.InstallAll()
 
-	utils.PrintInfo("Configuring custom commands...")
-	b := bash.NewBash()
-	err = b.CopyCustomConfig()
+	utils.PrintInfo("Installing development languages")
+	dl := devlanguages.NewDevLanguages()
+	ctx, err = dl.ChooseLanguages(ctx)
 	utils.MaybeExitWithError(err)
+	dl.InstallChosen(ctx)
 
-	utils.PrintInfo("Installing terminal theme...")
-	p := powerlevel10k.NewPowerLevel10k()
-	p.MaybeInstall()
-	p.MaybeSetup()
-	p.Reconfigure()
+	utils.PrintInfo("Installing databases")
+	db := databases.NewDatabases()
+	ctx, err = db.ChooseDatabases(ctx)
+	utils.MaybeExitWithError(err)
+	db.InstallChosen(ctx)
 
-	os.Exit(0)
+	utils.PrintInfo("Preparing to install desktop apps...")
+	d := desktop.NewDesktop()
+	d.InstallAll()
 
-	switch runtime.GOOS {
-	case "darwin":
-		// IMPORTANT....!!!
-		// IF you are using an M mac computer... make sure you active Rosseta first
-		/////////////////////////
-		macos.PreInstall()
-
-		fmt.Printf("Checking version...\n\n")
-		macos.CheckVersion()
-
-		fmt.Printf("Cloning repo...\n\n")
-		if err := common.CloneDevgita(devgitaInstallPath); err != nil {
-			fmt.Printf("\033[31mError: %s\033[0m\n", err.Error())
-			fmt.Println("Installation stopped.")
-			os.Exit(1)
-		}
-
-		ctx = macosTerminal.ChooseLanguages(ctx)
-		ctx = macosTerminal.ChooseDatabases(ctx)
-
-		fmt.Printf("Starting installation...\n\n")
-		macosInstall.RunTerminalInstallers(devgitaInstallPath)
-
-		macosTerminal.InstallDatabases(ctx)
-		macosTerminal.InstallDevLanguages(ctx)
-
-		macosInstall.RunDesktopInstallers(devgitaInstallPath)
-		common.Reboot()
-	case "linux":
-		debian.PreInstall()
-		// Check if common.CloneDevgita works here
-	default:
-		fmt.Printf("Unsupported operating system: %s\n", runtime.GOOS)
-	}
+	err = t.ConfigureZsh()
+	utils.MaybeExitWithError(err)
 }
