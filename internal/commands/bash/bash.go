@@ -14,7 +14,7 @@ type Bash struct {
 	Cmd cmd.Command
 }
 
-func NewBash() *Bash {
+func New() *Bash {
 	osCmd := cmd.NewCommand()
 	return &Bash{Cmd: osCmd}
 }

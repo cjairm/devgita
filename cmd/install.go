@@ -82,7 +82,7 @@ func run(cmd *cobra.Command, args []string) {
 	db.InstallChosen(ctx)
 
 	utils.PrintInfo("Preparing to install desktop apps...")
-	d := desktop.NewDesktop()
+	d := desktop.New()
 	d.InstallAll()
 
 	err = t.ConfigureZsh()

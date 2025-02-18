@@ -13,7 +13,7 @@ type Desktop struct {
 	Cmd cmd.Command
 }
 
-func NewDesktop() *Desktop {
+func New() *Desktop {
 	osCmd := cmd.NewCommand()
 	return &Desktop{Cmd: osCmd}
 }

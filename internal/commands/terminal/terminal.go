@@ -9,13 +9,13 @@ import (
 	cmd "github.com/cjairm/devgita/internal"
 	commands "github.com/cjairm/devgita/internal"
 	"github.com/cjairm/devgita/internal/commands/autosuggestions"
+	bash "github.com/cjairm/devgita/internal/commands/bash"
 	"github.com/cjairm/devgita/internal/commands/fastfetch"
 	"github.com/cjairm/devgita/internal/commands/mise"
 	"github.com/cjairm/devgita/internal/commands/neovim"
 	"github.com/cjairm/devgita/internal/commands/powerlevel10k"
 	"github.com/cjairm/devgita/internal/commands/syntaxhighlighting"
 	"github.com/cjairm/devgita/internal/commands/tmux"
-	bash "github.com/cjairm/devgita/internal/commands/zsh"
 	"github.com/cjairm/devgita/pkg/promptui"
 	"github.com/cjairm/devgita/pkg/utils"
 )
@@ -95,7 +95,7 @@ func (t *Terminal) InstallAll() error {
 
 func (t *Terminal) ConfigureZsh() error {
 	utils.PrintInfo("Adding config custom files...")
-	b := bash.NewBash()
+	b := bash.New()
 	err := b.MaybeCopyCustomConfig()
 	if err != nil {
 		return err
