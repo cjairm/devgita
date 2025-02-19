@@ -6,6 +6,7 @@ package cmd
 import (
 	"os"
 
+	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/pkg/utils"
 	"github.com/spf13/cobra"
 )
@@ -44,7 +45,7 @@ func init() {
 }
 
 func setDevgitaPath() error {
-	devgitaInstallPath, err := utils.GetDevgitaPath()
+	devgitaInstallPath, err := config.GetDevgitaPath()
 	if err != nil {
 		return nil
 	}

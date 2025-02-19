@@ -2,6 +2,7 @@ Pending work
 
 - Debian/Ubuntu compatibility
 - Global document to see what we have installed already
+  - Check if languages are already installed - to avoid duplicates/collisions
 - Do we need to create shortcuts?
 - Command to update themes
   - Update background images, too?

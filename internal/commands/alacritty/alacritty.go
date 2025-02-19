@@ -4,8 +4,8 @@ import (
 	"path/filepath"
 
 	cmd "github.com/cjairm/devgita/internal"
+	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/pkg/files"
-	"github.com/cjairm/devgita/pkg/utils"
 )
 
 const alacrittyDir = "alacritty"
@@ -57,7 +57,7 @@ func (a *Alacritty) MaybeSetupTheme() error {
 }
 
 func (a *Alacritty) UpdateConfigFilesWithCurrentHomeDir() error {
-	localConfig, err := utils.GetLocalConfigPath()
+	localConfig, err := config.GetLocalConfigPath()
 	if err != nil {
 		return err
 	}
@@ -66,7 +66,7 @@ func (a *Alacritty) UpdateConfigFilesWithCurrentHomeDir() error {
 }
 
 func maybeSetup(setupFunc func() error, fileSegments []string) error {
-	localConfig, err := utils.GetLocalConfigPath()
+	localConfig, err := config.GetLocalConfigPath()
 	if err != nil {
 		return err
 	}

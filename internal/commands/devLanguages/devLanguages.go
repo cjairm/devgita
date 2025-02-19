@@ -6,6 +6,7 @@ import (
 
 	cmd "github.com/cjairm/devgita/internal"
 	"github.com/cjairm/devgita/internal/commands/mise"
+	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/pkg/promptui"
 	"github.com/cjairm/devgita/pkg/utils"
 )
@@ -48,13 +49,13 @@ func (dl *DevLanguages) ChooseLanguages(ctx context.Context) (context.Context, e
 	if err != nil {
 		return nil, err
 	}
-	initialConfig := utils.Config{}
+	initialConfig := config.ContextConfig{}
 	initialConfig.SelectedLanguages = selectedLanguages
-	return utils.WithConfig(ctx, initialConfig), nil
+	return config.WithConfig(ctx, initialConfig), nil
 }
 
 func (dl *DevLanguages) InstallChosen(ctx context.Context) {
-	selections, ok := utils.GetConfig(ctx)
+	selections, ok := config.GetConfig(ctx)
 	if ok {
 		if len(selections.SelectedLanguages) > 0 {
 			for _, language := range selections.SelectedLanguages {

@@ -6,8 +6,8 @@ import (
 
 	cmd "github.com/cjairm/devgita/internal"
 	commands "github.com/cjairm/devgita/internal"
+	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/pkg/files"
-	"github.com/cjairm/devgita/pkg/utils"
 )
 
 type Bash struct {
@@ -28,7 +28,7 @@ func (b *Bash) CopyCustomConfig() error {
 }
 
 func (b *Bash) MaybeCopyCustomConfig() error {
-	devgitaCustomDir, err := utils.GetDevgitaConfigDir()
+	devgitaCustomDir, err := config.GetDevgitaConfigDir()
 	if err != nil {
 		return err
 	}

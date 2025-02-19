@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/cjairm/devgita/pkg/utils"
+	"github.com/cjairm/devgita/internal/config"
 )
 
 func CopyFile(src, dst string) error {
@@ -140,7 +140,7 @@ func getConfigFolders() (string, string, error) {
 	if err != nil {
 		return "", "", err
 	}
-	devgitaInstallPath, err := utils.GetDevgitaPath()
+	devgitaInstallPath, err := config.GetDevgitaPath()
 	if err != nil {
 		return "", "", err
 	}

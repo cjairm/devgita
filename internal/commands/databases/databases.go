@@ -4,6 +4,7 @@ import (
 	"context"
 
 	cmd "github.com/cjairm/devgita/internal"
+	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/pkg/promptui"
 	"github.com/cjairm/devgita/pkg/utils"
 )
@@ -39,13 +40,13 @@ func (d *Databases) ChooseDatabases(ctx context.Context) (context.Context, error
 	if err != nil {
 		return nil, err
 	}
-	initialConfig := utils.Config{}
+	initialConfig := config.ContextConfig{}
 	initialConfig.SelectedDbs = selectedDatabases
-	return utils.WithConfig(ctx, initialConfig), nil
+	return config.WithConfig(ctx, initialConfig), nil
 }
 
 func (d *Databases) InstallChosen(ctx context.Context) {
-	selections, ok := utils.GetConfig(ctx)
+	selections, ok := config.GetConfig(ctx)
 	if ok {
 		if len(selections.SelectedDbs) > 0 {
 			for _, db := range selections.SelectedDbs {

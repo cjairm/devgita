@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 
 	cmd "github.com/cjairm/devgita/internal"
+	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/pkg/files"
-	"github.com/cjairm/devgita/pkg/utils"
 )
 
 const fastfetchDir = "fastfetch"
@@ -50,7 +50,7 @@ func (f *Fastfetch) Setup() error {
 }
 
 func (f *Fastfetch) MaybeSetup() error {
-	localConfig, err := utils.GetLocalConfigPath()
+	localConfig, err := config.GetLocalConfigPath()
 	if err != nil {
 		return err
 	}

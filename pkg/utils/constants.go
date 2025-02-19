@@ -10,7 +10,6 @@ const (
 	Blue                        = "\033[34m" // Informative color
 	Yellow                      = "\033[33m" // Warning color
 	Bold                        = "\033[1m"
-	ConfigKey                   = "devgita-config"
 	SupportedMacOSVersionNumber = 13
 	SupportedMacOSVersionName   = "Ventura"
 	DevgitaRepositoryUrl        = "https://github.com/cjairm/devgita.git"

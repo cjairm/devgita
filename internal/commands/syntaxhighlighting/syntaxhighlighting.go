@@ -5,8 +5,8 @@ import (
 
 	cmd "github.com/cjairm/devgita/internal"
 	commands "github.com/cjairm/devgita/internal"
+	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/pkg/files"
-	"github.com/cjairm/devgita/pkg/utils"
 )
 
 type Syntaxhighlighting struct {
@@ -27,7 +27,7 @@ func (a *Syntaxhighlighting) MaybeInstall() error {
 }
 
 func (a *Syntaxhighlighting) Setup() error {
-	devgitaCustomDir, err := utils.GetDevgitaConfigDir()
+	devgitaCustomDir, err := config.GetDevgitaConfigDir()
 	if err != nil {
 		return err
 	}
@@ -42,7 +42,7 @@ func (a *Syntaxhighlighting) Setup() error {
 }
 
 func (a *Syntaxhighlighting) MaybeSetup() error {
-	devgitaCustomDir, err := utils.GetDevgitaConfigDir()
+	devgitaCustomDir, err := config.GetDevgitaConfigDir()
 	if err != nil {
 		return err
 	}
