@@ -14,3 +14,8 @@ Pending work
 - (?) npm related - fully clean? fresh-installs?
 - Maybe an TUI?
 - MANUAL - Super important
+
+
+
+GOOS=darwin GOARCH=amd64 go build -o cli_mac_amd64
+GOOS=darwin GOARCH=arm64 go build -o cli_mac_arm64
