@@ -12,10 +12,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const CMD_NAME = "gc"
+const GIT_CLEAN_CMD = "gc"
 
 var gitCleanCmd = &cobra.Command{
-	Use:   CMD_NAME,
+	Use:   GIT_CLEAN_CMD,
 	Short: "Clean up local Git branches",
 	Long: fmt.Sprintf(`The git-clean command allows you to delete a specified local Git branch. 
 You can choose to force the deletion of the branch, even if it has unmerged changes. 
@@ -29,7 +29,7 @@ Usage:
 Flags:
   -c, --branch-to-clean    string   The name of the branch to clean (required)
   -d, --destination-branch string   The name of the destination branch after cleaning (default "main")
-  -f, --force-clean	   boolean  Force the deletion of the branch`, CMD_NAME, CMD_NAME),
+  -f, --force-clean	   boolean  Force the deletion of the branch`, GIT_CLEAN_CMD, GIT_CLEAN_CMD),
 	Run: runGitClean,
 }
 
@@ -50,7 +50,7 @@ func runGitClean(cmd *cobra.Command, args []string) {
 		dstBranch = "main"
 	}
 
-	g := git.NewGit()
+	g := git.New()
 	err = g.SwitchBranch(dstBranch)
 	utils.MaybeExitWithError(err)
 

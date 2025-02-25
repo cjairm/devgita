@@ -1,12 +1,16 @@
 package git
 
-import cmd "github.com/cjairm/devgita/internal"
+import (
+	"fmt"
+
+	cmd "github.com/cjairm/devgita/internal"
+)
 
 type Git struct {
 	Cmd cmd.Command
 }
 
-func NewGit() *Git {
+func New() *Git {
 	osCmd := cmd.NewCommand()
 	return &Git{Cmd: osCmd}
 }
@@ -49,4 +53,19 @@ func (g *Git) Pull(branch string) error {
 
 func (g *Git) SwitchBranch(branch string) error {
 	return Command("checkout", branch)
+}
+
+func (g *Git) Stash(branch string) error {
+	return Command("stash")
+}
+
+func (g *Git) Pop(branch string) error {
+	return Command("pop")
+}
+
+func (g *Git) Restore(branch, files string) error {
+	if branch == "" {
+		branch = "main"
+	}
+	return Command(fmt.Sprintf("restore --source %s --", branch), files)
 }

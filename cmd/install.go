@@ -62,7 +62,7 @@ func run(cmd *cobra.Command, args []string) {
 	utils.MaybeExitWithError(osCmd.MaybeInstallPackage("git"))
 
 	utils.PrintInfo("- Install devgita")
-	g := git.NewGit()
+	g := git.New()
 	utils.MaybeExitWithError(files.CleanDestinationDir(devgitaInstallPath))
 	utils.MaybeExitWithError(g.Clone(utils.DevgitaRepositoryUrl, devgitaInstallPath))
 
