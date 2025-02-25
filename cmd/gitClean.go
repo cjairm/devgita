@@ -49,8 +49,14 @@ func runGitClean(cmd *cobra.Command, args []string) {
 	if dstBranch == "" {
 		dstBranch = "main"
 	}
+	forceClean, err := cmd.Flags().GetBool("force-clean")
+	utils.MaybeExitWithError(err)
 
 	g := git.New()
+	if forceClean {
+		// Stash changes????
+	}
+	// Add a new flag "softClean" and make a temp commit to the branch to allow the clean
 	err = g.SwitchBranch(dstBranch)
 	utils.MaybeExitWithError(err)
 
@@ -61,9 +67,6 @@ func runGitClean(cmd *cobra.Command, args []string) {
 	utils.MaybeExitWithError(err)
 
 	branchToClean, err := cmd.Flags().GetString("branch-to-clean")
-	utils.MaybeExitWithError(err)
-
-	forceClean, err := cmd.Flags().GetBool("force-clean")
 	utils.MaybeExitWithError(err)
 
 	err = g.Clean(branchToClean, forceClean)
