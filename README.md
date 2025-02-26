@@ -15,6 +15,9 @@ Pending work
 - Maybe an TUI?
 - MANUAL - Super important
 
+- Command to update devgita - cli (download latest version)
+- Add alias of `devgita` to `cli` (for easy access)
+
 
 
 GOOS=darwin GOARCH=amd64 go build -o cli_mac_amd64
