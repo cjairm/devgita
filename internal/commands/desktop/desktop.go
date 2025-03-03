@@ -28,7 +28,7 @@ func (d *Desktop) InstallAll() error {
 	ifErrorDisplayMessage(err, "alacritty")
 
 	utils.PrintInfo("Installing fonts (if no previously installed)...")
-	f := fonts.NewFonts()
+	f := fonts.New()
 	f.MaybeInstallAll()
 
 	utils.PrintInfo("Installing gimp (if no previously installed)...")
@@ -71,7 +71,7 @@ func (d *Desktop) InstallDocker() error {
 }
 
 func (d *Desktop) InstallAlacritty() error {
-	a := alacritty.NewAlacritty()
+	a := alacritty.New()
 	err := a.MaybeInstall()
 	if err != nil {
 		return err
@@ -108,7 +108,7 @@ func (d *Desktop) InstallFlameshot() error {
 }
 
 func (d *Desktop) InstallAerospace() error {
-	a := aerospace.NewAerospace()
+	a := aerospace.New()
 	err := a.MaybeInstall()
 	if err != nil {
 		return err

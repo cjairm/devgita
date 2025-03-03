@@ -13,7 +13,7 @@ type Autosuggestions struct {
 	Cmd cmd.Command
 }
 
-func NewAutosuggestions() *Autosuggestions {
+func New() *Autosuggestions {
 	osCmd := cmd.NewCommand()
 	return &Autosuggestions{Cmd: osCmd}
 }

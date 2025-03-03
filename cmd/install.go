@@ -67,17 +67,17 @@ func run(cmd *cobra.Command, args []string) {
 	utils.MaybeExitWithError(g.Clone(utils.DevgitaRepositoryUrl, devgitaInstallPath))
 
 	utils.PrintInfo("Preparing to install essential tools and packages...")
-	t := terminal.NewTerminal()
+	t := terminal.New()
 	t.InstallAll()
 
 	utils.PrintInfo("Installing development languages")
-	dl := devlanguages.NewDevLanguages()
+	dl := devlanguages.New()
 	ctx, err = dl.ChooseLanguages(ctx)
 	utils.MaybeExitWithError(err)
 	dl.InstallChosen(ctx)
 
 	utils.PrintInfo("Installing databases")
-	db := databases.NewDatabases()
+	db := databases.New()
 	ctx, err = db.ChooseDatabases(ctx)
 	utils.MaybeExitWithError(err)
 	db.InstallChosen(ctx)

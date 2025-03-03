@@ -69,7 +69,7 @@ func runGitClean(cmd *cobra.Command, args []string) {
 	branchToClean, err := cmd.Flags().GetString("branch-to-clean")
 	utils.MaybeExitWithError(err)
 
-	err = g.Clean(branchToClean, forceClean)
+	err = g.DeleteBranch(branchToClean, forceClean)
 	utils.MaybeExitWithError(err)
 
 	successMessage := fmt.Sprintf("Branch %s cleaned successfully", branchToClean)

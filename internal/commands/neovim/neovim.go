@@ -24,7 +24,7 @@ type Neovim struct {
 	Cmd cmd.Command
 }
 
-func NewNeovim() *Neovim {
+func New() *Neovim {
 	osCmd := cmd.NewCommand()
 	return &Neovim{Cmd: osCmd}
 }

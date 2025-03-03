@@ -14,7 +14,7 @@ type Alacritty struct {
 	Cmd cmd.Command
 }
 
-func NewAlacritty() *Alacritty {
+func New() *Alacritty {
 	osCmd := cmd.NewCommand()
 	return &Alacritty{Cmd: osCmd}
 }

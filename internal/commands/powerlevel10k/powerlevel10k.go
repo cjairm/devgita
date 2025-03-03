@@ -13,7 +13,7 @@ type PowerLevel10k struct {
 	Cmd cmd.Command
 }
 
-func NewPowerLevel10k() *PowerLevel10k {
+func New() *PowerLevel10k {
 	osCmd := cmd.NewCommand()
 	return &PowerLevel10k{Cmd: osCmd}
 }

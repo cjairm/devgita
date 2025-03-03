@@ -6,7 +6,7 @@ type Fonts struct {
 	Cmd cmd.Command
 }
 
-func NewFonts() *Fonts {
+func New() *Fonts {
 	osCmd := cmd.NewCommand()
 	return &Fonts{Cmd: osCmd}
 }

@@ -20,7 +20,7 @@ type Tmux struct {
 	Cmd cmd.Command
 }
 
-func NewTmux() *Tmux {
+func New() *Tmux {
 	osCmd := cmd.NewCommand()
 	return &Tmux{Cmd: osCmd}
 }

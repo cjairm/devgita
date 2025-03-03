@@ -13,7 +13,7 @@ type Databases struct {
 	Cmd cmd.Command
 }
 
-func NewDatabases() *Databases {
+func New() *Databases {
 	osCmd := cmd.NewCommand()
 	return &Databases{Cmd: osCmd}
 }

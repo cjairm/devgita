@@ -24,7 +24,7 @@ type Terminal struct {
 	Cmd cmd.Command
 }
 
-func NewTerminal() *Terminal {
+func New() *Terminal {
 	osCmd := cmd.NewCommand()
 	return &Terminal{Cmd: osCmd}
 }
@@ -102,7 +102,7 @@ func (t *Terminal) ConfigureZsh() error {
 	}
 
 	utils.PrintInfo("Installing terminal theme...")
-	p := powerlevel10k.NewPowerLevel10k()
+	p := powerlevel10k.New()
 	err = p.MaybeInstall()
 	if err != nil {
 		return err
@@ -113,7 +113,7 @@ func (t *Terminal) ConfigureZsh() error {
 	}
 
 	utils.PrintInfo("Installing zsh-autosuggestions...")
-	za := autosuggestions.NewAutosuggestions()
+	za := autosuggestions.New()
 	err = za.MaybeInstall()
 	if err != nil {
 		return err
@@ -159,7 +159,7 @@ func (t *Terminal) InstallUnzip() error {
 }
 
 func (t *Terminal) InstallFastFetch() error {
-	ff := fastfetch.NewFastfetch()
+	ff := fastfetch.New()
 	err := ff.MaybeInstall()
 	if err != nil {
 		return err
@@ -187,7 +187,7 @@ func (t *Terminal) InstallLazyGit() error {
 }
 
 func (t *Terminal) InstallNeovim() error {
-	nv := neovim.NewNeovim()
+	nv := neovim.New()
 	err := nv.MaybeInstall()
 	if err != nil {
 		return err
@@ -200,7 +200,7 @@ func (t *Terminal) InstallNeovim() error {
 }
 
 func (t *Terminal) InstallTmux() error {
-	tm := tmux.NewTmux()
+	tm := tmux.New()
 	err := tm.MaybeInstall()
 	if err != nil {
 		return err
@@ -271,7 +271,7 @@ func (t *Terminal) InstallCoreLibs() error {
 
 // installs Mise
 func (t *Terminal) InstallMise() error {
-	m := mise.NewMise()
+	m := mise.New()
 	return m.MaybeInstall()
 }
 

@@ -19,7 +19,7 @@ type Fastfetch struct {
 	Cmd cmd.Command
 }
 
-func NewFastfetch() *Fastfetch {
+func New() *Fastfetch {
 	osCmd := cmd.NewCommand()
 	return &Fastfetch{Cmd: osCmd}
 }

@@ -14,7 +14,7 @@ type Aerospace struct {
 	Cmd cmd.Command
 }
 
-func NewAerospace() *Aerospace {
+func New() *Aerospace {
 	osCmd := cmd.NewCommand()
 	return &Aerospace{Cmd: osCmd}
 }

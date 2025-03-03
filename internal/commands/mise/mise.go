@@ -14,7 +14,7 @@ type Mise struct {
 	Cmd cmd.Command
 }
 
-func NewMise() *Mise {
+func New() *Mise {
 	osCmd := cmd.NewCommand()
 	return &Mise{Cmd: osCmd}
 }

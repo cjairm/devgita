@@ -15,13 +15,13 @@ type DevLanguages struct {
 	Cmd cmd.Command
 }
 
-func NewDevLanguages() *DevLanguages {
+func New() *DevLanguages {
 	osCmd := cmd.NewCommand()
 	return &DevLanguages{Cmd: osCmd}
 }
 
 func (dl *DevLanguages) InstallWithMise(language, version string) error {
-	m := mise.NewMise()
+	m := mise.New()
 	return m.UseGlobal(language, version)
 }
 
