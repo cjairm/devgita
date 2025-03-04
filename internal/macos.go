@@ -14,61 +14,27 @@ import (
 type MacOSCommand struct{}
 
 func (m *MacOSCommand) MaybeInstallPackage(packageName string, alias ...string) error {
-	var isInstalled bool
-	var err error
-	pkgToInstall := packageName
-	if len(alias) > 0 {
-		pkgToInstall = alias[0]
-	}
-	isInstalled, err = isPackageInstalled(pkgToInstall)
-	if err != nil {
-		return err
-	}
-	if isInstalled {
-		return nil
-	}
-	return m.InstallPackage(packageName)
+	return m.maybeInstall(packageName, alias, isPackageInstalled, m.InstallPackage)
 }
 
 func (m *MacOSCommand) MaybeInstallDesktopApp(desktopAppName string, alias ...string) error {
-	var isInstalled bool
-	var err error
-	pkgToInstall := desktopAppName
-	if len(alias) > 0 {
-		pkgToInstall = alias[0]
-	}
-	isInstalled, err = isDesktopAppInstalled(pkgToInstall)
-	if !isInstalled {
-		isInstalled, err = desktopApplicationExist(pkgToInstall)
-	}
-	if err != nil {
-		return err
-	}
-	if isInstalled {
-		return nil
-	}
-	return m.InstallDesktopApp(pkgToInstall)
+	return m.maybeInstall(desktopAppName, alias, func(name string) (bool, error) {
+		isInstalled, err := isDesktopAppInstalled(name)
+		if !isInstalled {
+			isInstalled, err = desktopApplicationExist(name)
+		}
+		return isInstalled, err
+	}, m.InstallDesktopApp)
 }
 
-// NOTE: Logic copied from `MaybeInstallDesktopApp`
-func (m *MacOSCommand) MaybeInstallFont(desktopAppName string, alias ...string) error {
-	var isInstalled bool
-	var err error
-	pkgToInstall := desktopAppName
-	if len(alias) > 0 {
-		pkgToInstall = alias[0]
-	}
-	isInstalled, err = isDesktopAppInstalled(pkgToInstall)
-	if !isInstalled {
-		isInstalled, err = fontExist(pkgToInstall)
-	}
-	if err != nil {
-		return err
-	}
-	if isInstalled {
-		return nil
-	}
-	return m.InstallDesktopApp(pkgToInstall)
+func (m *MacOSCommand) MaybeInstallFont(fontName string, alias ...string) error {
+	return m.maybeInstall(fontName, alias, func(name string) (bool, error) {
+		isInstalled, err := isDesktopAppInstalled(name)
+		if !isInstalled {
+			isInstalled, err = fontExist(name)
+		}
+		return isInstalled, err
+	}, m.InstallDesktopApp)
 }
 
 func (m *MacOSCommand) InstallPackage(packageName string) error {
@@ -248,4 +214,26 @@ func findPackageInCommandOutput(cmd *exec.Cmd, packageName string) (bool, error)
 		}
 	}
 	return false, nil
+}
+
+func (m *MacOSCommand) maybeInstall(
+	itemName string,
+	alias []string,
+	checkInstalled func(string) (bool, error),
+	installFunc func(string) error,
+) error {
+	var isInstalled bool
+	var err error
+	pkgToInstall := itemName
+	if len(alias) > 0 {
+		pkgToInstall = alias[0]
+	}
+	isInstalled, err = checkInstalled(pkgToInstall)
+	if err != nil {
+		return err
+	}
+	if isInstalled {
+		return nil
+	}
+	return installFunc(pkgToInstall)
 }
