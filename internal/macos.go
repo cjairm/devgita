@@ -11,14 +11,16 @@ import (
 	"github.com/cjairm/devgita/pkg/utils"
 )
 
-type MacOSCommand struct{}
+type MacOSCommand struct {
+	BaseCommand
+}
 
 func (m *MacOSCommand) MaybeInstallPackage(packageName string, alias ...string) error {
-	return m.maybeInstall(packageName, alias, isPackageInstalled, m.InstallPackage)
+	return maybeInstall(packageName, alias, isPackageInstalled, m.InstallPackage)
 }
 
 func (m *MacOSCommand) MaybeInstallDesktopApp(desktopAppName string, alias ...string) error {
-	return m.maybeInstall(desktopAppName, alias, func(name string) (bool, error) {
+	return maybeInstall(desktopAppName, alias, func(name string) (bool, error) {
 		isInstalled, err := isDesktopAppInstalled(name)
 		if !isInstalled {
 			isInstalled, err = desktopApplicationExist(name)
@@ -28,7 +30,7 @@ func (m *MacOSCommand) MaybeInstallDesktopApp(desktopAppName string, alias ...st
 }
 
 func (m *MacOSCommand) MaybeInstallFont(fontName string, alias ...string) error {
-	return m.maybeInstall(fontName, alias, func(name string) (bool, error) {
+	return maybeInstall(fontName, alias, func(name string) (bool, error) {
 		isInstalled, err := isDesktopAppInstalled(name)
 		if !isInstalled {
 			isInstalled, err = fontExist(name)
@@ -59,14 +61,6 @@ func (m *MacOSCommand) InstallDesktopApp(packageName string) error {
 		Args:        []string{"install", "--cask", packageName},
 	}
 	return ExecCommand(cmd)
-}
-
-func (m *MacOSCommand) IsMac() bool {
-	return true
-}
-
-func (m *MacOSCommand) IsLinux() bool {
-	return false
 }
 
 func (m *MacOSCommand) UpgradePackage(packageName string) error {
@@ -216,7 +210,7 @@ func findPackageInCommandOutput(cmd *exec.Cmd, packageName string) (bool, error)
 	return false, nil
 }
 
-func (m *MacOSCommand) maybeInstall(
+func maybeInstall(
 	itemName string,
 	alias []string,
 	checkInstalled func(string) (bool, error),

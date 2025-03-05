@@ -6,7 +6,6 @@ import (
 	"os/exec"
 	"strings"
 
-	cmd "github.com/cjairm/devgita/internal"
 	commands "github.com/cjairm/devgita/internal"
 	"github.com/cjairm/devgita/internal/commands/autosuggestions"
 	bash "github.com/cjairm/devgita/internal/commands/bash"
@@ -21,11 +20,12 @@ import (
 )
 
 type Terminal struct {
-	Cmd cmd.Command
+	Cmd commands.Command
+	Base commands.BaseCommand
 }
 
 func New() *Terminal {
-	osCmd := cmd.NewCommand()
+	osCmd := commands.NewCommand()
 	return &Terminal{Cmd: osCmd}
 }
 
@@ -71,7 +71,7 @@ func (t *Terminal) InstallAll() error {
 	err = t.InstallDevTools()
 	ifErrorDisplayMessage(err, "fzf, ripgrep, bat, eza, zoxide, btop, fd-find, and tldr")
 
-	if t.Cmd.IsMac() {
+	if t.Base.IsMac() {
 		utils.PrintInfo("Installing xcode (if no previously installed)...")
 		err = t.InstallXCode()
 		ifErrorDisplayMessage(err, "xcode")

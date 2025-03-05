@@ -8,8 +8,6 @@ type Command interface {
 	MaybeInstallFont(desktopAppName string, alias ...string) error
 	InstallPackage(packageName string) error
 	InstallDesktopApp(packageName string) error
-	IsMac() bool
-	IsLinux() bool
 	UpgradePackage(packageName string) error
 	ValidateOSVersion() error
 

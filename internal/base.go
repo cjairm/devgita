@@ -1,0 +1,163 @@
+package commands
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"runtime"
+)
+
+type GlobalConfig struct {
+	LocalConfigPath      string            `json:"localConfigPath"`
+	RemoteConfigPath     string            `json:"remoteConfigPath"`
+	SelectedTheme        string            `json:"selectedTheme"`
+	Font                 string            `json:"font"`
+	InstalledPackages    []string          `json:"installedPackages"`
+	InstalledDesktopApps []string          `json:"installedDesktopApps"`
+	Shortcuts            map[string]string `json:"shortcuts"`
+}
+
+type BaseCommand struct{}
+
+func NewBaseCommand() *BaseCommand {
+	return &BaseCommand{}
+}
+
+func (b *BaseCommand) IsMac() bool {
+	return runtime.GOOS == "darwin"
+}
+
+func (b *BaseCommand) IsLinux() bool {
+	return runtime.GOOS == "linux"
+}
+
+func (b *BaseCommand) GetLocalConfigDir(subDir string) (string, error) {
+	var baseDir string
+	var err error
+	if b.IsMac() {
+		baseDir, err = getMacLocalConfigDir()
+	} else if b.IsLinux() {
+		baseDir, err = getLinuxLocalConfigDir()
+	} else {
+		return "", fmt.Errorf("unsupported operating system")
+	}
+	if err != nil {
+		return "", err
+	}
+	if subDir != "" {
+		return filepath.Join(baseDir, subDir), nil
+	}
+	return baseDir, nil
+}
+
+func (b *BaseCommand) GetDevgitaAppDir(subDir string) (string, error) {
+	var baseDir string
+	var err error
+	if b.IsMac() {
+		baseDir, err = getMacDevgitaAppDir()
+	} else if b.IsLinux() {
+		baseDir, err = getLinuxDevgitaAppDir()
+	} else {
+		return "", fmt.Errorf("unsupported operating system")
+	}
+	if err != nil {
+		return "", err
+	}
+	if subDir != "" {
+		return filepath.Join(baseDir, subDir), nil
+	}
+	return baseDir, nil
+}
+
+func (b *BaseCommand) LoadGlobalConfig() (*GlobalConfig, error) {
+	filename, err := b.GetDevgitaAppDir("/configs/bash/global_config.json")
+	if err != nil {
+		return nil, err
+	}
+	file, err := os.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+	var config GlobalConfig
+	err = json.Unmarshal(file, &config)
+	if err != nil {
+		return nil, err
+	}
+	return &config, nil
+}
+
+func (b *BaseCommand) SetGlobalConfig(config *GlobalConfig) error {
+	filename, err := b.GetDevgitaAppDir("/configs/bash/global_config.json")
+	if err != nil {
+		return err
+	}
+	file, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filename, file, 0644)
+}
+
+func (b *BaseCommand) ResetGlobalConfig() error {
+	filename, err := b.GetDevgitaAppDir("/configs/bash/global_config.json")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filename, []byte("{}"), 0644)
+}
+
+//Example of how to use the config package
+// configFile := "./configs/bash/devgita_config.json"
+//
+// // Load the configuration
+// c, err := config.LoadConfig(configFile)
+// if err != nil {
+// 	fmt.Println("Error loading config:", err)
+// 	return
+// }
+//
+// // Print the loaded configuration
+// fmt.Printf("Loaded Config: %+v\n", c)
+//
+// // Modify the configuration
+// c.SelectedTheme = "light"
+// c.InstalledPackages = append(c.InstalledPackages, "new-package")
+//
+// // Save the updated configuration
+// err = config.SaveConfig(configFile, c)
+// if err != nil {
+// 	fmt.Println("Error saving config:", err)
+// 	return
+// }
+//
+// fmt.Println("Configuration saved successfully.")
+
+// TODO: Modify this to use global config if exists
+func getMacLocalConfigDir() (string, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(homeDir, ".config"), nil
+}
+
+func getLinuxLocalConfigDir() (string, error) {
+	// TODO: Implement this function
+	return "", nil
+}
+
+// TODO: Modify this to use global config if exists
+func getMacDevgitaAppDir() (string, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	// DO NOT CHANGE THIS PATH
+	return filepath.Join(homeDir, ".local", "share", "devgita"), nil
+}
+
+func getLinuxDevgitaAppDir() (string, error) {
+	// TODO: Implement this function
+	return "", nil
+}

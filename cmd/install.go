@@ -12,7 +12,6 @@ import (
 	devlanguages "github.com/cjairm/devgita/internal/commands/devLanguages"
 	git "github.com/cjairm/devgita/internal/commands/git"
 	"github.com/cjairm/devgita/internal/commands/terminal"
-	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/pkg/files"
 	"github.com/cjairm/devgita/pkg/utils"
 	"github.com/spf13/cobra"
@@ -41,7 +40,8 @@ func init() {
 }
 
 func run(cmd *cobra.Command, args []string) {
-	devgitaInstallPath, err := config.GetDevgitaPath()
+	bc := commands.NewBaseCommand()
+	devgitaInstallPath, err := bc.GetDevgitaAppDir("")
 	utils.MaybeExitWithError(err)
 
 	utils.PrintBold(utils.Devgita)

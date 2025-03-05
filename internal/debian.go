@@ -4,7 +4,9 @@ import (
 	"fmt"
 )
 
-type DebianCommand struct{}
+type DebianCommand struct {
+	BaseCommand
+}
 
 func (d *DebianCommand) MaybeInstallPackage(packageName string, alias ...string) error {
 	fmt.Println("Executing `MaybeInstallPackage` on Debian")
@@ -29,14 +31,6 @@ func (d *DebianCommand) InstallPackage(packageName string) error {
 func (d *DebianCommand) InstallDesktopApp(packageName string) error {
 	fmt.Println("Executing `InstallDesktopApp` on Debian")
 	return nil
-}
-
-func (d *DebianCommand) IsMac() bool {
-	return false
-}
-
-func (d *DebianCommand) IsLinux() bool {
-	return true
 }
 
 func (d *DebianCommand) UpgradePackage(packageName string) error {
