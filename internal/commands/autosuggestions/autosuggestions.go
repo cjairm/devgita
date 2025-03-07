@@ -5,17 +5,18 @@ import (
 
 	cmd "github.com/cjairm/devgita/internal"
 	commands "github.com/cjairm/devgita/internal"
-	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/pkg/files"
 )
 
 type Autosuggestions struct {
-	Cmd cmd.Command
+	Cmd  cmd.Command
+	Base cmd.BaseCommand
 }
 
 func New() *Autosuggestions {
 	osCmd := cmd.NewCommand()
-	return &Autosuggestions{Cmd: osCmd}
+	baseCmd := cmd.NewBaseCommand()
+	return &Autosuggestions{Cmd: osCmd, Base: *baseCmd}
 }
 
 func (a *Autosuggestions) Install() error {
@@ -27,7 +28,7 @@ func (a *Autosuggestions) MaybeInstall() error {
 }
 
 func (a *Autosuggestions) Setup() error {
-	devgitaCustomDir, err := config.GetDevgitaConfigDir()
+	devgitaCustomDir, err := a.Base.GetDevgitaAppDir("")
 	if err != nil {
 		return err
 	}
@@ -42,7 +43,7 @@ func (a *Autosuggestions) Setup() error {
 }
 
 func (a *Autosuggestions) MaybeSetup() error {
-	devgitaCustomDir, err := config.GetDevgitaConfigDir()
+	devgitaCustomDir, err := a.Base.GetDevgitaAppDir("")
 	if err != nil {
 		return err
 	}

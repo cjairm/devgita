@@ -5,17 +5,18 @@ import (
 
 	cmd "github.com/cjairm/devgita/internal"
 	commands "github.com/cjairm/devgita/internal"
-	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/pkg/files"
 )
 
 type PowerLevel10k struct {
-	Cmd cmd.Command
+	Cmd  cmd.Command
+	Base cmd.BaseCommand
 }
 
 func New() *PowerLevel10k {
 	osCmd := cmd.NewCommand()
-	return &PowerLevel10k{Cmd: osCmd}
+	baseCmd := cmd.NewBaseCommand()
+	return &PowerLevel10k{Cmd: osCmd, Base: *baseCmd}
 }
 
 func Command(args ...string) error {
@@ -39,7 +40,7 @@ func (p *PowerLevel10k) MaybeInstall() error {
 }
 
 func (p *PowerLevel10k) Setup() error {
-	devgitaCustomDir, err := config.GetDevgitaConfigDir()
+	devgitaCustomDir, err := p.Base.GetDevgitaAppDir("")
 	if err != nil {
 		return err
 	}
@@ -54,7 +55,7 @@ func (p *PowerLevel10k) Setup() error {
 }
 
 func (p *PowerLevel10k) MaybeSetup() error {
-	devgitaCustomDir, err := config.GetDevgitaConfigDir()
+	devgitaCustomDir, err := p.Base.GetDevgitaAppDir("")
 	if err != nil {
 		return err
 	}

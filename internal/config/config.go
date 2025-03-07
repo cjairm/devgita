@@ -2,8 +2,6 @@ package config
 
 import (
 	"context"
-	"os"
-	"path/filepath"
 )
 
 const ConfigKey = "devgita-config"
@@ -22,13 +20,4 @@ func WithConfig(ctx context.Context, config ContextConfig) context.Context {
 func GetConfig(ctx context.Context) (ContextConfig, bool) {
 	config, ok := ctx.Value(ConfigKey).(ContextConfig)
 	return config, ok
-}
-
-func GetDevgitaConfigDir() (string, error) {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-	localConfig := filepath.Join(homeDir, ".config", "devgita")
-	return localConfig, err
 }

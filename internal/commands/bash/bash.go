@@ -6,17 +6,18 @@ import (
 
 	cmd "github.com/cjairm/devgita/internal"
 	commands "github.com/cjairm/devgita/internal"
-	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/pkg/files"
 )
 
 type Bash struct {
-	Cmd cmd.Command
+	Cmd  cmd.Command
+	Base cmd.BaseCommand
 }
 
 func New() *Bash {
 	osCmd := cmd.NewCommand()
-	return &Bash{Cmd: osCmd}
+	baseCmd := cmd.NewBaseCommand()
+	return &Bash{Cmd: osCmd, Base: *baseCmd}
 }
 
 func (b *Bash) CopyCustomConfig() error {
@@ -28,7 +29,7 @@ func (b *Bash) CopyCustomConfig() error {
 }
 
 func (b *Bash) MaybeCopyCustomConfig() error {
-	devgitaCustomDir, err := config.GetDevgitaConfigDir()
+	devgitaCustomDir, err := b.Base.GetDevgitaAppDir("")
 	if err != nil {
 		return err
 	}

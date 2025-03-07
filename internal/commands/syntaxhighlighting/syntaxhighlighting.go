@@ -5,17 +5,18 @@ import (
 
 	cmd "github.com/cjairm/devgita/internal"
 	commands "github.com/cjairm/devgita/internal"
-	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/pkg/files"
 )
 
 type Syntaxhighlighting struct {
-	Cmd cmd.Command
+	Cmd  cmd.Command
+	Base cmd.BaseCommand
 }
 
 func New() *Syntaxhighlighting {
 	osCmd := cmd.NewCommand()
-	return &Syntaxhighlighting{Cmd: osCmd}
+	baseCmd := cmd.NewBaseCommand()
+	return &Syntaxhighlighting{Cmd: osCmd, Base: *baseCmd}
 }
 
 func (a *Syntaxhighlighting) Install() error {
@@ -27,7 +28,7 @@ func (a *Syntaxhighlighting) MaybeInstall() error {
 }
 
 func (a *Syntaxhighlighting) Setup() error {
-	devgitaCustomDir, err := config.GetDevgitaConfigDir()
+	devgitaCustomDir, err := a.Base.GetDevgitaAppDir("")
 	if err != nil {
 		return err
 	}
@@ -42,7 +43,7 @@ func (a *Syntaxhighlighting) Setup() error {
 }
 
 func (a *Syntaxhighlighting) MaybeSetup() error {
-	devgitaCustomDir, err := config.GetDevgitaConfigDir()
+	devgitaCustomDir, err := a.Base.GetDevgitaAppDir("")
 	if err != nil {
 		return err
 	}
