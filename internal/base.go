@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+
+	"github.com/cjairm/devgita/pkg/files"
 )
 
 type GlobalConfig struct {
@@ -32,7 +34,26 @@ func (b *BaseCommand) IsLinux() bool {
 	return runtime.GOOS == "linux"
 }
 
-func (b *BaseCommand) GetLocalConfigDir(subDir string) (string, error) {
+func (b *BaseCommand) GetHomeDir(subDir ...string) (string, error) {
+	var baseDir string
+	var err error
+	if b.IsMac() {
+		baseDir, err = getMacHomeDir()
+	} else if b.IsLinux() {
+		baseDir, err = getLinuxHomeDir()
+	} else {
+		return "", fmt.Errorf("unsupported operating system")
+	}
+	if err != nil {
+		return "", err
+	}
+	if len(subDir) > 0 {
+		return filepath.Join(append([]string{baseDir}, subDir...)...), nil
+	}
+	return baseDir, nil
+}
+
+func (b *BaseCommand) GetLocalConfigDir(subDir ...string) (string, error) {
 	var baseDir string
 	var err error
 	if b.IsMac() {
@@ -45,13 +66,13 @@ func (b *BaseCommand) GetLocalConfigDir(subDir string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if subDir != "" {
-		return filepath.Join(baseDir, subDir), nil
+	if len(subDir) > 0 {
+		return filepath.Join(append([]string{baseDir}, subDir...)...), nil
 	}
 	return baseDir, nil
 }
 
-func (b *BaseCommand) GetDevgitaAppDir(subDir string) (string, error) {
+func (b *BaseCommand) GetDevgitaAppDir(subDir ...string) (string, error) {
 	var baseDir string
 	var err error
 	if b.IsMac() {
@@ -64,14 +85,44 @@ func (b *BaseCommand) GetDevgitaAppDir(subDir string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if subDir != "" {
-		return filepath.Join(baseDir, subDir), nil
+	if len(subDir) > 0 {
+		return filepath.Join(append([]string{baseDir}, subDir...)...), nil
 	}
 	return baseDir, nil
 }
 
+func (b *BaseCommand) CopyDevgitaConfigDirToLocalConfig(fromDevgita, toLocal []string) error {
+	devgitaConfigSrc, err := b.GetDevgitaAppDir(append([]string{"configs"}, fromDevgita...)...)
+	if err != nil {
+		return err
+	}
+	localConfigDst, err := b.GetLocalConfigDir(toLocal...)
+	if err != nil {
+		return err
+	}
+	if err = files.CopyDir(devgitaConfigSrc, localConfigDst); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (b *BaseCommand) CopyDevgitaConfigFileToHomeDir(fromDevgita ...string) error {
+	devgitaConfigSrc, err := b.GetDevgitaAppDir(append([]string{"configs"}, fromDevgita...)...)
+	if err != nil {
+		return err
+	}
+	homeDst, err := b.GetHomeDir()
+	if err != nil {
+		return err
+	}
+	if err = files.CopyFile(devgitaConfigSrc, homeDst); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (b *BaseCommand) LoadGlobalConfig() (*GlobalConfig, error) {
-	filename, err := b.GetDevgitaAppDir("/configs/bash/global_config.json")
+	filename, err := b.GetDevgitaAppDir("configs", "bash", "global_config.json")
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +139,7 @@ func (b *BaseCommand) LoadGlobalConfig() (*GlobalConfig, error) {
 }
 
 func (b *BaseCommand) SetGlobalConfig(config *GlobalConfig) error {
-	filename, err := b.GetDevgitaAppDir("/configs/bash/global_config.json")
+	filename, err := b.GetDevgitaAppDir("configs", "bash", "global_config.json")
 	if err != nil {
 		return err
 	}
@@ -100,7 +151,7 @@ func (b *BaseCommand) SetGlobalConfig(config *GlobalConfig) error {
 }
 
 func (b *BaseCommand) ResetGlobalConfig() error {
-	filename, err := b.GetDevgitaAppDir("/configs/bash/global_config.json")
+	filename, err := b.GetDevgitaAppDir("configs", "bash", "global_config.json")
 	if err != nil {
 		return err
 	}
@@ -134,8 +185,18 @@ func (b *BaseCommand) ResetGlobalConfig() error {
 // fmt.Println("Configuration saved successfully.")
 
 // TODO: Modify this to use global config if exists
+func getMacHomeDir() (string, error) {
+	return os.UserHomeDir()
+}
+
+func getLinuxHomeDir() (string, error) {
+	// TODO: Implement this function
+	return "", nil
+}
+
+// TODO: Modify this to use global config if exists
 func getMacLocalConfigDir() (string, error) {
-	homeDir, err := os.UserHomeDir()
+	homeDir, err := getMacHomeDir()
 	if err != nil {
 		return "", err
 	}
@@ -149,7 +210,7 @@ func getLinuxLocalConfigDir() (string, error) {
 
 // TODO: Modify this to use global config if exists
 func getMacDevgitaAppDir() (string, error) {
-	homeDir, err := os.UserHomeDir()
+	homeDir, err := getMacHomeDir()
 	if err != nil {
 		return "", err
 	}

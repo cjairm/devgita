@@ -46,7 +46,7 @@ func (a *Alacritty) SetupTheme() error {
 }
 
 func (a *Alacritty) MaybeSetupApp() error {
-	localConfig, err := a.Base.GetLocalConfigDir("")
+	localConfig, err := a.Base.GetLocalConfigDir()
 	if err != nil {
 		return err
 	}
@@ -54,7 +54,7 @@ func (a *Alacritty) MaybeSetupApp() error {
 }
 
 func (a *Alacritty) MaybeSetupFont() error {
-	localConfig, err := a.Base.GetLocalConfigDir("")
+	localConfig, err := a.Base.GetLocalConfigDir()
 	if err != nil {
 		return err
 	}
@@ -62,7 +62,7 @@ func (a *Alacritty) MaybeSetupFont() error {
 }
 
 func (a *Alacritty) MaybeSetupTheme() error {
-	localConfig, err := a.Base.GetLocalConfigDir("")
+	localConfig, err := a.Base.GetLocalConfigDir()
 	if err != nil {
 		return err
 	}
@@ -70,7 +70,7 @@ func (a *Alacritty) MaybeSetupTheme() error {
 }
 
 func (a *Alacritty) UpdateConfigFilesWithCurrentHomeDir() error {
-	localConfig, err := a.Base.GetLocalConfigDir("")
+	localConfig, err := a.Base.GetLocalConfigDir()
 	if err != nil {
 		return err
 	}

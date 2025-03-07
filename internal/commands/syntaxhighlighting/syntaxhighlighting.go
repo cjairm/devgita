@@ -28,7 +28,7 @@ func (a *Syntaxhighlighting) MaybeInstall() error {
 }
 
 func (a *Syntaxhighlighting) Setup() error {
-	devgitaCustomDir, err := a.Base.GetDevgitaAppDir("")
+	devgitaCustomDir, err := a.Base.GetDevgitaAppDir()
 	if err != nil {
 		return err
 	}
@@ -43,7 +43,7 @@ func (a *Syntaxhighlighting) Setup() error {
 }
 
 func (a *Syntaxhighlighting) MaybeSetup() error {
-	devgitaCustomDir, err := a.Base.GetDevgitaAppDir("")
+	devgitaCustomDir, err := a.Base.GetDevgitaAppDir()
 	if err != nil {
 		return err
 	}

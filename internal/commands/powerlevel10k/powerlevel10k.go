@@ -40,7 +40,7 @@ func (p *PowerLevel10k) MaybeInstall() error {
 }
 
 func (p *PowerLevel10k) Setup() error {
-	devgitaCustomDir, err := p.Base.GetDevgitaAppDir("")
+	devgitaCustomDir, err := p.Base.GetDevgitaAppDir()
 	if err != nil {
 		return err
 	}
@@ -55,7 +55,7 @@ func (p *PowerLevel10k) Setup() error {
 }
 
 func (p *PowerLevel10k) MaybeSetup() error {
-	devgitaCustomDir, err := p.Base.GetDevgitaAppDir("")
+	devgitaCustomDir, err := p.Base.GetDevgitaAppDir()
 	if err != nil {
 		return err
 	}

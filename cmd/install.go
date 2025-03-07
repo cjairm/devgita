@@ -41,7 +41,7 @@ func init() {
 
 func run(cmd *cobra.Command, args []string) {
 	bc := commands.NewBaseCommand()
-	devgitaInstallPath, err := bc.GetDevgitaAppDir("")
+	devgitaInstallPath, err := bc.GetDevgitaAppDir()
 	utils.MaybeExitWithError(err)
 
 	utils.PrintBold(utils.Devgita)

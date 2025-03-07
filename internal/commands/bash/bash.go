@@ -29,7 +29,7 @@ func (b *Bash) CopyCustomConfig() error {
 }
 
 func (b *Bash) MaybeCopyCustomConfig() error {
-	devgitaCustomDir, err := b.Base.GetDevgitaAppDir("")
+	devgitaCustomDir, err := b.Base.GetDevgitaAppDir()
 	if err != nil {
 		return err
 	}

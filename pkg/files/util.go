@@ -58,22 +58,6 @@ func MoveFromConfigsToLocalConfig(devgitaSegments, localSegments []string) error
 	return nil
 }
 
-func CopyFileFromConfigsToHomeDir(devgitaSegments []string) error {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return err
-	}
-	devgitaConfigRoot, _, err := getConfigFolders()
-	devgitaConfigDirSrc := filepath.Join(
-		devgitaConfigRoot,
-		filepath.Join(devgitaSegments...),
-	)
-	if err = CopyFile(devgitaConfigDirSrc, homeDir); err != nil {
-		return err
-	}
-	return nil
-}
-
 func FileAlreadyExist(filePath string) bool {
 	info := getEntryInfo(filePath)
 	return info != nil
@@ -141,7 +125,7 @@ func getConfigFolders() (string, string, error) {
 		return "", "", err
 	}
 	bc := commands.NewBaseCommand()
-	devgitaInstallPath, err := bc.GetDevgitaAppDir("")
+	devgitaInstallPath, err := bc.GetDevgitaAppDir()
 	if err != nil {
 		return "", "", err
 	}

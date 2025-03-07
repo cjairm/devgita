@@ -57,7 +57,7 @@ func (n *Neovim) Setup() error {
 }
 
 func (n *Neovim) MaybeSetup() error {
-	localConfig, err := n.Base.GetLocalConfigDir("")
+	localConfig, err := n.Base.GetLocalConfigDir()
 	if err != nil {
 		return err
 	}

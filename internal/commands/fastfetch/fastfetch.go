@@ -51,7 +51,7 @@ func (f *Fastfetch) Setup() error {
 }
 
 func (f *Fastfetch) MaybeSetup() error {
-	localConfig, err := f.Base.GetLocalConfigDir("")
+	localConfig, err := f.Base.GetLocalConfigDir()
 	if err != nil {
 		return err
 	}

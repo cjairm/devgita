@@ -17,12 +17,14 @@ import (
 )
 
 type Tmux struct {
-	Cmd cmd.Command
+	Cmd  cmd.Command
+	Base cmd.BaseCommand
 }
 
 func New() *Tmux {
 	osCmd := cmd.NewCommand()
-	return &Tmux{Cmd: osCmd}
+	baseCmd := cmd.NewBaseCommand()
+	return &Tmux{Cmd: osCmd, Base: *baseCmd}
 }
 
 func Command(args ...string) error {
@@ -46,8 +48,7 @@ func (t *Tmux) MaybeInstall() error {
 }
 
 func (t *Tmux) Setup() error {
-	devgitaConfigPath := []string{"tmux"}
-	return files.CopyFileFromConfigsToHomeDir(devgitaConfigPath)
+	return t.Base.CopyDevgitaConfigFileToHomeDir("tmux", ".tmux.conf")
 }
 
 func (t *Tmux) MaybeSetup() error {

@@ -34,7 +34,7 @@ func (a *Aerospace) Setup() error {
 }
 
 func (a *Aerospace) MaybeSetup() error {
-	localConfig, err := a.Base.GetLocalConfigDir("")
+	localConfig, err := a.Base.GetLocalConfigDir()
 	if err != nil {
 		return err
 	}
