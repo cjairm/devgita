@@ -24,14 +24,6 @@ func GetConfig(ctx context.Context) (ContextConfig, bool) {
 	return config, ok
 }
 
-func GetLocalConfigPath() (string, error) {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(homeDir, ".config"), nil
-}
-
 func GetDevgitaConfigDir() (string, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {

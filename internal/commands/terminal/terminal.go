@@ -20,13 +20,14 @@ import (
 )
 
 type Terminal struct {
-	Cmd commands.Command
+	Cmd  commands.Command
 	Base commands.BaseCommand
 }
 
 func New() *Terminal {
 	osCmd := commands.NewCommand()
-	return &Terminal{Cmd: osCmd}
+	baseCmd := commands.NewBaseCommand()
+	return &Terminal{Cmd: osCmd, Base: *baseCmd}
 }
 
 func (t *Terminal) InstallAll() error {

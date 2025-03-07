@@ -4,19 +4,20 @@ import (
 	"path/filepath"
 
 	cmd "github.com/cjairm/devgita/internal"
-	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/pkg/files"
 )
 
 const aerospaceDir = "aerospace"
 
 type Aerospace struct {
-	Cmd cmd.Command
+	Cmd  cmd.Command
+	Base cmd.BaseCommand
 }
 
 func New() *Aerospace {
 	osCmd := cmd.NewCommand()
-	return &Aerospace{Cmd: osCmd}
+	baseCmd := cmd.NewBaseCommand()
+	return &Aerospace{Cmd: osCmd, Base: *baseCmd}
 }
 
 func (a *Aerospace) Install() error {
@@ -33,7 +34,7 @@ func (a *Aerospace) Setup() error {
 }
 
 func (a *Aerospace) MaybeSetup() error {
-	localConfig, err := config.GetLocalConfigPath()
+	localConfig, err := a.Base.GetLocalConfigDir("")
 	if err != nil {
 		return err
 	}

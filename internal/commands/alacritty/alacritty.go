@@ -4,19 +4,20 @@ import (
 	"path/filepath"
 
 	cmd "github.com/cjairm/devgita/internal"
-	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/pkg/files"
 )
 
 const alacrittyDir = "alacritty"
 
 type Alacritty struct {
-	Cmd cmd.Command
+	Cmd  cmd.Command
+	Base cmd.BaseCommand
 }
 
 func New() *Alacritty {
 	osCmd := cmd.NewCommand()
-	return &Alacritty{Cmd: osCmd}
+	baseCmd := cmd.NewBaseCommand()
+	return &Alacritty{Cmd: osCmd, Base: *baseCmd}
 }
 
 func (a *Alacritty) Install() error {
@@ -45,19 +46,31 @@ func (a *Alacritty) SetupTheme() error {
 }
 
 func (a *Alacritty) MaybeSetupApp() error {
-	return maybeSetup(a.SetupApp, []string{alacrittyDir, "alacritty.toml"})
+	localConfig, err := a.Base.GetLocalConfigDir("")
+	if err != nil {
+		return err
+	}
+	return maybeSetup(a.SetupApp, localConfig, []string{alacrittyDir, "alacritty.toml"})
 }
 
 func (a *Alacritty) MaybeSetupFont() error {
-	return maybeSetup(a.SetupFont, []string{alacrittyDir, "font.toml"})
+	localConfig, err := a.Base.GetLocalConfigDir("")
+	if err != nil {
+		return err
+	}
+	return maybeSetup(a.SetupFont, localConfig, []string{alacrittyDir, "font.toml"})
 }
 
 func (a *Alacritty) MaybeSetupTheme() error {
-	return maybeSetup(a.SetupTheme, []string{alacrittyDir, "theme.toml"})
+	localConfig, err := a.Base.GetLocalConfigDir("")
+	if err != nil {
+		return err
+	}
+	return maybeSetup(a.SetupTheme, localConfig, []string{alacrittyDir, "theme.toml"})
 }
 
 func (a *Alacritty) UpdateConfigFilesWithCurrentHomeDir() error {
-	localConfig, err := config.GetLocalConfigPath()
+	localConfig, err := a.Base.GetLocalConfigDir("")
 	if err != nil {
 		return err
 	}
@@ -65,11 +78,7 @@ func (a *Alacritty) UpdateConfigFilesWithCurrentHomeDir() error {
 	return files.UpdateFile(alacrittyConfigFile, "<ALACRITTY-CONFIG-PATH>", localConfig)
 }
 
-func maybeSetup(setupFunc func() error, fileSegments []string) error {
-	localConfig, err := config.GetLocalConfigPath()
-	if err != nil {
-		return err
-	}
+func maybeSetup(setupFunc func() error, localConfig string, fileSegments []string) error {
 	filePath := localConfig
 	for _, segment := range fileSegments {
 		filePath = filepath.Join(filePath, segment)

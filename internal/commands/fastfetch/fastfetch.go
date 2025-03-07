@@ -9,19 +9,20 @@ import (
 	"path/filepath"
 
 	cmd "github.com/cjairm/devgita/internal"
-	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/pkg/files"
 )
 
 const fastfetchDir = "fastfetch"
 
 type Fastfetch struct {
-	Cmd cmd.Command
+	Cmd  cmd.Command
+	Base cmd.BaseCommand
 }
 
 func New() *Fastfetch {
 	osCmd := cmd.NewCommand()
-	return &Fastfetch{Cmd: osCmd}
+	baseCmd := cmd.NewBaseCommand()
+	return &Fastfetch{Cmd: osCmd, Base: *baseCmd}
 }
 
 func Command(args ...string) error {
@@ -50,7 +51,7 @@ func (f *Fastfetch) Setup() error {
 }
 
 func (f *Fastfetch) MaybeSetup() error {
-	localConfig, err := config.GetLocalConfigPath()
+	localConfig, err := f.Base.GetLocalConfigDir("")
 	if err != nil {
 		return err
 	}

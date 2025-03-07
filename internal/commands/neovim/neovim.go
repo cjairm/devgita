@@ -14,19 +14,20 @@ import (
 	"path/filepath"
 
 	cmd "github.com/cjairm/devgita/internal"
-	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/pkg/files"
 )
 
 const neovimDir = "nvim"
 
 type Neovim struct {
-	Cmd cmd.Command
+	Cmd  cmd.Command
+	Base cmd.BaseCommand
 }
 
 func New() *Neovim {
 	osCmd := cmd.NewCommand()
-	return &Neovim{Cmd: osCmd}
+	baseCmd := cmd.NewBaseCommand()
+	return &Neovim{Cmd: osCmd, Base: *baseCmd}
 }
 
 func Command(args ...string) error {
@@ -56,7 +57,7 @@ func (n *Neovim) Setup() error {
 }
 
 func (n *Neovim) MaybeSetup() error {
-	localConfig, err := config.GetLocalConfigPath()
+	localConfig, err := n.Base.GetLocalConfigDir("")
 	if err != nil {
 		return err
 	}
