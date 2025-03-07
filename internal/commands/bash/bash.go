@@ -21,7 +21,7 @@ func New() *Bash {
 }
 
 func (b *Bash) CopyCustomConfig() error {
-	err := files.MoveFromConfigsToLocalConfig([]string{"bash"}, []string{"devgita"})
+	err := b.Base.CopyDevgitaConfigDirToLocalConfig([]string{"bash"}, []string{"devgita"})
 	if err != nil {
 		return err
 	}

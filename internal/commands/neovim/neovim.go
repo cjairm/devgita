@@ -53,7 +53,7 @@ func (n *Neovim) MaybeInstall() error {
 func (n *Neovim) Setup() error {
 	localPath := []string{neovimDir}
 	devgitaPath := []string{"neovim"}
-	return files.MoveFromConfigsToLocalConfig(devgitaPath, localPath)
+	return n.Base.CopyDevgitaConfigDirToLocalConfig(devgitaPath, localPath)
 }
 
 func (n *Neovim) MaybeSetup() error {

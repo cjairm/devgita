@@ -5,8 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	commands "github.com/cjairm/devgita/internal"
 )
 
 func CopyFile(src, dst string) error {
@@ -41,19 +39,6 @@ func CopyDir(src, dst string) error {
 				return err
 			}
 		}
-	}
-	return nil
-}
-
-func MoveFromConfigsToLocalConfig(devgitaSegments, localSegments []string) error {
-	devgitaConfigRoot, localConfigRoot, err := getConfigFolders()
-	localConfigDirDst := filepath.Join(localConfigRoot, filepath.Join(localSegments...))
-	devgitaConfigDirSrc := filepath.Join(
-		devgitaConfigRoot,
-		filepath.Join(devgitaSegments...),
-	)
-	if err = CopyDir(devgitaConfigDirSrc, localConfigDirDst); err != nil {
-		return err
 	}
 	return nil
 }
@@ -117,19 +102,4 @@ func getEntryInfo(path string) os.FileInfo {
 		return nil
 	}
 	return info
-}
-
-func getConfigFolders() (string, string, error) {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return "", "", err
-	}
-	bc := commands.NewBaseCommand()
-	devgitaInstallPath, err := bc.GetDevgitaAppDir()
-	if err != nil {
-		return "", "", err
-	}
-	localConfig := filepath.Join(homeDir, ".config")
-	devgitaConfig := filepath.Join(devgitaInstallPath, "configs")
-	return devgitaConfig, localConfig, nil
 }

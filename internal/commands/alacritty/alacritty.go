@@ -30,19 +30,19 @@ func (a *Alacritty) MaybeInstall() error {
 
 func (a *Alacritty) SetupApp() error {
 	path := []string{alacrittyDir}
-	return files.MoveFromConfigsToLocalConfig(path, path)
+	return a.Base.CopyDevgitaConfigDirToLocalConfig(path, path)
 }
 
 func (a *Alacritty) SetupFont() error {
 	devgitaPath := []string{"fonts", alacrittyDir, "default"}
 	localPath := []string{alacrittyDir}
-	return files.MoveFromConfigsToLocalConfig(devgitaPath, localPath)
+	return a.Base.CopyDevgitaConfigDirToLocalConfig(devgitaPath, localPath)
 }
 
 func (a *Alacritty) SetupTheme() error {
 	devgitaPath := []string{"themes", alacrittyDir, "default"}
 	localPath := []string{alacrittyDir}
-	return files.MoveFromConfigsToLocalConfig(devgitaPath, localPath)
+	return a.Base.CopyDevgitaConfigDirToLocalConfig(devgitaPath, localPath)
 }
 
 func (a *Alacritty) MaybeSetupApp() error {
