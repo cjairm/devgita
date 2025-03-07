@@ -35,60 +35,15 @@ func (b *BaseCommand) IsLinux() bool {
 }
 
 func (b *BaseCommand) GetHomeDir(subDir ...string) (string, error) {
-	var baseDir string
-	var err error
-	if b.IsMac() {
-		baseDir, err = getMacHomeDir()
-	} else if b.IsLinux() {
-		baseDir, err = getLinuxHomeDir()
-	} else {
-		return "", fmt.Errorf("unsupported operating system")
-	}
-	if err != nil {
-		return "", err
-	}
-	if len(subDir) > 0 {
-		return filepath.Join(append([]string{baseDir}, subDir...)...), nil
-	}
-	return baseDir, nil
+	return getDir(b.IsMac, b.IsLinux, getMacHomeDir, getLinuxHomeDir, subDir...)
 }
 
 func (b *BaseCommand) GetLocalConfigDir(subDir ...string) (string, error) {
-	var baseDir string
-	var err error
-	if b.IsMac() {
-		baseDir, err = getMacLocalConfigDir()
-	} else if b.IsLinux() {
-		baseDir, err = getLinuxLocalConfigDir()
-	} else {
-		return "", fmt.Errorf("unsupported operating system")
-	}
-	if err != nil {
-		return "", err
-	}
-	if len(subDir) > 0 {
-		return filepath.Join(append([]string{baseDir}, subDir...)...), nil
-	}
-	return baseDir, nil
+	return getDir(b.IsMac, b.IsLinux, getMacLocalConfigDir, getLinuxLocalConfigDir, subDir...)
 }
 
 func (b *BaseCommand) GetDevgitaAppDir(subDir ...string) (string, error) {
-	var baseDir string
-	var err error
-	if b.IsMac() {
-		baseDir, err = getMacDevgitaAppDir()
-	} else if b.IsLinux() {
-		baseDir, err = getLinuxDevgitaAppDir()
-	} else {
-		return "", fmt.Errorf("unsupported operating system")
-	}
-	if err != nil {
-		return "", err
-	}
-	if len(subDir) > 0 {
-		return filepath.Join(append([]string{baseDir}, subDir...)...), nil
-	}
-	return baseDir, nil
+	return getDir(b.IsMac, b.IsLinux, getMacDevgitaAppDir, getLinuxDevgitaAppDir, subDir...)
 }
 
 func (b *BaseCommand) CopyDevgitaConfigDirToLocalConfig(fromDevgita, toLocal []string) error {
@@ -246,4 +201,29 @@ func getMacDevgitaAppDir() (string, error) {
 func getLinuxDevgitaAppDir() (string, error) {
 	// TODO: Implement this function
 	return "", nil
+}
+
+func getDir(
+	isMacFn func() bool,
+	isLinux func() bool,
+	getMacDirFn func() (string, error),
+	getLinuxDirFn func() (string, error),
+	subDir ...string,
+) (string, error) {
+	var baseDir string
+	var err error
+	if isMacFn() {
+		baseDir, err = getMacDirFn()
+	} else if isLinux() {
+		baseDir, err = getLinuxDirFn()
+	} else {
+		return "", fmt.Errorf("unsupported operating system")
+	}
+	if err != nil {
+		return "", err
+	}
+	if len(subDir) > 0 {
+		return filepath.Join(append([]string{baseDir}, subDir...)...), nil
+	}
+	return baseDir, nil
 }
