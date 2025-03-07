@@ -4,7 +4,6 @@ import (
 	"path/filepath"
 
 	cmd "github.com/cjairm/devgita/internal"
-	commands "github.com/cjairm/devgita/internal"
 	"github.com/cjairm/devgita/pkg/files"
 )
 
@@ -32,7 +31,7 @@ func (a *Autosuggestions) Setup() error {
 	if err != nil {
 		return err
 	}
-	err = commands.AddLineToFile(
+	err = files.AddLineToFile(
 		"source $(brew --prefix)/share/zsh-autosuggestions/zsh-autosuggestions.zsh",
 		devgitaCustomDir+"/devgita.zsh",
 	)

@@ -71,19 +71,3 @@ func ExecCommand(cmd CommandParams) error {
 	}
 	return err
 }
-
-// TODO: Rewrite this to have cross functional code
-func AddLineToFile(line, filePath string) error {
-	execCommand := CommandParams{
-		PreExecMsg:  "",
-		PostExecMsg: "",
-		Verbose:     true,
-		IsSudo:      false,
-		Command:     "sh",
-		Args: []string{
-			"-c",
-			"echo \"" + line + "\" >> " + filePath,
-		},
-	}
-	return ExecCommand(execCommand)
-}

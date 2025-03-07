@@ -4,7 +4,6 @@ import (
 	"path/filepath"
 
 	cmd "github.com/cjairm/devgita/internal"
-	commands "github.com/cjairm/devgita/internal"
 	"github.com/cjairm/devgita/pkg/files"
 )
 
@@ -44,7 +43,7 @@ func (p *PowerLevel10k) Setup() error {
 	if err != nil {
 		return err
 	}
-	err = commands.AddLineToFile(
+	err = files.AddLineToFile(
 		"source $(brew --prefix)/share/powerlevel10k/powerlevel10k.zsh-theme",
 		devgitaCustomDir+"/devgita.zsh",
 	)

@@ -92,6 +92,18 @@ func CleanDestinationDir(dst string) error {
 	return os.RemoveAll(dst)
 }
 
+func AddLineToFile(line, filePath string) error {
+	file, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	if _, err := file.WriteString("\n" + line); err != nil {
+		return err
+	}
+	return nil
+}
+
 func getEntryInfo(path string) os.FileInfo {
 	info, err := os.Stat(path)
 	if err != nil {

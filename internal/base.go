@@ -158,6 +158,31 @@ func (b *BaseCommand) ResetGlobalConfig() error {
 	return os.WriteFile(filename, []byte("{}"), 0644)
 }
 
+func (b *BaseCommand) Setup(line string) error {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+	zshConfigFile := filepath.Join(homeDir, ".zshrc")
+	return files.AddLineToFile(line, zshConfigFile)
+}
+
+func (b *BaseCommand) MaybeSetup(line, toSearch string) error {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+	zshConfigFile := filepath.Join(homeDir, ".zshrc")
+	isAlreadySetup, err := files.ContentExistsInFile(zshConfigFile, toSearch)
+	if err != nil {
+		return err
+	}
+	if isAlreadySetup == true {
+		return nil
+	}
+	return b.Setup(line)
+}
+
 //Example of how to use the config package
 // configFile := "./configs/bash/devgita_config.json"
 //

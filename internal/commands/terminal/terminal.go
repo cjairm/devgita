@@ -4,17 +4,18 @@ import (
 	"bytes"
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	commands "github.com/cjairm/devgita/internal"
 	"github.com/cjairm/devgita/internal/commands/autosuggestions"
-	bash "github.com/cjairm/devgita/internal/commands/bash"
 	"github.com/cjairm/devgita/internal/commands/fastfetch"
 	"github.com/cjairm/devgita/internal/commands/mise"
 	"github.com/cjairm/devgita/internal/commands/neovim"
 	"github.com/cjairm/devgita/internal/commands/powerlevel10k"
 	"github.com/cjairm/devgita/internal/commands/syntaxhighlighting"
 	"github.com/cjairm/devgita/internal/commands/tmux"
+	"github.com/cjairm/devgita/pkg/files"
 	"github.com/cjairm/devgita/pkg/promptui"
 	"github.com/cjairm/devgita/pkg/utils"
 )
@@ -96,10 +97,18 @@ func (t *Terminal) InstallAll() error {
 
 func (t *Terminal) ConfigureZsh() error {
 	utils.PrintInfo("Adding config custom files...")
-	b := bash.New()
-	err := b.MaybeCopyCustomConfig()
+	devgitaAppDir, err := t.Base.GetDevgitaAppDir()
 	if err != nil {
 		return err
+	}
+	isDevgitaConfigFilePresent := files.FileAlreadyExist(
+		filepath.Join(devgitaAppDir, "devgita.zsh"),
+	)
+	if !isDevgitaConfigFilePresent {
+		err = t.Base.CopyDevgitaConfigDirToLocalConfig([]string{"bash"}, []string{"devgita"})
+		if err != nil {
+			return err
+		}
 	}
 
 	utils.PrintInfo("Installing terminal theme...")
@@ -136,15 +145,15 @@ func (t *Terminal) ConfigureZsh() error {
 	}
 
 	utils.PrintInfo("Sourcing custom files...")
-	err = b.MaybeSetupCustom("source $HOME/.config/devgita/aliases.zsh", "aliases.zsh")
+	err = t.Base.MaybeSetup("source $HOME/.config/devgita/aliases.zsh", "aliases.zsh")
 	if err != nil {
 		return err
 	}
-	err = b.MaybeSetupCustom("source $HOME/.config/devgita/init.zsh", "init.zsh")
+	err = t.Base.MaybeSetup("source $HOME/.config/devgita/init.zsh", "init.zsh")
 	if err != nil {
 		return err
 	}
-	return b.MaybeSetupCustom("source $HOME/.config/devgita/devgita.zsh", "devgita.zsh")
+	return t.Base.MaybeSetup("source $HOME/.config/devgita/devgita.zsh", "devgita.zsh")
 }
 
 func (t *Terminal) VerifyPackageManagerBeforeInstall(verbose bool) error {
