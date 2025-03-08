@@ -2,6 +2,7 @@ package commands
 
 import (
 	"fmt"
+	"os/exec"
 )
 
 type DebianCommand struct {
@@ -66,4 +67,23 @@ func (d *DebianCommand) IsPackageManagerInstalled() bool {
 func (d *DebianCommand) ValidateOSVersion() error {
 	fmt.Println("Executing `ValidateOSVersion` on Debian")
 	return nil
+}
+
+func (d *DebianCommand) IsPackageInstalled(packageName string) (bool, error) {
+	cmd := exec.Command("dpkg", "-l")
+	return d.FindPackageInCommandOutput(cmd, packageName)
+}
+
+func (d *DebianCommand) IsDesktopAppInstalled(desktopAppName string) (bool, error) {
+	for _, dirType := range []string{"user", "system"} {
+		appDir, err := d.GetLinuxApplicationsDir(dirType)
+		if err != nil {
+			return false, err
+		}
+		isInstalled, err := d.CheckFileExistsInDirectory(appDir, desktopAppName)
+		if isInstalled {
+			return true, nil
+		}
+	}
+	return false, nil
 }

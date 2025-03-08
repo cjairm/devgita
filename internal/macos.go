@@ -1,7 +1,6 @@
 package commands
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
@@ -16,12 +15,12 @@ type MacOSCommand struct {
 }
 
 func (m *MacOSCommand) MaybeInstallPackage(packageName string, alias ...string) error {
-	return maybeInstall(packageName, alias, isPackageInstalled, m.InstallPackage)
+	return maybeInstall(packageName, alias, m.IsPackageInstalled, m.InstallPackage)
 }
 
 func (m *MacOSCommand) MaybeInstallDesktopApp(desktopAppName string, alias ...string) error {
 	return maybeInstall(desktopAppName, alias, func(name string) (bool, error) {
-		isInstalled, err := isDesktopAppInstalled(name)
+		isInstalled, err := m.IsDesktopAppInstalled(name)
 		if !isInstalled {
 			isInstalled, err = desktopApplicationExist(name)
 		}
@@ -31,7 +30,7 @@ func (m *MacOSCommand) MaybeInstallDesktopApp(desktopAppName string, alias ...st
 
 func (m *MacOSCommand) MaybeInstallFont(fontName string, alias ...string) error {
 	return maybeInstall(fontName, alias, func(name string) (bool, error) {
-		isInstalled, err := isDesktopAppInstalled(name)
+		isInstalled, err := m.IsDesktopAppInstalled(name)
 		if !isInstalled {
 			isInstalled, err = fontExist(name)
 		}
@@ -161,14 +160,14 @@ func (m *MacOSCommand) ValidateOSVersion() error {
 	return nil
 }
 
-func isPackageInstalled(packageName string) (bool, error) {
+func (m *MacOSCommand) IsPackageInstalled(packageName string) (bool, error) {
 	cmd := exec.Command("brew", "list")
-	return findPackageInCommandOutput(cmd, packageName)
+	return m.FindPackageInCommandOutput(cmd, packageName)
 }
 
-func isDesktopAppInstalled(desktopAppName string) (bool, error) {
+func (m *MacOSCommand) IsDesktopAppInstalled(desktopAppName string) (bool, error) {
 	cmd := exec.Command("brew", "list", "--cask")
-	return findPackageInCommandOutput(cmd, desktopAppName)
+	return m.FindPackageInCommandOutput(cmd, desktopAppName)
 }
 
 func desktopApplicationExist(appName string) (bool, error) {
@@ -179,35 +178,6 @@ func desktopApplicationExist(appName string) (bool, error) {
 func fontExist(appName string) (bool, error) {
 	fontsPath := "~/Library/Fonts/"
 	return checkFileExistsInDirectory(fontsPath, appName)
-}
-
-func checkFileExistsInDirectory(dirPath, name string) (bool, error) {
-	files, err := os.ReadDir(dirPath)
-	if err != nil {
-		return false, fmt.Errorf("Failed to read directory: %v", err)
-	}
-	for _, file := range files {
-		lowerCaseName := strings.ToLower(file.Name())
-		if strings.Contains(lowerCaseName, name) {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
-func findPackageInCommandOutput(cmd *exec.Cmd, packageName string) (bool, error) {
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	err := cmd.Run()
-	if err != nil {
-		return false, fmt.Errorf("Failed running brew command: %v", err)
-	}
-	for _, line := range bytes.Split(out.Bytes(), []byte{'\n'}) {
-		if string(line) == packageName {
-			return true, nil
-		}
-	}
-	return false, nil
 }
 
 func maybeInstall(

@@ -17,6 +17,10 @@ type Command interface {
 	IsPackageManagerInstalled() bool
 	UpgradePackageManager(verbose bool) error
 	UpdatePackageManager() error
+
+	// Utils
+	IsPackageInstalled(packageName string) (bool, error)
+	IsDesktopAppInstalled(desktopAppName string) (bool, error)
 }
 
 func NewCommand() Command {

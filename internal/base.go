@@ -1,11 +1,14 @@
 package commands
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	"github.com/cjairm/devgita/pkg/files"
 )
@@ -35,7 +38,7 @@ func (b *BaseCommand) IsLinux() bool {
 }
 
 func (b *BaseCommand) GetHomeDir(subDir ...string) (string, error) {
-	return getDir(b.IsMac, b.IsLinux, getMacHomeDir, getLinuxHomeDir, subDir...)
+	return getDir(b.IsMac, b.IsLinux, os.UserHomeDir, os.UserHomeDir, subDir...)
 }
 
 func (b *BaseCommand) GetLocalConfigDir(subDir ...string) (string, error) {
@@ -44,6 +47,20 @@ func (b *BaseCommand) GetLocalConfigDir(subDir ...string) (string, error) {
 
 func (b *BaseCommand) GetDevgitaAppDir(subDir ...string) (string, error) {
 	return getDir(b.IsMac, b.IsLinux, getMacDevgitaAppDir, getLinuxDevgitaAppDir, subDir...)
+}
+
+func (b *BaseCommand) GetLinuxApplicationsDir(t string) (string, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	if t == "user" {
+		return filepath.Join(homeDir, ".local", "share", "applications"), nil
+	} else if t == "system" {
+		return filepath.Join("usr", "share", "applications"), nil
+	} else {
+		return "", fmt.Errorf("unsupported argument")
+	}
 }
 
 func (b *BaseCommand) CopyDevgitaConfigDirToLocalConfig(fromDevgita, toLocal []string) error {
@@ -138,6 +155,50 @@ func (b *BaseCommand) MaybeSetup(line, toSearch string) error {
 	return b.Setup(line)
 }
 
+func (b *BaseCommand) FindPackageInCommandOutput(cmd *exec.Cmd, packageName string) (bool, error) {
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	err := cmd.Run()
+	if err != nil {
+		return false, fmt.Errorf("Failed running brew command: %v", err)
+	}
+	for _, line := range bytes.Split(out.Bytes(), []byte{'\n'}) {
+		if b.IsMac() {
+			if string(line) == packageName {
+				return true, nil
+			}
+		} else if b.IsLinux() {
+			// The output of `dpkg -l` has a specific format, we need to check the package name in the right column
+			if len(line) > 0 {
+				// The package name is typically the second column in the output
+				fields := bytes.Fields(line)
+				if len(fields) > 1 && string(fields[1]) == packageName {
+					return true, nil
+				}
+			}
+
+		}
+	}
+	return false, nil
+}
+
+func (b *BaseCommand) CheckFileExistsInDirectory(dirPath, name string) (bool, error) {
+	files, err := os.ReadDir(dirPath)
+	if err != nil {
+		return false, fmt.Errorf("Failed to read directory: %v", err)
+	}
+	for _, file := range files {
+		lowerCaseName := strings.ToLower(file.Name())
+		if strings.Contains(lowerCaseName, name) {
+			if b.IsLinux() && strings.HasSuffix(lowerCaseName, ".desktop") {
+				return true, nil
+			}
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 //Example of how to use the config package
 // configFile := "./configs/bash/devgita_config.json"
 //
@@ -165,18 +226,8 @@ func (b *BaseCommand) MaybeSetup(line, toSearch string) error {
 // fmt.Println("Configuration saved successfully.")
 
 // TODO: Modify this to use global config if exists
-func getMacHomeDir() (string, error) {
-	return os.UserHomeDir()
-}
-
-func getLinuxHomeDir() (string, error) {
-	// TODO: Implement this function
-	return "", nil
-}
-
-// TODO: Modify this to use global config if exists
 func getMacLocalConfigDir() (string, error) {
-	homeDir, err := getMacHomeDir()
+	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
 	}
@@ -190,7 +241,7 @@ func getLinuxLocalConfigDir() (string, error) {
 
 // TODO: Modify this to use global config if exists
 func getMacDevgitaAppDir() (string, error) {
-	homeDir, err := getMacHomeDir()
+	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
 	}
