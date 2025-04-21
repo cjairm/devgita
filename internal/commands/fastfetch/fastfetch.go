@@ -47,11 +47,11 @@ func (f *Fastfetch) MaybeInstall() error {
 
 func (f *Fastfetch) Setup() error {
 	filePath := []string{fastfetchDir}
-	return f.Base.CopyDevgitaConfigDirToLocalConfig(filePath, filePath)
+	return f.Base.CopyAppConfigDirToLocalConfigDir(filePath, filePath)
 }
 
 func (f *Fastfetch) MaybeSetup() error {
-	localConfig, err := f.Base.GetLocalConfigDir()
+	localConfig, err := f.Base.ConfigDir()
 	if err != nil {
 		return err
 	}

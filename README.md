@@ -1,5 +1,6 @@
 Pending work
 
+- Move Paths to constants
 - Debian/Ubuntu compatibility
 - Global document to see what we have installed already
   - Check if languages are already installed - to avoid duplicates/collisions

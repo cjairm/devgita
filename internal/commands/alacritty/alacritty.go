@@ -30,23 +30,23 @@ func (a *Alacritty) MaybeInstall() error {
 
 func (a *Alacritty) SetupApp() error {
 	path := []string{alacrittyDir}
-	return a.Base.CopyDevgitaConfigDirToLocalConfig(path, path)
+	return a.Base.CopyAppConfigDirToLocalConfigDir(path, path)
 }
 
 func (a *Alacritty) SetupFont() error {
 	devgitaPath := []string{"fonts", alacrittyDir, "default"}
 	localPath := []string{alacrittyDir}
-	return a.Base.CopyDevgitaConfigDirToLocalConfig(devgitaPath, localPath)
+	return a.Base.CopyAppConfigDirToLocalConfigDir(devgitaPath, localPath)
 }
 
 func (a *Alacritty) SetupTheme() error {
 	devgitaPath := []string{"themes", alacrittyDir, "default"}
 	localPath := []string{alacrittyDir}
-	return a.Base.CopyDevgitaConfigDirToLocalConfig(devgitaPath, localPath)
+	return a.Base.CopyAppConfigDirToLocalConfigDir(devgitaPath, localPath)
 }
 
 func (a *Alacritty) MaybeSetupApp() error {
-	localConfig, err := a.Base.GetLocalConfigDir()
+	localConfig, err := a.Base.ConfigDir()
 	if err != nil {
 		return err
 	}
@@ -54,7 +54,7 @@ func (a *Alacritty) MaybeSetupApp() error {
 }
 
 func (a *Alacritty) MaybeSetupFont() error {
-	localConfig, err := a.Base.GetLocalConfigDir()
+	localConfig, err := a.Base.ConfigDir()
 	if err != nil {
 		return err
 	}
@@ -62,7 +62,7 @@ func (a *Alacritty) MaybeSetupFont() error {
 }
 
 func (a *Alacritty) MaybeSetupTheme() error {
-	localConfig, err := a.Base.GetLocalConfigDir()
+	localConfig, err := a.Base.ConfigDir()
 	if err != nil {
 		return err
 	}
@@ -70,7 +70,7 @@ func (a *Alacritty) MaybeSetupTheme() error {
 }
 
 func (a *Alacritty) UpdateConfigFilesWithCurrentHomeDir() error {
-	localConfig, err := a.Base.GetLocalConfigDir()
+	localConfig, err := a.Base.ConfigDir()
 	if err != nil {
 		return err
 	}

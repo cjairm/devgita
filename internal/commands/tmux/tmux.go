@@ -48,7 +48,7 @@ func (t *Tmux) MaybeInstall() error {
 }
 
 func (t *Tmux) Setup() error {
-	return t.Base.CopyDevgitaConfigFileToHomeDir("tmux", ".tmux.conf")
+	return t.Base.CopyAppConfigFileToHomeDir("tmux", ".tmux.conf")
 }
 
 func (t *Tmux) MaybeSetup() error {

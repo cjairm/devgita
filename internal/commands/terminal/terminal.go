@@ -97,7 +97,7 @@ func (t *Terminal) InstallAll() error {
 
 func (t *Terminal) ConfigureZsh() error {
 	utils.PrintInfo("Adding config custom files...")
-	devgitaAppDir, err := t.Base.GetDevgitaAppDir()
+	devgitaAppDir, err := t.Base.AppDir()
 	if err != nil {
 		return err
 	}
@@ -105,7 +105,7 @@ func (t *Terminal) ConfigureZsh() error {
 		filepath.Join(devgitaAppDir, "devgita.zsh"),
 	)
 	if !isDevgitaConfigFilePresent {
-		err = t.Base.CopyDevgitaConfigDirToLocalConfig([]string{"bash"}, []string{"devgita"})
+		err = t.Base.CopyAppConfigDirToLocalConfigDir([]string{"bash"}, []string{utils.APP_NAME})
 		if err != nil {
 			return err
 		}

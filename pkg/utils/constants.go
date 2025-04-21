@@ -3,6 +3,7 @@ package utils
 import "fmt"
 
 const (
+	APP_NAME                    = "devgita"
 	Reset                       = "\033[0m"
 	Gray                        = "\033[90m"
 	Red                         = "\033[31m" // Error color

@@ -46,7 +46,7 @@ func init() {
 
 func setDevgitaPath() error {
 	bc := commands.NewBaseCommand()
-	devgitaInstallPath, err := bc.GetDevgitaAppDir()
+	devgitaInstallPath, err := bc.AppDir()
 	if err != nil {
 		return nil
 	}

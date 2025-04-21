@@ -27,7 +27,7 @@ func (a *Autosuggestions) MaybeInstall() error {
 }
 
 func (a *Autosuggestions) Setup() error {
-	devgitaCustomDir, err := a.Base.GetDevgitaAppDir()
+	devgitaCustomDir, err := a.Base.AppDir()
 	if err != nil {
 		return err
 	}
@@ -42,7 +42,7 @@ func (a *Autosuggestions) Setup() error {
 }
 
 func (a *Autosuggestions) MaybeSetup() error {
-	devgitaCustomDir, err := a.Base.GetDevgitaAppDir()
+	devgitaCustomDir, err := a.Base.AppDir()
 	if err != nil {
 		return err
 	}

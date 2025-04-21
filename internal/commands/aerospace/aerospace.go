@@ -30,11 +30,11 @@ func (a *Aerospace) MaybeInstall() error {
 
 func (a *Aerospace) Setup() error {
 	configPath := []string{aerospaceDir}
-	return a.Base.CopyDevgitaConfigDirToLocalConfig(configPath, configPath)
+	return a.Base.CopyAppConfigDirToLocalConfigDir(configPath, configPath)
 }
 
 func (a *Aerospace) MaybeSetup() error {
-	localConfig, err := a.Base.GetLocalConfigDir()
+	localConfig, err := a.Base.ConfigDir()
 	if err != nil {
 		return err
 	}
