@@ -1,9 +1,11 @@
-package files
+package files_test
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/cjairm/devgita/pkg/files"
 )
 
 var fileContent = "Hello, World!"
@@ -51,7 +53,7 @@ func TestCopyFile(t *testing.T) {
 	dstFilePath := filepath.Join(tempDir, "destination.txt")
 
 	// Test successful copy
-	if err := CopyFile(srcFilePath, dstFilePath); err != nil {
+	if err := files.CopyFile(srcFilePath, dstFilePath); err != nil {
 		t.Fatalf("CopyFile failed: %v", err)
 	}
 	t.Log("File copied successfully")
@@ -69,7 +71,7 @@ func TestCopyFile(t *testing.T) {
 
 	// Test copying from a non-existent source file
 	nonExistentSrc := filepath.Join(tempDir, "nonexistent.txt")
-	err = CopyFile(nonExistentSrc, dstFilePath)
+	err = files.CopyFile(nonExistentSrc, dstFilePath)
 	if err == nil {
 		t.Fatal("Expected an error when copying from a nonexistent file, got nil")
 	}
@@ -80,7 +82,7 @@ func TestCopyFile(t *testing.T) {
 	if err := os.Mkdir(dstDirPath, 0755); err != nil {
 		t.Fatalf("Failed to create destination directory: %v", err)
 	}
-	err = CopyFile(srcFilePath, dstDirPath)
+	err = files.CopyFile(srcFilePath, dstDirPath)
 	if err == nil {
 		t.Fatal("Expected an error when copying to a directory, got nil")
 	}
@@ -96,7 +98,7 @@ func TestCopyDir(t *testing.T) {
 	dstDir := filepath.Join(tempDir, "destination")
 
 	// Test successful copy
-	if err := CopyDir(srcDir, dstDir); err != nil {
+	if err := files.CopyDir(srcDir, dstDir); err != nil {
 		t.Fatalf("CopyDir failed: %v", err)
 	}
 	t.Log("Successfully copied files from source to destination.")
@@ -119,7 +121,7 @@ func TestCopyDir(t *testing.T) {
 		t.Fatalf("Failed to create empty source directory: %v", err)
 	}
 	emptyDstDir := filepath.Join(dstDir, "empty")
-	if err := CopyDir(srcDir, dstDir); err != nil {
+	if err := files.CopyDir(srcDir, dstDir); err != nil {
 		t.Fatalf("CopyDir failed for empty directory: %v", err)
 	}
 	if _, err := os.Stat(emptyDstDir); os.IsNotExist(err) {
@@ -128,7 +130,7 @@ func TestCopyDir(t *testing.T) {
 
 	// Test copying from a non-existent source directory
 	nonExistentSrcDir := filepath.Join(tempDir, "nonexistent")
-	err := CopyDir(nonExistentSrcDir, dstDir)
+	err := files.CopyDir(nonExistentSrcDir, dstDir)
 	if err == nil {
 		t.Fatal("Expected an error when copying from a nonexistent directory, got nil")
 	}
@@ -139,7 +141,7 @@ func TestCopyDir(t *testing.T) {
 	if err := os.WriteFile(existingFile, []byte("Existing file"), 0644); err != nil {
 		t.Fatalf("Failed to create existing file in destination: %v", err)
 	}
-	if err := CopyDir(srcDir, dstDir); err != nil {
+	if err := files.CopyDir(srcDir, dstDir); err != nil {
 		t.Fatalf("CopyDir failed when copying to an existing directory: %v", err)
 	}
 	t.Log("Successfully copied files to an existing directory.")
@@ -154,7 +156,7 @@ func TestCopyDir(t *testing.T) {
 	if err := os.WriteFile(readOnlyFile, []byte("Read-only file"), 0444); err != nil {
 		t.Fatalf("Failed to create read-only file: %v", err)
 	}
-	if err := CopyDir(srcDir, dstDir); err != nil {
+	if err := files.CopyDir(srcDir, dstDir); err != nil {
 		t.Fatalf("CopyDir failed when copying with read-only file: %v", err)
 	}
 	t.Log("Successfully copied files with a read-only file present.")
