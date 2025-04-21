@@ -49,20 +49,6 @@ func (b *BaseCommand) GetDevgitaAppDir(subDir ...string) (string, error) {
 	return getDir(b.IsMac, b.IsLinux, getMacDevgitaAppDir, getLinuxDevgitaAppDir, subDir...)
 }
 
-func (b *BaseCommand) GetLinuxApplicationsDir(t string) (string, error) {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-	if t == "user" {
-		return filepath.Join(homeDir, ".local", "share", "applications"), nil
-	} else if t == "system" {
-		return filepath.Join("usr", "share", "applications"), nil
-	} else {
-		return "", fmt.Errorf("unsupported argument")
-	}
-}
-
 func (b *BaseCommand) CopyDevgitaConfigDirToLocalConfig(fromDevgita, toLocal []string) error {
 	devgitaConfigSrc, err := b.GetDevgitaAppDir(append([]string{"configs"}, fromDevgita...)...)
 	if err != nil {
@@ -199,32 +185,6 @@ func (b *BaseCommand) CheckFileExistsInDirectory(dirPath, name string) (bool, er
 	return false, nil
 }
 
-//Example of how to use the config package
-// configFile := "./configs/bash/devgita_config.json"
-//
-// // Load the configuration
-// c, err := config.LoadConfig(configFile)
-// if err != nil {
-// 	fmt.Println("Error loading config:", err)
-// 	return
-// }
-//
-// // Print the loaded configuration
-// fmt.Printf("Loaded Config: %+v\n", c)
-//
-// // Modify the configuration
-// c.SelectedTheme = "light"
-// c.InstalledPackages = append(c.InstalledPackages, "new-package")
-//
-// // Save the updated configuration
-// err = config.SaveConfig(configFile, c)
-// if err != nil {
-// 	fmt.Println("Error saving config:", err)
-// 	return
-// }
-//
-// fmt.Println("Configuration saved successfully.")
-
 // TODO: Modify this to use global config if exists
 func getMacLocalConfigDir() (string, error) {
 	homeDir, err := os.UserHomeDir()
@@ -278,3 +238,29 @@ func getDir(
 	}
 	return baseDir, nil
 }
+
+//Example of how to use the config package
+// configFile := "./configs/bash/devgita_config.json"
+//
+// // Load the configuration
+// c, err := config.LoadConfig(configFile)
+// if err != nil {
+// 	fmt.Println("Error loading config:", err)
+// 	return
+// }
+//
+// // Print the loaded configuration
+// fmt.Printf("Loaded Config: %+v\n", c)
+//
+// // Modify the configuration
+// c.SelectedTheme = "light"
+// c.InstalledPackages = append(c.InstalledPackages, "new-package")
+//
+// // Save the updated configuration
+// err = config.SaveConfig(configFile, c)
+// if err != nil {
+// 	fmt.Println("Error saving config:", err)
+// 	return
+// }
+//
+// fmt.Println("Configuration saved successfully.")

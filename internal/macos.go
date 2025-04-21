@@ -180,6 +180,20 @@ func fontExist(appName string) (bool, error) {
 	return checkFileExistsInDirectory(fontsPath, appName)
 }
 
+func checkFileExistsInDirectory(dirPath, name string) (bool, error) {
+	files, err := os.ReadDir(dirPath)
+	if err != nil {
+		return false, fmt.Errorf("Failed to read directory: %v", err)
+	}
+	for _, file := range files {
+		lowerCaseName := strings.ToLower(file.Name())
+		if strings.Contains(lowerCaseName, name) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func maybeInstall(
 	itemName string,
 	alias []string,

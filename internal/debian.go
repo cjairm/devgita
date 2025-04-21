@@ -2,7 +2,9 @@ package commands
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 )
 
 type DebianCommand struct {
@@ -76,7 +78,7 @@ func (d *DebianCommand) IsPackageInstalled(packageName string) (bool, error) {
 
 func (d *DebianCommand) IsDesktopAppInstalled(desktopAppName string) (bool, error) {
 	for _, dirType := range []string{"user", "system"} {
-		appDir, err := d.GetLinuxApplicationsDir(dirType)
+		appDir, err := getLinuxApplicationsDir(dirType)
 		if err != nil {
 			return false, err
 		}
@@ -86,4 +88,18 @@ func (d *DebianCommand) IsDesktopAppInstalled(desktopAppName string) (bool, erro
 		}
 	}
 	return false, nil
+}
+
+func getLinuxApplicationsDir(t string) (string, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	if t == "user" {
+		return filepath.Join(homeDir, ".local", "share", "applications"), nil
+	} else if t == "system" {
+		return filepath.Join("usr", "share", "applications"), nil
+	} else {
+		return "", fmt.Errorf("unsupported argument")
+	}
 }
