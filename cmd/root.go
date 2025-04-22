@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/cjairm/devgita/internal/commands"
+	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/utils"
 	"github.com/spf13/cobra"
 )
@@ -15,7 +16,7 @@ import (
 var rootCmd = &cobra.Command{
 	Use:   "devgita",
 	Short: "Command-line tool for macOS Ventura that automates the setup of development environments, streamlining installations of essential apps like Raycast, Homebrew, and iTerm2 with clear documentation.",
-	Long:  utils.Devgita,
+	Long:  constants.Devgita,
 
 	// Uncomment the following line if your bare application
 	// has an action associated with it:

@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	commands "github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/internal/apps/autosuggestions"
 	"github.com/cjairm/devgita/internal/apps/fastfetch"
 	"github.com/cjairm/devgita/internal/apps/mise"
@@ -15,6 +14,8 @@ import (
 	"github.com/cjairm/devgita/internal/apps/powerlevel10k"
 	"github.com/cjairm/devgita/internal/apps/syntaxhighlighting"
 	"github.com/cjairm/devgita/internal/apps/tmux"
+	commands "github.com/cjairm/devgita/internal/commands"
+	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/files"
 	"github.com/cjairm/devgita/pkg/promptui"
 	"github.com/cjairm/devgita/pkg/utils"
@@ -105,7 +106,7 @@ func (t *Terminal) ConfigureZsh() error {
 		filepath.Join(devgitaAppDir, "devgita.zsh"),
 	)
 	if !isDevgitaConfigFilePresent {
-		err = t.Base.CopyAppConfigDirToLocalConfigDir([]string{"bash"}, []string{utils.APP_NAME})
+		err = t.Base.CopyAppConfigDirToLocalConfigDir([]string{"bash"}, []string{constants.AppName})
 		if err != nil {
 			return err
 		}

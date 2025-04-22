@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	commands "github.com/cjairm/devgita/internal/commands"
-	"github.com/cjairm/devgita/pkg/utils"
+	"github.com/cjairm/devgita/internal/commands"
+	"github.com/cjairm/devgita/pkg/constants"
 )
 
 var cmd = commands.NewBaseCommand()
@@ -36,11 +36,11 @@ func TestConfigDir(t *testing.T) {
 
 	t.Run("one subdir", func(t *testing.T) {
 		t.Setenv("XDG_CONFIG_HOME", "")
-		got, err := cmd.ConfigDir(utils.APP_NAME)
+		got, err := cmd.ConfigDir(constants.AppName)
 		if err != nil {
 			t.Fatal(err)
 		}
-		want := filepath.Join(home, ".config", utils.APP_NAME)
+		want := filepath.Join(home, ".config", constants.AppName)
 		if got != want {
 			t.Errorf("expected %q, got %q", want, got)
 		}
@@ -48,11 +48,11 @@ func TestConfigDir(t *testing.T) {
 
 	t.Run("multiple subdirs", func(t *testing.T) {
 		t.Setenv("XDG_CONFIG_HOME", "")
-		got, err := cmd.ConfigDir(utils.APP_NAME, "nvim")
+		got, err := cmd.ConfigDir(constants.AppName, "nvim")
 		if err != nil {
 			t.Fatal(err)
 		}
-		want := filepath.Join(home, ".config", utils.APP_NAME, "nvim")
+		want := filepath.Join(home, ".config", constants.AppName, "nvim")
 		if got != want {
 			t.Errorf("expected %q, got %q", want, got)
 		}
@@ -60,11 +60,11 @@ func TestConfigDir(t *testing.T) {
 
 	t.Run("XDG_CONFIG_HOME override", func(t *testing.T) {
 		t.Setenv("XDG_CONFIG_HOME", "/tmp/xdg-config")
-		got, err := cmd.ConfigDir(utils.APP_NAME)
+		got, err := cmd.ConfigDir(constants.AppName)
 		if err != nil {
 			t.Fatal(err)
 		}
-		want := filepath.Join("/tmp/xdg-config", utils.APP_NAME)
+		want := filepath.Join("/tmp/xdg-config", constants.AppName)
 		if got != want {
 			t.Errorf("expected %q, got %q", want, got)
 		}
@@ -76,11 +76,11 @@ func TestDataDir(t *testing.T) {
 
 	t.Run("default location", func(t *testing.T) {
 		t.Setenv("XDG_DATA_HOME", "")
-		got, err := cmd.DataDir(utils.APP_NAME)
+		got, err := cmd.DataDir(constants.AppName)
 		if err != nil {
 			t.Fatal(err)
 		}
-		want := filepath.Join(home, ".local", "share", utils.APP_NAME)
+		want := filepath.Join(home, ".local", "share", constants.AppName)
 		if got != want {
 			t.Errorf("expected %q, got %q", want, got)
 		}
@@ -116,11 +116,11 @@ func TestCacheDir(t *testing.T) {
 
 	t.Run("default location", func(t *testing.T) {
 		t.Setenv("XDG_CACHE_HOME", "")
-		got, err := cmd.CacheDir(utils.APP_NAME)
+		got, err := cmd.CacheDir(constants.AppName)
 		if err != nil {
 			t.Fatal(err)
 		}
-		want := filepath.Join(home, ".cache", utils.APP_NAME)
+		want := filepath.Join(home, ".cache", constants.AppName)
 		if got != want {
 			t.Errorf("expected %q, got %q", want, got)
 		}
@@ -128,11 +128,11 @@ func TestCacheDir(t *testing.T) {
 
 	t.Run("multiple subdirs", func(t *testing.T) {
 		t.Setenv("XDG_CACHE_HOME", "")
-		got, err := cmd.CacheDir(utils.APP_NAME, "nvim")
+		got, err := cmd.CacheDir(constants.AppName, "nvim")
 		if err != nil {
 			t.Fatal(err)
 		}
-		want := filepath.Join(home, ".cache", utils.APP_NAME, "nvim")
+		want := filepath.Join(home, ".cache", constants.AppName, "nvim")
 		if got != want {
 			t.Errorf("expected %q, got %q", want, got)
 		}
@@ -159,7 +159,7 @@ func TestAppDir(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		want := filepath.Join(home, ".local", "share", utils.APP_NAME, "logs")
+		want := filepath.Join(home, ".local", "share", constants.AppName, "logs")
 		if got != want {
 			t.Errorf("expected %q, got %q", want, got)
 		}

@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/cjairm/devgita/pkg/utils"
+	"github.com/cjairm/devgita/pkg/constants"
 )
 
 type MacOSCommand struct {
@@ -149,12 +149,12 @@ func (m *MacOSCommand) ValidateOSVersion() error {
 	}
 	// NOTE: (11/22/2024) Check if the version is at least 13.0 (macOS Sonoma)
 	// Update to the latest version if necessary
-	if major < utils.SupportedMacOSVersionNumber ||
-		(major == utils.SupportedMacOSVersionNumber && minor < 0) {
+	if major < constants.SupportedMacOSVersionNumber ||
+		(major == constants.SupportedMacOSVersionNumber && minor < 0) {
 		return fmt.Errorf(
 			"OS requirement not met\nOS required: macOS %s (%d.0) or higher",
-			utils.SupportedMacOSVersionName,
-			utils.SupportedMacOSVersionNumber,
+			constants.SupportedMacOSVersionName,
+			constants.SupportedMacOSVersionNumber,
 		)
 	}
 	return nil

@@ -10,8 +10,8 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/files"
-	"github.com/cjairm/devgita/pkg/utils"
 )
 
 type GlobalConfig struct {
@@ -65,7 +65,7 @@ func (b *BaseCommand) DataDir(subDirs ...string) (string, error) {
 }
 
 func (b *BaseCommand) AppDir(subDirs ...string) (string, error) {
-	appDir, err := b.DataDir(utils.APP_NAME)
+	appDir, err := b.DataDir(constants.AppName)
 	if err != nil {
 		return "", err
 	}

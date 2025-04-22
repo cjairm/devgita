@@ -4,31 +4,32 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/spf13/cobra"
 )
 
 func PrintError(errMsg string) {
-	Print(errMsg, Red)
+	Print(errMsg, constants.Red)
 }
 
 func PrintSuccess(errMsg string) {
-	Print(errMsg, Green)
+	Print(errMsg, constants.Green)
 }
 
 func PrintSecondary(msg string) {
-	Print(msg, Gray)
+	Print(msg, constants.Gray)
 }
 
 func PrintInfo(msg string) {
-	Print(msg, Blue)
+	Print(msg, constants.Blue)
 }
 
 func PrintWarning(msg string) {
-	Print(msg, Yellow)
+	Print(msg, constants.Yellow)
 }
 
 func PrintBold(msg string) {
-	Print(msg, Bold)
+	Print(msg, constants.Bold)
 }
 
 func Print(msg, custom string) {
@@ -36,7 +37,7 @@ func Print(msg, custom string) {
 		if custom == "" {
 			fmt.Println(msg)
 		} else {
-			fmt.Printf("%s%s%s\n", custom, msg, Reset)
+			fmt.Printf("%s%s%s\n", custom, msg, constants.Reset)
 		}
 	}
 }

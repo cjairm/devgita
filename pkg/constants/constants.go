@@ -1,9 +1,9 @@
-package utils
+package constants
 
 import "fmt"
 
 const (
-	APP_NAME                    = "devgita"
+	AppName                    = "devgita"
 	Reset                       = "\033[0m"
 	Gray                        = "\033[90m"
 	Red                         = "\033[31m" // Error color
@@ -14,6 +14,9 @@ const (
 	SupportedMacOSVersionNumber = 13
 	SupportedMacOSVersionName   = "Ventura"
 	DevgitaRepositoryUrl        = "https://github.com/cjairm/devgita.git"
+
+	// Paths
+
 )
 
 var Devgita = fmt.Sprint(`
