@@ -4,7 +4,7 @@ import (
 	"context"
 )
 
-const ConfigKey = "devgita-config"
+const ConfigKey = "devgita-config-context"
 
 type ContextConfig struct {
 	SelectedLanguages []string
