@@ -10,8 +10,10 @@ import (
 
 type GlobalConfig struct {
 	AppPath               string            `json:"appPath"`
-	CurrentTheme          string            `json:"currentTheme"`
+	AvailableFonts        []string          `json:"availableFonts"`
+	AvailableThemes       []string          `json:"availableThemes"`
 	CurrentFont           string            `json:"currentFont"`
+	CurrentTheme          string            `json:"currentTheme"`
 	InstalledPackages     []string          `json:"installedPackages"`
 	InstalledDesktopApps  []string          `json:"installedDesktopApps"`
 	InstalledDevLanguages []string          `json:"installedDevLanguages"`
