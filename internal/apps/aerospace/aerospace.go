@@ -5,9 +5,8 @@ import (
 
 	cmd "github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/pkg/files"
+	"github.com/cjairm/devgita/pkg/paths"
 )
-
-const aerospaceDir = "aerospace"
 
 type Aerospace struct {
 	Cmd  cmd.Command
@@ -29,18 +28,12 @@ func (a *Aerospace) MaybeInstall() error {
 }
 
 func (a *Aerospace) Setup() error {
-	configPath := []string{aerospaceDir}
-	return a.Base.CopyAppConfigDirToLocalConfigDir(configPath, configPath)
+	return files.CopyDir(paths.AerospaceConfigAppDir, paths.AerospaceConfigLocalDir)
 }
 
 func (a *Aerospace) MaybeSetup() error {
-	localConfig, err := a.Base.ConfigDir()
-	if err != nil {
-		return err
-	}
-	aerospaceConfigFile := filepath.Join(localConfig, aerospaceDir, "aerospace.toml")
-	isFilePresent := files.FileAlreadyExist(aerospaceConfigFile)
-	if isFilePresent {
+	aerospaceConfigFile := filepath.Join(paths.AerospaceConfigLocalDir, "aerospace.toml")
+	if isFilePresent := files.FileAlreadyExist(aerospaceConfigFile); isFilePresent {
 		return nil
 	}
 	return a.Setup()

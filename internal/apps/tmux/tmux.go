@@ -14,6 +14,7 @@ import (
 
 	cmd "github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/pkg/files"
+	"github.com/cjairm/devgita/pkg/paths"
 )
 
 type Tmux struct {
@@ -48,7 +49,10 @@ func (t *Tmux) MaybeInstall() error {
 }
 
 func (t *Tmux) Setup() error {
-	return t.Base.CopyAppConfigFileToHomeDir("tmux", ".tmux.conf")
+	return files.CopyFile(
+		filepath.Join(paths.TmuxConfigAppDir, ".tmux.conf"),
+		filepath.Join(paths.HomeDir, ".tmux.conf"),
+	)
 }
 
 func (t *Tmux) MaybeSetup() error {

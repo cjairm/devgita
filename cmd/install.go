@@ -14,6 +14,7 @@ import (
 	"github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/files"
+	"github.com/cjairm/devgita/pkg/paths"
 	"github.com/cjairm/devgita/pkg/utils"
 	"github.com/spf13/cobra"
 )
@@ -41,9 +42,7 @@ func init() {
 }
 
 func run(cmd *cobra.Command, args []string) {
-	bc := commands.NewBaseCommand()
-	devgitaInstallPath, err := bc.AppDir()
-	utils.MaybeExitWithError(err)
+	var err error
 
 	utils.PrintBold(constants.Devgita)
 	utils.Print("=> Begin installation (or abort with ctrl+c)...", "")
@@ -64,8 +63,8 @@ func run(cmd *cobra.Command, args []string) {
 
 	utils.PrintInfo("- Install devgita")
 	g := git.New()
-	utils.MaybeExitWithError(files.CleanDestinationDir(devgitaInstallPath))
-	utils.MaybeExitWithError(g.Clone(constants.DevgitaRepositoryUrl, devgitaInstallPath))
+	utils.MaybeExitWithError(files.CleanDestinationDir(paths.AppDir))
+	utils.MaybeExitWithError(g.Clone(constants.DevgitaRepositoryUrl, paths.AppDir))
 
 	utils.PrintInfo("Preparing to install essential tools and packages...")
 	t := terminal.New()

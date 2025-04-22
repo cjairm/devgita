@@ -5,6 +5,7 @@ import (
 
 	cmd "github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/pkg/files"
+	"github.com/cjairm/devgita/pkg/paths"
 )
 
 type PowerLevel10k struct {
@@ -39,30 +40,20 @@ func (p *PowerLevel10k) MaybeInstall() error {
 }
 
 func (p *PowerLevel10k) Setup() error {
-	devgitaCustomDir, err := p.Base.AppDir()
-	if err != nil {
-		return err
-	}
-	err = files.AddLineToFile(
+	return files.AddLineToFile(
 		"source $(brew --prefix)/share/powerlevel10k/powerlevel10k.zsh-theme",
-		devgitaCustomDir+"/devgita.zsh",
+		filepath.Join(paths.AppDir, "devgita.zsh"),
 	)
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 func (p *PowerLevel10k) MaybeSetup() error {
-	devgitaCustomDir, err := p.Base.AppDir()
+	isConfigured, err := files.ContentExistsInFile(
+		filepath.Join(paths.AppDir, "devgita.zsh"),
+		"powerlevel10k.zsh-theme",
+	)
 	if err != nil {
 		return err
 	}
-	devgitaConfigFile := filepath.Join(devgitaCustomDir, "devgita.zsh")
-	isConfigured, err := files.ContentExistsInFile(
-		devgitaConfigFile,
-		"powerlevel10k.zsh-theme",
-	)
 	if isConfigured == true {
 		return nil
 	}

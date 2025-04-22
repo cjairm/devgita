@@ -5,6 +5,7 @@ import (
 
 	cmd "github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/pkg/files"
+	"github.com/cjairm/devgita/pkg/paths"
 )
 
 type Autosuggestions struct {
@@ -27,30 +28,20 @@ func (a *Autosuggestions) MaybeInstall() error {
 }
 
 func (a *Autosuggestions) Setup() error {
-	devgitaCustomDir, err := a.Base.AppDir()
-	if err != nil {
-		return err
-	}
-	err = files.AddLineToFile(
+	return files.AddLineToFile(
 		"source $(brew --prefix)/share/zsh-autosuggestions/zsh-autosuggestions.zsh",
-		devgitaCustomDir+"/devgita.zsh",
+		filepath.Join(paths.AppDir, "devgita.zsh"),
 	)
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 func (a *Autosuggestions) MaybeSetup() error {
-	devgitaCustomDir, err := a.Base.AppDir()
+	isConfigured, err := files.ContentExistsInFile(
+		filepath.Join(paths.AppDir, "devgita.zsh"),
+		"zsh-autosuggestions.zsh",
+	)
 	if err != nil {
 		return err
 	}
-	devgitaConfigFile := filepath.Join(devgitaCustomDir, "devgita.zsh")
-	isConfigured, err := files.ContentExistsInFile(
-		devgitaConfigFile,
-		"zsh-autosuggestions.zsh",
-	)
 	if isConfigured == true {
 		return nil
 	}

@@ -10,8 +10,8 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/files"
+	"github.com/cjairm/devgita/pkg/paths"
 )
 
 type GlobalConfig struct {
@@ -38,89 +38,8 @@ func (b *BaseCommand) IsLinux() bool {
 	return runtime.GOOS == "linux"
 }
 
-// Returns XDG_CONFIG_HOME or fallback to ~/.config
-func (b *BaseCommand) ConfigDir(subDirs ...string) (string, error) {
-	base := os.Getenv("XDG_CONFIG_HOME")
-	if base == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", err
-		}
-		base = filepath.Join(home, ".config")
-	}
-	return filepath.Join(append([]string{base}, subDirs...)...), nil
-}
-
-// Returns XDG_DATA_HOME or fallback to ~/.local/share
-func (b *BaseCommand) DataDir(subDirs ...string) (string, error) {
-	base := os.Getenv("XDG_DATA_HOME")
-	if base == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", err
-		}
-		base = filepath.Join(home, ".local", "share")
-	}
-	return filepath.Join(append([]string{base}, subDirs...)...), nil
-}
-
-func (b *BaseCommand) AppDir(subDirs ...string) (string, error) {
-	appDir, err := b.DataDir(constants.AppName)
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(append([]string{appDir}, subDirs...)...), nil
-}
-
-// Returns XDG_CACHE_HOME or fallback to ~/.cache
-func (b *BaseCommand) CacheDir(subDirs ...string) (string, error) {
-	base := os.Getenv("XDG_CACHE_HOME")
-	if base == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", err
-		}
-		base = filepath.Join(home, ".cache")
-	}
-	return filepath.Join(append([]string{base}, subDirs...)...), nil
-}
-
-func (b *BaseCommand) CopyAppConfigDirToLocalConfigDir(fromDevgita, toLocal []string) error {
-	appConfigDir, err := b.AppDir(append([]string{"configs"}, fromDevgita...)...)
-	if err != nil {
-		return err
-	}
-	configDir, err := b.ConfigDir(toLocal...)
-	if err != nil {
-		return err
-	}
-	if err = files.CopyDir(appConfigDir, configDir); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (b *BaseCommand) CopyAppConfigFileToHomeDir(fromDevgita ...string) error {
-	appConfigDir, err := b.AppDir(append([]string{"configs"}, fromDevgita...)...)
-	if err != nil {
-		return err
-	}
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return err
-	}
-	if err = files.CopyFile(appConfigDir, homeDir); err != nil {
-		return err
-	}
-	return nil
-}
-
 func (b *BaseCommand) LoadGlobalConfig() (*GlobalConfig, error) {
-	filename, err := b.AppDir("configs", "bash", "global_config.json")
-	if err != nil {
-		return nil, err
-	}
-	file, err := os.ReadFile(filename)
+	file, err := os.ReadFile(filepath.Join(paths.BashConfigAppDir, "global_config.json"))
 	if err != nil {
 		return nil, err
 	}
@@ -133,23 +52,17 @@ func (b *BaseCommand) LoadGlobalConfig() (*GlobalConfig, error) {
 }
 
 func (b *BaseCommand) SetGlobalConfig(config *GlobalConfig) error {
-	filename, err := b.AppDir("configs", "bash", "global_config.json")
-	if err != nil {
-		return err
-	}
+	filePath := filepath.Join(paths.BashConfigAppDir, "global_config.json")
 	file, err := json.MarshalIndent(config, "", "  ")
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filename, file, 0644)
+	return os.WriteFile(filePath, file, 0644)
 }
 
 func (b *BaseCommand) ResetGlobalConfig() error {
-	filename, err := b.AppDir("configs", "bash", "global_config.json")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(filename, []byte("{}"), 0644)
+	filePath := filepath.Join(paths.BashConfigAppDir, "global_config.json")
+	return os.WriteFile(filePath, []byte("{}"), 0644)
 }
 
 func (b *BaseCommand) Setup(line string) error {

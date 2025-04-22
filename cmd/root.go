@@ -6,8 +6,8 @@ package cmd
 import (
 	"os"
 
-	"github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/pkg/constants"
+	"github.com/cjairm/devgita/pkg/paths"
 	"github.com/cjairm/devgita/pkg/utils"
 	"github.com/spf13/cobra"
 )
@@ -45,13 +45,9 @@ func init() {
 	utils.MaybeExitWithError(setDevgitaPath())
 }
 
+// TODO: Move this to when only installing the app for first time
 func setDevgitaPath() error {
-	bc := commands.NewBaseCommand()
-	devgitaInstallPath, err := bc.AppDir()
-	if err != nil {
-		return nil
-	}
-	err = os.MkdirAll(devgitaInstallPath, 0755)
+	err := os.MkdirAll(paths.AppDir, 0755)
 	if err != nil {
 		return nil
 	}

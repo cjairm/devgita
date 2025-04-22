@@ -14,10 +14,10 @@ import (
 	"path/filepath"
 
 	cmd "github.com/cjairm/devgita/internal/commands"
+	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/files"
+	"github.com/cjairm/devgita/pkg/paths"
 )
-
-const neovimDir = "nvim"
 
 type Neovim struct {
 	Cmd  cmd.Command
@@ -36,7 +36,7 @@ func Command(args ...string) error {
 		PostExecMsg: "",
 		Verbose:     true,
 		IsSudo:      false,
-		Command:     "nvim",
+		Command:     constants.Nvim,
 		Args:        args,
 	}
 	return cmd.ExecCommand(execCommand)
@@ -51,18 +51,11 @@ func (n *Neovim) MaybeInstall() error {
 }
 
 func (n *Neovim) Setup() error {
-	localPath := []string{neovimDir}
-	devgitaPath := []string{"neovim"}
-	return n.Base.CopyAppConfigDirToLocalConfigDir(devgitaPath, localPath)
+	return files.CopyDir(paths.NeovimConfigAppDir, paths.NvimConfigLocalDir)
 }
 
 func (n *Neovim) MaybeSetup() error {
-	localConfig, err := n.Base.ConfigDir()
-	if err != nil {
-		return err
-	}
-	neovimConfigFile := filepath.Join(localConfig, "nvim", "init.lua")
-	isFilePresent := files.FileAlreadyExist(neovimConfigFile)
+	isFilePresent := files.FileAlreadyExist(filepath.Join(paths.NvimConfigLocalDir, "init.lua"))
 	if isFilePresent {
 		return nil
 	}

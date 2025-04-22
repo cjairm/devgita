@@ -3,7 +3,6 @@ package constants
 import "fmt"
 
 const (
-	AppName                    = "devgita"
 	Reset                       = "\033[0m"
 	Gray                        = "\033[90m"
 	Red                         = "\033[31m" // Error color
@@ -13,10 +12,24 @@ const (
 	Bold                        = "\033[1m"
 	SupportedMacOSVersionNumber = 13
 	SupportedMacOSVersionName   = "Ventura"
-	DevgitaRepositoryUrl        = "https://github.com/cjairm/devgita.git"
 
-	// Paths
+	// App specific
+	AppName              = "devgita"
+	ConfigAppDirName     = "configs"
+	DevgitaRepositoryUrl = "https://github.com/cjairm/devgita.git"
 
+	// App names
+	Aerospace = "aerospace"
+	Alacritty = "alacritty"
+	Fastfetch = "fastfetch"
+	Neovim    = "neovim"
+	Nvim    = "nvim"
+	Tmux      = "tmux"
+
+	// Other available folders for installation
+	Bash   = "bash"
+	Fonts  = "fonts"
+	Themes = "themes"
 )
 
 var Devgita = fmt.Sprint(`

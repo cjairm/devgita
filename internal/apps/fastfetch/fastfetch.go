@@ -9,10 +9,10 @@ import (
 	"path/filepath"
 
 	cmd "github.com/cjairm/devgita/internal/commands"
+	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/files"
+	"github.com/cjairm/devgita/pkg/paths"
 )
-
-const fastfetchDir = "fastfetch"
 
 type Fastfetch struct {
 	Cmd  cmd.Command
@@ -31,7 +31,7 @@ func Command(args ...string) error {
 		PostExecMsg: "",
 		Verbose:     true,
 		IsSudo:      false,
-		Command:     "fastfetch",
+		Command:     constants.Fastfetch,
 		Args:        args,
 	}
 	return cmd.ExecCommand(execCommand)
@@ -46,16 +46,11 @@ func (f *Fastfetch) MaybeInstall() error {
 }
 
 func (f *Fastfetch) Setup() error {
-	filePath := []string{fastfetchDir}
-	return f.Base.CopyAppConfigDirToLocalConfigDir(filePath, filePath)
+	return files.CopyDir(paths.FastFetchConfigAppDir, paths.FastFetchConfigLocalDir)
 }
 
 func (f *Fastfetch) MaybeSetup() error {
-	localConfig, err := f.Base.ConfigDir()
-	if err != nil {
-		return err
-	}
-	fastfetchConfigFile := filepath.Join(localConfig, "fastfetch", "config.jsonc")
+	fastfetchConfigFile := filepath.Join(paths.FastFetchConfigLocalDir, "config.jsonc")
 	isFilePresent := files.FileAlreadyExist(fastfetchConfigFile)
 	if isFilePresent {
 		return nil

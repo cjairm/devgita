@@ -17,6 +17,7 @@ import (
 	commands "github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/files"
+	"github.com/cjairm/devgita/pkg/paths"
 	"github.com/cjairm/devgita/pkg/promptui"
 	"github.com/cjairm/devgita/pkg/utils"
 )
@@ -97,16 +98,17 @@ func (t *Terminal) InstallAll() error {
 }
 
 func (t *Terminal) ConfigureZsh() error {
+	var err error
+
 	utils.PrintInfo("Adding config custom files...")
-	devgitaAppDir, err := t.Base.AppDir()
-	if err != nil {
-		return err
-	}
 	isDevgitaConfigFilePresent := files.FileAlreadyExist(
-		filepath.Join(devgitaAppDir, "devgita.zsh"),
+		filepath.Join(paths.AppDir, "devgita.zsh"),
 	)
 	if !isDevgitaConfigFilePresent {
-		err = t.Base.CopyAppConfigDirToLocalConfigDir([]string{"bash"}, []string{constants.AppName})
+		err = files.CopyDir(
+			paths.BashConfigAppDir,
+			filepath.Join(paths.ConfigDir, constants.AppName),
+		)
 		if err != nil {
 			return err
 		}
@@ -146,6 +148,8 @@ func (t *Terminal) ConfigureZsh() error {
 	}
 
 	utils.PrintInfo("Sourcing custom files...")
+	// TODO: Create a fuction that builds these strings. If $HOME exists, use it
+	// if not, use the full path
 	err = t.Base.MaybeSetup("source $HOME/.config/devgita/aliases.zsh", "aliases.zsh")
 	if err != nil {
 		return err

@@ -5,9 +5,8 @@ import (
 
 	cmd "github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/pkg/files"
+	"github.com/cjairm/devgita/pkg/paths"
 )
-
-const alacrittyDir = "alacritty"
 
 type Alacritty struct {
 	Cmd  cmd.Command
@@ -29,62 +28,46 @@ func (a *Alacritty) MaybeInstall() error {
 }
 
 func (a *Alacritty) SetupApp() error {
-	path := []string{alacrittyDir}
-	return a.Base.CopyAppConfigDirToLocalConfigDir(path, path)
+	return files.CopyDir(paths.AlacrittyConfigAppDir, paths.AlacrittyConfigLocalDir)
 }
 
 func (a *Alacritty) SetupFont() error {
-	devgitaPath := []string{"fonts", alacrittyDir, "default"}
-	localPath := []string{alacrittyDir}
-	return a.Base.CopyAppConfigDirToLocalConfigDir(devgitaPath, localPath)
+	return files.CopyDir(
+		filepath.Join(paths.AlacrittyFontAppDir, "default"),
+		paths.AlacrittyConfigLocalDir,
+	)
 }
 
 func (a *Alacritty) SetupTheme() error {
-	devgitaPath := []string{"themes", alacrittyDir, "default"}
-	localPath := []string{alacrittyDir}
-	return a.Base.CopyAppConfigDirToLocalConfigDir(devgitaPath, localPath)
+	return files.CopyDir(
+		filepath.Join(paths.AlacrittyThemesAppDir, "default"),
+		paths.AlacrittyConfigLocalDir,
+	)
 }
 
 func (a *Alacritty) MaybeSetupApp() error {
-	localConfig, err := a.Base.ConfigDir()
-	if err != nil {
-		return err
-	}
-	return maybeSetup(a.SetupApp, localConfig, []string{alacrittyDir, "alacritty.toml"})
+	return maybeSetup(a.SetupApp, paths.AlacrittyConfigLocalDir, "alacritty.toml")
 }
 
 func (a *Alacritty) MaybeSetupFont() error {
-	localConfig, err := a.Base.ConfigDir()
-	if err != nil {
-		return err
-	}
-	return maybeSetup(a.SetupFont, localConfig, []string{alacrittyDir, "font.toml"})
+	return maybeSetup(a.SetupFont, paths.AlacrittyConfigLocalDir, "font.toml")
 }
 
 func (a *Alacritty) MaybeSetupTheme() error {
-	localConfig, err := a.Base.ConfigDir()
-	if err != nil {
-		return err
-	}
-	return maybeSetup(a.SetupTheme, localConfig, []string{alacrittyDir, "theme.toml"})
+	return maybeSetup(a.SetupFont, paths.AlacrittyConfigLocalDir, "theme.toml")
 }
 
 func (a *Alacritty) UpdateConfigFilesWithCurrentHomeDir() error {
-	localConfig, err := a.Base.ConfigDir()
-	if err != nil {
-		return err
-	}
-	alacrittyConfigFile := filepath.Join(localConfig, alacrittyDir, "alacritty.toml")
-	return files.UpdateFile(alacrittyConfigFile, "<ALACRITTY-CONFIG-PATH>", localConfig)
+	alacrittyConfigFile := filepath.Join(paths.AlacrittyConfigLocalDir, "alacritty.toml")
+	return files.UpdateFile(alacrittyConfigFile, "<ALACRITTY-CONFIG-PATH>", paths.ConfigDir)
 }
 
-func maybeSetup(setupFunc func() error, localConfig string, fileSegments []string) error {
+func maybeSetup(setupFunc func() error, localConfig string, fileSegments ...string) error {
 	filePath := localConfig
 	for _, segment := range fileSegments {
 		filePath = filepath.Join(filePath, segment)
 	}
-	isFilePresent := files.FileAlreadyExist(filePath)
-	if isFilePresent {
+	if isFilePresent := files.FileAlreadyExist(filePath); isFilePresent {
 		return nil
 	}
 	return setupFunc()
