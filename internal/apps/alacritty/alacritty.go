@@ -3,7 +3,7 @@ package alacritty
 import (
 	"path/filepath"
 
-	cmd "github.com/cjairm/devgita/internal"
+	cmd "github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/pkg/files"
 )
 

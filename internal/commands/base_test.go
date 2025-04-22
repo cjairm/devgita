@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	commands "github.com/cjairm/devgita/internal"
+	commands "github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/pkg/utils"
 )
 

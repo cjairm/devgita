@@ -1,6 +1,6 @@
 package fonts
 
-import cmd "github.com/cjairm/devgita/internal"
+import cmd "github.com/cjairm/devgita/internal/commands"
 
 type Fonts struct {
 	Cmd cmd.Command

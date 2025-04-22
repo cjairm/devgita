@@ -1,38 +1,38 @@
-package syntaxhighlighting
+package autosuggestions
 
 import (
 	"path/filepath"
 
-	cmd "github.com/cjairm/devgita/internal"
+	cmd "github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/pkg/files"
 )
 
-type Syntaxhighlighting struct {
+type Autosuggestions struct {
 	Cmd  cmd.Command
 	Base cmd.BaseCommand
 }
 
-func New() *Syntaxhighlighting {
+func New() *Autosuggestions {
 	osCmd := cmd.NewCommand()
 	baseCmd := cmd.NewBaseCommand()
-	return &Syntaxhighlighting{Cmd: osCmd, Base: *baseCmd}
+	return &Autosuggestions{Cmd: osCmd, Base: *baseCmd}
 }
 
-func (a *Syntaxhighlighting) Install() error {
-	return a.Cmd.InstallPackage("zsh-syntax-highlighting")
+func (a *Autosuggestions) Install() error {
+	return a.Cmd.InstallPackage("zsh-autosuggestions")
 }
 
-func (a *Syntaxhighlighting) MaybeInstall() error {
-	return a.Cmd.MaybeInstallPackage("zsh-syntax-highlighting")
+func (a *Autosuggestions) MaybeInstall() error {
+	return a.Cmd.MaybeInstallPackage("zsh-autosuggestions")
 }
 
-func (a *Syntaxhighlighting) Setup() error {
+func (a *Autosuggestions) Setup() error {
 	devgitaCustomDir, err := a.Base.AppDir()
 	if err != nil {
 		return err
 	}
 	err = files.AddLineToFile(
-		"source $(brew --prefix)/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh",
+		"source $(brew --prefix)/share/zsh-autosuggestions/zsh-autosuggestions.zsh",
 		devgitaCustomDir+"/devgita.zsh",
 	)
 	if err != nil {
@@ -41,7 +41,7 @@ func (a *Syntaxhighlighting) Setup() error {
 	return nil
 }
 
-func (a *Syntaxhighlighting) MaybeSetup() error {
+func (a *Autosuggestions) MaybeSetup() error {
 	devgitaCustomDir, err := a.Base.AppDir()
 	if err != nil {
 		return err
@@ -49,7 +49,7 @@ func (a *Syntaxhighlighting) MaybeSetup() error {
 	devgitaConfigFile := filepath.Join(devgitaCustomDir, "devgita.zsh")
 	isConfigured, err := files.ContentExistsInFile(
 		devgitaConfigFile,
-		"zsh-syntax-highlighting.zsh",
+		"zsh-autosuggestions.zsh",
 	)
 	if isConfigured == true {
 		return nil

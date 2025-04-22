@@ -7,7 +7,7 @@ package mise
 import (
 	"fmt"
 
-	cmd "github.com/cjairm/devgita/internal"
+	cmd "github.com/cjairm/devgita/internal/commands"
 )
 
 type Mise struct {

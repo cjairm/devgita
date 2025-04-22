@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	git "github.com/cjairm/devgita/internal/commands/git"
+	git "github.com/cjairm/devgita/internal/apps/git"
 	"github.com/cjairm/devgita/pkg/utils"
 	"github.com/spf13/cobra"
 )

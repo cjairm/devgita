@@ -3,7 +3,7 @@ package git
 import (
 	"fmt"
 
-	cmd "github.com/cjairm/devgita/internal"
+	cmd "github.com/cjairm/devgita/internal/commands"
 )
 
 type Git struct {

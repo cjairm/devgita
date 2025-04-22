@@ -6,7 +6,7 @@ package cmd
 import (
 	"os"
 
-	commands "github.com/cjairm/devgita/internal"
+	"github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/pkg/utils"
 	"github.com/spf13/cobra"
 )

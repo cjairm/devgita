@@ -1,10 +1,10 @@
 package desktop
 
 import (
-	cmd "github.com/cjairm/devgita/internal"
-	"github.com/cjairm/devgita/internal/commands/aerospace"
-	"github.com/cjairm/devgita/internal/commands/alacritty"
-	"github.com/cjairm/devgita/internal/commands/fonts"
+	"github.com/cjairm/devgita/internal/apps/aerospace"
+	"github.com/cjairm/devgita/internal/apps/alacritty"
+	"github.com/cjairm/devgita/internal/apps/fonts"
+	cmd "github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/pkg/promptui"
 	"github.com/cjairm/devgita/pkg/utils"
 )

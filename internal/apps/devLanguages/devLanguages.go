@@ -4,8 +4,8 @@ import (
 	"context"
 	"strings"
 
-	cmd "github.com/cjairm/devgita/internal"
-	"github.com/cjairm/devgita/internal/commands/mise"
+	cmd "github.com/cjairm/devgita/internal/commands"
+	"github.com/cjairm/devgita/internal/apps/mise"
 	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/pkg/promptui"
 	"github.com/cjairm/devgita/pkg/utils"

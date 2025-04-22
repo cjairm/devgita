@@ -6,12 +6,12 @@ package cmd
 import (
 	"context"
 
-	commands "github.com/cjairm/devgita/internal"
-	"github.com/cjairm/devgita/internal/commands/databases"
-	"github.com/cjairm/devgita/internal/commands/desktop"
-	devlanguages "github.com/cjairm/devgita/internal/commands/devLanguages"
-	git "github.com/cjairm/devgita/internal/commands/git"
-	"github.com/cjairm/devgita/internal/commands/terminal"
+	"github.com/cjairm/devgita/internal/apps/databases"
+	"github.com/cjairm/devgita/internal/apps/desktop"
+	devlanguages "github.com/cjairm/devgita/internal/apps/devLanguages"
+	"github.com/cjairm/devgita/internal/apps/git"
+	"github.com/cjairm/devgita/internal/apps/terminal"
+	"github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/pkg/files"
 	"github.com/cjairm/devgita/pkg/utils"
 	"github.com/spf13/cobra"
