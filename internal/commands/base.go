@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
 	"github.com/cjairm/devgita/pkg/files"
@@ -29,18 +28,11 @@ func NewBaseCommandCustom(p CustomizablePlatform) *BaseCommand {
 }
 
 func (b *BaseCommand) Setup(line string) error {
-	// TODO: Check if `.zshrc` file is present or any other type of file for
-	// configuration
-	return files.AddLineToFile(line, filepath.Join(paths.HomeDir, ".zshrc"))
+	return files.AddLineToFile(line, paths.ShellConfigFile)
 }
 
 func (b *BaseCommand) MaybeSetup(line, toSearch string) error {
-	// TODO: Check if `.zshrc` file is present or any other type of file for
-	// configuration
-	isAlreadySetup, err := files.ContentExistsInFile(
-		filepath.Join(paths.HomeDir, ".zshrc"),
-		toSearch,
-	)
+	isAlreadySetup, err := files.ContentExistsInFile(paths.ShellConfigFile, toSearch)
 	if err != nil {
 		return err
 	}

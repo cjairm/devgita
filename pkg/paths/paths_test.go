@@ -170,3 +170,79 @@ func TestApplicationsDirs(t *testing.T) {
 		}
 	})
 }
+
+func createFile(t *testing.T, path string) {
+	t.Helper()
+	err := os.MkdirAll(filepath.Dir(path), 0755)
+	if err != nil {
+		t.Fatalf("failed to create directory: %v", err)
+	}
+	err = os.WriteFile(path, []byte("test content"), 0644)
+	if err != nil {
+		t.Fatalf("failed to create file %q: %v", path, err)
+	}
+}
+
+func TestGetShellConfigFile(t *testing.T) {
+	originalChecker := paths.FileAlreadyExist
+	defer func() { paths.FileAlreadyExist = originalChecker }()
+
+	t.Run("returns first matching config file", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		paths.HomeDir = tmpDir
+		paths.ConfigDir = filepath.Join(tmpDir, ".config")
+
+		target := filepath.Join(tmpDir, ".bash_profile")
+		createFile(t, target)
+
+		paths.FileAlreadyExist = func(path string) bool {
+			return path == target
+		}
+
+		got := paths.GetShellConfigFile()
+		want := target
+		if got != want {
+			t.Errorf("expected %q, got %q", want, got)
+		}
+	})
+
+	t.Run("returns fish config if only it exists", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		fishDir := filepath.Join(tmpDir, ".config", "fish")
+		if err := os.MkdirAll(fishDir, 0755); err != nil {
+			t.Fatalf("failed to create fish config dir: %v", err)
+		}
+
+		paths.HomeDir = tmpDir
+		paths.ConfigDir = filepath.Join(tmpDir, ".config")
+
+		target := filepath.Join(fishDir, "config.fish")
+		createFile(t, target)
+
+		paths.FileAlreadyExist = func(path string) bool {
+			return path == target
+		}
+
+		got := paths.GetShellConfigFile()
+		want := target
+		if got != want {
+			t.Errorf("expected %q, got %q", want, got)
+		}
+	})
+
+	t.Run("returns default if none exist", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		paths.HomeDir = tmpDir
+		paths.ConfigDir = filepath.Join(tmpDir, ".config")
+
+		paths.FileAlreadyExist = func(path string) bool {
+			return false
+		}
+
+		got := paths.GetShellConfigFile()
+		want := filepath.Join(tmpDir, ".zshrc")
+		if got != want {
+			t.Errorf("expected default %q, got %q", want, got)
+		}
+	})
+}

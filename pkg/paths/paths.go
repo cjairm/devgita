@@ -6,7 +6,11 @@ import (
 	"runtime"
 
 	"github.com/cjairm/devgita/pkg/constants"
+	"github.com/cjairm/devgita/pkg/files"
 )
+
+// This allows swapping it during tests
+var FileAlreadyExist = files.FileAlreadyExist
 
 var (
 	AppDir                = GetAppDir()
@@ -16,6 +20,7 @@ var (
 	HomeDir               = GetHomeDir()
 	UserApplicationsDir   = GetUserApplicationsDir(runtime.GOOS == "darwin")
 	SystemApplicationsDir = GetSystemApplicationsDir(runtime.GOOS == "darwin")
+	ShellConfigFile       = GetShellConfigFile()
 
 	// Configs from Devgita app
 	AerospaceConfigAppDir = GetAppDir(constants.ConfigAppDirName, constants.Aerospace)
@@ -116,4 +121,22 @@ func GetSystemApplicationsDir(isMac bool, subPath ...string) string {
 	// You could return both or let the caller choose
 	base := "/usr/share/applications"
 	return filepath.Join(append([]string{base}, subPath...)...)
+}
+
+func GetShellConfigFile() string {
+	candidates := []string{
+		filepath.Join(HomeDir, ".zshrc"),
+		filepath.Join(HomeDir, ".bashrc"),
+		filepath.Join(HomeDir, ".bash_profile"),
+		filepath.Join(HomeDir, ".profile"),
+		filepath.Join(ConfigDir, "fish", "config.fish"),
+	}
+	for _, path := range candidates {
+		if FileAlreadyExist(path) {
+			return path
+		}
+	}
+	// If none exist, default to .zshrc
+	return filepath.Join(HomeDir, ".zshrc")
+
 }
