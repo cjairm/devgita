@@ -246,3 +246,41 @@ func TestGetShellConfigFile(t *testing.T) {
 		}
 	})
 }
+
+func TestFontsDirs(t *testing.T) {
+	tempHome := t.TempDir()
+	paths.HomeDir = tempHome
+
+	t.Run("user fonts dir - mac", func(t *testing.T) {
+		got := paths.GetUserFontsDir(true, "MyFont.ttf")
+		want := filepath.Join(tempHome, "Library", "Fonts", "MyFont.ttf")
+		if got != want {
+			t.Errorf("expected %q, got %q", want, got)
+		}
+	})
+
+	t.Run("user fonts dir - linux", func(t *testing.T) {
+		t.Setenv("XDG_DATA_HOME", filepath.Join(tempHome, ".local", "share"))
+		got := paths.GetUserFontsDir(false, "font.ttf")
+		want := filepath.Join(tempHome, ".local", "share", "fonts", "font.ttf")
+		if got != want {
+			t.Errorf("expected %q, got %q", want, got)
+		}
+	})
+
+	t.Run("system fonts dir - mac", func(t *testing.T) {
+		got := paths.GetSystemFontsDir(true, "MyFont.ttf")
+		want := filepath.Join("/Library", "Fonts", "MyFont.ttf")
+		if got != want {
+			t.Errorf("expected %q, got %q", want, got)
+		}
+	})
+
+	t.Run("system fonts dir - linux", func(t *testing.T) {
+		got := paths.GetSystemFontsDir(false, "font.ttf")
+		want := filepath.Join("/usr/share/fonts", "font.ttf")
+		if got != want {
+			t.Errorf("expected %q, got %q", want, got)
+		}
+	})
+}

@@ -11,6 +11,9 @@ import (
 	"github.com/cjairm/devgita/pkg/paths"
 )
 
+var LookPathFn = exec.LookPath
+var CommandFn = exec.Command
+
 type BaseCommand struct {
 	Platform CustomizablePlatform
 }
@@ -94,4 +97,44 @@ func findPackageInDpkgOutput(lines [][]byte, packageName string) bool {
 		}
 	}
 	return false
+}
+
+func (b *BaseCommand) IsFontPresent(fontName string) (bool, error) {
+	if _, err := LookPathFn("fc-list"); err == nil {
+		cmd := CommandFn("fc-list", ":", "family")
+		var out bytes.Buffer
+		cmd.Stdout = &out
+		if err := cmd.Run(); err == nil {
+			lines := bytes.Split(out.Bytes(), []byte{'\n'})
+			fontNameLower := strings.ToLower(fontName)
+			for _, line := range lines {
+				if strings.Contains(strings.ToLower(string(line)), fontNameLower) {
+					return true, nil
+				}
+			}
+			return false, nil
+		}
+	}
+	// Fallback: scan known font directories
+	fontDirs := []string{paths.UserFontsDir, paths.SystemFontsDir}
+	for _, dir := range fontDirs {
+		files, err := os.ReadDir(dir)
+		if err != nil {
+			continue // ignore unreadable dirs
+		}
+		for _, file := range files {
+			if strings.Contains(strings.ToLower(file.Name()), strings.ToLower(fontName)) &&
+				hasFontExtension(strings.ToLower(file.Name())) {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
+}
+
+func hasFontExtension(filename string) bool {
+	return strings.HasSuffix(filename, ".ttf") ||
+		strings.HasSuffix(filename, ".otf") ||
+		strings.HasSuffix(filename, ".woff") ||
+		strings.HasSuffix(filename, ".woff2")
 }

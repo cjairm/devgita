@@ -2,12 +2,12 @@ package commands
 
 import (
 	"fmt"
-	"os"
 	"os/exec"
 	"strconv"
 	"strings"
 
 	"github.com/cjairm/devgita/pkg/constants"
+	"github.com/cjairm/devgita/pkg/paths"
 )
 
 type MacOSCommand struct {
@@ -22,7 +22,7 @@ func (m *MacOSCommand) MaybeInstallDesktopApp(desktopAppName string, alias ...st
 	return maybeInstall(desktopAppName, alias, func(name string) (bool, error) {
 		isInstalled, err := m.IsDesktopAppInstalled(name)
 		if !isInstalled {
-			isInstalled, err = desktopApplicationExist(name)
+			isInstalled, err = m.IsDesktopAppPresent(paths.UserApplicationsDir, name)
 		}
 		return isInstalled, err
 	}, m.InstallDesktopApp)
@@ -32,7 +32,7 @@ func (m *MacOSCommand) MaybeInstallFont(fontName string, alias ...string) error 
 	return maybeInstall(fontName, alias, func(name string) (bool, error) {
 		isInstalled, err := m.IsDesktopAppInstalled(name)
 		if !isInstalled {
-			isInstalled, err = fontExist(name)
+			isInstalled, err = m.IsFontPresent(name)
 		}
 		return isInstalled, err
 	}, m.InstallDesktopApp)
@@ -168,30 +168,6 @@ func (m *MacOSCommand) IsPackageInstalled(packageName string) (bool, error) {
 func (m *MacOSCommand) IsDesktopAppInstalled(desktopAppName string) (bool, error) {
 	cmd := exec.Command("brew", "list", "--cask")
 	return m.IsPackagePresent(cmd, desktopAppName)
-}
-
-func desktopApplicationExist(appName string) (bool, error) {
-	applicationsPath := "/Applications"
-	return checkFileExistsInDirectory(applicationsPath, appName)
-}
-
-func fontExist(appName string) (bool, error) {
-	fontsPath := "~/Library/Fonts/"
-	return checkFileExistsInDirectory(fontsPath, appName)
-}
-
-func checkFileExistsInDirectory(dirPath, name string) (bool, error) {
-	files, err := os.ReadDir(dirPath)
-	if err != nil {
-		return false, fmt.Errorf("Failed to read directory: %v", err)
-	}
-	for _, file := range files {
-		lowerCaseName := strings.ToLower(file.Name())
-		if strings.Contains(lowerCaseName, name) {
-			return true, nil
-		}
-	}
-	return false, nil
 }
 
 func maybeInstall(

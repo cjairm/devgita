@@ -13,14 +13,20 @@ import (
 var FileAlreadyExist = files.FileAlreadyExist
 
 var (
-	AppDir                = GetAppDir()
-	CacheDir              = GetCacheDir()
-	ConfigDir             = GetConfigDir()
-	DataDir               = GetDataDir()
-	HomeDir               = GetHomeDir()
-	UserApplicationsDir   = GetUserApplicationsDir(runtime.GOOS == "darwin")
+	AppDir          = GetAppDir()
+	CacheDir        = GetCacheDir()
+	ConfigDir       = GetConfigDir()
+	DataDir         = GetDataDir()
+	HomeDir         = GetHomeDir()
+	ShellConfigFile = GetShellConfigFile()
+
+	// System apps
 	SystemApplicationsDir = GetSystemApplicationsDir(runtime.GOOS == "darwin")
-	ShellConfigFile       = GetShellConfigFile()
+	SystemFontsDir        = GetSystemFontsDir(runtime.GOOS == "darwin")
+
+	// User apps
+	UserApplicationsDir = GetUserApplicationsDir(runtime.GOOS == "darwin")
+	UserFontsDir        = GetUserFontsDir(runtime.GOOS == "darwin")
 
 	// Configs from Devgita app
 	AerospaceConfigAppDir = GetAppDir(constants.ConfigAppDirName, constants.Aerospace)
@@ -124,19 +130,40 @@ func GetSystemApplicationsDir(isMac bool, subPath ...string) string {
 }
 
 func GetShellConfigFile() string {
-	candidates := []string{
+	shellConfigFiles := []string{
 		filepath.Join(HomeDir, ".zshrc"),
 		filepath.Join(HomeDir, ".bashrc"),
 		filepath.Join(HomeDir, ".bash_profile"),
 		filepath.Join(HomeDir, ".profile"),
 		filepath.Join(ConfigDir, "fish", "config.fish"),
 	}
-	for _, path := range candidates {
-		if FileAlreadyExist(path) {
-			return path
+	for _, filepath := range shellConfigFiles {
+		if FileAlreadyExist(filepath) {
+			return filepath
 		}
 	}
 	// If none exist, default to .zshrc
 	return filepath.Join(HomeDir, ".zshrc")
 
+}
+
+// Returns user-level fonts dir
+func GetUserFontsDir(isMac bool, subPath ...string) string {
+	if isMac {
+		base := filepath.Join(HomeDir, "Library", "Fonts")
+		return filepath.Join(append([]string{base}, subPath...)...)
+	}
+	// Linux user fonts (XDG-compliant)
+	return GetDataDir(append([]string{"fonts"}, subPath...)...)
+}
+
+// Returns system-level fonts dir
+func GetSystemFontsDir(isMac bool, subPath ...string) string {
+	if isMac {
+		base := filepath.Join("/Library", "Fonts")
+		return filepath.Join(append([]string{base}, subPath...)...)
+	}
+	// Linux system fonts (common default)
+	base := "/usr/share/fonts"
+	return filepath.Join(append([]string{base}, subPath...)...)
 }
