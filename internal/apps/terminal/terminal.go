@@ -75,7 +75,7 @@ func (t *Terminal) InstallAll() error {
 	err = t.InstallDevTools()
 	ifErrorDisplayMessage(err, "fzf, ripgrep, bat, eza, zoxide, btop, fd-find, and tldr")
 
-	if t.Base.IsMac() {
+	if t.Base.Platform.IsMac() {
 		utils.PrintInfo("Installing xcode (if no previously installed)...")
 		err = t.InstallXCode()
 		ifErrorDisplayMessage(err, "xcode")

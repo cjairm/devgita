@@ -133,3 +133,40 @@ func TestAppDir(t *testing.T) {
 		}
 	})
 }
+
+func TestApplicationsDirs(t *testing.T) {
+	home := getHome(t)
+
+	t.Run("user applications dir - linux", func(t *testing.T) {
+		t.Setenv("XDG_DATA_HOME", "")
+		got := paths.GetUserApplicationsDir(false, "myapp")
+		want := filepath.Join(home, ".local", "share", "applications", "myapp")
+		if got != want {
+			t.Errorf("expected %q, got %q", want, got)
+		}
+	})
+
+	t.Run("user applications dir - mac", func(t *testing.T) {
+		got := paths.GetUserApplicationsDir(true, "MyApp.app")
+		want := filepath.Join("/Applications", "MyApp.app")
+		if got != want {
+			t.Errorf("expected %q, got %q", want, got)
+		}
+	})
+
+	t.Run("system applications dir - linux", func(t *testing.T) {
+		got := paths.GetSystemApplicationsDir(false, "myapp.desktop")
+		want := filepath.Join("/usr/share/applications", "myapp.desktop")
+		if got != want {
+			t.Errorf("expected %q, got %q", want, got)
+		}
+	})
+
+	t.Run("system applications dir - mac", func(t *testing.T) {
+		got := paths.GetSystemApplicationsDir(true, "MyApp.app")
+		want := filepath.Join("/Applications", "MyApp.app")
+		if got != want {
+			t.Errorf("expected %q, got %q", want, got)
+		}
+	})
+}

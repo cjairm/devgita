@@ -6,42 +6,41 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 
 	"github.com/cjairm/devgita/pkg/files"
+	"github.com/cjairm/devgita/pkg/paths"
 )
 
-type BaseCommand struct{}
+type BaseCommand struct {
+	Platform CustomizablePlatform
+}
 
 func NewBaseCommand() *BaseCommand {
-	return &BaseCommand{}
+	return &BaseCommand{
+		Platform: *NewPlatform(),
+	}
 }
 
-func (b *BaseCommand) IsMac() bool {
-	return runtime.GOOS == "darwin"
-}
-
-func (b *BaseCommand) IsLinux() bool {
-	return runtime.GOOS == "linux"
+func NewBaseCommandCustom(p CustomizablePlatform) *BaseCommand {
+	return &BaseCommand{
+		Platform: p,
+	}
 }
 
 func (b *BaseCommand) Setup(line string) error {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return err
-	}
-	zshConfigFile := filepath.Join(homeDir, ".zshrc")
-	return files.AddLineToFile(line, zshConfigFile)
+	// TODO: Check if `.zshrc` file is present or any other type of file for
+	// configuration
+	return files.AddLineToFile(line, filepath.Join(paths.HomeDir, ".zshrc"))
 }
 
 func (b *BaseCommand) MaybeSetup(line, toSearch string) error {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return err
-	}
-	zshConfigFile := filepath.Join(homeDir, ".zshrc")
-	isAlreadySetup, err := files.ContentExistsInFile(zshConfigFile, toSearch)
+	// TODO: Check if `.zshrc` file is present or any other type of file for
+	// configuration
+	isAlreadySetup, err := files.ContentExistsInFile(
+		filepath.Join(paths.HomeDir, ".zshrc"),
+		toSearch,
+	)
 	if err != nil {
 		return err
 	}
@@ -51,46 +50,56 @@ func (b *BaseCommand) MaybeSetup(line, toSearch string) error {
 	return b.Setup(line)
 }
 
-func (b *BaseCommand) FindPackageInCommandOutput(cmd *exec.Cmd, packageName string) (bool, error) {
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	err := cmd.Run()
+func (b *BaseCommand) IsDesktopAppPresent(dirPath, appName string) (bool, error) {
+	files, err := os.ReadDir(dirPath)
 	if err != nil {
-		return false, fmt.Errorf("Failed running brew command: %v", err)
+		return false, fmt.Errorf("failed to read directory: %v", err)
 	}
-	for _, line := range bytes.Split(out.Bytes(), []byte{'\n'}) {
-		if b.IsMac() {
-			if string(line) == packageName {
+	for _, file := range files {
+		filename := strings.ToLower(file.Name())
+		if strings.Contains(filename, strings.ToLower(appName)) {
+			if b.Platform.IsLinux() && strings.HasSuffix(filename, ".desktop") {
 				return true, nil
 			}
-		} else if b.IsLinux() {
-			// The output of `dpkg -l` has a specific format, we need to check the package name in the right column
-			if len(line) > 0 {
-				// The package name is typically the second column in the output
-				fields := bytes.Fields(line)
-				if len(fields) > 1 && string(fields[1]) == packageName {
-					return true, nil
-				}
+			if b.Platform.IsMac() {
+				return true, nil
 			}
-
 		}
 	}
 	return false, nil
 }
 
-func (b *BaseCommand) CheckFileExistsInDirectory(dirPath, name string) (bool, error) {
-	files, err := os.ReadDir(dirPath)
-	if err != nil {
-		return false, fmt.Errorf("Failed to read directory: %v", err)
+func (b *BaseCommand) IsPackagePresent(cmd *exec.Cmd, packageName string) (bool, error) {
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	if err := cmd.Run(); err != nil {
+		return false, fmt.Errorf("failed running command: %w", err)
 	}
-	for _, file := range files {
-		lowerCaseName := strings.ToLower(file.Name())
-		if strings.Contains(lowerCaseName, name) {
-			if b.IsLinux() && strings.HasSuffix(lowerCaseName, ".desktop") {
-				return true, nil
-			}
-			return true, nil
-		}
+	lines := bytes.Split(out.Bytes(), []byte{'\n'})
+	if b.Platform.IsMac() {
+		return findPackageInBrewOutput(lines, packageName), nil
+	} else if b.Platform.IsLinux() {
+		return findPackageInDpkgOutput(lines, packageName), nil
 	}
 	return false, nil
+}
+
+func findPackageInBrewOutput(lines [][]byte, packageName string) bool {
+	for _, line := range lines {
+		if string(line) == packageName {
+			return true
+		}
+	}
+	return false
+}
+
+func findPackageInDpkgOutput(lines [][]byte, packageName string) bool {
+	for _, line := range lines {
+		// The package name is typically the second column in the output
+		fields := bytes.Fields(line)
+		if len(fields) > 1 && string(fields[1]) == packageName {
+			return true
+		}
+	}
+	return false
 }

@@ -162,12 +162,12 @@ func (m *MacOSCommand) ValidateOSVersion() error {
 
 func (m *MacOSCommand) IsPackageInstalled(packageName string) (bool, error) {
 	cmd := exec.Command("brew", "list")
-	return m.FindPackageInCommandOutput(cmd, packageName)
+	return m.IsPackagePresent(cmd, packageName)
 }
 
 func (m *MacOSCommand) IsDesktopAppInstalled(desktopAppName string) (bool, error) {
 	cmd := exec.Command("brew", "list", "--cask")
-	return m.FindPackageInCommandOutput(cmd, desktopAppName)
+	return m.IsPackagePresent(cmd, desktopAppName)
 }
 
 func desktopApplicationExist(appName string) (bool, error) {

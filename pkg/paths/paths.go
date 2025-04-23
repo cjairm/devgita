@@ -3,16 +3,19 @@ package paths
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"github.com/cjairm/devgita/pkg/constants"
 )
 
 var (
-	AppDir    = GetAppDir()
-	CacheDir  = GetCacheDir()
-	ConfigDir = GetConfigDir()
-	DataDir   = GetDataDir()
-	HomeDir   = GetHomeDir()
+	AppDir                = GetAppDir()
+	CacheDir              = GetCacheDir()
+	ConfigDir             = GetConfigDir()
+	DataDir               = GetDataDir()
+	HomeDir               = GetHomeDir()
+	UserApplicationsDir   = GetUserApplicationsDir(runtime.GOOS == "darwin")
+	SystemApplicationsDir = GetSystemApplicationsDir(runtime.GOOS == "darwin")
 
 	// Configs from Devgita app
 	AerospaceConfigAppDir = GetAppDir(constants.ConfigAppDirName, constants.Aerospace)
@@ -50,44 +53,67 @@ var (
 )
 
 // Returns XDG_CONFIG_HOME or fallback to ~/.config
-func GetConfigDir(subDirs ...string) string {
+func GetConfigDir(subPath ...string) string {
 	base := os.Getenv("XDG_CONFIG_HOME")
 	if base == "" {
 		home := GetHomeDir()
 		base = filepath.Join(home, ".config")
 	}
-	return filepath.Join(append([]string{base}, subDirs...)...)
+	return filepath.Join(append([]string{base}, subPath...)...)
 }
 
 // Returns XDG_DATA_HOME or fallback to ~/.local/share
-func GetDataDir(subDirs ...string) string {
+func GetDataDir(subPath ...string) string {
 	base := os.Getenv("XDG_DATA_HOME")
 	if base == "" {
 		home := GetHomeDir()
 		base = filepath.Join(home, ".local", "share")
 	}
-	return filepath.Join(append([]string{base}, subDirs...)...)
+	return filepath.Join(append([]string{base}, subPath...)...)
 }
 
-func GetAppDir(subDirs ...string) string {
+func GetAppDir(subPath ...string) string {
 	appDir := GetDataDir(constants.AppName)
-	return filepath.Join(append([]string{appDir}, subDirs...)...)
+	return filepath.Join(append([]string{appDir}, subPath...)...)
 }
 
-func GetHomeDir(subDirs ...string) string {
+func GetHomeDir(subPath ...string) string {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		panic("could not determine home directory")
 	}
-	return filepath.Join(append([]string{home}, subDirs...)...)
+	return filepath.Join(append([]string{home}, subPath...)...)
 }
 
 // Returns XDG_CACHE_HOME or fallback to ~/.cache
-func GetCacheDir(subDirs ...string) string {
+func GetCacheDir(subPath ...string) string {
 	base := os.Getenv("XDG_CACHE_HOME")
 	if base == "" {
 		home := GetHomeDir()
 		base = filepath.Join(home, ".cache")
 	}
-	return filepath.Join(append([]string{base}, subDirs...)...)
+	return filepath.Join(append([]string{base}, subPath...)...)
+}
+
+// Returns user-level applications dir
+func GetUserApplicationsDir(isMac bool, subPath ...string) string {
+	if isMac {
+		base := "/Applications"
+		return filepath.Join(append([]string{base}, subPath...)...)
+	}
+	// Linux (XDG-compliant user apps)
+	return GetDataDir(append([]string{"applications"}, subPath...)...)
+}
+
+// Returns system-level applications dir
+func GetSystemApplicationsDir(isMac bool, subPath ...string) string {
+	if isMac {
+		base := "/Applications"
+		return filepath.Join(append([]string{base}, subPath...)...)
+	}
+	// Linux system-wide applications dirs
+	// NOTE: /usr/share/applications is more common, but /usr/local/share/applications is also valid
+	// You could return both or let the caller choose
+	base := "/usr/share/applications"
+	return filepath.Join(append([]string{base}, subPath...)...)
 }

@@ -2,9 +2,9 @@ package commands
 
 import (
 	"fmt"
-	"os"
 	"os/exec"
-	"path/filepath"
+
+	"github.com/cjairm/devgita/pkg/paths"
 )
 
 type DebianCommand struct {
@@ -73,33 +73,18 @@ func (d *DebianCommand) ValidateOSVersion() error {
 
 func (d *DebianCommand) IsPackageInstalled(packageName string) (bool, error) {
 	cmd := exec.Command("dpkg", "-l")
-	return d.FindPackageInCommandOutput(cmd, packageName)
+	return d.IsPackagePresent(cmd, packageName)
 }
 
-func (d *DebianCommand) IsDesktopAppInstalled(desktopAppName string) (bool, error) {
-	for _, dirType := range []string{"user", "system"} {
-		appDir, err := getLinuxApplicationsDir(dirType)
+func (d *DebianCommand) IsDesktopAppInstalled(appName string) (bool, error) {
+	for _, applicationsDir := range []string{paths.UserApplicationsDir, paths.SystemApplicationsDir} {
+		isInstalled, err := d.IsDesktopAppPresent(applicationsDir, appName)
 		if err != nil {
 			return false, err
 		}
-		isInstalled, err := d.CheckFileExistsInDirectory(appDir, desktopAppName)
 		if isInstalled {
 			return true, nil
 		}
 	}
 	return false, nil
-}
-
-func getLinuxApplicationsDir(t string) (string, error) {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-	if t == "user" {
-		return filepath.Join(homeDir, ".local", "share", "applications"), nil
-	} else if t == "system" {
-		return filepath.Join("usr", "share", "applications"), nil
-	} else {
-		return "", fmt.Errorf("unsupported argument")
-	}
 }
