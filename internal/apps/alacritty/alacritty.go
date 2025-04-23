@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 
 	cmd "github.com/cjairm/devgita/internal/commands"
+	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/files"
 	"github.com/cjairm/devgita/pkg/paths"
 )
@@ -20,11 +21,11 @@ func New() *Alacritty {
 }
 
 func (a *Alacritty) Install() error {
-	return a.Cmd.InstallDesktopApp("alacritty")
+	return a.Cmd.InstallDesktopApp(constants.Alacritty)
 }
 
 func (a *Alacritty) MaybeInstall() error {
-	return a.Cmd.MaybeInstallDesktopApp("alacritty")
+	return a.Cmd.MaybeInstallDesktopApp(constants.Alacritty)
 }
 
 func (a *Alacritty) SetupApp() error {
@@ -33,7 +34,7 @@ func (a *Alacritty) SetupApp() error {
 
 func (a *Alacritty) SetupFont() error {
 	return files.CopyDir(
-		filepath.Join(paths.AlacrittyFontAppDir, "default"),
+		filepath.Join(paths.AlacrittyFontsAppDir, "default"),
 		paths.AlacrittyConfigLocalDir,
 	)
 }

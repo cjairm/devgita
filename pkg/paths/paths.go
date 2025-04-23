@@ -43,7 +43,7 @@ var (
 	TmuxConfigLocalDir      = GetConfigDir(constants.Tmux)
 
 	// Fonts
-	AlacrittyFontAppDir = GetAppDir(
+	AlacrittyFontsAppDir = GetAppDir(
 		constants.ConfigAppDirName,
 		constants.Fonts,
 		constants.Alacritty,
