@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"os"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/cjairm/devgita/pkg/files"
 	"github.com/cjairm/devgita/pkg/paths"
+	"github.com/cjairm/devgita/pkg/utils"
 )
 
 var LookPathFn = exec.LookPath
@@ -16,6 +18,15 @@ var CommandFn = exec.Command
 
 type BaseCommand struct {
 	Platform CustomizablePlatform
+}
+
+type CommandParams struct {
+	PreExecMsg  string
+	PostExecMsg string
+	IsSudo      bool
+	Verbose     bool
+	Command     string
+	Args        []string
 }
 
 func NewBaseCommand() *BaseCommand {
@@ -137,4 +148,60 @@ func hasFontExtension(filename string) bool {
 		strings.HasSuffix(filename, ".otf") ||
 		strings.HasSuffix(filename, ".woff") ||
 		strings.HasSuffix(filename, ".woff2")
+}
+
+func (b *BaseCommand) ExecCommand(cmd CommandParams) error {
+	if cmd.PreExecMsg != "" {
+		utils.Print(cmd.PreExecMsg, "")
+	}
+	command := cmd.Command
+	if cmd.IsSudo {
+		command = "sudo " + command
+	}
+	execCommand := exec.Command(command, cmd.Args...)
+
+	// Create pipes to capture standard output
+	stdout, err := execCommand.StdoutPipe()
+	if err != nil {
+		return err
+	}
+
+	// Create pipes to capture standard error
+	stderr, err := execCommand.StderrPipe()
+	if err != nil {
+		return err
+	}
+
+	// To allow user to interact with the command (password)
+	execCommand.Stdin = os.Stdin
+
+	// Start the command
+	if err := execCommand.Start(); err != nil {
+		return err
+	}
+
+	if cmd.Verbose == true {
+		// Create a scanner for stdout
+		go func() {
+			scanner := bufio.NewScanner(stdout)
+			for scanner.Scan() {
+				utils.PrintSecondary(scanner.Text())
+			}
+		}()
+
+		// Create a scanner for stderr
+		go func() {
+			scanner := bufio.NewScanner(stderr)
+			for scanner.Scan() {
+				utils.PrintError(scanner.Text())
+			}
+		}()
+	}
+
+	err = execCommand.Wait()
+	if cmd.PostExecMsg != "" && err == nil {
+		utils.Print(cmd.PostExecMsg, "")
+	}
+
+	return err
 }

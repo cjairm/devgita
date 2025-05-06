@@ -19,18 +19,6 @@ func New() *PowerLevel10k {
 	return &PowerLevel10k{Cmd: osCmd, Base: *baseCmd}
 }
 
-func Command(args ...string) error {
-	execCommand := cmd.CommandParams{
-		PreExecMsg:  "",
-		PostExecMsg: "",
-		Verbose:     true,
-		IsSudo:      false,
-		Command:     "p10k",
-		Args:        args,
-	}
-	return cmd.ExecCommand(execCommand)
-}
-
 func (p *PowerLevel10k) Install() error {
 	return p.Cmd.InstallPackage("powerlevel10k")
 }
@@ -61,5 +49,17 @@ func (p *PowerLevel10k) MaybeSetup() error {
 }
 
 func (p *PowerLevel10k) Reconfigure() error {
-	return Command("configure")
+	return p.Run("configure")
+}
+
+func (p *PowerLevel10k) Run(args ...string) error {
+	execCommand := cmd.CommandParams{
+		PreExecMsg:  "",
+		PostExecMsg: "",
+		Verbose:     true,
+		IsSudo:      false,
+		Command:     "p10k",
+		Args:        args,
+	}
+	return p.Base.ExecCommand(execCommand)
 }

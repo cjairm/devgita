@@ -25,18 +25,6 @@ func New() *Fastfetch {
 	return &Fastfetch{Cmd: osCmd, Base: *baseCmd}
 }
 
-func Command(args ...string) error {
-	execCommand := cmd.CommandParams{
-		PreExecMsg:  "",
-		PostExecMsg: "",
-		Verbose:     true,
-		IsSudo:      false,
-		Command:     constants.Fastfetch,
-		Args:        args,
-	}
-	return cmd.ExecCommand(execCommand)
-}
-
 func (f *Fastfetch) Install() error {
 	return f.Cmd.InstallPackage("fastfetch")
 }
@@ -56,4 +44,16 @@ func (f *Fastfetch) MaybeSetup() error {
 		return nil
 	}
 	return f.Setup()
+}
+
+func (f *Fastfetch) Run(args ...string) error {
+	execCommand := cmd.CommandParams{
+		PreExecMsg:  "",
+		PostExecMsg: "",
+		Verbose:     true,
+		IsSudo:      false,
+		Command:     constants.Fastfetch,
+		Args:        args,
+	}
+	return f.Base.ExecCommand(execCommand)
 }

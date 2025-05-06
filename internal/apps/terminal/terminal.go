@@ -255,7 +255,7 @@ func (t *Terminal) InstallXCode() error {
 		Command:     "xcode-select",
 		Args:        []string{"--install"},
 	}
-	return commands.ExecCommand(cmd)
+	return t.Base.ExecCommand(cmd)
 }
 
 // installs libs pkg-config, autoconf, bison, rust, openssl, readline, zlib, libyaml, ncurses, libffi, gdbm, jemalloc, vips, mupdf

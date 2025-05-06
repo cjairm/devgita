@@ -47,7 +47,7 @@ func (m *MacOSCommand) InstallPackage(packageName string) error {
 		Command:     "brew",
 		Args:        []string{"install", packageName},
 	}
-	return ExecCommand(cmd)
+	return m.ExecCommand(cmd)
 }
 
 func (m *MacOSCommand) InstallDesktopApp(packageName string) error {
@@ -59,7 +59,7 @@ func (m *MacOSCommand) InstallDesktopApp(packageName string) error {
 		Command:     "brew",
 		Args:        []string{"install", "--cask", packageName},
 	}
-	return ExecCommand(cmd)
+	return m.ExecCommand(cmd)
 }
 
 func (m *MacOSCommand) UpgradePackage(packageName string) error {
@@ -71,7 +71,7 @@ func (m *MacOSCommand) UpgradePackage(packageName string) error {
 		Command:     "brew",
 		Args:        []string{"upgrade", packageName},
 	}
-	return ExecCommand(cmd)
+	return m.ExecCommand(cmd)
 }
 
 func (m *MacOSCommand) UpgradePackageManager(verbose bool) error {
@@ -83,7 +83,7 @@ func (m *MacOSCommand) UpgradePackageManager(verbose bool) error {
 		Command:     "brew",
 		Args:        []string{"upgrade"},
 	}
-	return ExecCommand(cmd)
+	return m.ExecCommand(cmd)
 }
 
 func (m *MacOSCommand) UpdatePackageManager() error {
@@ -95,7 +95,7 @@ func (m *MacOSCommand) UpdatePackageManager() error {
 		Command:     "brew",
 		Args:        []string{"update"},
 	}
-	return ExecCommand(cmd)
+	return m.ExecCommand(cmd)
 }
 
 func (m *MacOSCommand) MaybeInstallPackageManager() error {
@@ -123,7 +123,7 @@ func (m *MacOSCommand) InstallPackageManager() error {
 			"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)",
 		},
 	}
-	return ExecCommand(cmd)
+	return m.ExecCommand(cmd)
 }
 
 func (m *MacOSCommand) ValidateOSVersion() error {

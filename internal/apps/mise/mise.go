@@ -11,24 +11,14 @@ import (
 )
 
 type Mise struct {
-	Cmd cmd.Command
+	Cmd  cmd.Command
+	Base cmd.BaseCommand
 }
 
 func New() *Mise {
 	osCmd := cmd.NewCommand()
-	return &Mise{Cmd: osCmd}
-}
-
-func Command(args ...string) error {
-	execCommand := cmd.CommandParams{
-		PreExecMsg:  "",
-		PostExecMsg: "",
-		Verbose:     true,
-		IsSudo:      false,
-		Command:     "mise",
-		Args:        args,
-	}
-	return cmd.ExecCommand(execCommand)
+	baseCmd := cmd.NewBaseCommand()
+	return &Mise{Cmd: osCmd, Base: *baseCmd}
 }
 
 func (m *Mise) Install() error {
@@ -54,5 +44,17 @@ func (m *Mise) UseGlobal(language, version string) error {
 	if version == "" {
 		return fmt.Errorf("`version` is required")
 	}
-	return Command("use", "--global", language+"@"+version)
+	return m.Run("use", "--global", language+"@"+version)
+}
+
+func (m *Mise) Run(args ...string) error {
+	execCommand := cmd.CommandParams{
+		PreExecMsg:  "",
+		PostExecMsg: "",
+		Verbose:     true,
+		IsSudo:      false,
+		Command:     "mise",
+		Args:        args,
+	}
+	return m.Base.ExecCommand(execCommand)
 }

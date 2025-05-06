@@ -30,18 +30,6 @@ func New() *Neovim {
 	return &Neovim{Cmd: osCmd, Base: *baseCmd}
 }
 
-func Command(args ...string) error {
-	execCommand := cmd.CommandParams{
-		PreExecMsg:  "",
-		PostExecMsg: "",
-		Verbose:     true,
-		IsSudo:      false,
-		Command:     constants.Nvim,
-		Args:        args,
-	}
-	return cmd.ExecCommand(execCommand)
-}
-
 func (n *Neovim) Install() error {
 	return n.Cmd.InstallPackage("neovim")
 }
@@ -60,4 +48,16 @@ func (n *Neovim) MaybeSetup() error {
 		return nil
 	}
 	return n.Setup()
+}
+
+func (n *Neovim) Run(args ...string) error {
+	execCommand := cmd.CommandParams{
+		PreExecMsg:  "",
+		PostExecMsg: "",
+		Verbose:     true,
+		IsSudo:      false,
+		Command:     constants.Nvim,
+		Args:        args,
+	}
+	return n.Base.ExecCommand(execCommand)
 }

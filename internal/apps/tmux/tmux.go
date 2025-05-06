@@ -28,18 +28,6 @@ func New() *Tmux {
 	return &Tmux{Cmd: osCmd, Base: *baseCmd}
 }
 
-func Command(args ...string) error {
-	execCommand := cmd.CommandParams{
-		PreExecMsg:  "",
-		PostExecMsg: "",
-		Verbose:     true,
-		IsSudo:      false,
-		Command:     "tmux",
-		Args:        args,
-	}
-	return cmd.ExecCommand(execCommand)
-}
-
 func (t *Tmux) Install() error {
 	return t.Cmd.InstallPackage("tmux")
 }
@@ -66,4 +54,16 @@ func (t *Tmux) MaybeSetup() error {
 		return nil
 	}
 	return t.Setup()
+}
+
+func (t *Tmux) Run(args ...string) error {
+	execCommand := cmd.CommandParams{
+		PreExecMsg:  "",
+		PostExecMsg: "",
+		Verbose:     true,
+		IsSudo:      false,
+		Command:     "tmux",
+		Args:        args,
+	}
+	return t.Base.ExecCommand(execCommand)
 }
