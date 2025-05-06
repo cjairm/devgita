@@ -2,8 +2,12 @@ package commands
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
+	"strconv"
+	"strings"
 
+	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/paths"
 )
 
@@ -51,23 +55,70 @@ func (d *DebianCommand) UpdatePackageManager() error {
 	return nil
 }
 
+func (d *DebianCommand) IsPackageManagerInstalled() bool {
+	_, err := exec.LookPath("apt")
+	if err != nil {
+		return false
+	}
+	return true
+}
+
 func (d *DebianCommand) MaybeInstallPackageManager() error {
-	fmt.Println("Executing `MaybeInstallPackageManager` on Debian")
-	return nil
+	isInstalled := d.IsPackageManagerInstalled()
+	if isInstalled {
+		return nil
+	}
+	return d.InstallPackageManager()
 }
 
 func (d *DebianCommand) InstallPackageManager() error {
-	fmt.Println("Executing `InstallPackageManager` on Debian")
+	// APT is preinstalled on Debian/Ubuntu systems.
 	return nil
 }
 
-func (d *DebianCommand) IsPackageManagerInstalled() bool {
-	fmt.Println("Executing `IsPackageManagerInstalled` on Debian")
-	return false
-}
-
 func (d *DebianCommand) ValidateOSVersion() error {
-	fmt.Println("Executing `ValidateOSVersion` on Debian")
+	content, err := os.ReadFile("/etc/os-release")
+	if err != nil {
+		return fmt.Errorf("failed to read OS release info: %w", err)
+	}
+
+	var name, versionStr string
+	lines := strings.Split(string(content), "\n")
+	for _, line := range lines {
+		if strings.HasPrefix(line, "ID=") {
+			name = strings.Trim(strings.SplitN(line, "=", 2)[1], `"`)
+		} else if strings.HasPrefix(line, "VERSION_ID=") {
+			versionStr = strings.Trim(strings.SplitN(line, "=", 2)[1], `"`)
+		}
+	}
+
+	if name == "" || versionStr == "" {
+		return fmt.Errorf("unable to parse OS version information")
+	}
+
+	versionParts := strings.Split(versionStr, ".")
+	if len(versionParts) < 1 {
+		return fmt.Errorf("invalid version format")
+	}
+	major, err := strconv.Atoi(versionParts[0])
+	if err != nil {
+		return fmt.Errorf("invalid major version: %w", err)
+	}
+
+	if name == "debian" && major < constants.SupportedDebianVersionNumber {
+		return fmt.Errorf(
+			"OS requirement not met\nOS required: Debian %s (%d.0) or higher",
+			constants.SupportedDebianVersionName,
+			constants.SupportedDebianVersionNumber,
+		)
+	} else if name == "ubuntu" && major < constants.SupportedUbuntuVersionNumber {
+		return fmt.Errorf(
+			"OS requirement not met\nOS required: Ubuntu %s (%d.0) or higher",
+			constants.SupportedUbuntuVersionName,
+			constants.SupportedUbuntuVersionNumber,
+		)
+	}
+
 	return nil
 }
 

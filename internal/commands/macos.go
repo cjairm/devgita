@@ -98,17 +98,17 @@ func (m *MacOSCommand) UpdatePackageManager() error {
 	return m.ExecCommand(cmd)
 }
 
+func (m *MacOSCommand) IsPackageManagerInstalled() bool {
+	err := exec.Command("brew", "--version").Run()
+	return err == nil
+}
+
 func (m *MacOSCommand) MaybeInstallPackageManager() error {
 	isInstalled := m.IsPackageManagerInstalled()
 	if isInstalled {
 		return nil
 	}
 	return m.InstallPackageManager()
-}
-
-func (m *MacOSCommand) IsPackageManagerInstalled() bool {
-	err := exec.Command("brew", "--version").Run()
-	return err == nil
 }
 
 func (m *MacOSCommand) InstallPackageManager() error {

@@ -15,13 +15,15 @@
 - Revert installed programs if any error
   - We need to confirm if program was installed by us. If update leave the program there
 - REMOVE GIT STUFF
+- Add `verbose` option for all commands
 
 ### Commands
+
+- `dg install ...` (`--soft` that does `maybeInstall`)
+- `dg reinstall ...` (does configure and install)
 - `dg configure ...`
 - `dg re-configure ..` (or `configure --force`)
-- `dg install ...` (`--soft` that does `maybeInstall`)
 - `dg uninstall ...`
-- `dg reinstall ...` (does configure and install)
 - `gd update ...`
 - `dg list` or `dg installed`
 - `dg check-updates`
@@ -42,6 +44,7 @@ Note. We should optionally be able to pass `--app` or `--package` to only do it 
 ---
 
 ## Optional apps/packages
+
 - Postman
 - fc-list ([maybe required](https://github.com/cjairm/devgita/commit/c01797defb5e95a5ccce4206d46f435f9c513215)?)
 - Music

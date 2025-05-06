@@ -3,15 +3,22 @@ package constants
 import "fmt"
 
 const (
-	Reset                       = "\033[0m"
-	Gray                        = "\033[90m"
-	Red                         = "\033[31m" // Error color
-	Green                       = "\033[32m" // Success color
-	Blue                        = "\033[34m" // Informative color
-	Yellow                      = "\033[33m" // Warning color
-	Bold                        = "\033[1m"
+	Reset  = "\033[0m"
+	Gray   = "\033[90m"
+	Red    = "\033[31m" // Error color
+	Green  = "\033[32m" // Success color
+	Blue   = "\033[34m" // Informative color
+	Yellow = "\033[33m" // Warning color
+	Bold   = "\033[1m"
+
 	SupportedMacOSVersionNumber = 13
 	SupportedMacOSVersionName   = "Ventura"
+
+	SupportedDebianVersionNumber = 12
+	SupportedDebianVersionName   = "Bookworm"
+
+	SupportedUbuntuVersionNumber = 24
+	SupportedUbuntuVersionName   = "Noble Numbat"
 
 	// App specific
 	AppName              = "devgita"
