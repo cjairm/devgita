@@ -22,11 +22,15 @@ var (
 
 	// System apps
 	SystemApplicationsDir = GetSystemApplicationsDir(runtime.GOOS == "darwin")
-	SystemFontsDir        = GetSystemFontsDir(runtime.GOOS == "darwin")
+
+	// System fonts
+	SystemFontsDir = GetSystemFontsDir(runtime.GOOS == "darwin")
 
 	// User apps
 	UserApplicationsDir = GetUserApplicationsDir(runtime.GOOS == "darwin")
-	UserFontsDir        = GetUserFontsDir(runtime.GOOS == "darwin")
+
+	// User fonts
+	UserFontsDir = GetUserFontsDir(runtime.GOOS == "darwin")
 
 	// Configs from Devgita app
 	AerospaceConfigAppDir = GetAppDir(constants.ConfigAppDirName, constants.Aerospace)
@@ -144,7 +148,6 @@ func GetShellConfigFile() string {
 	}
 	// If none exist, default to .zshrc
 	return filepath.Join(HomeDir, ".zshrc")
-
 }
 
 // Returns user-level fonts dir
