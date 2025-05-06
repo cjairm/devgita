@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"context"
+	"os"
 
 	"github.com/cjairm/devgita/internal/apps/databases"
 	"github.com/cjairm/devgita/internal/apps/desktop"
@@ -13,7 +14,6 @@ import (
 	"github.com/cjairm/devgita/internal/apps/terminal"
 	"github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/pkg/constants"
-	"github.com/cjairm/devgita/pkg/files"
 	"github.com/cjairm/devgita/pkg/paths"
 	"github.com/cjairm/devgita/pkg/utils"
 	"github.com/spf13/cobra"
@@ -63,7 +63,8 @@ func run(cmd *cobra.Command, args []string) {
 
 	utils.PrintInfo("- Install devgita")
 	g := git.New()
-	utils.MaybeExitWithError(files.CleanDestinationDir(paths.AppDir))
+	// Clean folder before (re)installing
+	utils.MaybeExitWithError(os.RemoveAll(paths.AppDir))
 	utils.MaybeExitWithError(g.Clone(constants.DevgitaRepositoryUrl, paths.AppDir))
 
 	utils.PrintInfo("Preparing to install essential tools and packages...")

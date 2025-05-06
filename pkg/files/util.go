@@ -88,10 +88,6 @@ func ContentExistsInFile(filePath, substringToFind string) (bool, error) {
 	return false, nil
 }
 
-func CleanDestinationDir(dst string) error {
-	return os.RemoveAll(dst)
-}
-
 func AddLineToFile(line, filePath string) error {
 	file, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {

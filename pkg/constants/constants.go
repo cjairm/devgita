@@ -23,7 +23,7 @@ const (
 	Alacritty = "alacritty"
 	Fastfetch = "fastfetch"
 	Neovim    = "neovim"
-	Nvim    = "nvim"
+	Nvim      = "nvim"
 	Tmux      = "tmux"
 
 	// Other available folders for installation
