@@ -30,6 +30,7 @@
 - `dg backup ...` - This would allow users to create backups of their current configurations before making changes.
 - `dg restore ...` - This would allow users to revert to a previous configuration if needed.
 - `dg validate ...` - This could check if the current configuration is valid and if all dependencies are met.
+- `dg change --theme=[...options] --font=[...options]`
 
 Note. We should optionally be able to pass `--app` or `--package` to only do it for one app/package
 
