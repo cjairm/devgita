@@ -1,5 +1,5 @@
 /*
-Copyright © 2024 Carlos Mendez <carlos@hadaelectronics.com>
+Copyright © 2025 Carlos Mendez <carlos@hadaelectronics.com> | https://cjairm.me/
 */
 package cmd
 
