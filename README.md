@@ -14,7 +14,7 @@
 - MANUAL - Super important
 - Revert installed programs if any error
   - We need to confirm if program was installed by us. If update leave the program there
-- REMOVE GIT STUFF
+- REMOVE GIT STUFF or any unrelated to installing new apps
 - Add `verbose` option for all commands
 
 ### Commands
@@ -24,7 +24,7 @@
 - `dg configure ...`
 - `dg re-configure ..` (or `configure --force`)
 - `dg uninstall ...`
-- `gd update ...`
+- `gd update ... [--neovim=[...options] --aerospace=[...options] ...flags] ...apps`
 - `dg list` or `dg installed`
 - `dg check-updates`
 - `dg backup ...` - This would allow users to create backups of their current configurations before making changes.
