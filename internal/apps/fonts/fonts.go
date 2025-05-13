@@ -16,7 +16,7 @@ func (f *Fonts) Install(fontName string) error {
 }
 
 func (f *Fonts) MaybeInstall(fontName string) error {
-	return f.Cmd.MaybeInstallFont(fontName)
+	return f.Cmd.MaybeInstallFont("", fontName, false)
 }
 
 func (f *Fonts) Available() []string {
