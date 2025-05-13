@@ -61,8 +61,9 @@ Note. We should optionally be able to pass `--app` or `--package` to only do it 
 - What's that best way to handle mise? it's useful, but the documentation is difficult to follow
 - (?) Git related - Move all git to `dg git clean --flags`, `dg git revert --flags`, or `dg clean-branch` ?
 - (?) npm related - fully clean? fresh-installs? `dg npm clean`
-- Command to update (we may need to solve issues). If we want to update apps can be difficult, we need to handle breaking changes
+- Command to update (we may need to solve issues). If we want to update apps can be difficult; we need to handle breaking changes
 - Maybe a TUI?
+- Add new tmux window commands? `dg tmux --new-window="~/my-path/hello-world"` // Will add `tmhello-world`. This will remove the necessity for some custom commands (`tmn`?)
 
 ---
 
