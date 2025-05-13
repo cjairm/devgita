@@ -56,10 +56,6 @@ func (d *Desktop) InstallAll() error {
 	return nil
 }
 
-func (d *Desktop) VerifyPackageManagerBeforeInstall(verbose bool) error {
-	return d.Cmd.UpgradePackageManager(verbose)
-}
-
 func (d *Desktop) InstallDocker() error {
 	// - Quit Docker Desktop: Make sure Docker Desktop is not running. Right-click the Docker icon in the menu bar and select "Quit Docker Desktop."
 	// - Open Finder: Navigate to the Applications folder.

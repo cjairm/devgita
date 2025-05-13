@@ -8,15 +8,12 @@ type Command interface {
 	MaybeInstallFont(desktopAppName string, alias ...string) error
 	InstallPackage(packageName string) error
 	InstallDesktopApp(packageName string) error
-	UpgradePackage(packageName string) error
 	ValidateOSVersion() error
 
 	// PackageManager
 	MaybeInstallPackageManager() error
 	InstallPackageManager() error
 	IsPackageManagerInstalled() bool
-	UpgradePackageManager(verbose bool) error
-	UpdatePackageManager() error
 
 	// Utils
 	IsPackageInstalled(packageName string) (bool, error)

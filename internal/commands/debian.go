@@ -31,28 +31,15 @@ func (d *DebianCommand) MaybeInstallFont(desktopAppName string, alias ...string)
 }
 
 func (d *DebianCommand) InstallPackage(packageName string) error {
-	fmt.Println("Executing `InstallPackage` on Debian")
-	return nil
+	return d.installWithApt(packageName)
 }
 
 func (d *DebianCommand) InstallDesktopApp(packageName string) error {
-	fmt.Println("Executing `InstallDesktopApp` on Debian")
-	return nil
-}
-
-func (d *DebianCommand) UpgradePackage(packageName string) error {
-	fmt.Println("Executing `UpgradePackage` on Debian")
-	return nil
-}
-
-func (d *DebianCommand) UpgradePackageManager(verbose bool) error {
-	fmt.Println("Executing `UpgradePackageManager` on Debian")
-	return nil
-}
-
-func (d *DebianCommand) UpdatePackageManager() error {
-	fmt.Println("Executing `UpdatePackageManager` on Debian")
-	return nil
+	err := d.installWithApt(packageName)
+	if err == nil {
+		return nil
+	}
+	return d.installWithSnap(packageName)
 }
 
 func (d *DebianCommand) IsPackageManagerInstalled() bool {
@@ -138,4 +125,28 @@ func (d *DebianCommand) IsDesktopAppInstalled(appName string) (bool, error) {
 		}
 	}
 	return false, nil
+}
+
+func (d *DebianCommand) installWithApt(packageName string) error {
+	cmd := CommandParams{
+		PreExecMsg:  fmt.Sprintf("Installing %s...", strings.ToLower(packageName)),
+		PostExecMsg: "",
+		Verbose:     false,
+		IsSudo:      true,
+		Command:     "apt",
+		Args:        []string{"install", "-y", packageName},
+	}
+	return d.ExecCommand(cmd)
+}
+
+func (d *DebianCommand) installWithSnap(packageName string) error {
+	cmd := CommandParams{
+		PreExecMsg:  fmt.Sprintf("Installing %s...", strings.ToLower(packageName)),
+		PostExecMsg: "",
+		Verbose:     false,
+		IsSudo:      true,
+		Command:     "apt",
+		Args:        []string{"install", "-y", packageName},
+	}
+	return d.ExecCommand(cmd)
 }

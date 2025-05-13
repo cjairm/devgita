@@ -161,10 +161,6 @@ func (t *Terminal) ConfigureZsh() error {
 	return t.Base.MaybeSetup("source $HOME/.config/devgita/devgita.zsh", "devgita.zsh")
 }
 
-func (t *Terminal) VerifyPackageManagerBeforeInstall(verbose bool) error {
-	return t.Cmd.UpgradePackageManager(verbose)
-}
-
 func (t *Terminal) InstallCurl() error {
 	return t.Cmd.MaybeInstallPackage("curl")
 }

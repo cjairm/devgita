@@ -62,42 +62,6 @@ func (m *MacOSCommand) InstallDesktopApp(packageName string) error {
 	return m.ExecCommand(cmd)
 }
 
-func (m *MacOSCommand) UpgradePackage(packageName string) error {
-	cmd := CommandParams{
-		PreExecMsg:  fmt.Sprintf("Upgrading %s...", strings.ToLower(packageName)),
-		PostExecMsg: "",
-		Verbose:     false,
-		IsSudo:      false,
-		Command:     "brew",
-		Args:        []string{"upgrade", packageName},
-	}
-	return m.ExecCommand(cmd)
-}
-
-func (m *MacOSCommand) UpgradePackageManager(verbose bool) error {
-	cmd := CommandParams{
-		PreExecMsg:  "Upgrating Homebrew",
-		PostExecMsg: "",
-		Verbose:     verbose,
-		IsSudo:      false,
-		Command:     "brew",
-		Args:        []string{"upgrade"},
-	}
-	return m.ExecCommand(cmd)
-}
-
-func (m *MacOSCommand) UpdatePackageManager() error {
-	cmd := CommandParams{
-		PreExecMsg:  "Updating Homebrew",
-		PostExecMsg: "",
-		Verbose:     false,
-		IsSudo:      false,
-		Command:     "brew",
-		Args:        []string{"update"},
-	}
-	return m.ExecCommand(cmd)
-}
-
 func (m *MacOSCommand) IsPackageManagerInstalled() bool {
 	err := exec.Command("brew", "--version").Run()
 	return err == nil
