@@ -150,12 +150,12 @@ func (d *DebianCommand) installWithApt(packageName string) error {
 
 func (d *DebianCommand) installWithSnap(packageName string) error {
 	cmd := CommandParams{
-		PreExecMsg:  fmt.Sprintf("Installing %s...", strings.ToLower(packageName)),
+		PreExecMsg:  fmt.Sprintf("Installing %s via Snap...", strings.ToLower(packageName)),
 		PostExecMsg: "",
 		Verbose:     false,
 		IsSudo:      true,
-		Command:     "apt",
-		Args:        []string{"install", "-y", packageName},
+		Command:     "snap",
+		Args:        []string{"install", packageName},
 	}
 	return d.ExecCommand(cmd)
 }
