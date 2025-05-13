@@ -28,8 +28,12 @@ func (m *MacOSCommand) MaybeInstallDesktopApp(desktopAppName string, alias ...st
 	}, m.InstallDesktopApp, nil)
 }
 
-func (m *MacOSCommand) MaybeInstallFont(fontName string, alias ...string) error {
-	return m.MaybeInstall(fontName, alias, func(name string) (bool, error) {
+func (m *MacOSCommand) MaybeInstallFont(
+	url, fontFileName string,
+	runCache bool,
+	alias ...string,
+) error {
+	return m.MaybeInstall(fontFileName, alias, func(name string) (bool, error) {
 		isInstalled, err := m.IsDesktopAppInstalled(name)
 		if !isInstalled {
 			isInstalled, err = m.IsFontPresent(name)
