@@ -16,18 +16,27 @@ type DebianCommand struct {
 }
 
 func (d *DebianCommand) MaybeInstallPackage(packageName string, alias ...string) error {
-	fmt.Println("Executing `MaybeInstallPackage` on Debian")
-	return nil
+	return d.MaybeInstall(packageName, alias, d.IsPackageInstalled, d.InstallPackage, nil)
 }
 
 func (d *DebianCommand) MaybeInstallDesktopApp(desktopAppName string, alias ...string) error {
-	fmt.Println("Executing `MaybeInstallDesktopApp` on Debian")
-	return nil
+	return d.MaybeInstall(desktopAppName, alias, func(name string) (bool, error) {
+		return d.IsDesktopAppInstalled(name)
+	}, d.InstallDesktopApp, nil)
 }
 
-func (d *DebianCommand) MaybeInstallFont(desktopAppName string, alias ...string) error {
-	fmt.Println("Executing `MaybeInstallFont` on Debian")
-	return nil
+func (d *DebianCommand) MaybeInstallFont(
+	url, fontFileName string,
+	runCache bool,
+	alias ...string,
+) error {
+	return d.MaybeInstall(fontFileName, alias, func(name string) (bool, error) {
+		// Debian font check
+		isInstalled, err := d.IsFontPresent(name)
+		return isInstalled, err
+	}, d.InstallPackage, func(name string) error {
+		return d.InstallFontFromURL(url, name, runCache)
+	})
 }
 
 func (d *DebianCommand) InstallPackage(packageName string) error {

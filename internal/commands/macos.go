@@ -15,27 +15,27 @@ type MacOSCommand struct {
 }
 
 func (m *MacOSCommand) MaybeInstallPackage(packageName string, alias ...string) error {
-	return maybeInstall(packageName, alias, m.IsPackageInstalled, m.InstallPackage)
+	return m.MaybeInstall(packageName, alias, m.IsPackageInstalled, m.InstallPackage, nil)
 }
 
 func (m *MacOSCommand) MaybeInstallDesktopApp(desktopAppName string, alias ...string) error {
-	return maybeInstall(desktopAppName, alias, func(name string) (bool, error) {
+	return m.MaybeInstall(desktopAppName, alias, func(name string) (bool, error) {
 		isInstalled, err := m.IsDesktopAppInstalled(name)
 		if !isInstalled {
 			isInstalled, err = m.IsDesktopAppPresent(paths.UserApplicationsDir, name)
 		}
 		return isInstalled, err
-	}, m.InstallDesktopApp)
+	}, m.InstallDesktopApp, nil)
 }
 
 func (m *MacOSCommand) MaybeInstallFont(fontName string, alias ...string) error {
-	return maybeInstall(fontName, alias, func(name string) (bool, error) {
+	return m.MaybeInstall(fontName, alias, func(name string) (bool, error) {
 		isInstalled, err := m.IsDesktopAppInstalled(name)
 		if !isInstalled {
 			isInstalled, err = m.IsFontPresent(name)
 		}
 		return isInstalled, err
-	}, m.InstallDesktopApp)
+	}, m.InstallDesktopApp, nil)
 }
 
 func (m *MacOSCommand) InstallPackage(packageName string) error {
@@ -132,26 +132,4 @@ func (m *MacOSCommand) IsPackageInstalled(packageName string) (bool, error) {
 func (m *MacOSCommand) IsDesktopAppInstalled(desktopAppName string) (bool, error) {
 	cmd := exec.Command("brew", "list", "--cask")
 	return m.IsPackagePresent(cmd, desktopAppName)
-}
-
-func maybeInstall(
-	itemName string,
-	alias []string,
-	checkInstalled func(string) (bool, error),
-	installFunc func(string) error,
-) error {
-	var isInstalled bool
-	var err error
-	pkgToInstall := itemName
-	if len(alias) > 0 {
-		pkgToInstall = alias[0]
-	}
-	isInstalled, err = checkInstalled(pkgToInstall)
-	if err != nil {
-		return err
-	}
-	if isInstalled {
-		return nil
-	}
-	return installFunc(pkgToInstall)
 }

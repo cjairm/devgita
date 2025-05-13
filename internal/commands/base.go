@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/cjairm/devgita/pkg/files"
@@ -204,4 +205,68 @@ func (b *BaseCommand) ExecCommand(cmd CommandParams) error {
 	}
 
 	return err
+}
+
+func (b *BaseCommand) MaybeInstall(
+	itemName string,
+	alias []string,
+	checkInstalled func(string) (bool, error),
+	installFunc func(string) error,
+	installURLFunc func(string) error, // Optional: Handle URL-based installation (e.g., for fonts)
+) error {
+	var isInstalled bool
+	var err error
+	pkgToInstall := itemName
+	if len(alias) > 0 {
+		pkgToInstall = alias[0]
+	}
+
+	// Check if the item is installed
+	isInstalled, err = checkInstalled(pkgToInstall)
+	if err != nil {
+		return err
+	}
+
+	// If installed, do nothing
+	if isInstalled {
+		return nil
+	}
+
+	if installURLFunc != nil {
+		return installURLFunc(pkgToInstall)
+	}
+	return installFunc(pkgToInstall)
+}
+
+func (b *BaseCommand) InstallFontFromURL(url, fontFileName string, runCache bool) error {
+	tmpPath := fmt.Sprintf("/tmp/%s.ttf", fontFileName)
+
+	// 1. Download font
+	if err := b.ExecCommand(CommandParams{
+		PreExecMsg: fmt.Sprintf("Downloading %s...", fontFileName),
+		Command:    "curl",
+		Args:       []string{"-o", tmpPath, url},
+	}); err != nil {
+		return err
+	}
+
+	// 2. Move font
+	if err := b.ExecCommand(CommandParams{
+		PreExecMsg: "Installing font...",
+		Command:    "mv",
+		Args:       []string{tmpPath, filepath.Join(paths.UserFontsDir, fontFileName+".ttf")},
+	}); err != nil {
+		return err
+	}
+
+	// 3. Update font cache if needed
+	if runCache {
+		return b.ExecCommand(CommandParams{
+			PreExecMsg: "Refreshing font cache...",
+			Command:    "fc-cache",
+			Args:       []string{"-fv"},
+			IsSudo:     true,
+		})
+	}
+	return nil
 }
