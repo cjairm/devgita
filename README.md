@@ -52,6 +52,7 @@ Note. We should optionally be able to pass `--app` or `--package` to only do it 
   - `Slack, Spotify, VS Code... etc`
 - Music
 - Emails (?)
+- By default enable git: https://github.com/cjairm/devgita/commit/11c4a54d1d79cbe977a8053dbb755322cc83376e
 
 ---
 
