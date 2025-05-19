@@ -4,52 +4,56 @@ Copyright © 2025 Carlos Mendez <carlos@hadaelectronics.com> | https://cjairm.me
 package cmd
 
 import (
-	"os"
-
-	"github.com/cjairm/devgita/pkg/constants"
-	"github.com/cjairm/devgita/pkg/paths"
 	"github.com/cjairm/devgita/pkg/utils"
 	"github.com/spf13/cobra"
 )
 
-// rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "devgita",
-	Short: "Command-line tool for macOS Ventura that automates the setup of development environments, streamlining installations of essential apps like Raycast, Homebrew, and iTerm2 with clear documentation.",
-	Long:  constants.Devgita,
+	Use:   "dg",
+	Short: "Devgita - Your cross-platform CLI to install, configure, and manage development environments",
+	Long: `Devgita (dg) helps you set up and manage your development environment with ease.
 
-	// Uncomment the following line if your bare application
-	// has an action associated with it:
-	// Run: func(cmd *cobra.Command, args []string) { },
+Key Features:
+  • Debian/Ubuntu and macOS support
+  • Install, configure, and uninstall development apps, fonts, themes, and languages
+  • Maintain a global manifest of installed components to prevent conflicts
+  • Choose and apply themes and fonts for your environment
+  • Reconfigure or force reconfigure apps and dotfiles
+  • Safely uninstall only what Devgita managed
+  • Detect and revert failed installs to keep your system clean
+  • Create and restore configuration backups
+  • Validate your setup to catch issues early
+  • Verbose output mode for better insight into what’s happening
+
+Available Commands:
+  install        Install apps, languages, fonts, themes (with optional --soft mode)
+  reinstall      Force reinstallation and configuration
+  configure      Configure environment files (e.g., zsh, vim, etc.)
+  re-configure   Re-apply configuration even if already present
+  uninstall      Remove previously installed apps or assets (fonts/themes) safely
+  update         Update selected apps (e.g., --neovim, --aerospace)
+  list           View all items installed via Devgita
+  check-updates  See if any managed apps have updates
+  backup         Create a backup of your current Devgita-managed environment
+  restore        Restore a previous backup configuration
+  validate       Ensure configuration and dependencies are correct
+  change         Change font or theme (--theme=..., --font=...)
+
+Examples:
+  dg install
+  dg uninstall --font=my-font --app=aerospace
+  dg re-configure --app=neovim
+  dg change --theme=tokyonight --font=JetBrainsMono
+  dg backup --output=~/dg_backup.json
+  dg validate
+`,
 }
 
-// Execute adds all child commands to the root command and sets flags appropriately.
-// This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
 	err := rootCmd.Execute()
 	utils.MaybeExitWithError(err)
 }
 
 func init() {
-	// Here you will define your flags and configuration settings.
-	// Cobra supports persistent flags, which, if defined here,
-	// will be global for your application.
-
-	// rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.devgita.yaml)")
-
-	// Cobra also supports local flags, which will only run
-	// when this action is called directly.
-	// rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 	rootCmd.SetHelpFunc(utils.PrompCustomHelp)
-
-	utils.MaybeExitWithError(setDevgitaPath())
-}
-
-// TODO: Move this to when only installing the app for first time
-func setDevgitaPath() error {
-	err := os.MkdirAll(paths.AppDir, 0755)
-	if err != nil {
-		return nil
-	}
-	return nil
 }

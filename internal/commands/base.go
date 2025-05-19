@@ -32,7 +32,7 @@ type CommandParams struct {
 
 func NewBaseCommand() *BaseCommand {
 	return &BaseCommand{
-		Platform: *NewPlatform(),
+		Platform: NewPlatform(),
 	}
 }
 

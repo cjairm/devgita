@@ -10,35 +10,39 @@ import (
 	"github.com/cjairm/devgita/internal/apps/databases"
 	"github.com/cjairm/devgita/internal/apps/desktop"
 	devlanguages "github.com/cjairm/devgita/internal/apps/devLanguages"
-	"github.com/cjairm/devgita/internal/apps/git"
+	git "github.com/cjairm/devgita/internal/apps/git"
 	"github.com/cjairm/devgita/internal/apps/terminal"
 	"github.com/cjairm/devgita/internal/commands"
+	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/paths"
 	"github.com/cjairm/devgita/pkg/utils"
 	"github.com/spf13/cobra"
 )
 
-// installCmd represents the install command
 var installCmd = &cobra.Command{
 	Use:   "install",
-	Short: "",
-	Long:  ``,
-	Run:   run,
+	Short: "Install devgita and all required tools",
+	Long: `Installs the devgita platform and sets up your development environment.
+
+This command performs the following steps:
+  - Validates your OS version
+  - Installs essential dependencies (ex. git, fc-*)
+  - Clones the devgita repository
+  - Installs terminal tools, programming languages, and databases
+  - Sets up desktop apps and configures your shell
+
+It supports both macOS (via Homebrew) and Debian/Ubuntu systems (via apt).`,
+	Run: run,
 }
 
 func init() {
 	rootCmd.AddCommand(installCmd)
 
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// installCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// installCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	// --------------------------------------------------------------------
+	// A --dry-run flag (show what would be installed without doing it)
+	// A --verbose or --debug flag for verbose logs
+	// Allow installing individual categories like --only-languages or --only-terminal
 }
 
 func run(cmd *cobra.Command, args []string) {
@@ -49,8 +53,11 @@ func run(cmd *cobra.Command, args []string) {
 	utils.Print("===============================================", "")
 
 	ctx := context.Background()
-
 	osCmd := commands.NewCommand()
+
+	utils.MaybeExitWithError(config.CreateGlobalConfig())
+	configFile, err := config.LoadGlobalConfig()
+	utils.MaybeExitWithError(err)
 
 	utils.PrintInfo("- Validate versions before start installation")
 	utils.MaybeExitWithError(osCmd.ValidateOSVersion())
@@ -62,9 +69,14 @@ func run(cmd *cobra.Command, args []string) {
 	utils.MaybeExitWithError(osCmd.MaybeInstallPackage("git"))
 
 	utils.PrintInfo("- Install devgita")
-	g := git.New()
+	configFile.AppPath = paths.AppDir
+	utils.MaybeExitWithError(config.SetGlobalConfig(configFile))
+	// Create folder if it doesn't exist
+	utils.MaybeExitWithError(os.MkdirAll(paths.AppDir, 0755))
 	// Clean folder before (re)installing
 	utils.MaybeExitWithError(os.RemoveAll(paths.AppDir))
+	// Install from repository
+	g := git.New()
 	utils.MaybeExitWithError(g.Clone(constants.DevgitaRepositoryUrl, paths.AppDir))
 
 	utils.PrintInfo("Preparing to install essential tools and packages...")

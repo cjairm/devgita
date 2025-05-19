@@ -23,10 +23,14 @@ type Command interface {
 func NewCommand() Command {
 	switch runtime.GOOS {
 	case "darwin":
-		return &MacOSCommand{}
+		return &MacOSCommand{
+			BaseCommand: *NewBaseCommand(),
+		}
 	// TODO: Is it possible to detect the distribution of Linux?
 	case "linux":
-		return &DebianCommand{}
+		return &DebianCommand{
+			BaseCommand: *NewBaseCommand(),
+		}
 	default:
 		panic("unsupported operating system")
 	}

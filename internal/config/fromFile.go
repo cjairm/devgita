@@ -1,33 +1,37 @@
 package config
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 
+	"github.com/cjairm/devgita/pkg/constants"
+	"github.com/cjairm/devgita/pkg/files"
 	"github.com/cjairm/devgita/pkg/paths"
+	"gopkg.in/yaml.v3"
 )
 
 type GlobalConfig struct {
-	AppPath               string            `json:"appPath"`
-	AvailableFonts        []string          `json:"availableFonts"`
-	AvailableThemes       []string          `json:"availableThemes"`
-	CurrentFont           string            `json:"currentFont"`
-	CurrentTheme          string            `json:"currentTheme"`
-	InstalledPackages     []string          `json:"installedPackages"`
-	InstalledDesktopApps  []string          `json:"installedDesktopApps"`
-	InstalledDevLanguages []string          `json:"installedDevLanguages"`
-	InstalledDatabases    []string          `json:"installedDatabases"`
+	AppPath               string            `json:"app_path"`
+	AvailableFonts        []string          `json:"available_fonts"`
+	AvailableThemes       []string          `json:"available_themes"`
+	CurrentFont           string            `json:"current_font"`
+	CurrentTheme          string            `json:"current_theme"`
+	InstalledPackages     []string          `json:"installed_packages"`
+	InstalledDesktopApps  []string          `json:"installed_desktop_apps"`
+	InstalledDevLanguages []string          `json:"installed_dev_languages"`
+	InstalledDatabases    []string          `json:"installed_databases"`
 	Shortcuts             map[string]string `json:"shortcuts"`
 }
 
 func LoadGlobalConfig() (*GlobalConfig, error) {
-	file, err := os.ReadFile(filepath.Join(paths.BashConfigAppDir, "global_config.json"))
+	file, err := os.ReadFile(
+		filepath.Join(paths.ConfigDir, constants.AppName, "global_config.yaml"),
+	)
 	if err != nil {
 		return nil, err
 	}
 	var config GlobalConfig
-	err = json.Unmarshal(file, &config)
+	err = yaml.Unmarshal(file, &config)
 	if err != nil {
 		return nil, err
 	}
@@ -35,8 +39,8 @@ func LoadGlobalConfig() (*GlobalConfig, error) {
 }
 
 func SetGlobalConfig(config *GlobalConfig) error {
-	filePath := filepath.Join(paths.BashConfigAppDir, "global_config.json")
-	file, err := json.MarshalIndent(config, "", "  ")
+	filePath := filepath.Join(paths.ConfigDir, constants.AppName, "global_config.yaml")
+	file, err := yaml.Marshal(config)
 	if err != nil {
 		return err
 	}
@@ -44,8 +48,26 @@ func SetGlobalConfig(config *GlobalConfig) error {
 }
 
 func ResetGlobalConfig() error {
-	filePath := filepath.Join(paths.BashConfigAppDir, "global_config.json")
-	return os.WriteFile(filePath, []byte("{}"), 0644)
+	filePath := filepath.Join(paths.ConfigDir, constants.AppName, "global_config.yaml")
+	data, err := yaml.Marshal(&GlobalConfig{})
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filePath, data, 0644)
+}
+
+func CreateGlobalConfig() error {
+	newConfigFile := filepath.Join(paths.ConfigDir, constants.AppName, "global_config.yaml")
+	if paths.FileAlreadyExist(newConfigFile) {
+		return nil
+	}
+	if err := files.CopyFile(
+		filepath.Join(paths.BashConfigAppDir, "global_config.yaml"),
+		newConfigFile,
+	); err != nil {
+		return err
+	}
+	return ResetGlobalConfig()
 }
 
 //Example of how to use the config package
