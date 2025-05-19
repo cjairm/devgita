@@ -11,16 +11,16 @@ import (
 )
 
 type GlobalConfig struct {
-	AppPath               string            `json:"app_path"`
-	AvailableFonts        []string          `json:"available_fonts"`
-	AvailableThemes       []string          `json:"available_themes"`
-	CurrentFont           string            `json:"current_font"`
-	CurrentTheme          string            `json:"current_theme"`
-	InstalledPackages     []string          `json:"installed_packages"`
-	InstalledDesktopApps  []string          `json:"installed_desktop_apps"`
-	InstalledDevLanguages []string          `json:"installed_dev_languages"`
-	InstalledDatabases    []string          `json:"installed_databases"`
-	Shortcuts             map[string]string `json:"shortcuts"`
+	AppPath               string            `yaml:"app_path"`
+	AvailableFonts        []string          `yaml:"available_fonts"`
+	AvailableThemes       []string          `yaml:"available_themes"`
+	CurrentFont           string            `yaml:"current_font"`
+	CurrentTheme          string            `yaml:"current_theme"`
+	InstalledPackages     []string          `yaml:"installed_packages"`
+	InstalledDesktopApps  []string          `yaml:"installed_desktop_apps"`
+	InstalledDevLanguages []string          `yaml:"installed_dev_languages"`
+	InstalledDatabases    []string          `yaml:"installed_databases"`
+	Shortcuts             map[string]string `yaml:"shortcuts"`
 }
 
 func LoadGlobalConfig() (*GlobalConfig, error) {

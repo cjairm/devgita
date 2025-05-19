@@ -55,10 +55,6 @@ func run(cmd *cobra.Command, args []string) {
 	ctx := context.Background()
 	osCmd := commands.NewCommand()
 
-	utils.MaybeExitWithError(config.CreateGlobalConfig())
-	configFile, err := config.LoadGlobalConfig()
-	utils.MaybeExitWithError(err)
-
 	utils.PrintInfo("- Validate versions before start installation")
 	utils.MaybeExitWithError(osCmd.ValidateOSVersion())
 
@@ -69,8 +65,6 @@ func run(cmd *cobra.Command, args []string) {
 	utils.MaybeExitWithError(osCmd.MaybeInstallPackage("git"))
 
 	utils.PrintInfo("- Install devgita")
-	configFile.AppPath = paths.AppDir
-	utils.MaybeExitWithError(config.SetGlobalConfig(configFile))
 	// Create folder if it doesn't exist
 	utils.MaybeExitWithError(os.MkdirAll(paths.AppDir, 0755))
 	// Clean folder before (re)installing
@@ -78,6 +72,12 @@ func run(cmd *cobra.Command, args []string) {
 	// Install from repository
 	g := git.New()
 	utils.MaybeExitWithError(g.Clone(constants.DevgitaRepositoryUrl, paths.AppDir))
+
+	utils.MaybeExitWithError(config.CreateGlobalConfig())
+	configFile, err := config.LoadGlobalConfig()
+	utils.MaybeExitWithError(err)
+	configFile.AppPath = paths.AppDir
+	utils.MaybeExitWithError(config.SetGlobalConfig(configFile))
 
 	utils.PrintInfo("Preparing to install essential tools and packages...")
 	t := terminal.New()
