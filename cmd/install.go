@@ -6,6 +6,7 @@ package cmd
 import (
 	"context"
 	"os"
+	"path/filepath"
 
 	"github.com/cjairm/devgita/internal/apps/databases"
 	"github.com/cjairm/devgita/internal/apps/desktop"
@@ -55,29 +56,16 @@ func run(cmd *cobra.Command, args []string) {
 	ctx := context.Background()
 	osCmd := commands.NewCommand()
 
-	utils.PrintInfo("- Validate versions before start installation")
+	utils.PrintInfo("- Validate version")
 	utils.MaybeExitWithError(osCmd.ValidateOSVersion())
 
-	utils.PrintInfo("- Check if package manager exist and install if needed")
+	utils.PrintInfo("- Pre-install steps")
 	utils.MaybeExitWithError(osCmd.MaybeInstallPackageManager())
-
-	utils.PrintInfo("- Install git dependency")
 	utils.MaybeExitWithError(osCmd.MaybeInstallPackage("git"))
 
-	utils.PrintInfo("- Install devgita")
-	// Create folder if it doesn't exist
-	utils.MaybeExitWithError(os.MkdirAll(paths.AppDir, 0755))
-	// Clean folder before (re)installing
-	utils.MaybeExitWithError(os.RemoveAll(paths.AppDir))
-	// Install from repository
-	g := git.New()
-	utils.MaybeExitWithError(g.Clone(constants.DevgitaRepositoryUrl, paths.AppDir))
+	installApp()
 
-	utils.MaybeExitWithError(config.CreateGlobalConfig())
-	configFile, err := config.LoadGlobalConfig()
-	utils.MaybeExitWithError(err)
-	configFile.AppPath = paths.AppDir
-	utils.MaybeExitWithError(config.SetGlobalConfig(configFile))
+	setupGlobalConfig()
 
 	utils.PrintInfo("Preparing to install essential tools and packages...")
 	t := terminal.New()
@@ -101,4 +89,25 @@ func run(cmd *cobra.Command, args []string) {
 
 	err = t.ConfigureZsh()
 	utils.MaybeExitWithError(err)
+}
+
+func setupGlobalConfig() {
+	utils.PrintInfo("- Setup global config")
+	utils.MaybeExitWithError(config.CreateGlobalConfig())
+	globalConfig, err := config.LoadGlobalConfig()
+	utils.MaybeExitWithError(err)
+	globalConfig.AppPath = paths.AppDir
+	globalConfig.ConfigPath = filepath.Join(paths.ConfigDir, constants.AppName)
+	utils.MaybeExitWithError(config.SetGlobalConfig(globalConfig))
+}
+
+func installApp() {
+	utils.PrintInfo("- Install devgita")
+	// Create folder if it doesn't exist
+	utils.MaybeExitWithError(os.MkdirAll(paths.AppDir, 0755))
+	// Clean folder before (re)installing
+	utils.MaybeExitWithError(os.RemoveAll(paths.AppDir))
+	// Install from repository
+	g := git.New()
+	utils.MaybeExitWithError(g.Clone(constants.DevgitaRepositoryUrl, paths.AppDir))
 }
