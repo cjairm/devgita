@@ -1,17 +1,22 @@
 -- Custom ***
 -- when creating a new line, copy the indentation from the line above
-vim.opt.autoindent = true
-vim.opt.numberwidth = 1
+vim.o.autoindent = true
+vim.o.numberwidth = 1
 
-vim.opt.cc = "80"
-vim.opt.ruler = true
+vim.o.cc = "80"
+vim.o.ruler = true
 
 -- Enable relative number
 vim.o.relativenumber = true
 
 -- [[ Random ]]
 vim.keymap.set("n", "<leader>bd", ":bd<CR>", { desc = "Close current buffer" })
-vim.keymap.set("n", "<leader>cpr", ':let @+ = expand("%")<CR>', { desc = "[C]opy [P]ath [R]elative" })
+vim.keymap.set(
+	"n",
+	"<leader>cpr",
+	':let @+ = fnamemodify(expand("%:p"), ":.")<CR>',
+	{ desc = "[C]opy [P]ath [R]elative" }
+)
 vim.keymap.set("n", "<leader>cpa", ':let @+ = expand("%:p")<CR>', { desc = "[C]opy [P]ath [A]bsolute" })
 
 -- [[ Windows ]]
