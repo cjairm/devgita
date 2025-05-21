@@ -23,6 +23,9 @@ const (
 	SupportedUbuntuVersionNumber = 24
 	SupportedUbuntuVersionName   = "Noble Numbat"
 
+	// Supported Neovim version
+	NeovimVersion = "0.11.1"
+
 	// App specific
 	AppName              = "devgita"
 	ConfigAppDirName     = "configs"

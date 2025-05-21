@@ -3,6 +3,8 @@
 // - Kickstart documentation: https://github.com/nvim-lua/kickstart.nvim?tab=readme-ov-file
 // - Personal configuration: https://github.com/cjairm/devenv/blob/main/nvim/init.lua
 // - Releases: https://github.com/neovim/neovim/releases
+// - Check version before setup
+// - Download app directly instead of using `brew`
 //
 // NOTE: Is it possible to install different themes?
 // If so, see more here: https://linovox.com/the-best-color-schemes-for-neovim-nvim/
@@ -11,7 +13,12 @@
 package neovim
 
 import (
+	"bufio"
+	"bytes"
+	"fmt"
+	"os/exec"
 	"path/filepath"
+	"strings"
 
 	cmd "github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/pkg/constants"
@@ -39,6 +46,9 @@ func (n *Neovim) MaybeInstall() error {
 }
 
 func (n *Neovim) Setup() error {
+	if err := n.GetVersion(); err != nil {
+		return err
+	}
 	return files.CopyDir(paths.NeovimConfigAppDir, paths.NvimConfigLocalDir)
 }
 
@@ -48,6 +58,26 @@ func (n *Neovim) MaybeSetup() error {
 		return nil
 	}
 	return n.Setup()
+}
+
+func (n *Neovim) GetVersion() error {
+	cmd := exec.Command("nvim", "--version")
+	out, err := cmd.Output()
+	if err != nil {
+		return err
+	}
+	scanner := bufio.NewScanner(bytes.NewReader(out))
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.HasPrefix(line, "NVIM v") {
+			versionStr := strings.TrimPrefix(line, "NVIM v")
+			versionStr = strings.Fields(versionStr)[0]
+			if versionStr == constants.NeovimVersion {
+				return nil
+			}
+		}
+	}
+	return fmt.Errorf("could not parse Neovim version")
 }
 
 func (n *Neovim) Run(args ...string) error {
