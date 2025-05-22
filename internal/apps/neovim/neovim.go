@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	cmd "github.com/cjairm/devgita/internal/commands"
@@ -46,7 +47,7 @@ func (n *Neovim) MaybeInstall() error {
 }
 
 func (n *Neovim) Setup() error {
-	if err := n.GetVersion(); err != nil {
+	if err := n.CheckVersion(); err != nil {
 		return err
 	}
 	return files.CopyDir(paths.NeovimConfigAppDir, paths.NvimConfigLocalDir)
@@ -60,8 +61,8 @@ func (n *Neovim) MaybeSetup() error {
 	return n.Setup()
 }
 
-func (n *Neovim) GetVersion() error {
-	cmd := exec.Command("nvim", "--version")
+func (n *Neovim) CheckVersion() error {
+	cmd := exec.Command(constants.Nvim, "--version")
 	out, err := cmd.Output()
 	if err != nil {
 		return err
@@ -72,7 +73,7 @@ func (n *Neovim) GetVersion() error {
 		if strings.HasPrefix(line, "NVIM v") {
 			versionStr := strings.TrimPrefix(line, "NVIM v")
 			versionStr = strings.Fields(versionStr)[0]
-			if versionStr == constants.NeovimVersion {
+			if isVersionEqualOrHigher(versionStr, constants.NeovimVersion) {
 				return nil
 			}
 		}
@@ -90,4 +91,26 @@ func (n *Neovim) Run(args ...string) error {
 		Args:        args,
 	}
 	return n.Base.ExecCommand(execCommand)
+}
+
+func isVersionEqualOrHigher(currentVersion, requiredVersion string) bool {
+	currentParts := strings.Split(currentVersion, ".")
+	requiredParts := strings.Split(requiredVersion, ".")
+	for i, requiredPartStr := range requiredParts {
+		if i >= len(currentParts) {
+			return false // Current version has fewer parts
+		}
+		currentPart, err := strconv.Atoi(currentParts[i])
+		if err != nil {
+			return false
+		}
+		requiredPart, err := strconv.Atoi(requiredPartStr)
+		if err != nil {
+			return false
+		}
+		if currentPart < requiredPart {
+			return false
+		}
+	}
+	return true
 }
