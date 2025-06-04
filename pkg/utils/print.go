@@ -2,11 +2,18 @@ package utils
 
 import (
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/spf13/cobra"
 )
+
+var Logger io.Writer = io.Discard
+
+func Log(msg string) {
+	fmt.Fprintln(Logger, msg)
+}
 
 func PrintError(errMsg string) {
 	Print(errMsg, constants.Red)
