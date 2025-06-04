@@ -1,6 +1,6 @@
 ## Pending work
 
-- Debian/Ubuntu compatibility
+- ~Debian/Ubuntu compatibility~
 - Global document to see what we have installed already
   - Check if languages are already installed - to avoid duplicates/collisions
 - Command `re-configure` app

@@ -31,7 +31,6 @@ func (d *DebianCommand) MaybeInstallFont(
 	alias ...string,
 ) error {
 	return d.MaybeInstall(fontFileName, alias, func(name string) (bool, error) {
-		// Debian font check
 		isInstalled, err := d.IsFontPresent(name)
 		return isInstalled, err
 	}, d.InstallPackage, func(name string) error {
