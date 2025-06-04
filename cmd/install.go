@@ -11,7 +11,7 @@ import (
 	"github.com/cjairm/devgita/internal/apps/databases"
 	"github.com/cjairm/devgita/internal/apps/desktop"
 	devlanguages "github.com/cjairm/devgita/internal/apps/devLanguages"
-	git "github.com/cjairm/devgita/internal/apps/git"
+	"github.com/cjairm/devgita/internal/apps/git"
 	"github.com/cjairm/devgita/internal/apps/terminal"
 	"github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/internal/config"
