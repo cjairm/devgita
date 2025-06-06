@@ -107,6 +107,7 @@ return {
 
 	{ -- Copilot
 		"github/copilot.vim",
+		tag = "v1.40.0",
 	},
 	-- ***
 }
