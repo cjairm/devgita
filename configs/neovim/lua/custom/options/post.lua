@@ -1,10 +1,12 @@
 -- Custom ***
 -- when creating a new line, copy the indentation from the line above
-vim.o.autoindent = true
-vim.o.numberwidth = 1
+vim.opt.autoindent = true
+-- Number of spaces to use for each step of (auto)indent
+vim.opt.shiftwidth = 2
+vim.opt.numberwidth = 1
 
-vim.o.cc = "80"
-vim.o.ruler = true
+vim.opt.cc = "80"
+vim.opt.ruler = true
 
 -- Enable relative number
 vim.o.relativenumber = true
