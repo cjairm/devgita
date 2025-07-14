@@ -29,6 +29,9 @@ alias ns="fd --type f --hidden --exclude .git | fzf-tmux -p  --reverse | xargs n
 # ---- Zoxide (better cd) ----
 alias cd="z"
 
+# ---- Syntax highlighting (better cat) ----
+alias cat="bat"
+
 # Git
 alias g='git'
 alias gcm='git commit -m'
