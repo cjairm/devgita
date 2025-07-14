@@ -12,6 +12,7 @@ alias edit-yabai="nvim ~/.config/yabai/yabairc"
 alias edit-skhd="nvim ~/.config/skhd/skhdrc"
 alias edit-tmux="nvim ~/.tmux.conf"
 alias edit-nvim="nvim ~/.config/nvim/init.lua"
+alias edit-alias="nvim ~/.config/devgita/aliases.zsh"
 
 # Directories
 alias ..='cd ..'
