@@ -103,20 +103,17 @@ func (m *MacOSCommand) InstallPackageManager() error {
 }
 
 func (m *MacOSCommand) ValidateOSVersion(verbose bool) error {
-	cmd := CommandParams{
-		PreExecMsg:  "",
-		PostExecMsg: "",
-		IsSudo:      false,
-		Command:     "sw_vers",
-		Args:        []string{"-productVersion"},
-	}
-
 	utils.PrintSecondary("Getting macOS version")
+
+	cmd := CommandParams{
+		Command: "sw_vers",
+		Args:    []string{"-productVersion"},
+	}
 
 	version, err := m.BaseCommand.ExecCommand(cmd)
 	if err != nil {
-		err := fmt.Errorf("unable to parse OS version information")
-		logger.L().Error(err.Error())
+		err := fmt.Errorf("unable to get macOS version")
+		logger.L().Errorw(err.Error(), "command", cmd.Command)
 		return err
 	}
 
@@ -126,36 +123,36 @@ func (m *MacOSCommand) ValidateOSVersion(verbose bool) error {
 	versionParts := strings.Split(versionStr, ".")
 	if len(versionParts) < 2 {
 		err := fmt.Errorf("invalid macOS version format: %s", versionStr)
-		logger.L().Error(err.Error())
+		logger.L().Errorw(err.Error(), "raw", versionStr)
 		return err
 	}
 
-	utils.PrintSecondary("Extracting major and minor version from OS version")
+	utils.PrintSecondary("Extracting major and minor version")
 
 	major, err := strconv.Atoi(versionParts[0])
 	if err != nil {
-		err := fmt.Errorf("invalid major version: %w", err)
-		logger.L().Error(err.Error())
-		return err
+		logger.L().Errorw("invalid major version", "raw", versionParts[0], "error", err)
+		return fmt.Errorf("invalid major version: %w", err)
 	}
 	minor, err := strconv.Atoi(versionParts[1])
 	if err != nil {
-		err := fmt.Errorf("invalid minor version: %w", err)
-		logger.L().Error(err.Error())
-		return err
+		logger.L().Errorw("invalid minor version", "raw", versionParts[1], "error", err)
+		return fmt.Errorf("invalid minor version: %w", err)
 	}
 
 	if major < constants.SupportedMacOSVersionNumber ||
 		(major == constants.SupportedMacOSVersionNumber && minor < 0) {
 		err := fmt.Errorf(
-			"OS requirement not met\nOS required: macOS %s (%d.0) or higher",
+			"OS requirement not met\nmacOS %s (%d.0) or higher required",
 			constants.SupportedMacOSVersionName,
 			constants.SupportedMacOSVersionNumber,
 		)
 		logger.L().Warnw("unsupported macOS version", "version", versionStr)
 		return err
 	}
-	utils.PrintSecondary(fmt.Sprintf("OS version is supported: %s", versionStr))
+
+	logger.L().Debugw("macOS version supported", "version", versionStr)
+	utils.PrintSecondary(fmt.Sprintf("✅ macOS %s is supported", versionStr))
 	return nil
 }
 

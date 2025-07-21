@@ -74,16 +74,14 @@ func (d *DebianCommand) InstallPackageManager() error {
 }
 
 func (d *DebianCommand) ValidateOSVersion(verbose bool) error {
-	logger.L().Debug("Reading /etc/os-release for Linux version info")
 	utils.PrintSecondary("Getting Linux version")
 
 	content, err := os.ReadFile("/etc/os-release")
 	if err != nil {
-		logger.L().Errorw("failed to read OS release info", "error", err)
+		logger.L().Errorw("Failed to read /etc/os-release", "error", err)
 		return fmt.Errorf("failed to read OS release info: %w", err)
 	}
 
-	logger.L().Debug("Parsing OS version from /etc/os-release")
 	utils.PrintSecondary("Parsing OS version")
 
 	var name, versionStr string
@@ -98,46 +96,44 @@ func (d *DebianCommand) ValidateOSVersion(verbose bool) error {
 
 	if name == "" || versionStr == "" {
 		err := fmt.Errorf("unable to parse OS version information")
-		logger.L().Error(err.Error())
+		logger.L().Errorw("Failed to extract OS name or version", "content", string(content))
 		return err
 	}
 
-	logger.L().Debug("Extracting major version from OS version string")
-	utils.PrintSecondary("Extracting major and minor version from OS version")
+	utils.PrintSecondary("Extracting major and minor version")
 
 	versionParts := strings.Split(versionStr, ".")
 	if len(versionParts) < 1 {
 		err := fmt.Errorf("invalid version format: %s", versionStr)
-		logger.L().Error(err.Error())
+		logger.L().Errorw("Invalid version format", "version", versionStr)
 		return err
 	}
+
 	major, err := strconv.Atoi(versionParts[0])
 	if err != nil {
-		logger.L().Errorw("invalid major version", "error", err)
+		logger.L().Errorw("Invalid major version", "raw", versionParts[0], "error", err)
 		return fmt.Errorf("invalid major version: %w", err)
 	}
 
 	// Check supported versions for Debian and Ubuntu
 	if name == "debian" && major < constants.SupportedDebianVersionNumber {
-		err := fmt.Errorf(
-			"OS requirement not met\nOS required: Debian %s (%d.0) or higher",
+		err := fmt.Errorf("OS requirement not met\nOS required: Debian %s (%d.0) or higher",
 			constants.SupportedDebianVersionName,
 			constants.SupportedDebianVersionNumber,
 		)
-		logger.L().Warnw("unsupported Debian version", "version", versionStr)
+		logger.L().Warnw("Unsupported Debian version", "version", versionStr)
 		return err
 	} else if name == "ubuntu" && major < constants.SupportedUbuntuVersionNumber {
-		err := fmt.Errorf(
-			"OS requirement not met\nOS required: Ubuntu %s (%d.0) or higher",
+		err := fmt.Errorf("OS requirement not met\nOS required: Ubuntu %s (%d.0) or higher",
 			constants.SupportedUbuntuVersionName,
 			constants.SupportedUbuntuVersionNumber,
 		)
-		logger.L().Warnw("unsupported Ubuntu version", "version", versionStr)
+		logger.L().Warnw("Unsupported Ubuntu version", "version", versionStr)
 		return err
 	}
 
-	logger.L().Infow("Linux OS version supported", "name", name, "version", versionStr)
-	utils.PrintSecondary(fmt.Sprintf("OS version is supported: %s %s", name, versionStr))
+	logger.L().Debugw("OS version supported", "os", name, "version", versionStr)
+	utils.PrintSecondary(fmt.Sprintf("✅ %s %s is supported", name, versionStr))
 
 	return nil
 }

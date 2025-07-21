@@ -161,7 +161,8 @@ func (b *BaseCommand) ExecCommand(cmd CommandParams) (string, error) {
 		command = "sudo " + command
 	}
 
-	logger.L().Debugw("Executing command", "command", command, "args", cmd.Args, "sudo", cmd.IsSudo)
+	logger.L().
+		Debugw("Executing command", "command", strings.Join(append([]string{command}, cmd.Args...), " "))
 
 	execCommand := exec.Command(command, cmd.Args...)
 	execCommand.Stdin = os.Stdin
