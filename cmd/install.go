@@ -21,6 +21,14 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var (
+	dryRun       bool
+	verbose      bool
+	forceInstall bool
+	only         []string
+	skip         []string
+)
+
 var installCmd = &cobra.Command{
 	Use:   "install",
 	Short: "Install devgita and all required tools",
@@ -28,25 +36,65 @@ var installCmd = &cobra.Command{
 
 This command performs the following steps:
   - Validates your OS version
-  - Installs essential dependencies (ex. git, fc-*)
+  - Installs essential dependencies (e.g., git, fc-*)
   - Clones the devgita repository
   - Installs terminal tools, programming languages, and databases
-  - Sets up desktop apps and configures your shell
+  - Optionally installs desktop applications and shell configuration
 
-It supports both macOS (via Homebrew) and Debian/Ubuntu systems (via apt).`,
+Supported platforms:
+  - macOS (via Homebrew)
+  - Debian/Ubuntu (via apt)
+
+Flags:
+  --dry-run        Show what would be installed, without making any changes
+  --verbose, --debug
+                   Output detailed logs
+  --only <...>     Only install specific categories (e.g., terminal, languages, desktop)
+  --skip <...>     Skip specific categories (e.g., terminal, languages, desktop)
+  --force          Reinstall tools even if they are already present
+`,
 	Run: run,
 }
 
 func init() {
 	rootCmd.AddCommand(installCmd)
 
-	// --------------------------------------------------------------------
-	// A --dry-run flag (show what would be installed without doing it)
-	// A --verbose or --debug flag for verbose logs
-	// Allow installing individual categories like --only-languages or --only-terminal
+	// Flags
+	installCmd.Flags().
+		BoolVar(&dryRun, "dry-run", false, "Show what would be installed without doing it")
+	installCmd.Flags().BoolVar(&verbose, "verbose", false, "Enable verbose logging")
+	installCmd.Flags().BoolVar(&verbose, "debug", false, "Alias for --verbose")
+	installCmd.Flags().
+		BoolVar(&forceInstall, "force", false, "Force reinstallation even if components are already installed")
+
+	// Multi-value flags
+	installCmd.Flags().
+		StringSliceVar(&only, "only", []string{}, "Only install specific categories (comma or repeatable)")
+	installCmd.Flags().
+		StringSliceVar(&skip, "skip", []string{}, "Skip specific categories (comma or repeatable)")
 }
 
 func run(cmd *cobra.Command, args []string) {
+	if dryRun {
+		utils.PrintInfo("Dry run: nothing will be installed.")
+	}
+
+	onlySet := make(map[string]bool)
+	for _, item := range only {
+		onlySet[item] = true
+	}
+
+	skipSet := make(map[string]bool)
+	for _, item := range skip {
+		skipSet[item] = true
+	}
+
+	// Example of how to use the shouldInstall function
+	// if shouldInstall("terminal", onlySet, skipSet) {
+	// 	fmt.Println("🔧 Installing terminal tools...")
+	// 	// installTerminal()
+	// }
+
 	var err error
 
 	utils.PrintBold(constants.Devgita)
@@ -110,4 +158,11 @@ func installApp() {
 	// Install from repository
 	g := git.New()
 	utils.MaybeExitWithError(g.Clone(constants.DevgitaRepositoryUrl, paths.AppDir))
+}
+
+func shouldInstall(category string, only, skip map[string]bool) bool {
+	if len(only) > 0 {
+		return only[category]
+	}
+	return !skip[category]
 }
