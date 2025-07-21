@@ -9,6 +9,7 @@
 package tmux
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -65,5 +66,8 @@ func (t *Tmux) Run(args ...string) error {
 		Command:     "tmux",
 		Args:        args,
 	}
-	return t.Base.ExecCommand(execCommand)
+	if _, err := t.Base.ExecCommand(execCommand); err != nil {
+		return fmt.Errorf("failed to run tmux command: %w", err)
+	}
+	return nil
 }

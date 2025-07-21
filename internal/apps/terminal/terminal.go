@@ -251,7 +251,10 @@ func (t *Terminal) InstallXCode() error {
 		Command:     "xcode-select",
 		Args:        []string{"--install"},
 	}
-	return t.Base.ExecCommand(cmd)
+	if _, err := t.Base.ExecCommand(cmd); err != nil {
+		return fmt.Errorf("failed to install Xcode Command Line Tools: %w", err)
+	}
+	return nil
 }
 
 // installs libs pkg-config, autoconf, bison, rust, openssl, readline, zlib, libyaml, ncurses, libffi, gdbm, jemalloc, vips, mupdf

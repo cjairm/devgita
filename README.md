@@ -20,9 +20,9 @@
 ### Commands
 
 - `dg install ...` (`--soft` that does `maybeInstall`)
-- `dg reinstall ...` (does configure and install)
-- `dg configure ...`
-- `dg re-configure ..` (or `configure --force`)
+- ~`dg reinstall ...`~ this will be replaced by `dg install ... --force`. We should uninstall first and then install again.
+- `dg configure ...` this will update changes to the configuration if made through the `dg install` command.
+- ~`dg re-configure ..`~ this will be replaced by `dg configure ... --force`. We should remove files and recreate them.
 - `dg uninstall ...`
 - `gd update ... [--neovim=[...options] --aerospace=[...options] ...flags] ...apps`
 - `dg list` or `dg installed`
@@ -64,9 +64,9 @@ Note. We should optionally be able to pass `--app` or `--package` to only do it 
 - (?) npm related - fully clean? fresh-installs? `dg npm clean`
 - Command to update (we may need to solve issues). If we want to update apps can be difficult; we need to handle breaking changes
 - Maybe a TUI? - https://github.com/charmbracelet/lipgloss
-    - go get github.com/charmbracelet/bubbletea
-    - go get github.com/charmbracelet/lipgloss
-    - go get github.com/charmbracelet/bubbles/spinner
+  - go get github.com/charmbracelet/bubbletea
+  - go get github.com/charmbracelet/lipgloss
+  - go get github.com/charmbracelet/bubbles/spinner
 - Add new tmux window commands? `dg tmux --new-window="~/my-path/hello-world"` // Will add `tmhello-world`. This will remove the necessity for some custom commands (`tmn`?)
 
 ---
@@ -80,4 +80,20 @@ GOOS=darwin GOARCH=amd64 go build -o cli_mac_amd64
 
 # For intel chips
 GOOS=darwin GOARCH=arm64 go build -o cli_mac_arm64
+```
+
+When pushes happen, try:
+
+```bash
+# For example, to test an individual file
+go test <file-path> -v
+
+# To test all files in the current directory and subdirectories
+go test ./...
+
+# To test with coverage
+go test <file-path> -cover
+
+# To test with race detector
+go test <file-path> -race
 ```

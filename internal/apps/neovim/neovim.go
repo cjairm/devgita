@@ -90,7 +90,10 @@ func (n *Neovim) Run(args ...string) error {
 		Command:     constants.Nvim,
 		Args:        args,
 	}
-	return n.Base.ExecCommand(execCommand)
+	if _, err := n.Base.ExecCommand(execCommand); err != nil {
+		return fmt.Errorf("failed to run Neovim: %w", err)
+	}
+	return nil
 }
 
 func isVersionEqualOrHigher(currentVersion, requiredVersion string) bool {

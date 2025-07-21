@@ -1,6 +1,7 @@
 package powerlevel10k
 
 import (
+	"fmt"
 	"path/filepath"
 
 	cmd "github.com/cjairm/devgita/internal/commands"
@@ -61,5 +62,8 @@ func (p *PowerLevel10k) Run(args ...string) error {
 		Command:     "p10k",
 		Args:        args,
 	}
-	return p.Base.ExecCommand(execCommand)
+	if _, err := p.Base.ExecCommand(execCommand); err != nil {
+		return fmt.Errorf("failed to run powerlevel10k command: %w", err)
+	}
+	return nil
 }

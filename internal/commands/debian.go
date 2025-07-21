@@ -144,7 +144,10 @@ func (d *DebianCommand) installWithApt(packageName string) error {
 		Command:     "apt",
 		Args:        []string{"install", "-y", packageName},
 	}
-	return d.ExecCommand(cmd)
+	if _, err := d.ExecCommand(cmd); err != nil {
+		return fmt.Errorf("failed to install %s: %w", packageName, err)
+	}
+	return nil
 }
 
 func (d *DebianCommand) installWithSnap(packageName string) error {
@@ -156,5 +159,8 @@ func (d *DebianCommand) installWithSnap(packageName string) error {
 		Command:     "snap",
 		Args:        []string{"install", packageName},
 	}
-	return d.ExecCommand(cmd)
+	if _, err := d.ExecCommand(cmd); err != nil {
+		return fmt.Errorf("failed to install %s via Snap: %w", packageName, err)
+	}
+	return nil
 }

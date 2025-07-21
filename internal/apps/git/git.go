@@ -79,5 +79,8 @@ func (g *Git) Run(args ...string) error {
 		Command:     "git",
 		Args:        args,
 	}
-	return g.Base.ExecCommand(execCommand)
+	if _, err := g.Base.ExecCommand(execCommand); err != nil {
+		return fmt.Errorf("failed to execute git command: %w", err)
+	}
+	return nil
 }

@@ -6,6 +6,7 @@
 package fastfetch
 
 import (
+	"fmt"
 	"path/filepath"
 
 	cmd "github.com/cjairm/devgita/internal/commands"
@@ -55,5 +56,8 @@ func (f *Fastfetch) Run(args ...string) error {
 		Command:     constants.Fastfetch,
 		Args:        args,
 	}
-	return f.Base.ExecCommand(execCommand)
+	if _, err := f.Base.ExecCommand(execCommand); err != nil {
+		return fmt.Errorf("failed to run fastfetch command: %w", err)
+	}
+	return nil
 }

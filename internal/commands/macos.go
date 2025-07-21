@@ -51,7 +51,10 @@ func (m *MacOSCommand) InstallPackage(packageName string) error {
 		Command:     "brew",
 		Args:        []string{"install", packageName},
 	}
-	return m.ExecCommand(cmd)
+	if _, err := m.ExecCommand(cmd); err != nil {
+		return fmt.Errorf("failed to install package %s: %w", packageName, err)
+	}
+	return nil
 }
 
 func (m *MacOSCommand) InstallDesktopApp(packageName string) error {
@@ -63,7 +66,10 @@ func (m *MacOSCommand) InstallDesktopApp(packageName string) error {
 		Command:     "brew",
 		Args:        []string{"install", "--cask", packageName},
 	}
-	return m.ExecCommand(cmd)
+	if _, err := m.ExecCommand(cmd); err != nil {
+		return fmt.Errorf("failed to install desktop app %s: %w", packageName, err)
+	}
+	return nil
 }
 
 func (m *MacOSCommand) IsPackageManagerInstalled() bool {
@@ -91,7 +97,10 @@ func (m *MacOSCommand) InstallPackageManager() error {
 			"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)",
 		},
 	}
-	return m.ExecCommand(cmd)
+	if _, err := m.ExecCommand(cmd); err != nil {
+		return fmt.Errorf("failed to install Homebrew: %w", err)
+	}
+	return nil
 }
 
 func (m *MacOSCommand) ValidateOSVersion() error {

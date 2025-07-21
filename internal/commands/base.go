@@ -151,60 +151,72 @@ func hasFontExtension(filename string) bool {
 		strings.HasSuffix(filename, ".woff2")
 }
 
-func (b *BaseCommand) ExecCommand(cmd CommandParams) error {
+func (b *BaseCommand) ExecCommand(cmd CommandParams) (string, error) {
 	if cmd.PreExecMsg != "" {
 		utils.Print(cmd.PreExecMsg, "")
 	}
+
 	command := cmd.Command
 	if cmd.IsSudo {
 		command = "sudo " + command
 	}
+
 	execCommand := exec.Command(command, cmd.Args...)
 
-	// Create pipes to capture standard output
-	stdout, err := execCommand.StdoutPipe()
+	// Pipe setup
+	stdoutPipe, err := execCommand.StdoutPipe()
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	// Create pipes to capture standard error
-	stderr, err := execCommand.StderrPipe()
+	stderrPipe, err := execCommand.StderrPipe()
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	// To allow user to interact with the command (password)
 	execCommand.Stdin = os.Stdin
 
-	// Start the command
+	var stdoutBuf, stderrBuf strings.Builder
+
+	// Capture output even in silent mode
+	stdoutScanner := bufio.NewScanner(stdoutPipe)
+	stderrScanner := bufio.NewScanner(stderrPipe)
+
+	// Start process
 	if err := execCommand.Start(); err != nil {
-		return err
+		return "", err
 	}
 
-	if cmd.Verbose == true {
-		// Create a scanner for stdout
-		go func() {
-			scanner := bufio.NewScanner(stdout)
-			for scanner.Scan() {
-				utils.PrintSecondary(scanner.Text())
+	// Read stdout
+	go func() {
+		for stdoutScanner.Scan() {
+			line := stdoutScanner.Text()
+			stdoutBuf.WriteString(line + "\n")
+			if cmd.Verbose {
+				utils.PrintSecondary(line)
 			}
-		}()
+		}
+	}()
 
-		// Create a scanner for stderr
-		go func() {
-			scanner := bufio.NewScanner(stderr)
-			for scanner.Scan() {
-				utils.PrintError(scanner.Text())
+	// Read stderr
+	go func() {
+		for stderrScanner.Scan() {
+			line := stderrScanner.Text()
+			stderrBuf.WriteString(line + "\n")
+			if cmd.Verbose {
+				utils.PrintError(line)
 			}
-		}()
-	}
+		}
+	}()
 
+	// Wait for command to finish
 	err = execCommand.Wait()
+
 	if cmd.PostExecMsg != "" && err == nil {
 		utils.Print(cmd.PostExecMsg, "")
 	}
 
-	return err
+	return strings.TrimSpace(stdoutBuf.String()), err
 }
 
 func (b *BaseCommand) MaybeInstall(
@@ -242,7 +254,7 @@ func (b *BaseCommand) InstallFontFromURL(url, fontFileName string, runCache bool
 	tmpPath := fmt.Sprintf("/tmp/%s.ttf", fontFileName)
 
 	// 1. Download font
-	if err := b.ExecCommand(CommandParams{
+	if _, err := b.ExecCommand(CommandParams{
 		PreExecMsg: fmt.Sprintf("Downloading %s...", fontFileName),
 		Command:    "curl",
 		Args:       []string{"-o", tmpPath, url},
@@ -251,7 +263,7 @@ func (b *BaseCommand) InstallFontFromURL(url, fontFileName string, runCache bool
 	}
 
 	// 2. Move font
-	if err := b.ExecCommand(CommandParams{
+	if _, err := b.ExecCommand(CommandParams{
 		PreExecMsg: "Installing font...",
 		Command:    "mv",
 		Args:       []string{tmpPath, filepath.Join(paths.UserFontsDir, fontFileName+".ttf")},
@@ -261,12 +273,14 @@ func (b *BaseCommand) InstallFontFromURL(url, fontFileName string, runCache bool
 
 	// 3. Update font cache if needed
 	if runCache {
-		return b.ExecCommand(CommandParams{
+		if _, err := b.ExecCommand(CommandParams{
 			PreExecMsg: "Refreshing font cache...",
 			Command:    "fc-cache",
 			Args:       []string{"-fv"},
 			IsSudo:     true,
-		})
+		}); err != nil {
+			return fmt.Errorf("failed to refresh font cache: %w", err)
+		}
 	}
 	return nil
 }
