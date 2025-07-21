@@ -5,3 +5,8 @@ fi
 if command -v zoxide &> /dev/null; then
   eval "$(zoxide init bash)"
 fi
+
+# plugins=(
+#   zsh-autosuggestions
+#   zsh-syntax-highlighting
+# )

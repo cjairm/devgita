@@ -1,7 +1,5 @@
 package constants
 
-import "fmt"
-
 const (
 	Reset  = "\033[0m"
 	Gray   = "\033[90m" // Muted color
@@ -46,7 +44,7 @@ const (
 	Themes = "themes"
 )
 
-var Devgita = fmt.Sprint(`
+var Devgita = `
     .___                .__  __          
   __| _/_______  ______ |__|/  |______   
  / __ |/ __ \  \/ / ___\|  \   __\__  \  
@@ -54,4 +52,4 @@ var Devgita = fmt.Sprint(`
 \____ |\___  >\_/\___  /|__||__| (____  /
      \/    \/   /_____/               \/ 
 @cjairm
-`)
+`

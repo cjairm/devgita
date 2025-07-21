@@ -8,9 +8,9 @@ alias ff="fzf --preview 'bat --style=numbers --color=always {}'"
 # quick edits
 alias edit-zsh="nvim ~/.zshrc"
 alias edit-ohmyzsh="nvim ~/.oh-my-zsh"
-alias edit-yabai="nvim ~/.config/yabai/yabairc"
-alias edit-skhd="nvim ~/.config/skhd/skhdrc"
+# TODO: Add aerospace config
 alias edit-tmux="nvim ~/.tmux.conf"
+# TODO: Add config per app (?)
 alias edit-nvim="nvim ~/.config/nvim/init.lua"
 alias edit-alias="nvim ~/.config/devgita/aliases.zsh"
 
@@ -51,20 +51,10 @@ tmn() {
     /usr/local/bin/tmux new-session -d -s "$session_name" -c "$path"
     /usr/local/bin/tmux switch-client -t "$session_name"
 }
-alias tmhadamenu="tmn hadamenu ~/Documents/projects/hadamenu/code"
-alias tmpi="tmn pi ~/Documents/projects/raspberry_pi/"
-alias tmhadaelectronics="tmn hadaelectronics ~/Documents/projects/hadaelectronics/code"
-alias tmgo="tmn go ~/Documents/workspace/go"
-alias tmdevgita="tmn devgita ~/Documents/projects/devgita"
-alias tmcjairm="tmn cjairm ~/Documents/projects/cjairm.github.io/code"
-alias tmpython="tmn python ~/Documents/workspace/python"
 
 # Compression
 compress() { tar -czf "${1%/}.tar.gz" "${1%/}"; }
 alias decompress="tar -xzf"
-
-# Custom
-alias laravel-cli="~/.local/share/laravel-cli/laravel-cli"
 
 # Mise
 alias mx="mise x --"
