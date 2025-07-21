@@ -108,7 +108,7 @@ func (m *MacOSCommand) ValidateOSVersion(verbose bool) error {
 	cmd := CommandParams{
 		PreExecMsg:  "",
 		PostExecMsg: "",
-		Verbose:     false,
+		Verbose:     verbose,
 		IsSudo:      false,
 		Command:     "sw_vers",
 		Args:        []string{"-productVersion"},
@@ -131,7 +131,7 @@ func (m *MacOSCommand) ValidateOSVersion(verbose bool) error {
 		return fmt.Errorf("invalid macOS version format: %s", versionStr)
 	}
 	if verbose {
-		utils.PrintSecondary(fmt.Sprintf("OS: %s", versionStr))
+		utils.PrintSecondary("Extracting major and minor version from OS version")
 	}
 	// Convert the major and minor version to integers
 	major, err := strconv.Atoi(versionParts[0])

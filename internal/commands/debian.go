@@ -98,7 +98,7 @@ func (d *DebianCommand) ValidateOSVersion(verbose bool) error {
 		return fmt.Errorf("unable to parse OS version information")
 	}
 	if verbose {
-		utils.PrintSecondary(fmt.Sprintf("OS: %s %s", name, versionStr))
+		utils.PrintSecondary("Extracting major and minor version from OS version")
 	}
 
 	versionParts := strings.Split(versionStr, ".")
