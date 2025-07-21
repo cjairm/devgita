@@ -57,7 +57,6 @@ func (p *PowerLevel10k) Run(args ...string) error {
 	execCommand := cmd.CommandParams{
 		PreExecMsg:  "",
 		PostExecMsg: "",
-		Verbose:     true,
 		IsSudo:      false,
 		Command:     "p10k",
 		Args:        args,

@@ -1,6 +1,6 @@
 /*
-Copyright © 2025 Carlos Mendez <carlos@hadaelectronics.com> | https://cjairm.me/
-*/
+* Copyright © 2025 Carlos Mendez <carlos@hadaelectronics.com> | https://cjairm.me/
+ */
 package cmd
 
 import (
@@ -23,7 +23,6 @@ import (
 
 var (
 	dryRun       bool
-	verbose      bool
 	forceInstall bool
 	only         []string
 	skip         []string
@@ -47,8 +46,6 @@ Supported platforms:
 
 Flags:
   --dry-run        Show what would be installed, without making any changes
-  --verbose, --debug
-                   Output detailed logs
   --only <...>     Only install specific categories (e.g., terminal, languages, desktop)
   --skip <...>     Skip specific categories (e.g., terminal, languages, desktop)
   --force          Reinstall tools even if they are already present
@@ -62,8 +59,6 @@ func init() {
 	// Flags
 	installCmd.Flags().
 		BoolVar(&dryRun, "dry-run", false, "Show what would be installed without doing it")
-	installCmd.Flags().BoolVar(&verbose, "verbose", false, "Enable verbose logging")
-	installCmd.Flags().BoolVar(&verbose, "debug", false, "Alias for --verbose")
 	installCmd.Flags().
 		BoolVar(&forceInstall, "force", false, "Force reinstallation even if components are already installed")
 

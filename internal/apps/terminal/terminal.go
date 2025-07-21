@@ -246,7 +246,6 @@ func (t *Terminal) InstallXCode() error {
 	cmd := commands.CommandParams{
 		PreExecMsg:  "Installing Xcode Command Line Tools",
 		PostExecMsg: "",
-		Verbose:     false,
 		IsSudo:      false,
 		Command:     "xcode-select",
 		Args:        []string{"--install"},

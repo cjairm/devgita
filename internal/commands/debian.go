@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/cjairm/devgita/logger"
 	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/paths"
 	"github.com/cjairm/devgita/pkg/utils"
@@ -73,17 +74,18 @@ func (d *DebianCommand) InstallPackageManager() error {
 }
 
 func (d *DebianCommand) ValidateOSVersion(verbose bool) error {
-	if verbose {
-		utils.PrintSecondary("Getting macOS version")
-	}
+	logger.L().Debug("Reading /etc/os-release for Linux version info")
+	utils.PrintSecondary("Getting Linux version")
+
 	content, err := os.ReadFile("/etc/os-release")
 	if err != nil {
+		logger.L().Errorw("failed to read OS release info", "error", err)
 		return fmt.Errorf("failed to read OS release info: %w", err)
 	}
 
-	if verbose {
-		utils.PrintSecondary("Parsing OS version")
-	}
+	logger.L().Debug("Parsing OS version from /etc/os-release")
+	utils.PrintSecondary("Parsing OS version")
+
 	var name, versionStr string
 	lines := strings.Split(string(content), "\n")
 	for _, line := range lines {
@@ -95,37 +97,47 @@ func (d *DebianCommand) ValidateOSVersion(verbose bool) error {
 	}
 
 	if name == "" || versionStr == "" {
-		return fmt.Errorf("unable to parse OS version information")
+		err := fmt.Errorf("unable to parse OS version information")
+		logger.L().Error(err.Error())
+		return err
 	}
-	if verbose {
-		utils.PrintSecondary("Extracting major and minor version from OS version")
-	}
+
+	logger.L().Debug("Extracting major version from OS version string")
+	utils.PrintSecondary("Extracting major and minor version from OS version")
 
 	versionParts := strings.Split(versionStr, ".")
 	if len(versionParts) < 1 {
-		return fmt.Errorf("invalid version format")
+		err := fmt.Errorf("invalid version format: %s", versionStr)
+		logger.L().Error(err.Error())
+		return err
 	}
 	major, err := strconv.Atoi(versionParts[0])
 	if err != nil {
+		logger.L().Errorw("invalid major version", "error", err)
 		return fmt.Errorf("invalid major version: %w", err)
 	}
 
+	// Check supported versions for Debian and Ubuntu
 	if name == "debian" && major < constants.SupportedDebianVersionNumber {
-		return fmt.Errorf(
+		err := fmt.Errorf(
 			"OS requirement not met\nOS required: Debian %s (%d.0) or higher",
 			constants.SupportedDebianVersionName,
 			constants.SupportedDebianVersionNumber,
 		)
+		logger.L().Warnw("unsupported Debian version", "version", versionStr)
+		return err
 	} else if name == "ubuntu" && major < constants.SupportedUbuntuVersionNumber {
-		return fmt.Errorf(
+		err := fmt.Errorf(
 			"OS requirement not met\nOS required: Ubuntu %s (%d.0) or higher",
 			constants.SupportedUbuntuVersionName,
 			constants.SupportedUbuntuVersionNumber,
 		)
+		logger.L().Warnw("unsupported Ubuntu version", "version", versionStr)
+		return err
 	}
-	if verbose {
-		utils.PrintSecondary(fmt.Sprintf("OS version is supported: %s %s", name, versionStr))
-	}
+
+	logger.L().Infow("Linux OS version supported", "name", name, "version", versionStr)
+	utils.PrintSecondary(fmt.Sprintf("OS version is supported: %s %s", name, versionStr))
 
 	return nil
 }
@@ -152,7 +164,6 @@ func (d *DebianCommand) installWithApt(packageName string) error {
 	cmd := CommandParams{
 		PreExecMsg:  fmt.Sprintf("Installing %s...", strings.ToLower(packageName)),
 		PostExecMsg: "",
-		Verbose:     false,
 		IsSudo:      true,
 		Command:     "apt",
 		Args:        []string{"install", "-y", packageName},
@@ -167,7 +178,6 @@ func (d *DebianCommand) installWithSnap(packageName string) error {
 	cmd := CommandParams{
 		PreExecMsg:  fmt.Sprintf("Installing %s via Snap...", strings.ToLower(packageName)),
 		PostExecMsg: "",
-		Verbose:     false,
 		IsSudo:      true,
 		Command:     "snap",
 		Args:        []string{"install", packageName},

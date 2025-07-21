@@ -74,7 +74,6 @@ func (g *Git) Run(args ...string) error {
 	execCommand := cmd.CommandParams{
 		PreExecMsg:  "",
 		PostExecMsg: "",
-		Verbose:     true,
 		IsSudo:      false,
 		Command:     "git",
 		Args:        args,

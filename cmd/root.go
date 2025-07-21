@@ -1,12 +1,15 @@
 /*
-Copyright © 2025 Carlos Mendez <carlos@hadaelectronics.com> | https://cjairm.me/
-*/
+* Copyright © 2025 Carlos Mendez <carlos@hadaelectronics.com> | https://cjairm.me/
+ */
 package cmd
 
 import (
+	"github.com/cjairm/devgita/logger"
 	"github.com/cjairm/devgita/pkg/utils"
 	"github.com/spf13/cobra"
 )
+
+var verbose bool
 
 var rootCmd = &cobra.Command{
 	Use:   "dg",
@@ -55,5 +58,17 @@ func Execute() {
 }
 
 func init() {
+	rootCmd.PersistentFlags().
+		BoolVar(&verbose, "verbose", false, "Enable verbose logging")
+	rootCmd.PersistentFlags().
+		BoolVar(&verbose, "debug", false, "Alias for --verbose")
+
+	// Ensure this runs before any subcommand
+	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
+		// Init logger here using the global verbose flag
+		logger.Init(verbose)
+		return nil
+	}
+
 	rootCmd.SetHelpFunc(utils.PrompCustomHelp)
 }

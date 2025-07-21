@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/cjairm/devgita/logger"
 	"github.com/cjairm/devgita/pkg/files"
 	"github.com/cjairm/devgita/pkg/paths"
 	"github.com/cjairm/devgita/pkg/utils"
@@ -25,7 +26,6 @@ type CommandParams struct {
 	PreExecMsg  string
 	PostExecMsg string
 	IsSudo      bool
-	Verbose     bool
 	Command     string
 	Args        []string
 }
@@ -161,29 +161,31 @@ func (b *BaseCommand) ExecCommand(cmd CommandParams) (string, error) {
 		command = "sudo " + command
 	}
 
-	execCommand := exec.Command(command, cmd.Args...)
+	logger.L().Debugw("Executing command", "command", command, "args", cmd.Args, "sudo", cmd.IsSudo)
 
-	// Pipe setup
+	execCommand := exec.Command(command, cmd.Args...)
+	execCommand.Stdin = os.Stdin
+
 	stdoutPipe, err := execCommand.StdoutPipe()
 	if err != nil {
+		logger.L().Errorf("failed to get stdout pipe: %v", err)
 		return "", err
 	}
 
 	stderrPipe, err := execCommand.StderrPipe()
 	if err != nil {
+		logger.L().Errorf("failed to get stderr pipe: %v", err)
 		return "", err
 	}
 
-	execCommand.Stdin = os.Stdin
-
 	var stdoutBuf, stderrBuf strings.Builder
 
-	// Capture output even in silent mode
 	stdoutScanner := bufio.NewScanner(stdoutPipe)
 	stderrScanner := bufio.NewScanner(stderrPipe)
 
-	// Start process
+	// Start command
 	if err := execCommand.Start(); err != nil {
+		logger.L().Errorf("failed to start command: %v", err)
 		return "", err
 	}
 
@@ -192,9 +194,7 @@ func (b *BaseCommand) ExecCommand(cmd CommandParams) (string, error) {
 		for stdoutScanner.Scan() {
 			line := stdoutScanner.Text()
 			stdoutBuf.WriteString(line + "\n")
-			if cmd.Verbose {
-				utils.PrintSecondary(line)
-			}
+			logger.L().Debugw("stdout", "line", line)
 		}
 	}()
 
@@ -203,14 +203,15 @@ func (b *BaseCommand) ExecCommand(cmd CommandParams) (string, error) {
 		for stderrScanner.Scan() {
 			line := stderrScanner.Text()
 			stderrBuf.WriteString(line + "\n")
-			if cmd.Verbose {
-				utils.PrintError(line)
-			}
+			logger.L().Debugw("stderr", "line", line)
 		}
 	}()
 
-	// Wait for command to finish
+	// Wait for command to complete
 	err = execCommand.Wait()
+	if err != nil {
+		logger.L().Errorw("command finished with error", "error", err, "stderr", stderrBuf.String())
+	}
 
 	if cmd.PostExecMsg != "" && err == nil {
 		utils.Print(cmd.PostExecMsg, "")
