@@ -8,6 +8,7 @@ import (
 
 	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/paths"
+	"github.com/cjairm/devgita/pkg/utils"
 )
 
 type MacOSCommand struct {
@@ -103,26 +104,43 @@ func (m *MacOSCommand) InstallPackageManager() error {
 	return nil
 }
 
-func (m *MacOSCommand) ValidateOSVersion() error {
-	// Get the macOS version
-	version, err := exec.Command("sw_vers", "-productVersion").Output()
+func (m *MacOSCommand) ValidateOSVersion(verbose bool) error {
+	cmd := CommandParams{
+		PreExecMsg:  "",
+		PostExecMsg: "",
+		Verbose:     false,
+		IsSudo:      false,
+		Command:     "sw_vers",
+		Args:        []string{"-productVersion"},
+	}
+	if verbose {
+		utils.PrintSecondary("Getting macOS version")
+	}
+	version, err := m.BaseCommand.ExecCommand(cmd)
 	if err != nil {
 		return err
+	}
+
+	if verbose {
+		utils.PrintSecondary("Parsing OS version")
 	}
 	// Trim whitespace and split the version string
 	versionStr := strings.TrimSpace(string(version))
 	versionParts := strings.Split(versionStr, ".")
 	if len(versionParts) < 2 {
-		return fmt.Errorf("Unable to parse macOS version")
+		return fmt.Errorf("invalid macOS version format: %s", versionStr)
+	}
+	if verbose {
+		utils.PrintSecondary(fmt.Sprintf("OS: %s", versionStr))
 	}
 	// Convert the major and minor version to integers
 	major, err := strconv.Atoi(versionParts[0])
 	if err != nil {
-		return err
+		return fmt.Errorf("invalid major version: %w", err)
 	}
 	minor, err := strconv.Atoi(versionParts[1])
 	if err != nil {
-		return err
+		return fmt.Errorf("invalid minor version: %w", err)
 	}
 	// NOTE: (11/22/2024) Check if the version is at least 13.0 (macOS Sonoma)
 	// Update to the latest version if necessary
@@ -133,6 +151,9 @@ func (m *MacOSCommand) ValidateOSVersion() error {
 			constants.SupportedMacOSVersionName,
 			constants.SupportedMacOSVersionNumber,
 		)
+	}
+	if verbose {
+		utils.PrintSecondary(fmt.Sprintf("OS version is supported: macOS %s", versionStr))
 	}
 	return nil
 }

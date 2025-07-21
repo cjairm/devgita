@@ -9,6 +9,7 @@ import (
 
 	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/paths"
+	"github.com/cjairm/devgita/pkg/utils"
 )
 
 type DebianCommand struct {
@@ -71,12 +72,18 @@ func (d *DebianCommand) InstallPackageManager() error {
 	return nil
 }
 
-func (d *DebianCommand) ValidateOSVersion() error {
+func (d *DebianCommand) ValidateOSVersion(verbose bool) error {
+	if verbose {
+		utils.PrintSecondary("Getting macOS version")
+	}
 	content, err := os.ReadFile("/etc/os-release")
 	if err != nil {
 		return fmt.Errorf("failed to read OS release info: %w", err)
 	}
 
+	if verbose {
+		utils.PrintSecondary("Parsing OS version")
+	}
 	var name, versionStr string
 	lines := strings.Split(string(content), "\n")
 	for _, line := range lines {
@@ -89,6 +96,9 @@ func (d *DebianCommand) ValidateOSVersion() error {
 
 	if name == "" || versionStr == "" {
 		return fmt.Errorf("unable to parse OS version information")
+	}
+	if verbose {
+		utils.PrintSecondary(fmt.Sprintf("OS: %s %s", name, versionStr))
 	}
 
 	versionParts := strings.Split(versionStr, ".")
@@ -112,6 +122,9 @@ func (d *DebianCommand) ValidateOSVersion() error {
 			constants.SupportedUbuntuVersionName,
 			constants.SupportedUbuntuVersionNumber,
 		)
+	}
+	if verbose {
+		utils.PrintSecondary(fmt.Sprintf("OS version is supported: %s %s", name, versionStr))
 	}
 
 	return nil

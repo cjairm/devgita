@@ -104,8 +104,8 @@ func run(cmd *cobra.Command, args []string) {
 	ctx := context.Background()
 	osCmd := commands.NewCommand()
 
-	utils.PrintInfo("- Validate version")
-	utils.MaybeExitWithError(osCmd.ValidateOSVersion())
+	utils.PrintInfo("* Validate version")
+	utils.MaybeExitWithError(osCmd.ValidateOSVersion(verbose))
 
 	utils.PrintInfo("- Pre-install steps")
 	utils.MaybeExitWithError(osCmd.MaybeInstallPackageManager())
