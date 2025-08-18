@@ -78,7 +78,6 @@ func (d *DebianCommand) ValidateOSVersion(verbose bool) error {
 
 	content, err := os.ReadFile("/etc/os-release")
 	if err != nil {
-		logger.L().Errorw("Failed to read /etc/os-release", "error", err)
 		return fmt.Errorf("failed to read OS release info: %w", err)
 	}
 
@@ -93,10 +92,10 @@ func (d *DebianCommand) ValidateOSVersion(verbose bool) error {
 			versionStr = strings.Trim(strings.SplitN(line, "=", 2)[1], `"`)
 		}
 	}
+	logger.L().Debugw("OS version info", "name", name, "version", versionStr)
 
 	if name == "" || versionStr == "" {
 		err := fmt.Errorf("unable to parse OS version information")
-		logger.L().Errorw("Failed to extract OS name or version", "content", string(content))
 		return err
 	}
 
@@ -105,15 +104,15 @@ func (d *DebianCommand) ValidateOSVersion(verbose bool) error {
 	versionParts := strings.Split(versionStr, ".")
 	if len(versionParts) < 1 {
 		err := fmt.Errorf("invalid version format: %s", versionStr)
-		logger.L().Errorw("Invalid version format", "version", versionStr)
 		return err
 	}
 
 	major, err := strconv.Atoi(versionParts[0])
 	if err != nil {
-		logger.L().Errorw("Invalid major version", "raw", versionParts[0], "error", err)
 		return fmt.Errorf("invalid major version: %w", err)
 	}
+	logger.L().
+		Debugw("OS major version", "os", name, "major_version", major, "supported_debian_version", constants.SupportedDebianVersionNumber, "supported_ubuntu_version", constants.SupportedUbuntuVersionNumber)
 
 	// Check supported versions for Debian and Ubuntu
 	if name == "debian" && major < constants.SupportedDebianVersionNumber {
@@ -121,20 +120,16 @@ func (d *DebianCommand) ValidateOSVersion(verbose bool) error {
 			constants.SupportedDebianVersionName,
 			constants.SupportedDebianVersionNumber,
 		)
-		logger.L().Warnw("Unsupported Debian version", "version", versionStr)
 		return err
 	} else if name == "ubuntu" && major < constants.SupportedUbuntuVersionNumber {
 		err := fmt.Errorf("OS requirement not met\nOS required: Ubuntu %s (%d.0) or higher",
 			constants.SupportedUbuntuVersionName,
 			constants.SupportedUbuntuVersionNumber,
 		)
-		logger.L().Warnw("Unsupported Ubuntu version", "version", versionStr)
 		return err
 	}
 
-	logger.L().Debugw("OS version supported", "os", name, "version", versionStr)
 	utils.PrintSecondary(fmt.Sprintf("✅ %s %s is supported", name, versionStr))
-
 	return nil
 }
 

@@ -113,7 +113,6 @@ func (m *MacOSCommand) ValidateOSVersion(verbose bool) error {
 	version, err := m.BaseCommand.ExecCommand(cmd)
 	if err != nil {
 		err := fmt.Errorf("unable to get macOS version")
-		logger.L().Errorw(err.Error(), "command", cmd.Command)
 		return err
 	}
 
@@ -123,22 +122,22 @@ func (m *MacOSCommand) ValidateOSVersion(verbose bool) error {
 	versionParts := strings.Split(versionStr, ".")
 	if len(versionParts) < 2 {
 		err := fmt.Errorf("invalid macOS version format: %s", versionStr)
-		logger.L().Errorw(err.Error(), "raw", versionStr)
 		return err
 	}
+	logger.L().Debugw("macOS version info", "version", versionStr)
 
 	utils.PrintSecondary("Extracting major and minor version")
 
 	major, err := strconv.Atoi(versionParts[0])
 	if err != nil {
-		logger.L().Errorw("invalid major version", "raw", versionParts[0], "error", err)
 		return fmt.Errorf("invalid major version: %w", err)
 	}
 	minor, err := strconv.Atoi(versionParts[1])
 	if err != nil {
-		logger.L().Errorw("invalid minor version", "raw", versionParts[1], "error", err)
 		return fmt.Errorf("invalid minor version: %w", err)
 	}
+	logger.L().
+		Debugw("macOS major version", "major_version", major, "minor_version", minor, "supported_macos_version", constants.SupportedMacOSVersionNumber)
 
 	if major < constants.SupportedMacOSVersionNumber ||
 		(major == constants.SupportedMacOSVersionNumber && minor < 0) {
@@ -147,7 +146,6 @@ func (m *MacOSCommand) ValidateOSVersion(verbose bool) error {
 			constants.SupportedMacOSVersionName,
 			constants.SupportedMacOSVersionNumber,
 		)
-		logger.L().Warnw("unsupported macOS version", "version", versionStr)
 		return err
 	}
 
