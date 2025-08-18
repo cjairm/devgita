@@ -106,9 +106,9 @@ func run(cmd *cobra.Command, args []string) {
 	utils.MaybeExitWithError(osCmd.MaybeInstallPackageManager())
 	utils.MaybeExitWithError(osCmd.MaybeInstallPackage("git"))
 
-	installApp()
+	installDevgita()
 
-	setupGlobalConfig()
+	setupDevgitaConfig()
 
 	utils.PrintInfo("Preparing to install essential tools and packages...")
 	t := terminal.New()
@@ -134,7 +134,7 @@ func run(cmd *cobra.Command, args []string) {
 	utils.MaybeExitWithError(err)
 }
 
-func setupGlobalConfig() {
+func setupDevgitaConfig() {
 	utils.PrintInfo("- Setup global config")
 	utils.MaybeExitWithError(config.CreateGlobalConfig())
 	globalConfig, err := config.LoadGlobalConfig()
@@ -144,7 +144,7 @@ func setupGlobalConfig() {
 	utils.MaybeExitWithError(config.SetGlobalConfig(globalConfig))
 }
 
-func installApp() {
+func installDevgita() {
 	utils.PrintInfo("- Install devgita")
 	// Create folder if it doesn't exist
 	utils.MaybeExitWithError(os.MkdirAll(paths.AppDir, 0755))
