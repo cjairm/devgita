@@ -16,6 +16,9 @@
   - We need to confirm if program was installed by us. If update leave the program there
 - REMOVE GIT STUFF or any unrelated to installing new apps
 - Add `verbose` option for all commands
+- Allow select between tmux and zellij
+- Allow select between opencode and claudecode
+- Search for a good terminal app to run AI commands
 
 ### Commands
 

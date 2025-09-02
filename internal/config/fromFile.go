@@ -10,18 +10,45 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+type IgnoredConfig struct {
+	Packages      []string `yaml:"packages"`
+	DesktopApps   []string `yaml:"desktop_apps"`
+	Fonts         []string `yaml:"fonts"`
+	Themes        []string `yaml:"themes"`
+	TerminalTools []string `yaml:"terminal_tools"`
+	DevLanguages  []string `yaml:"dev_languages"`
+	Databases     []string `yaml:"databases"`
+}
+
+type InstalledConfig struct {
+	Packages      []string `yaml:"packages"`
+	DesktopApps   []string `yaml:"desktop_apps"`
+	Fonts         []string `yaml:"fonts"`
+	Themes        []string `yaml:"themes"`
+	TerminalTools []string `yaml:"terminal_tools"`
+	DevLanguages  []string `yaml:"dev_languages"`
+	Databases     []string `yaml:"databases"`
+}
+
+type AlreadyInstalledConfig struct {
+	Packages      []string `yaml:"packages"`
+	DesktopApps   []string `yaml:"desktop_apps"`
+	Fonts         []string `yaml:"fonts"`
+	Themes        []string `yaml:"themes"`
+	TerminalTools []string `yaml:"terminal_tools"`
+	DevLanguages  []string `yaml:"dev_languages"`
+	Databases     []string `yaml:"databases"`
+}
+
 type GlobalConfig struct {
-	AppPath               string            `yaml:"app_path"`
-	ConfigPath            string            `yaml:"config_path"`
-	AvailableFonts        []string          `yaml:"available_fonts"`
-	AvailableThemes       []string          `yaml:"available_themes"`
-	CurrentFont           string            `yaml:"current_font"`
-	CurrentTheme          string            `yaml:"current_theme"`
-	InstalledPackages     []string          `yaml:"installed_packages"`
-	InstalledDesktopApps  []string          `yaml:"installed_desktop_apps"`
-	InstalledDevLanguages []string          `yaml:"installed_dev_languages"`
-	InstalledDatabases    []string          `yaml:"installed_databases"`
-	Shortcuts             map[string]string `yaml:"shortcuts"`
+	AppPath                string                 `yaml:"app_path"`
+	ConfigPath             string                 `yaml:"config_path"`
+	AlreadyInstalledConfig AlreadyInstalledConfig `yaml:"already_installed"`
+	CurrentFont            string                 `yaml:"current_font"`
+	CurrentTheme           string                 `yaml:"current_theme"`
+	Ignored                IgnoredConfig          `yaml:"ignored"`
+	Installed              InstalledConfig        `yaml:"installed"`
+	Shortcuts              map[string]string      `yaml:"shortcuts"`
 }
 
 var globalConfigFilePath = filepath.Join(

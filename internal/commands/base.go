@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/cjairm/devgita/logger"
@@ -285,4 +286,84 @@ func (b *BaseCommand) InstallFontFromURL(url, fontFileName string, runCache bool
 		}
 	}
 	return nil
+}
+func (b *BaseCommand) isTrackedInGlobalConfig(
+	config *config.GlobalConfig,
+	itemName, itemType string,
+) bool {
+	switch itemType {
+	case "font":
+		return slices.Contains(config.Installed.Fonts, itemName)
+	case "package":
+		return slices.Contains(config.Installed.Packages, itemName)
+	case "desktop_app":
+		return slices.Contains(config.Installed.DesktopApps, itemName)
+	case "terminal_tool":
+		return slices.Contains(config.Installed.TerminalTools, itemName)
+	case "theme":
+		return slices.Contains(config.Installed.Themes, itemName)
+	case "dev_language":
+		return slices.Contains(config.Installed.DevLanguages, itemName)
+	case "database":
+		return slices.Contains(config.Installed.Databases, itemName)
+	default:
+		return false
+	}
+}
+
+func (b *BaseCommand) isIgnoredInGlobalConfig(
+	config *config.GlobalConfig,
+	itemName, itemType string,
+) bool {
+	switch itemType {
+	case "font":
+		return slices.Contains(config.Ignored.Fonts, itemName)
+	case "package":
+		return slices.Contains(config.Ignored.Packages, itemName)
+	case "desktop_app":
+		return slices.Contains(config.Ignored.DesktopApps, itemName)
+	case "terminal_tool":
+		return slices.Contains(config.Ignored.TerminalTools, itemName)
+	case "theme":
+		return slices.Contains(config.Ignored.Themes, itemName)
+	case "dev_language":
+		return slices.Contains(config.Ignored.DevLanguages, itemName)
+	case "database":
+		return slices.Contains(config.Ignored.Databases, itemName)
+	default:
+		return false
+	}
+}
+
+func (b *BaseCommand) addToGlobalConfig(config *config.GlobalConfig, itemName, itemType string) {
+	switch itemType {
+	case "font":
+		if !slices.Contains(config.Installed.Fonts, itemName) {
+			config.Installed.Fonts = append(config.Installed.Fonts, itemName)
+		}
+	case "package":
+		if !slices.Contains(config.Installed.Packages, itemName) {
+			config.Installed.Packages = append(config.Installed.Packages, itemName)
+		}
+	case "desktop_app":
+		if !slices.Contains(config.Installed.DesktopApps, itemName) {
+			config.Installed.DesktopApps = append(config.Installed.DesktopApps, itemName)
+		}
+	case "terminal_tool":
+		if !slices.Contains(config.Installed.TerminalTools, itemName) {
+			config.Installed.TerminalTools = append(config.Installed.TerminalTools, itemName)
+		}
+	case "theme":
+		if !slices.Contains(config.Installed.Themes, itemName) {
+			config.Installed.Themes = append(config.Installed.Themes, itemName)
+		}
+	case "dev_language":
+		if !slices.Contains(config.Installed.DevLanguages, itemName) {
+			config.Installed.DevLanguages = append(config.Installed.DevLanguages, itemName)
+		}
+	case "database":
+		if !slices.Contains(config.Installed.Databases, itemName) {
+			config.Installed.Databases = append(config.Installed.Databases, itemName)
+		}
+	}
 }
