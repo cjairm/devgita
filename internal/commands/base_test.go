@@ -1,13 +1,18 @@
 package commands_test
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
 
 	"github.com/cjairm/devgita/internal/commands"
+	"github.com/cjairm/devgita/internal/config"
+	"github.com/cjairm/devgita/logger"
+	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/paths"
+	"gopkg.in/yaml.v3"
 )
 
 type FakePlatform struct {
@@ -267,4 +272,343 @@ func TestIsFontPresent(t *testing.T) {
 			t.Errorf("Expected to find font via fallback directory scan, but did not")
 		}
 	})
+}
+
+// Mock install function that tracks calls for MaybeInstall tests
+type MockInstaller struct {
+	InstallCalled bool
+	InstalledItem string
+	ShouldFail    bool
+}
+
+func (m *MockInstaller) Install(item string) error {
+	m.InstallCalled = true
+	m.InstalledItem = item
+	if m.ShouldFail {
+		return fmt.Errorf("mock install error")
+	}
+	return nil
+}
+
+func (m *MockInstaller) Check(item string) (bool, error) {
+	// Default: item not installed
+	return false, nil
+}
+
+type MockInstallerPresent struct {
+	MockInstaller
+}
+
+func (m *MockInstallerPresent) Check(item string) (bool, error) {
+	// Item is already installed
+	return true, nil
+}
+
+// Helper function to setup test environment for MaybeInstall tests
+func setupMaybeInstallTest(t *testing.T, testConfig *config.GlobalConfig) (cleanup func()) {
+	// Initialize logger for tests
+	logger.Init(false)
+
+	// Set up temporary config - each test gets its own unique directory
+	tempDir := t.TempDir() // This creates a unique temp dir per test
+	configDir := filepath.Join(tempDir, constants.AppName)
+	os.MkdirAll(configDir, 0755)
+	configPath := filepath.Join(configDir, constants.GlobalConfigFile)
+
+	// Marshal and write the test config
+	data, err := yaml.Marshal(testConfig)
+	if err != nil {
+		t.Fatalf("Failed to marshal test config: %v", err)
+	}
+
+	err = os.WriteFile(configPath, data, 0644)
+	if err != nil {
+		t.Fatalf("Failed to write test config file: %v", err)
+	}
+
+	// Override global config path
+	originalConfigDir := paths.ConfigDir
+	paths.ConfigDir = tempDir
+
+	return func() {
+		paths.ConfigDir = originalConfigDir
+	}
+}
+
+func TestMaybeInstall_ItemNotInstalled_InstallsSuccessfully(t *testing.T) {
+	// Create test config
+	testConfig := &config.GlobalConfig{
+		Installed: config.InstalledConfig{
+			Packages: []string{},
+		},
+		AlreadyInstalledConfig: config.AlreadyInstalledConfig{
+			Packages: []string{},
+		},
+		Ignored: config.IgnoredConfig{
+			Packages: []string{},
+		},
+	}
+
+	cleanup := setupMaybeInstallTest(t, testConfig)
+	defer cleanup()
+
+	b := commands.NewBaseCommandCustom(FakePlatform{Mac: true})
+	mockInstaller := &MockInstaller{}
+
+	err := b.MaybeInstall(
+		"test-package",
+		[]string{},
+		mockInstaller.Check,
+		mockInstaller.Install,
+		nil,
+		"package",
+	)
+
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	if !mockInstaller.InstallCalled {
+		t.Errorf("Expected install to be called")
+	}
+
+	if mockInstaller.InstalledItem != "test-package" {
+		t.Errorf("Expected to install 'test-package', got '%s'", mockInstaller.InstalledItem)
+	}
+
+	// Verify item was added to installed config
+	updatedConfig, _ := config.LoadGlobalConfig()
+	if len(updatedConfig.Installed.Packages) != 1 || updatedConfig.Installed.Packages[0] != "test-package" {
+		t.Errorf("Expected 'test-package' to be added to installed config")
+	}
+}
+
+func TestMaybeInstall_ItemAlreadyInstalledByDevgita_SkipsInstall(t *testing.T) {
+	// Create test config with item already installed by devgita
+	testConfig := &config.GlobalConfig{
+		Installed: config.InstalledConfig{
+			Packages: []string{"test-package"},
+		},
+		AlreadyInstalledConfig: config.AlreadyInstalledConfig{
+			Packages: []string{},
+		},
+		Ignored: config.IgnoredConfig{
+			Packages: []string{},
+		},
+	}
+
+	cleanup := setupMaybeInstallTest(t, testConfig)
+	defer cleanup()
+
+	b := commands.NewBaseCommandCustom(FakePlatform{Mac: true})
+	mockInstaller := &MockInstaller{}
+
+	err := b.MaybeInstall(
+		"test-package",
+		[]string{},
+		mockInstaller.Check,
+		mockInstaller.Install,
+		nil,
+		"package",
+	)
+
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	if mockInstaller.InstallCalled {
+		t.Errorf("Expected install NOT to be called for already installed item")
+	}
+}
+
+func TestMaybeInstall_ItemPreExisting_TracksAsAlreadyInstalled(t *testing.T) {
+	// Create test config with empty lists
+	testConfig := &config.GlobalConfig{
+		Installed: config.InstalledConfig{
+			Packages: []string{},
+		},
+		AlreadyInstalledConfig: config.AlreadyInstalledConfig{
+			Packages: []string{},
+		},
+		Ignored: config.IgnoredConfig{
+			Packages: []string{},
+		},
+	}
+
+	// Set up temporary config
+	tempDir := t.TempDir()
+	configDir := filepath.Join(tempDir, constants.AppName)
+	os.MkdirAll(configDir, 0755)
+	configPath := filepath.Join(configDir, constants.GlobalConfigFile)
+
+	data, _ := yaml.Marshal(testConfig)
+	os.WriteFile(configPath, data, 0644)
+
+	// Override global config path
+	originalConfigDir := paths.ConfigDir
+	paths.ConfigDir = tempDir
+	defer func() {
+		paths.ConfigDir = originalConfigDir
+	}()
+
+	b := commands.NewBaseCommandCustom(FakePlatform{Mac: true})
+	mockInstaller := &MockInstallerPresent{} // This will return true for Check()
+
+	err := b.MaybeInstall(
+		"pre-existing-package",
+		[]string{},
+		mockInstaller.Check,
+		mockInstaller.Install,
+		nil,
+		"package",
+	)
+
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	if mockInstaller.InstallCalled {
+		t.Errorf("Expected install NOT to be called for pre-existing item")
+	}
+
+	// Verify item was added to already installed config
+	updatedConfig, _ := config.LoadGlobalConfig()
+	if len(updatedConfig.AlreadyInstalledConfig.Packages) != 1 || updatedConfig.AlreadyInstalledConfig.Packages[0] != "pre-existing-package" {
+		t.Errorf("Expected 'pre-existing-package' to be added to already installed config")
+	}
+}
+
+func TestMaybeInstall_ItemIgnored_SkipsInstall(t *testing.T) {
+	// Create test config with item in ignored list
+	testConfig := &config.GlobalConfig{
+		Installed: config.InstalledConfig{
+			Packages: []string{},
+		},
+		AlreadyInstalledConfig: config.AlreadyInstalledConfig{
+			Packages: []string{},
+		},
+		Ignored: config.IgnoredConfig{
+			Packages: []string{"ignored-package"},
+		},
+	}
+
+	// Set up temporary config
+	tempDir := t.TempDir()
+	configDir := filepath.Join(tempDir, constants.AppName)
+	os.MkdirAll(configDir, 0755)
+	configPath := filepath.Join(configDir, constants.GlobalConfigFile)
+
+	data, _ := yaml.Marshal(testConfig)
+	os.WriteFile(configPath, data, 0644)
+
+	// Override global config path
+	originalConfigDir := paths.ConfigDir
+	paths.ConfigDir = tempDir
+	defer func() {
+		paths.ConfigDir = originalConfigDir
+	}()
+
+	b := commands.NewBaseCommandCustom(FakePlatform{Mac: true})
+	mockInstaller := &MockInstaller{}
+
+	err := b.MaybeInstall(
+		"ignored-package",
+		[]string{},
+		mockInstaller.Check,
+		mockInstaller.Install,
+		nil,
+		"package",
+	)
+
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	if mockInstaller.InstallCalled {
+		t.Errorf("Expected install NOT to be called for ignored item")
+	}
+}
+
+func TestMaybeInstall_DifferentItemTypes(t *testing.T) {
+	testCases := []struct {
+		name     string
+		itemType string
+		itemName string
+	}{
+		{"Font", "font", "test-font"},
+		{"DesktopApp", "desktop_app", "test-app"},
+		{"TerminalTool", "terminal_tool", "test-tool"},
+		{"Theme", "theme", "test-theme"},
+		{"DevLanguage", "dev_language", "test-language"},
+		{"Database", "database", "test-db"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create test config
+			testConfig := &config.GlobalConfig{
+				Installed:              config.InstalledConfig{},
+				AlreadyInstalledConfig: config.AlreadyInstalledConfig{},
+				Ignored:                config.IgnoredConfig{},
+			}
+
+			// Set up temporary config
+			tempDir := t.TempDir()
+			configDir := filepath.Join(tempDir, constants.AppName)
+			os.MkdirAll(configDir, 0755)
+			configPath := filepath.Join(configDir, constants.GlobalConfigFile)
+
+			data, _ := yaml.Marshal(testConfig)
+			os.WriteFile(configPath, data, 0644)
+
+			// Override global config path
+			originalConfigDir := paths.ConfigDir
+			paths.ConfigDir = tempDir
+			defer func() {
+				paths.ConfigDir = originalConfigDir
+			}()
+
+			b := commands.NewBaseCommandCustom(FakePlatform{Mac: true})
+			mockInstaller := &MockInstaller{}
+
+			err := b.MaybeInstall(
+				tc.itemName,
+				[]string{},
+				mockInstaller.Check,
+				mockInstaller.Install,
+				nil,
+				tc.itemType,
+			)
+
+			if err != nil {
+				t.Fatalf("Expected no error, got: %v", err)
+			}
+
+			if !mockInstaller.InstallCalled {
+				t.Errorf("Expected install to be called for %s", tc.itemType)
+			}
+
+			// Verify item was added to correct section of installed config
+			updatedConfig, _ := config.LoadGlobalConfig()
+			found := false
+			switch tc.itemType {
+			case "font":
+				found = len(updatedConfig.Installed.Fonts) == 1 && updatedConfig.Installed.Fonts[0] == tc.itemName
+			case "desktop_app":
+				found = len(updatedConfig.Installed.DesktopApps) == 1 && updatedConfig.Installed.DesktopApps[0] == tc.itemName
+			case "terminal_tool":
+				found = len(updatedConfig.Installed.TerminalTools) == 1 && updatedConfig.Installed.TerminalTools[0] == tc.itemName
+			case "theme":
+				found = len(updatedConfig.Installed.Themes) == 1 && updatedConfig.Installed.Themes[0] == tc.itemName
+			case "dev_language":
+				found = len(updatedConfig.Installed.DevLanguages) == 1 && updatedConfig.Installed.DevLanguages[0] == tc.itemName
+			case "database":
+				found = len(updatedConfig.Installed.Databases) == 1 && updatedConfig.Installed.Databases[0] == tc.itemName
+			}
+
+			if !found {
+				t.Errorf("Expected '%s' to be added to installed %s config", tc.itemName, tc.itemType)
+			}
+		})
+	}
 }

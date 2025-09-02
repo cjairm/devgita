@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/logger"
 	"github.com/cjairm/devgita/pkg/files"
 	"github.com/cjairm/devgita/pkg/paths"
@@ -228,6 +229,7 @@ func (b *BaseCommand) MaybeInstall(
 	checkInstalled func(string) (bool, error),
 	installFunc func(string) error,
 	installURLFunc func(string) error, // Optional: Handle URL-based installation (e.g., for fonts)
+	itemType string,
 ) error {
 	var isInstalled bool
 	var err error
@@ -236,21 +238,53 @@ func (b *BaseCommand) MaybeInstall(
 		pkgToInstall = alias[0]
 	}
 
-	// Check if the item is installed
+	globalConfig, err := config.LoadGlobalConfig()
+	if err != nil {
+		logger.L().Errorw("Could not load global config", "error", err)
+		return err
+	} else {
+		if b.isTrackedInGlobalConfig(globalConfig, pkgToInstall, itemType) {
+			logger.L().Debugw("Item already tracked as installed by devgita", "item", pkgToInstall, "type", itemType)
+			return nil
+		}
+		if b.isTrackedInAlreadyInstalledConfig(globalConfig, pkgToInstall, itemType) {
+			logger.L().Debugw("Item already tracked as pre-existing", "item", pkgToInstall, "type", itemType)
+			return nil
+		}
+		if b.isIgnoredInGlobalConfig(globalConfig, pkgToInstall, itemType) {
+			logger.L().Debugw("Item is ignored, skipping", "item", pkgToInstall, "type", itemType)
+			return nil
+		}
+	}
+
 	isInstalled, err = checkInstalled(pkgToInstall)
 	if err != nil {
 		return err
 	}
 
-	// If installed, do nothing
 	if isInstalled {
+		if globalConfig != nil {
+			b.addToAlreadyInstalledConfig(globalConfig, pkgToInstall, itemType)
+			config.SetGlobalConfig(globalConfig)
+		}
 		return nil
 	}
 
+	var installErr error
 	if installURLFunc != nil {
-		return installURLFunc(pkgToInstall)
+		installErr = installURLFunc(pkgToInstall)
+	} else {
+		installErr = installFunc(pkgToInstall)
 	}
-	return installFunc(pkgToInstall)
+
+	if installErr == nil && globalConfig != nil {
+		b.addToGlobalConfig(globalConfig, pkgToInstall, itemType)
+		if err := config.SetGlobalConfig(globalConfig); err != nil {
+			logger.L().Errorw("Failed to update global config after installation", "error", err)
+		}
+	}
+
+	return installErr
 }
 
 func (b *BaseCommand) InstallFontFromURL(url, fontFileName string, runCache bool) error {
@@ -364,6 +398,89 @@ func (b *BaseCommand) addToGlobalConfig(config *config.GlobalConfig, itemName, i
 	case "database":
 		if !slices.Contains(config.Installed.Databases, itemName) {
 			config.Installed.Databases = append(config.Installed.Databases, itemName)
+		}
+	}
+}
+
+// Helper function to check if item is tracked in already installed config
+func (b *BaseCommand) isTrackedInAlreadyInstalledConfig(
+	config *config.GlobalConfig,
+	itemName, itemType string,
+) bool {
+	switch itemType {
+	case "font":
+		return slices.Contains(config.AlreadyInstalledConfig.Fonts, itemName)
+	case "package":
+		return slices.Contains(config.AlreadyInstalledConfig.Packages, itemName)
+	case "desktop_app":
+		return slices.Contains(config.AlreadyInstalledConfig.DesktopApps, itemName)
+	case "terminal_tool":
+		return slices.Contains(config.AlreadyInstalledConfig.TerminalTools, itemName)
+	case "theme":
+		return slices.Contains(config.AlreadyInstalledConfig.Themes, itemName)
+	case "dev_language":
+		return slices.Contains(config.AlreadyInstalledConfig.DevLanguages, itemName)
+	case "database":
+		return slices.Contains(config.AlreadyInstalledConfig.Databases, itemName)
+	default:
+		return false
+	}
+}
+
+// Helper function to add item to already installed config
+func (b *BaseCommand) addToAlreadyInstalledConfig(
+	config *config.GlobalConfig,
+	itemName, itemType string,
+) {
+	switch itemType {
+	case "font":
+		if !slices.Contains(config.AlreadyInstalledConfig.Fonts, itemName) {
+			config.AlreadyInstalledConfig.Fonts = append(
+				config.AlreadyInstalledConfig.Fonts,
+				itemName,
+			)
+		}
+	case "package":
+		if !slices.Contains(config.AlreadyInstalledConfig.Packages, itemName) {
+			config.AlreadyInstalledConfig.Packages = append(
+				config.AlreadyInstalledConfig.Packages,
+				itemName,
+			)
+		}
+	case "desktop_app":
+		if !slices.Contains(config.AlreadyInstalledConfig.DesktopApps, itemName) {
+			config.AlreadyInstalledConfig.DesktopApps = append(
+				config.AlreadyInstalledConfig.DesktopApps,
+				itemName,
+			)
+		}
+	case "terminal_tool":
+		if !slices.Contains(config.AlreadyInstalledConfig.TerminalTools, itemName) {
+			config.AlreadyInstalledConfig.TerminalTools = append(
+				config.AlreadyInstalledConfig.TerminalTools,
+				itemName,
+			)
+		}
+	case "theme":
+		if !slices.Contains(config.AlreadyInstalledConfig.Themes, itemName) {
+			config.AlreadyInstalledConfig.Themes = append(
+				config.AlreadyInstalledConfig.Themes,
+				itemName,
+			)
+		}
+	case "dev_language":
+		if !slices.Contains(config.AlreadyInstalledConfig.DevLanguages, itemName) {
+			config.AlreadyInstalledConfig.DevLanguages = append(
+				config.AlreadyInstalledConfig.DevLanguages,
+				itemName,
+			)
+		}
+	case "database":
+		if !slices.Contains(config.AlreadyInstalledConfig.Databases, itemName) {
+			config.AlreadyInstalledConfig.Databases = append(
+				config.AlreadyInstalledConfig.Databases,
+				itemName,
+			)
 		}
 	}
 }

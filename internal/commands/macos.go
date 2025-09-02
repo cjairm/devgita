@@ -17,7 +17,7 @@ type MacOSCommand struct {
 }
 
 func (m *MacOSCommand) MaybeInstallPackage(packageName string, alias ...string) error {
-	return m.MaybeInstall(packageName, alias, m.IsPackageInstalled, m.InstallPackage, nil)
+	return m.MaybeInstall(packageName, alias, m.IsPackageInstalled, m.InstallPackage, nil, "package")
 }
 
 func (m *MacOSCommand) MaybeInstallDesktopApp(desktopAppName string, alias ...string) error {
@@ -27,7 +27,7 @@ func (m *MacOSCommand) MaybeInstallDesktopApp(desktopAppName string, alias ...st
 			isInstalled, err = m.IsDesktopAppPresent(paths.UserApplicationsDir, name)
 		}
 		return isInstalled, err
-	}, m.InstallDesktopApp, nil)
+	}, m.InstallDesktopApp, nil, "desktop_app")
 }
 
 func (m *MacOSCommand) MaybeInstallFont(
@@ -41,7 +41,7 @@ func (m *MacOSCommand) MaybeInstallFont(
 			isInstalled, err = m.IsFontPresent(name)
 		}
 		return isInstalled, err
-	}, m.InstallDesktopApp, nil)
+	}, m.InstallDesktopApp, nil, "font")
 }
 
 func (m *MacOSCommand) InstallPackage(packageName string) error {

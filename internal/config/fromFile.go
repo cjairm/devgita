@@ -10,6 +10,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// Used when users opted to ignore certain installations or when some failured happened
 type IgnoredConfig struct {
 	Packages      []string `yaml:"packages"`
 	DesktopApps   []string `yaml:"desktop_apps"`
@@ -20,6 +21,7 @@ type IgnoredConfig struct {
 	Databases     []string `yaml:"databases"`
 }
 
+// Used to store what this app installed
 type InstalledConfig struct {
 	Packages      []string `yaml:"packages"`
 	DesktopApps   []string `yaml:"desktop_apps"`
@@ -30,6 +32,7 @@ type InstalledConfig struct {
 	Databases     []string `yaml:"databases"`
 }
 
+// Used to store config that user already had installed before using this app
 type AlreadyInstalledConfig struct {
 	Packages      []string `yaml:"packages"`
 	DesktopApps   []string `yaml:"desktop_apps"`
@@ -51,14 +54,16 @@ type GlobalConfig struct {
 	Shortcuts              map[string]string      `yaml:"shortcuts"`
 }
 
-var globalConfigFilePath = filepath.Join(
-	paths.ConfigDir,
-	constants.AppName,
-	constants.GlobalConfigFile,
-)
+func getGlobalConfigFilePath() string {
+	return filepath.Join(
+		paths.ConfigDir,
+		constants.AppName,
+		constants.GlobalConfigFile,
+	)
+}
 
 func LoadGlobalConfig() (*GlobalConfig, error) {
-	globalConfigFile, err := os.ReadFile(globalConfigFilePath)
+	globalConfigFile, err := os.ReadFile(getGlobalConfigFilePath())
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +80,7 @@ func SetGlobalConfig(globalConfig *GlobalConfig) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(globalConfigFilePath, file, 0644)
+	return os.WriteFile(getGlobalConfigFilePath(), file, 0644)
 }
 
 func ResetGlobalConfig() error {
@@ -83,10 +88,11 @@ func ResetGlobalConfig() error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(globalConfigFilePath, data, 0644)
+	return os.WriteFile(getGlobalConfigFilePath(), data, 0644)
 }
 
 func CreateGlobalConfig() error {
+	globalConfigFilePath := getGlobalConfigFilePath()
 	if paths.FileAlreadyExist(globalConfigFilePath) {
 		return nil
 	}

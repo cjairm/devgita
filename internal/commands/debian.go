@@ -18,13 +18,13 @@ type DebianCommand struct {
 }
 
 func (d *DebianCommand) MaybeInstallPackage(packageName string, alias ...string) error {
-	return d.MaybeInstall(packageName, alias, d.IsPackageInstalled, d.InstallPackage, nil)
+	return d.MaybeInstall(packageName, alias, d.IsPackageInstalled, d.InstallPackage, nil, "package")
 }
 
 func (d *DebianCommand) MaybeInstallDesktopApp(desktopAppName string, alias ...string) error {
 	return d.MaybeInstall(desktopAppName, alias, func(name string) (bool, error) {
 		return d.IsDesktopAppInstalled(name)
-	}, d.InstallDesktopApp, nil)
+	}, d.InstallDesktopApp, nil, "desktop_app")
 }
 
 func (d *DebianCommand) MaybeInstallFont(
@@ -37,7 +37,7 @@ func (d *DebianCommand) MaybeInstallFont(
 		return isInstalled, err
 	}, d.InstallPackage, func(name string) error {
 		return d.InstallFontFromURL(url, name, runCache)
-	})
+	}, "font")
 }
 
 func (d *DebianCommand) InstallPackage(packageName string) error {
