@@ -265,7 +265,7 @@ func (b *BaseCommand) MaybeInstall(
 	if isInstalled {
 		if globalConfig != nil {
 			b.addToAlreadyInstalledConfig(globalConfig, pkgToInstall, itemType)
-			config.SetGlobalConfig(globalConfig)
+			globalConfig.Save()
 		}
 		return nil
 	}
@@ -279,7 +279,7 @@ func (b *BaseCommand) MaybeInstall(
 
 	if installErr == nil && globalConfig != nil {
 		b.addToGlobalConfig(globalConfig, pkgToInstall, itemType)
-		if err := config.SetGlobalConfig(globalConfig); err != nil {
+		if err := globalConfig.Save(); err != nil {
 			logger.L().Errorw("Failed to update global config after installation", "error", err)
 		}
 	}

@@ -105,3 +105,43 @@ func CreateGlobalConfig() error {
 	}
 	return ResetGlobalConfig()
 }
+
+func (gc *GlobalConfig) Load() error {
+	globalConfigFile, err := os.ReadFile(getGlobalConfigFilePath())
+	if err != nil {
+		return err
+	}
+	return yaml.Unmarshal(globalConfigFile, gc)
+}
+
+func (gc *GlobalConfig) Save() error {
+	file, err := yaml.Marshal(gc)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(getGlobalConfigFilePath(), file, 0644)
+}
+
+func (gc *GlobalConfig) Reset() error {
+	*gc = GlobalConfig{}
+	data, err := yaml.Marshal(gc)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(getGlobalConfigFilePath(), data, 0644)
+}
+
+func (gc *GlobalConfig) Create() error {
+	globalConfigFilePath := getGlobalConfigFilePath()
+	if paths.FileAlreadyExist(globalConfigFilePath) {
+		return nil
+	}
+	// Move file to keep the original clean
+	if err := files.CopyFile(
+		filepath.Join(paths.BashConfigAppDir, constants.GlobalConfigFile),
+		globalConfigFilePath,
+	); err != nil {
+		return err
+	}
+	return gc.Reset()
+}

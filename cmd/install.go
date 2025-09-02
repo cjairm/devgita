@@ -141,7 +141,7 @@ func setupDevgitaConfig() {
 	utils.MaybeExitWithError(err)
 	globalConfig.AppPath = paths.AppDir
 	globalConfig.ConfigPath = filepath.Join(paths.ConfigDir, constants.AppName)
-	utils.MaybeExitWithError(config.SetGlobalConfig(globalConfig))
+	utils.MaybeExitWithError(globalConfig.Save())
 }
 
 func installDevgita() {

@@ -377,7 +377,8 @@ func TestMaybeInstall_ItemNotInstalled_InstallsSuccessfully(t *testing.T) {
 	}
 
 	// Verify item was added to installed config
-	updatedConfig, _ := config.LoadGlobalConfig()
+	var updatedConfig config.GlobalConfig
+	updatedConfig.Load()
 	if len(updatedConfig.Installed.Packages) != 1 || updatedConfig.Installed.Packages[0] != "test-package" {
 		t.Errorf("Expected 'test-package' to be added to installed config")
 	}
@@ -472,7 +473,8 @@ func TestMaybeInstall_ItemPreExisting_TracksAsAlreadyInstalled(t *testing.T) {
 	}
 
 	// Verify item was added to already installed config
-	updatedConfig, _ := config.LoadGlobalConfig()
+	var updatedConfig config.GlobalConfig
+	updatedConfig.Load()
 	if len(updatedConfig.AlreadyInstalledConfig.Packages) != 1 || updatedConfig.AlreadyInstalledConfig.Packages[0] != "pre-existing-package" {
 		t.Errorf("Expected 'pre-existing-package' to be added to already installed config")
 	}
@@ -589,7 +591,8 @@ func TestMaybeInstall_DifferentItemTypes(t *testing.T) {
 			}
 
 			// Verify item was added to correct section of installed config
-			updatedConfig, _ := config.LoadGlobalConfig()
+			var updatedConfig config.GlobalConfig
+			updatedConfig.Load()
 			found := false
 			switch tc.itemType {
 			case "font":
