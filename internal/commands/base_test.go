@@ -341,10 +341,7 @@ func TestMaybeInstall_ItemNotInstalled_InstallsSuccessfully(t *testing.T) {
 		Installed: config.InstalledConfig{
 			Packages: []string{},
 		},
-		AlreadyInstalledConfig: config.AlreadyInstalledConfig{
-			Packages: []string{},
-		},
-		Ignored: config.IgnoredConfig{
+		AlreadyInstalled: config.AlreadyInstalledConfig{
 			Packages: []string{},
 		},
 	}
@@ -390,10 +387,7 @@ func TestMaybeInstall_ItemAlreadyInstalledByDevgita_SkipsInstall(t *testing.T) {
 		Installed: config.InstalledConfig{
 			Packages: []string{"test-package"},
 		},
-		AlreadyInstalledConfig: config.AlreadyInstalledConfig{
-			Packages: []string{},
-		},
-		Ignored: config.IgnoredConfig{
+		AlreadyInstalled: config.AlreadyInstalledConfig{
 			Packages: []string{},
 		},
 	}
@@ -428,10 +422,7 @@ func TestMaybeInstall_ItemPreExisting_TracksAsAlreadyInstalled(t *testing.T) {
 		Installed: config.InstalledConfig{
 			Packages: []string{},
 		},
-		AlreadyInstalledConfig: config.AlreadyInstalledConfig{
-			Packages: []string{},
-		},
-		Ignored: config.IgnoredConfig{
+		AlreadyInstalled: config.AlreadyInstalledConfig{
 			Packages: []string{},
 		},
 	}
@@ -475,59 +466,8 @@ func TestMaybeInstall_ItemPreExisting_TracksAsAlreadyInstalled(t *testing.T) {
 	// Verify item was added to already installed config
 	var updatedConfig config.GlobalConfig
 	updatedConfig.Load()
-	if len(updatedConfig.AlreadyInstalledConfig.Packages) != 1 || updatedConfig.AlreadyInstalledConfig.Packages[0] != "pre-existing-package" {
+	if len(updatedConfig.AlreadyInstalled.Packages) != 1 || updatedConfig.AlreadyInstalled.Packages[0] != "pre-existing-package" {
 		t.Errorf("Expected 'pre-existing-package' to be added to already installed config")
-	}
-}
-
-func TestMaybeInstall_ItemIgnored_SkipsInstall(t *testing.T) {
-	// Create test config with item in ignored list
-	testConfig := &config.GlobalConfig{
-		Installed: config.InstalledConfig{
-			Packages: []string{},
-		},
-		AlreadyInstalledConfig: config.AlreadyInstalledConfig{
-			Packages: []string{},
-		},
-		Ignored: config.IgnoredConfig{
-			Packages: []string{"ignored-package"},
-		},
-	}
-
-	// Set up temporary config
-	tempDir := t.TempDir()
-	configDir := filepath.Join(tempDir, constants.AppName)
-	os.MkdirAll(configDir, 0755)
-	configPath := filepath.Join(configDir, constants.GlobalConfigFile)
-
-	data, _ := yaml.Marshal(testConfig)
-	os.WriteFile(configPath, data, 0644)
-
-	// Override global config path
-	originalConfigDir := paths.ConfigDir
-	paths.ConfigDir = tempDir
-	defer func() {
-		paths.ConfigDir = originalConfigDir
-	}()
-
-	b := commands.NewBaseCommandCustom(FakePlatform{Mac: true})
-	mockInstaller := &MockInstaller{}
-
-	err := b.MaybeInstall(
-		"ignored-package",
-		[]string{},
-		mockInstaller.Check,
-		mockInstaller.Install,
-		nil,
-		"package",
-	)
-
-	if err != nil {
-		t.Fatalf("Expected no error, got: %v", err)
-	}
-
-	if mockInstaller.InstallCalled {
-		t.Errorf("Expected install NOT to be called for ignored item")
 	}
 }
 
@@ -549,9 +489,8 @@ func TestMaybeInstall_DifferentItemTypes(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Create test config
 			testConfig := &config.GlobalConfig{
-				Installed:              config.InstalledConfig{},
-				AlreadyInstalledConfig: config.AlreadyInstalledConfig{},
-				Ignored:                config.IgnoredConfig{},
+				Installed:        config.InstalledConfig{},
+				AlreadyInstalled: config.AlreadyInstalledConfig{},
 			}
 
 			// Set up temporary config

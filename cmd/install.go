@@ -84,12 +84,6 @@ func run(cmd *cobra.Command, args []string) {
 		skipSet[item] = true
 	}
 
-	// Example of how to use the shouldInstall function
-	// if shouldInstall("terminal", onlySet, skipSet) {
-	// 	fmt.Println("🔧 Installing terminal tools...")
-	// 	// installTerminal()
-	// }
-
 	var err error
 
 	utils.PrintBold(constants.Devgita)
@@ -111,27 +105,42 @@ func run(cmd *cobra.Command, args []string) {
 	setupDevgitaConfig()
 
 	utils.PrintInfo("Preparing to install essential tools and packages...")
-	t := terminal.New()
-	t.InstallAll()
+	if shouldInstall("terminal", onlySet, skipSet) {
+		t := terminal.New()
+		t.InstallAll()
+		err = t.ConfigureZsh()
+		utils.MaybeExitWithError(err)
+	} else {
+		utils.PrintInfo("Skipping terminal tools installation")
+	}
 
-	utils.PrintInfo("Installing development languages")
-	dl := devlanguages.New()
-	ctx, err = dl.ChooseLanguages(ctx)
-	utils.MaybeExitWithError(err)
-	dl.InstallChosen(ctx)
+	if shouldInstall("languages", onlySet, skipSet) {
+		utils.PrintInfo("Installing development languages")
+		dl := devlanguages.New()
+		ctx, err = dl.ChooseLanguages(ctx)
+		utils.MaybeExitWithError(err)
+		dl.InstallChosen(ctx)
+	} else {
+		utils.PrintInfo("Skipping development languages installation")
+	}
 
 	utils.PrintInfo("Installing databases")
-	db := databases.New()
-	ctx, err = db.ChooseDatabases(ctx)
-	utils.MaybeExitWithError(err)
-	db.InstallChosen(ctx)
+	if shouldInstall("databases", onlySet, skipSet) {
+		db := databases.New()
+		ctx, err = db.ChooseDatabases(ctx)
+		utils.MaybeExitWithError(err)
+		db.InstallChosen(ctx)
+	} else {
+		utils.PrintInfo("Skipping databases installation")
+	}
 
 	utils.PrintInfo("Preparing to install desktop apps...")
-	d := desktop.New()
-	d.InstallAll()
-
-	err = t.ConfigureZsh()
-	utils.MaybeExitWithError(err)
+	if shouldInstall("desktop", onlySet, skipSet) {
+		d := desktop.New()
+		d.InstallAll()
+	} else {
+		utils.PrintInfo("Skipping desktop apps installation")
+	}
 }
 
 func setupDevgitaConfig() {
