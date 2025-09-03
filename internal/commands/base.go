@@ -238,8 +238,8 @@ func (b *BaseCommand) MaybeInstall(
 		pkgToInstall = alias[0]
 	}
 
-	globalConfig, err := config.LoadGlobalConfig()
-	if err != nil {
+	globalConfig := &config.GlobalConfig{}
+	if err := globalConfig.Load(); err != nil {
 		logger.L().Errorw("Could not load global config", "error", err)
 		return err
 	} else {

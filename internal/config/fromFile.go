@@ -62,50 +62,6 @@ func getGlobalConfigFilePath() string {
 	)
 }
 
-func LoadGlobalConfig() (*GlobalConfig, error) {
-	globalConfigFile, err := os.ReadFile(getGlobalConfigFilePath())
-	if err != nil {
-		return nil, err
-	}
-	var globalConfig GlobalConfig
-	err = yaml.Unmarshal(globalConfigFile, &globalConfig)
-	if err != nil {
-		return nil, err
-	}
-	return &globalConfig, nil
-}
-
-func SetGlobalConfig(globalConfig *GlobalConfig) error {
-	file, err := yaml.Marshal(globalConfig)
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(getGlobalConfigFilePath(), file, 0644)
-}
-
-func ResetGlobalConfig() error {
-	data, err := yaml.Marshal(&GlobalConfig{})
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(getGlobalConfigFilePath(), data, 0644)
-}
-
-func CreateGlobalConfig() error {
-	globalConfigFilePath := getGlobalConfigFilePath()
-	if paths.FileAlreadyExist(globalConfigFilePath) {
-		return nil
-	}
-	// Move file to keep the original clean
-	if err := files.CopyFile(
-		filepath.Join(paths.BashConfigAppDir, constants.GlobalConfigFile),
-		globalConfigFilePath,
-	); err != nil {
-		return err
-	}
-	return ResetGlobalConfig()
-}
-
 func (gc *GlobalConfig) Load() error {
 	globalConfigFile, err := os.ReadFile(getGlobalConfigFilePath())
 	if err != nil {
@@ -136,7 +92,6 @@ func (gc *GlobalConfig) Create() error {
 	if paths.FileAlreadyExist(globalConfigFilePath) {
 		return nil
 	}
-	// Move file to keep the original clean
 	if err := files.CopyFile(
 		filepath.Join(paths.BashConfigAppDir, constants.GlobalConfigFile),
 		globalConfigFilePath,

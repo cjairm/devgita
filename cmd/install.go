@@ -136,9 +136,9 @@ func run(cmd *cobra.Command, args []string) {
 
 func setupDevgitaConfig() {
 	utils.PrintInfo("- Setup global config")
-	utils.MaybeExitWithError(config.CreateGlobalConfig())
-	globalConfig, err := config.LoadGlobalConfig()
-	utils.MaybeExitWithError(err)
+	globalConfig := &config.GlobalConfig{}
+	utils.MaybeExitWithError(globalConfig.Create())
+	utils.MaybeExitWithError(globalConfig.Load())
 	globalConfig.AppPath = paths.AppDir
 	globalConfig.ConfigPath = filepath.Join(paths.ConfigDir, constants.AppName)
 	utils.MaybeExitWithError(globalConfig.Save())
