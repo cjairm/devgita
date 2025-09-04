@@ -18,6 +18,7 @@
 - Add `verbose` option for all commands
 - Allow select between tmux and zellij
 - Allow select between opencode and claudecode
+- Install Ollama? So create a new category? AI tools?
 - Search for a good terminal app to run AI commands
 
 ### Commands
