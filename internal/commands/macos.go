@@ -52,6 +52,7 @@ func (m *MacOSCommand) MaybeInstallFont(
 }
 
 func (m *MacOSCommand) InstallPackage(packageName string) error {
+	logger.L().Debug(fmt.Sprintf("executing: brew install %s", packageName))
 	cmd := CommandParams{
 		PreExecMsg:  fmt.Sprintf("Installing %s...", strings.ToLower(packageName)),
 		PostExecMsg: "",
@@ -66,6 +67,7 @@ func (m *MacOSCommand) InstallPackage(packageName string) error {
 }
 
 func (m *MacOSCommand) InstallDesktopApp(packageName string) error {
+	logger.L().Debug(fmt.Sprintf("executing: brew install --cask %s", packageName))
 	cmd := CommandParams{
 		PreExecMsg:  fmt.Sprintf("Installing %s...", strings.ToLower(packageName)),
 		PostExecMsg: "",
@@ -94,6 +96,8 @@ func (m *MacOSCommand) MaybeInstallPackageManager() error {
 }
 
 func (m *MacOSCommand) InstallPackageManager() error {
+	logger.L().
+		Debug("executing: /bin/bash -c $(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)")
 	cmd := CommandParams{
 		PreExecMsg:  "Installing Homebrew",
 		PostExecMsg: "Homebrew installed ✔",
@@ -160,11 +164,13 @@ func (m *MacOSCommand) ValidateOSVersion(verbose bool) error {
 }
 
 func (m *MacOSCommand) IsPackageInstalled(packageName string) (bool, error) {
+	logger.L().Debug("executing: brew list")
 	cmd := exec.Command("brew", "list")
 	return m.IsPackagePresent(cmd, packageName)
 }
 
 func (m *MacOSCommand) IsDesktopAppInstalled(desktopAppName string) (bool, error) {
+	logger.L().Debug("executing: brew list --cask")
 	cmd := exec.Command("brew", "list", "--cask")
 	return m.IsPackagePresent(cmd, desktopAppName)
 }

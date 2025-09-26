@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"slices"
 
+	"github.com/cjairm/devgita/logger"
 	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/files"
 	"github.com/cjairm/devgita/pkg/paths"
@@ -68,6 +69,7 @@ func (gc *GlobalConfig) Save() error {
 }
 
 func (gc *GlobalConfig) Reset() error {
+	logger.L().Info("Resetting global config")
 	*gc = GlobalConfig{}
 	data, err := yaml.Marshal(gc)
 	if err != nil {

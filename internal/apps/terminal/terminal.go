@@ -15,6 +15,7 @@ import (
 	"github.com/cjairm/devgita/internal/apps/syntaxhighlighting"
 	"github.com/cjairm/devgita/internal/apps/tmux"
 	commands "github.com/cjairm/devgita/internal/commands"
+	"github.com/cjairm/devgita/logger"
 	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/files"
 	"github.com/cjairm/devgita/pkg/paths"
@@ -330,8 +331,8 @@ func isXcodeInstalled() (bool, error) {
 
 func ifErrorDisplayMessage(err error, packageName string) {
 	if err != nil {
+		logger.L().Error("Error installing "+packageName, "error", err)
 		utils.PrintError("Error installing " + packageName + ": ")
-		utils.PrintError(err.Error())
 		utils.PrintWarning("Proceeding... (To halt the installation, press ctrl+c)")
 	}
 }

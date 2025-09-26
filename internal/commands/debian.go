@@ -147,6 +147,7 @@ func (d *DebianCommand) ValidateOSVersion(verbose bool) error {
 }
 
 func (d *DebianCommand) IsPackageInstalled(packageName string) (bool, error) {
+	logger.L().Debug("executing: dpkg -l")
 	cmd := exec.Command("dpkg", "-l")
 	return d.IsPackagePresent(cmd, packageName)
 }
@@ -165,6 +166,7 @@ func (d *DebianCommand) IsDesktopAppInstalled(appName string) (bool, error) {
 }
 
 func (d *DebianCommand) installWithApt(packageName string) error {
+	logger.L().Debug(fmt.Sprintf("executing: apt install -y %s", packageName))
 	cmd := CommandParams{
 		PreExecMsg:  fmt.Sprintf("Installing %s...", strings.ToLower(packageName)),
 		PostExecMsg: "",
@@ -179,6 +181,7 @@ func (d *DebianCommand) installWithApt(packageName string) error {
 }
 
 func (d *DebianCommand) installWithSnap(packageName string) error {
+	logger.L().Debug(fmt.Sprintf("executing: snap install %s", packageName))
 	cmd := CommandParams{
 		PreExecMsg:  fmt.Sprintf("Installing %s via Snap...", strings.ToLower(packageName)),
 		PostExecMsg: "",

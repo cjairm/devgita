@@ -4,9 +4,10 @@ import (
 	"context"
 	"strings"
 
-	cmd "github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/internal/apps/mise"
+	cmd "github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/internal/config"
+	"github.com/cjairm/devgita/logger"
 	"github.com/cjairm/devgita/pkg/promptui"
 	"github.com/cjairm/devgita/pkg/utils"
 )
@@ -46,6 +47,7 @@ func (dl *DevLanguages) AvailableLanguages() []string {
 func (dl *DevLanguages) ChooseLanguages(ctx context.Context) (context.Context, error) {
 	languages := dl.AvailableLanguages()
 	selectedLanguages, err := promptui.MultiSelect("Select programming languages", languages)
+	logger.L().Info("Selected languages: ", selectedLanguages)
 	if err != nil {
 		return nil, err
 	}
@@ -56,6 +58,7 @@ func (dl *DevLanguages) ChooseLanguages(ctx context.Context) (context.Context, e
 
 func (dl *DevLanguages) InstallChosen(ctx context.Context) {
 	selections, ok := config.GetConfig(ctx)
+	logger.L().Info("Installing chosen languages: ", selections.SelectedLanguages)
 	if ok {
 		if len(selections.SelectedLanguages) > 0 {
 			for _, language := range selections.SelectedLanguages {

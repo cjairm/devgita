@@ -258,6 +258,8 @@ func (b *BaseCommand) MaybeInstall(
 	}
 
 	if isInstalled {
+		logger.L().
+			Infow("Item is already installed, marking as such in global config", "item", pkgToInstall, "type", itemType)
 		globalConfig.AddToAlreadyInstalled(pkgToInstall, itemType)
 		globalConfig.Save()
 		return nil

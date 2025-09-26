@@ -1,6 +1,9 @@
 package fonts
 
-import cmd "github.com/cjairm/devgita/internal/commands"
+import (
+	cmd "github.com/cjairm/devgita/internal/commands"
+	"github.com/cjairm/devgita/logger"
+)
 
 type Fonts struct {
 	Cmd cmd.Command
@@ -31,6 +34,7 @@ func (f *Fonts) Available() []string {
 
 func (f *Fonts) MaybeInstallAll() {
 	availableFonts := f.Available()
+	logger.L().Info("Available fonts: ", availableFonts)
 	if len(availableFonts) > 0 {
 		for _, font := range availableFonts {
 			f.MaybeInstall(font)

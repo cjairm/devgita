@@ -5,6 +5,7 @@ import (
 	"github.com/cjairm/devgita/internal/apps/alacritty"
 	"github.com/cjairm/devgita/internal/apps/fonts"
 	cmd "github.com/cjairm/devgita/internal/commands"
+	"github.com/cjairm/devgita/logger"
 	"github.com/cjairm/devgita/pkg/promptui"
 	"github.com/cjairm/devgita/pkg/utils"
 )
@@ -137,8 +138,8 @@ func (d *Desktop) DisplayPrivacyInstructions() error {
 
 func ifErrorDisplayMessage(err error, packageName string) {
 	if err != nil {
+		logger.L().Error("Error installing "+packageName, "error", err)
 		utils.PrintError("Error installing " + packageName + ": ")
-		utils.PrintError(err.Error())
 		utils.PrintWarning("Proceeding... (To halt the installation, press ctrl+c)")
 	}
 }

@@ -5,9 +5,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/cjairm/devgita/logger"
 )
 
 func CopyFile(src, dst string) error {
+	logger.L().Debug("Copying file", "src", src, "dst", dst)
 	input, err := os.ReadFile(src)
 	if err != nil {
 		return err
@@ -16,6 +19,7 @@ func CopyFile(src, dst string) error {
 }
 
 func CopyDir(src, dst string) error {
+	logger.L().Debug("Copying directory", "src", src, "dst", dst)
 	entries, err := os.ReadDir(src)
 	if err != nil {
 		return err
@@ -57,6 +61,8 @@ func DirAlreadyExist(folderPath string) bool {
 }
 
 func UpdateFile(filePath, searchText, replacementText string) error {
+	logger.L().
+		Debug("Updating file", "filePath", filePath, "searchText", searchText, "replacementText", replacementText)
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return err
@@ -68,7 +74,10 @@ func UpdateFile(filePath, searchText, replacementText string) error {
 	return nil
 }
 
+// NOTE: Maybe optimize for large files by reading line by line :thinking: or reuse a library
 func ContentExistsInFile(filePath, substringToFind string) (bool, error) {
+	logger.L().
+		Debug("Checking if content exists in file", "filePath", filePath, "substringToFind", substringToFind)
 	file, err := os.Open(filePath)
 	if err != nil {
 		return false, err
@@ -88,7 +97,9 @@ func ContentExistsInFile(filePath, substringToFind string) (bool, error) {
 	return false, nil
 }
 
+// NOTE: Maybe optimize for large files by appending directly without reading entire file into memory
 func AddLineToFile(line, filePath string) error {
+	logger.L().Debug("Adding line to file", "line", line, "filePath", filePath)
 	file, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return err
