@@ -87,17 +87,21 @@ func (m *MacOSCommand) IsPackageManagerInstalled() bool {
 	return err == nil
 }
 
-func (m *MacOSCommand) MaybeInstallPackageManager() error {
+func (m *MacOSCommand) MaybeInstallPackageManager(dryRun bool) error {
 	isInstalled := m.IsPackageManagerInstalled()
 	if isInstalled {
 		return nil
 	}
-	return m.InstallPackageManager()
+	return m.InstallPackageManager(dryRun)
 }
 
-func (m *MacOSCommand) InstallPackageManager() error {
+func (m *MacOSCommand) InstallPackageManager(dryRun bool) error {
 	logger.L().
 		Debug("executing: /bin/bash -c $(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)")
+	if dryRun {
+		utils.PrintInfo("Dry run: Skipping Homebrew installation")
+		return nil
+	}
 	cmd := CommandParams{
 		PreExecMsg:  "Installing Homebrew",
 		PostExecMsg: "Homebrew installed ✔",

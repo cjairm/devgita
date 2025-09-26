@@ -68,15 +68,20 @@ func (d *DebianCommand) IsPackageManagerInstalled() bool {
 	return true
 }
 
-func (d *DebianCommand) MaybeInstallPackageManager() error {
+func (d *DebianCommand) MaybeInstallPackageManager(dryRun bool) error {
 	isInstalled := d.IsPackageManagerInstalled()
 	if isInstalled {
 		return nil
 	}
-	return d.InstallPackageManager()
+	return d.InstallPackageManager(dryRun)
 }
 
-func (d *DebianCommand) InstallPackageManager() error {
+func (d *DebianCommand) InstallPackageManager(dryRun bool) error {
+	logger.L().Info("APT is preinstalled on Debian/Ubuntu systems")
+	if dryRun {
+		utils.PrintInfo("Dry run: Skipping APT installation")
+		return nil
+	}
 	// APT is preinstalled on Debian/Ubuntu systems.
 	return nil
 }

@@ -93,10 +93,10 @@ func run(cmd *cobra.Command, args []string) {
 	ctx := context.Background()
 	osCmd := commands.NewCommand()
 
-	utils.PrintInfo("* Validate version")
+	utils.PrintInfo("Validating version...")
 	utils.MaybeExitWithError(osCmd.ValidateOSVersion(verbose))
 
-	utils.PrintInfo("- Pre-install steps")
+	utils.PrintInfo("Installing essential tools to begin...")
 	utils.MaybeExitWithError(osCmd.MaybeInstallPackageManager())
 	utils.MaybeExitWithError(osCmd.MaybeInstallPackage("git"))
 
