@@ -114,6 +114,7 @@ func run(cmd *cobra.Command, args []string) {
 		utils.PrintInfo("Skipping terminal tools installation")
 	}
 
+	utils.PrintInfo("Installing dev languages")
 	if shouldInstall("languages", onlySet, skipSet) {
 		utils.PrintInfo("Installing development languages")
 		dl := devlanguages.New()
