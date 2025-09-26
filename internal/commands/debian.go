@@ -18,7 +18,14 @@ type DebianCommand struct {
 }
 
 func (d *DebianCommand) MaybeInstallPackage(packageName string, alias ...string) error {
-	return d.MaybeInstall(packageName, alias, d.IsPackageInstalled, d.InstallPackage, nil, "package")
+	return d.MaybeInstall(
+		packageName,
+		alias,
+		d.IsPackageInstalled,
+		d.InstallPackage,
+		nil,
+		"package",
+	)
 }
 
 func (d *DebianCommand) MaybeInstallDesktopApp(desktopAppName string, alias ...string) error {
@@ -53,6 +60,7 @@ func (d *DebianCommand) InstallDesktopApp(packageName string) error {
 }
 
 func (d *DebianCommand) IsPackageManagerInstalled() bool {
+	logger.L().Debug("executing: which apt")
 	_, err := exec.LookPath("apt")
 	if err != nil {
 		return false
@@ -100,7 +108,6 @@ func (d *DebianCommand) ValidateOSVersion(verbose bool) error {
 	}
 
 	utils.PrintSecondary("Extracting major and minor version")
-
 	versionParts := strings.Split(versionStr, ".")
 	if len(versionParts) < 1 {
 		err := fmt.Errorf("invalid version format: %s", versionStr)
@@ -111,22 +118,28 @@ func (d *DebianCommand) ValidateOSVersion(verbose bool) error {
 	if err != nil {
 		return fmt.Errorf("invalid major version: %w", err)
 	}
-	logger.L().
-		Debugw("OS major version", "os", name, "major_version", major, "supported_debian_version", constants.SupportedDebianVersionNumber, "supported_ubuntu_version", constants.SupportedUbuntuVersionNumber)
+	logger.L().Debugw("OS major version", "os", name, "major_version", major)
 
 	// Check supported versions for Debian and Ubuntu
-	if name == "debian" && major < constants.SupportedDebianVersionNumber {
-		err := fmt.Errorf("OS requirement not met\nOS required: Debian %s (%d.0) or higher",
-			constants.SupportedDebianVersionName,
-			constants.SupportedDebianVersionNumber,
-		)
-		return err
-	} else if name == "ubuntu" && major < constants.SupportedUbuntuVersionNumber {
-		err := fmt.Errorf("OS requirement not met\nOS required: Ubuntu %s (%d.0) or higher",
-			constants.SupportedUbuntuVersionName,
-			constants.SupportedUbuntuVersionNumber,
-		)
-		return err
+	switch name {
+	case "debian":
+		logger.L().Debugw("supported_debian_version", constants.SupportedDebianVersionNumber)
+		if major < constants.SupportedDebianVersionNumber {
+			err := fmt.Errorf("OS requirement not met\nOS required: Debian %s (%d.0) or higher",
+				constants.SupportedDebianVersionName,
+				constants.SupportedDebianVersionNumber,
+			)
+			return err
+		}
+	case "ubuntu":
+		logger.L().Debugw("supported_ubuntu_version", constants.SupportedUbuntuVersionNumber)
+		if major < constants.SupportedUbuntuVersionNumber {
+			err := fmt.Errorf("OS requirement not met\nOS required: Ubuntu %s (%d.0) or higher",
+				constants.SupportedUbuntuVersionName,
+				constants.SupportedUbuntuVersionNumber,
+			)
+			return err
+		}
 	}
 
 	utils.PrintSecondary(fmt.Sprintf("✅ %s %s is supported", name, versionStr))

@@ -17,7 +17,14 @@ type MacOSCommand struct {
 }
 
 func (m *MacOSCommand) MaybeInstallPackage(packageName string, alias ...string) error {
-	return m.MaybeInstall(packageName, alias, m.IsPackageInstalled, m.InstallPackage, nil, "package")
+	return m.MaybeInstall(
+		packageName,
+		alias,
+		m.IsPackageInstalled,
+		m.InstallPackage,
+		nil,
+		"package",
+	)
 }
 
 func (m *MacOSCommand) MaybeInstallDesktopApp(desktopAppName string, alias ...string) error {
@@ -73,6 +80,7 @@ func (m *MacOSCommand) InstallDesktopApp(packageName string) error {
 }
 
 func (m *MacOSCommand) IsPackageManagerInstalled() bool {
+	logger.L().Debug("executing: brew --version")
 	err := exec.Command("brew", "--version").Run()
 	return err == nil
 }
@@ -127,7 +135,6 @@ func (m *MacOSCommand) ValidateOSVersion(verbose bool) error {
 	logger.L().Debugw("macOS version info", "version", versionStr)
 
 	utils.PrintSecondary("Extracting major and minor version")
-
 	major, err := strconv.Atoi(versionParts[0])
 	if err != nil {
 		return fmt.Errorf("invalid major version: %w", err)
@@ -136,9 +143,8 @@ func (m *MacOSCommand) ValidateOSVersion(verbose bool) error {
 	if err != nil {
 		return fmt.Errorf("invalid minor version: %w", err)
 	}
-	logger.L().
-		Debugw("macOS major version", "major_version", major, "minor_version", minor, "supported_macos_version", constants.SupportedMacOSVersionNumber)
-
+	logger.L().Debugw("macOS version", "major_version", major, "minor_version", minor)
+	logger.L().Debugw("supported_macos_version", constants.SupportedMacOSVersionNumber)
 	if major < constants.SupportedMacOSVersionNumber ||
 		(major == constants.SupportedMacOSVersionNumber && minor < 0) {
 		err := fmt.Errorf(
@@ -149,7 +155,6 @@ func (m *MacOSCommand) ValidateOSVersion(verbose bool) error {
 		return err
 	}
 
-	logger.L().Debugw("macOS version supported", "version", versionStr)
 	utils.PrintSecondary(fmt.Sprintf("✅ macOS %s is supported", versionStr))
 	return nil
 }
