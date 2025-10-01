@@ -8,7 +8,7 @@ type Command interface {
 	MaybeInstallFont(url, fontName string, runCache bool, alias ...string) error
 	InstallPackage(packageName string) error
 	InstallDesktopApp(packageName string) error
-	ValidateOSVersion(verbose bool) error
+	ValidateOSVersion() error
 
 	// PackageManager
 	MaybeInstallPackageManager() error

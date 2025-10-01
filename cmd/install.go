@@ -22,10 +22,8 @@ import (
 )
 
 var (
-	dryRun       bool
-	forceInstall bool
-	only         []string
-	skip         []string
+	only []string
+	skip []string
 )
 
 var installCmd = &cobra.Command{
@@ -45,7 +43,6 @@ Supported platforms:
   - Debian/Ubuntu (via apt)
 
 Flags:
-  --dry-run        Show what would be installed, without making any changes
   --only <...>     Only install specific categories (e.g., terminal, languages, desktop)
   --skip <...>     Skip specific categories (e.g., terminal, languages, desktop)
   --force          Reinstall tools even if they are already present
@@ -56,12 +53,6 @@ Flags:
 func init() {
 	rootCmd.AddCommand(installCmd)
 
-	// Flags
-	installCmd.Flags().
-		BoolVar(&dryRun, "dry-run", false, "Show what would be installed without doing it")
-	installCmd.Flags().
-		BoolVar(&forceInstall, "force", false, "Force reinstallation even if components are already installed")
-
 	// Multi-value flags
 	installCmd.Flags().
 		StringSliceVar(&only, "only", []string{}, "Only install specific categories (comma or repeatable)")
@@ -70,10 +61,6 @@ func init() {
 }
 
 func run(cmd *cobra.Command, args []string) {
-	if dryRun {
-		utils.PrintInfo("Dry run: nothing will be installed.")
-	}
-
 	onlySet := make(map[string]bool)
 	for _, item := range only {
 		onlySet[item] = true
@@ -94,13 +81,14 @@ func run(cmd *cobra.Command, args []string) {
 	osCmd := commands.NewCommand()
 
 	utils.PrintInfo("Validating version...")
-	utils.MaybeExitWithError(osCmd.ValidateOSVersion(verbose))
+	utils.MaybeExitWithError(osCmd.ValidateOSVersion())
 
 	utils.PrintInfo("Installing essential tools to begin...")
 	utils.MaybeExitWithError(osCmd.MaybeInstallPackageManager())
-	utils.MaybeExitWithError(osCmd.MaybeInstallPackage("git"))
+	g := git.New()
+	utils.MaybeExitWithError(g.Install())
 
-	installDevgita()
+	installDevgita(g)
 
 	setupDevgitaConfig()
 
@@ -154,14 +142,13 @@ func setupDevgitaConfig() {
 	utils.MaybeExitWithError(globalConfig.Save())
 }
 
-func installDevgita() {
+func installDevgita(g *git.Git) {
 	utils.PrintInfo("- Install devgita")
 	// Create folder if it doesn't exist
 	utils.MaybeExitWithError(os.MkdirAll(paths.AppDir, 0755))
 	// Clean folder before (re)installing
 	utils.MaybeExitWithError(os.RemoveAll(paths.AppDir))
 	// Install from repository
-	g := git.New()
 	utils.MaybeExitWithError(g.Clone(constants.DevgitaRepositoryUrl, paths.AppDir))
 }
 

@@ -1,7 +1,7 @@
 ## Pending work
 
 - ~Debian/Ubuntu compatibility~
-- Global document to see what we have installed already
+- ~Global document to see what we have installed already~
   - Check if languages are already installed - to avoid duplicates/collisions
 - Command `re-configure` app
   - Reinstall configuration files / should we uninstall and install app?
@@ -15,7 +15,7 @@
 - Revert installed programs if any error
   - We need to confirm if program was installed by us. If update leave the program there
 - REMOVE GIT STUFF or any unrelated to installing new apps
-- Add `verbose` option for all commands
+- ~Add `verbose` option for all commands~
 - Allow select between tmux and zellij
 - Allow select between opencode and claudecode
 - Install Ollama? So create a new category? AI tools?
@@ -24,9 +24,9 @@
 ### Commands
 
 - `dg install ...` (`--soft` that does `maybeInstall`)
-- ~`dg reinstall ...`~ this will be replaced by `dg install ... --force`. We should uninstall first and then install again.
+- ~`dg reinstall ...` this will be replaced by `dg install ... --force`. We should uninstall first and then install again.~
 - `dg configure ...` this will update changes to the configuration if made through the `dg install` command.
-- ~`dg re-configure ..`~ this will be replaced by `dg configure ... --force`. We should remove files and recreate them.
+- ~`dg re-configure ..` this will be replaced by `dg configure ... --force`. We should remove files and recreate them.~
 - `dg uninstall ...`
 - `gd update ... [--neovim=[...options] --aerospace=[...options] ...flags] ...apps`
 - `dg list` or `dg installed`

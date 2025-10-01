@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/cjairm/devgita/logger"
 	"github.com/cjairm/devgita/pkg/files"
 )
 
@@ -48,6 +49,7 @@ func createTempSourceDir(t *testing.T, tempDir string) string {
 func TestCopyFile(t *testing.T) {
 	tempDir := createTempDir(t)
 	defer os.RemoveAll(tempDir)
+	logger.Init(false)
 
 	srcFilePath := createTempSourceFile(t, tempDir, "source.txt")
 	dstFilePath := filepath.Join(tempDir, "destination.txt")
