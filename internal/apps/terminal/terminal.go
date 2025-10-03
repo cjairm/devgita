@@ -331,8 +331,12 @@ func isXcodeInstalled() (bool, error) {
 
 func ifErrorDisplayMessage(err error, packageName string) {
 	if err != nil {
-		logger.L().Error("Error installing "+packageName, "error", err)
-		utils.PrintError("Error installing " + packageName + ": ")
-		utils.PrintWarning("Proceeding... (To halt the installation, press ctrl+c)")
+		logger.L().Errorw("Error installing ", "package_name", packageName, "error", err)
+		utils.PrintWarning(
+			fmt.Sprintf(
+				"Install (%s) errored... To halt the installation, press ctrl+c or use --debug flag to see more details",
+				packageName,
+			),
+		)
 	}
 }

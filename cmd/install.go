@@ -46,7 +46,6 @@ Supported platforms:
 Flags:
   --only <...>     Only install specific categories (e.g., terminal, languages, desktop)
   --skip <...>     Skip specific categories (e.g., terminal, languages, desktop)
-  --force          Reinstall tools even if they are already present
 `,
 	Run: run,
 }
