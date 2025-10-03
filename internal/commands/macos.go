@@ -60,7 +60,7 @@ func (m *MacOSCommand) InstallPackage(packageName string) error {
 		Command:     "brew",
 		Args:        []string{"install", packageName},
 	}
-	if _, err := m.ExecCommand(cmd); err != nil {
+	if _, _, err := m.ExecCommand(cmd); err != nil {
 		return fmt.Errorf("failed to install package %s: %w", packageName, err)
 	}
 	return nil
@@ -75,7 +75,7 @@ func (m *MacOSCommand) InstallDesktopApp(packageName string) error {
 		Command:     "brew",
 		Args:        []string{"install", "--cask", packageName},
 	}
-	if _, err := m.ExecCommand(cmd); err != nil {
+	if _, _, err := m.ExecCommand(cmd); err != nil {
 		return fmt.Errorf("failed to install desktop app %s: %w", packageName, err)
 	}
 	return nil
@@ -108,7 +108,7 @@ func (m *MacOSCommand) InstallPackageManager() error {
 			"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)",
 		},
 	}
-	if _, err := m.ExecCommand(cmd); err != nil {
+	if _, _, err := m.ExecCommand(cmd); err != nil {
 		return fmt.Errorf("failed to install Homebrew: %w", err)
 	}
 	return nil
@@ -122,7 +122,7 @@ func (m *MacOSCommand) ValidateOSVersion() error {
 		Args:    []string{"-productVersion"},
 	}
 
-	version, err := m.BaseCommand.ExecCommand(cmd)
+	version, _, err := m.BaseCommand.ExecCommand(cmd)
 	if err != nil {
 		err := fmt.Errorf("unable to get macOS version")
 		return err

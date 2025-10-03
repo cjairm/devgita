@@ -152,7 +152,7 @@ func hasFontExtension(filename string) bool {
 		strings.HasSuffix(filename, ".woff2")
 }
 
-func (b *BaseCommand) ExecCommand(cmd CommandParams) (string, error) {
+func (b *BaseCommand) ExecCommand(cmd CommandParams) (string, string, error) {
 	if cmd.PreExecMsg != "" {
 		utils.Print(cmd.PreExecMsg, "")
 	}
@@ -171,13 +171,13 @@ func (b *BaseCommand) ExecCommand(cmd CommandParams) (string, error) {
 	stdoutPipe, err := execCommand.StdoutPipe()
 	if err != nil {
 		logger.L().Errorf("failed to get stdout pipe: %v", err)
-		return "", err
+		return "", "", err
 	}
 
 	stderrPipe, err := execCommand.StderrPipe()
 	if err != nil {
 		logger.L().Errorf("failed to get stderr pipe: %v", err)
-		return "", err
+		return "", "", err
 	}
 
 	var stdoutBuf, stderrBuf strings.Builder
@@ -188,7 +188,7 @@ func (b *BaseCommand) ExecCommand(cmd CommandParams) (string, error) {
 	// Start command
 	if err := execCommand.Start(); err != nil {
 		logger.L().Errorf("failed to start command: %v", err)
-		return "", err
+		return "", "", err
 	}
 
 	// Read stdout
@@ -219,7 +219,7 @@ func (b *BaseCommand) ExecCommand(cmd CommandParams) (string, error) {
 		utils.Print(cmd.PostExecMsg, "")
 	}
 
-	return strings.TrimSpace(stdoutBuf.String()), err
+	return strings.TrimSpace(stdoutBuf.String()), strings.TrimSpace(stderrBuf.String()), err
 }
 
 func (b *BaseCommand) MaybeInstall(
@@ -288,7 +288,7 @@ func (b *BaseCommand) InstallFontFromURL(url, fontFileName string, runCache bool
 	tmpPath := fmt.Sprintf("/tmp/%s.ttf", fontFileName)
 
 	// 1. Download font
-	if _, err := b.ExecCommand(CommandParams{
+	if _, _, err := b.ExecCommand(CommandParams{
 		PreExecMsg: fmt.Sprintf("Downloading %s...", fontFileName),
 		Command:    "curl",
 		Args:       []string{"-o", tmpPath, url},
@@ -297,7 +297,7 @@ func (b *BaseCommand) InstallFontFromURL(url, fontFileName string, runCache bool
 	}
 
 	// 2. Move font
-	if _, err := b.ExecCommand(CommandParams{
+	if _, _, err := b.ExecCommand(CommandParams{
 		PreExecMsg: "Installing font...",
 		Command:    "mv",
 		Args:       []string{tmpPath, filepath.Join(paths.UserFontsDir, fontFileName+".ttf")},
@@ -307,7 +307,7 @@ func (b *BaseCommand) InstallFontFromURL(url, fontFileName string, runCache bool
 
 	// 3. Update font cache if needed
 	if runCache {
-		if _, err := b.ExecCommand(CommandParams{
+		if _, _, err := b.ExecCommand(CommandParams{
 			PreExecMsg: "Refreshing font cache...",
 			Command:    "fc-cache",
 			Args:       []string{"-fv"},

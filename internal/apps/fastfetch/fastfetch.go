@@ -55,7 +55,7 @@ func (f *Fastfetch) Run(args ...string) error {
 		Command:     constants.Fastfetch,
 		Args:        args,
 	}
-	if _, err := f.Base.ExecCommand(execCommand); err != nil {
+	if _, _, err := f.Base.ExecCommand(execCommand); err != nil {
 		return fmt.Errorf("failed to run fastfetch command: %w", err)
 	}
 	return nil

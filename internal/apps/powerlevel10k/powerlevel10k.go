@@ -61,7 +61,7 @@ func (p *PowerLevel10k) Run(args ...string) error {
 		Command:     "p10k",
 		Args:        args,
 	}
-	if _, err := p.Base.ExecCommand(execCommand); err != nil {
+	if _, _, err := p.Base.ExecCommand(execCommand); err != nil {
 		return fmt.Errorf("failed to run powerlevel10k command: %w", err)
 	}
 	return nil

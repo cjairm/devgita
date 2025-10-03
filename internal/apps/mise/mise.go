@@ -55,7 +55,7 @@ func (m *Mise) Run(args ...string) error {
 		Command:     "mise",
 		Args:        args,
 	}
-	if _, err := m.Base.ExecCommand(execCommand); err != nil {
+	if _, _, err := m.Base.ExecCommand(execCommand); err != nil {
 		return fmt.Errorf("failed to run mise command: %w", err)
 	}
 	return nil

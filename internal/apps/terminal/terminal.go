@@ -251,7 +251,7 @@ func (t *Terminal) InstallXCode() error {
 		Command:     "xcode-select",
 		Args:        []string{"--install"},
 	}
-	if _, err := t.Base.ExecCommand(cmd); err != nil {
+	if _, _, err := t.Base.ExecCommand(cmd); err != nil {
 		return fmt.Errorf("failed to install Xcode Command Line Tools: %w", err)
 	}
 	return nil
@@ -291,21 +291,20 @@ func (t *Terminal) InstallMise() error {
 
 func (t *Terminal) DisplayGithubInstructions() error {
 	instructions := `
-1. Generate a new SSH key:
-   ssh-keygen -t rsa -b 4096
-2. Start the SSH agent:
-   eval "$(ssh-agent -s)"
-3. Add your SSH key to the agent:
-   ssh-add -K ~/.ssh/id_rsa
-4. Copy the SSH key to your clipboard:
-   pbcopy < ~/.ssh/id_rsa.pub
-5. Go to github.com and store it.
-6. To test it out, run:
-   ssh -T git@github.com
+		1. Generate a new SSH key:
+		   ssh-keygen -t rsa -b 4096
+		2. Start the SSH agent:
+		   eval "$(ssh-agent -s)"
+		3. Add your SSH key to the agent:
+		   ssh-add -K ~/.ssh/id_rsa
+		4. Copy the SSH key to your clipboard:
+		   pbcopy < ~/.ssh/id_rsa.pub
+		5. Go to github.com and store it.
+		6. To test it out, run:
+		   ssh -T git@github.com
 
-See documentation: https://docs.github.com/en/authentication/connecting-to-github-with-ssh/generating-a-new-ssh-key-and-adding-it-to-the-ssh-agent
-
-`
+		See documentation: https://docs.github.com/en/authentication/connecting-to-github-with-ssh/generating-a-new-ssh-key-and-adding-it-to-the-ssh-agent
+	`
 	return promptui.DisplayInstructions(
 		"Before continue, it'd be nice if you get access to your GitHub repositories",
 		instructions,

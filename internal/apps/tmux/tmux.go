@@ -65,7 +65,7 @@ func (t *Tmux) Run(args ...string) error {
 		Command:     "tmux",
 		Args:        args,
 	}
-	if _, err := t.Base.ExecCommand(execCommand); err != nil {
+	if _, _, err := t.Base.ExecCommand(execCommand); err != nil {
 		return fmt.Errorf("failed to run tmux command: %w", err)
 	}
 	return nil

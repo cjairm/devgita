@@ -89,7 +89,7 @@ func (n *Neovim) Run(args ...string) error {
 		Command:     constants.Nvim,
 		Args:        args,
 	}
-	if _, err := n.Base.ExecCommand(execCommand); err != nil {
+	if _, _, err := n.Base.ExecCommand(execCommand); err != nil {
 		return fmt.Errorf("failed to run Neovim: %w", err)
 	}
 	return nil
