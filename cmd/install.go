@@ -15,6 +15,7 @@ import (
 	"github.com/cjairm/devgita/internal/apps/terminal"
 	"github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/internal/config"
+	"github.com/cjairm/devgita/logger"
 	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/paths"
 	"github.com/cjairm/devgita/pkg/utils"
@@ -70,6 +71,8 @@ func run(cmd *cobra.Command, args []string) {
 	for _, item := range skip {
 		skipSet[item] = true
 	}
+
+	logger.L().Debugw("flags", "only", onlySet, "skip", skipSet, "verbose", verbose)
 
 	var err error
 

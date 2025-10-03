@@ -148,7 +148,8 @@ func (m *MacOSCommand) ValidateOSVersion() error {
 		return fmt.Errorf("invalid minor version: %w", err)
 	}
 	logger.L().Debugw("macOS version", "major_version", major, "minor_version", minor)
-	logger.L().Debugw("supported_macos_version", constants.SupportedMacOSVersionNumber)
+	logger.L().
+		Debugw("supported_macos_version", "supported_version", constants.SupportedMacOSVersionNumber)
 	if major < constants.SupportedMacOSVersionNumber ||
 		(major == constants.SupportedMacOSVersionNumber && minor < 0) {
 		err := fmt.Errorf(

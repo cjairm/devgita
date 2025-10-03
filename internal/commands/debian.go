@@ -124,7 +124,8 @@ func (d *DebianCommand) ValidateOSVersion() error {
 	// Check supported versions for Debian and Ubuntu
 	switch name {
 	case "debian":
-		logger.L().Debugw("supported_debian_version", constants.SupportedDebianVersionNumber)
+		logger.L().
+			Debugw("supported_debian_version", "supported_version", constants.SupportedDebianVersionNumber)
 		if major < constants.SupportedDebianVersionNumber {
 			err := fmt.Errorf("OS requirement not met\nOS required: Debian %s (%d.0) or higher",
 				constants.SupportedDebianVersionName,
@@ -133,7 +134,8 @@ func (d *DebianCommand) ValidateOSVersion() error {
 			return err
 		}
 	case "ubuntu":
-		logger.L().Debugw("supported_ubuntu_version", constants.SupportedUbuntuVersionNumber)
+		logger.L().
+			Debugw("supported_ubuntu_version", "supported_version", constants.SupportedUbuntuVersionNumber)
 		if major < constants.SupportedUbuntuVersionNumber {
 			err := fmt.Errorf("OS requirement not met\nOS required: Ubuntu %s (%d.0) or higher",
 				constants.SupportedUbuntuVersionName,
