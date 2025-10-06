@@ -333,6 +333,14 @@ func TestConfigureCopiesRealFilesInTemp(t *testing.T) {
 
 ---
 
+## Documentation (trailguards for agents)
+
+After tests pass, create or update `docs/apps/$ARGUMENTS.md` to document the module’s standardized surface and guardrails. Use the template below (replace `$ARGUMENTS` with the app name). Keep this file tightly scoped to how agents should call the methods and what “soft vs force” means, including config paths and the marker file.
+
+See: docs/apps/$ARGUMENTS.md
+
+---
+
 ## Do / Don’t
 
 **Do**

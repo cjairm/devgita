@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/logger"
 	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/paths"
@@ -15,48 +16,6 @@ func init() {
 	logger.Init(false)
 }
 
-// Mock Command interface for install/uninstall operations
-type mockCmd struct {
-	installedPkg      string
-	uninstalledPkg    string
-	maybeInstalled    string
-	installError      error
-	uninstallError    error
-	maybeInstallError error
-}
-
-func (m *mockCmd) InstallPackage(pkg string) error {
-	m.installedPkg = pkg
-	return m.installError
-}
-
-func (m *mockCmd) UninstallPackage(pkg string) error {
-	m.uninstalledPkg = pkg
-	return m.uninstallError
-}
-
-func (m *mockCmd) MaybeInstallPackage(pkg string, alias ...string) error {
-	m.maybeInstalled = pkg
-	return m.maybeInstallError
-}
-
-func (m *mockCmd) MaybeInstallDesktopApp(
-	desktopAppName string,
-	alias ...string,
-) error {
-	return nil
-}
-func (m *mockCmd) MaybeInstallFont(url, fontName string, runCache bool, alias ...string) error {
-	return nil
-}
-func (m *mockCmd) InstallDesktopApp(packageName string) error                { return nil }
-func (m *mockCmd) ValidateOSVersion() error                                  { return nil }
-func (m *mockCmd) MaybeInstallPackageManager() error                         { return nil }
-func (m *mockCmd) InstallPackageManager() error                              { return nil }
-func (m *mockCmd) IsPackageManagerInstalled() bool                           { return true }
-func (m *mockCmd) IsPackageInstalled(packageName string) (bool, error)       { return false, nil }
-func (m *mockCmd) IsDesktopAppInstalled(desktopAppName string) (bool, error) { return false, nil }
-
 func TestNew(t *testing.T) {
 	app := New()
 	if app == nil {
@@ -65,31 +24,31 @@ func TestNew(t *testing.T) {
 }
 
 func TestForceInstall(t *testing.T) {
-	mc := &mockCmd{}
+	mc := commands.NewMockCommand()
 	app := &Git{Cmd: mc}
 
 	if err := app.ForceInstall(); err != nil {
 		t.Fatalf("ForceInstall error: %v", err)
 	}
-	if mc.installedPkg != constants.Git {
-		t.Fatalf("expected InstallPackage(%s), got %q", constants.Git, mc.installedPkg)
+	if mc.InstalledPkg != constants.Git {
+		t.Fatalf("expected InstallPackage(%s), got %q", constants.Git, mc.InstalledPkg)
 	}
 }
 
 func TestSoftInstall(t *testing.T) {
-	mc := &mockCmd{}
+	mc := commands.NewMockCommand()
 	app := &Git{Cmd: mc}
 
 	if err := app.SoftInstall(); err != nil {
 		t.Fatalf("SoftInstall error: %v", err)
 	}
-	if mc.maybeInstalled != constants.Git {
-		t.Fatalf("expected MaybeInstallPackage(%s), got %q", constants.Git, mc.maybeInstalled)
+	if mc.MaybeInstalled != constants.Git {
+		t.Fatalf("expected MaybeInstallPackage(%s), got %q", constants.Git, mc.MaybeInstalled)
 	}
 }
 
 func TestUninstall(t *testing.T) {
-	mc := &mockCmd{}
+	mc := commands.NewMockCommand()
 	app := &Git{Cmd: mc}
 
 	err := app.Uninstall()
@@ -118,7 +77,7 @@ func TestForceConfigure(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	mc := &mockCmd{}
+	mc := commands.NewMockCommand()
 	app := &Git{Cmd: mc}
 
 	if err := app.ForceConfigure(); err != nil {
@@ -176,7 +135,7 @@ func TestSoftConfigure(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	mc := &mockCmd{}
+	mc := commands.NewMockCommand()
 	app := &Git{Cmd: mc}
 
 	if err := app.SoftConfigure(); err != nil {
@@ -213,7 +172,7 @@ func TestSoftConfigure(t *testing.T) {
 func TestExecuteCommand(t *testing.T) {
 	// These tests use the actual BaseCommand but won't execute actual git commands
 	// since we expect git to fail in test environment
-	mc := &mockCmd{}
+	mc := commands.NewMockCommand()
 	app := &Git{Cmd: mc}
 
 	// Test that methods don't panic - they will fail due to git not being available
@@ -229,7 +188,7 @@ func TestExecuteCommand(t *testing.T) {
 }
 
 func TestGitSpecificMethods(t *testing.T) {
-	mc := &mockCmd{}
+	mc := commands.NewMockCommand()
 	app := &Git{Cmd: mc}
 
 	tests := []struct {
