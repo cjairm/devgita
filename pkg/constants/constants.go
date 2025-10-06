@@ -34,6 +34,7 @@ const (
 	Aerospace = "aerospace"
 	Alacritty = "alacritty"
 	Fastfetch = "fastfetch"
+	Git       = "git"
 	Neovim    = "neovim"
 	Nvim      = "nvim"
 	Tmux      = "tmux"

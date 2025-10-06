@@ -88,7 +88,7 @@ func run(cmd *cobra.Command, args []string) {
 	utils.PrintInfo("Installing essential tools to begin...")
 	utils.MaybeExitWithError(osCmd.MaybeInstallPackageManager())
 	g := git.New()
-	utils.MaybeExitWithError(g.Install())
+	utils.MaybeExitWithError(g.SoftInstall())
 
 	installDevgita(g)
 
