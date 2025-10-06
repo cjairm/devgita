@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/cjairm/devgita/logger"
+	"github.com/cjairm/devgita/pkg/logger"
 )
 
 func CopyFile(src, dst string) error {

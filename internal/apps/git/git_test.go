@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/cjairm/devgita/internal/commands"
-	"github.com/cjairm/devgita/logger"
+	"github.com/cjairm/devgita/pkg/logger"
 	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/paths"
 )

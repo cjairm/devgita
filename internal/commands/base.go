@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/cjairm/devgita/internal/config"
-	"github.com/cjairm/devgita/logger"
+	"github.com/cjairm/devgita/pkg/logger"
 	"github.com/cjairm/devgita/pkg/files"
 	"github.com/cjairm/devgita/pkg/paths"
 	"github.com/cjairm/devgita/pkg/utils"

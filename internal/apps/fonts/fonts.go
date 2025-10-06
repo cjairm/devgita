@@ -2,7 +2,7 @@ package fonts
 
 import (
 	cmd "github.com/cjairm/devgita/internal/commands"
-	"github.com/cjairm/devgita/logger"
+	"github.com/cjairm/devgita/pkg/logger"
 )
 
 type Fonts struct {

@@ -9,8 +9,8 @@ import (
 
 	"github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/internal/config"
-	"github.com/cjairm/devgita/logger"
 	"github.com/cjairm/devgita/pkg/constants"
+	"github.com/cjairm/devgita/pkg/logger"
 	"github.com/cjairm/devgita/pkg/paths"
 	"gopkg.in/yaml.v3"
 )
@@ -376,7 +376,8 @@ func TestMaybeInstall_ItemNotInstalled_InstallsSuccessfully(t *testing.T) {
 	// Verify item was added to installed config
 	var updatedConfig config.GlobalConfig
 	updatedConfig.Load()
-	if len(updatedConfig.Installed.Packages) != 1 || updatedConfig.Installed.Packages[0] != "test-package" {
+	if len(updatedConfig.Installed.Packages) != 1 ||
+		updatedConfig.Installed.Packages[0] != "test-package" {
 		t.Errorf("Expected 'test-package' to be added to installed config")
 	}
 }
@@ -466,7 +467,8 @@ func TestMaybeInstall_ItemPreExisting_TracksAsAlreadyInstalled(t *testing.T) {
 	// Verify item was added to already installed config
 	var updatedConfig config.GlobalConfig
 	updatedConfig.Load()
-	if len(updatedConfig.AlreadyInstalled.Packages) != 1 || updatedConfig.AlreadyInstalled.Packages[0] != "pre-existing-package" {
+	if len(updatedConfig.AlreadyInstalled.Packages) != 1 ||
+		updatedConfig.AlreadyInstalled.Packages[0] != "pre-existing-package" {
 		t.Errorf("Expected 'pre-existing-package' to be added to already installed config")
 	}
 }
@@ -535,21 +537,31 @@ func TestMaybeInstall_DifferentItemTypes(t *testing.T) {
 			found := false
 			switch tc.itemType {
 			case "font":
-				found = len(updatedConfig.Installed.Fonts) == 1 && updatedConfig.Installed.Fonts[0] == tc.itemName
+				found = len(updatedConfig.Installed.Fonts) == 1 &&
+					updatedConfig.Installed.Fonts[0] == tc.itemName
 			case "desktop_app":
-				found = len(updatedConfig.Installed.DesktopApps) == 1 && updatedConfig.Installed.DesktopApps[0] == tc.itemName
+				found = len(updatedConfig.Installed.DesktopApps) == 1 &&
+					updatedConfig.Installed.DesktopApps[0] == tc.itemName
 			case "terminal_tool":
-				found = len(updatedConfig.Installed.TerminalTools) == 1 && updatedConfig.Installed.TerminalTools[0] == tc.itemName
+				found = len(updatedConfig.Installed.TerminalTools) == 1 &&
+					updatedConfig.Installed.TerminalTools[0] == tc.itemName
 			case "theme":
-				found = len(updatedConfig.Installed.Themes) == 1 && updatedConfig.Installed.Themes[0] == tc.itemName
+				found = len(updatedConfig.Installed.Themes) == 1 &&
+					updatedConfig.Installed.Themes[0] == tc.itemName
 			case "dev_language":
-				found = len(updatedConfig.Installed.DevLanguages) == 1 && updatedConfig.Installed.DevLanguages[0] == tc.itemName
+				found = len(updatedConfig.Installed.DevLanguages) == 1 &&
+					updatedConfig.Installed.DevLanguages[0] == tc.itemName
 			case "database":
-				found = len(updatedConfig.Installed.Databases) == 1 && updatedConfig.Installed.Databases[0] == tc.itemName
+				found = len(updatedConfig.Installed.Databases) == 1 &&
+					updatedConfig.Installed.Databases[0] == tc.itemName
 			}
 
 			if !found {
-				t.Errorf("Expected '%s' to be added to installed %s config", tc.itemName, tc.itemType)
+				t.Errorf(
+					"Expected '%s' to be added to installed %s config",
+					tc.itemName,
+					tc.itemType,
+				)
 			}
 		})
 	}

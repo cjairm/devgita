@@ -3,7 +3,7 @@ package config
 import (
 	"context"
 
-	"github.com/cjairm/devgita/logger"
+	"github.com/cjairm/devgita/pkg/logger"
 )
 
 const ConfigKey = "devgita-config-context"
