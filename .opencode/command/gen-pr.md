@@ -1,6 +1,7 @@
 ---
-description: Generate a Pull Request based on the current Git branch and changes.
+description: Generate only the Pull Request title and description text (AVOID create or submit the PR).
 agent: plan
+context (if any): $ARGUMENTS
 ---
 
 ## PR Generation Plan
@@ -12,26 +13,31 @@ agent: plan
    - Retrieve the changes between the current branch and the main branch using `git diff origin/main...HEAD`.
 
 3. **Analyze the Changes:**
-   - Examine the diff to classify the changes (e.g., feature, bug fix, refactor, dependency update, documentation/chore).
+   - Examine the diff to classify the change type (e.g., feature, bug fix, refactor, dependency update, documentation/chore).
 
 4. **Generate the PR Title:**
-   - Based on the analysis, create a concise and descriptive title for the PR.
+   - Create a concise, imperative-style title summarizing the intent of the change.
+     - Example: `Fix login redirect after token refresh`.
+     - If context with Jira link: `[JIRA-1298] Fix login redirect after token refresh`.
 
 5. **Draft the PR Description:**
-   - Provide a detailed description including:
-     - What was changed
-     - Why the change was made
-     - How it was implemented
-     - Any relevant testing instructions
-     - Screenshots or GIFs if applicable
+   - Focus primarily on **why** the change was made — the problem solved, or context behind the decision.
+   - Optionally include:
+     - How the issue was identified
+     - How it was solved or implemented
+     - Any relevant implications, tradeoffs, or testing notes
+   - Avoid restating code-level details already visible in the diff.
 
 6. **Include Relevant Metadata:**
    - Add issue links if the changes address specific issues.
    - Include a checklist for reviewers (e.g., tests added, documentation updated, all tests passing).
 
-7. **Format the PR:**
-   - Ensure the PR is formatted in Markdown, suitable for platforms like GitHub or GitLab.
+7. **Format the PR Output:**
+   - Markdown formatted for GitHub or GitLab.
+   - Output should include:
+     - `## Title:`
+     - `## Description:`
 
 8. **Review and Finalize:**
-   - Present the generated **PR Description** for review before submission.
-   - Present the generated **PR Title** — one line, imperative mood, ≤ 80 chars.
+   - Present the **PR Title** and **Description** TEXT ONLY for me to review.
+   - **AVOID** create, push, or submit the PR automatically.
