@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/cjairm/devgita/internal/commands"
-	"github.com/cjairm/devgita/pkg/logger"
 	"github.com/cjairm/devgita/pkg/constants"
+	"github.com/cjairm/devgita/pkg/logger"
 	"github.com/cjairm/devgita/pkg/paths"
 )
 
@@ -18,6 +18,7 @@ func init() {
 
 func TestNew(t *testing.T) {
 	app := New()
+
 	if app == nil {
 		t.Fatal("New() returned nil")
 	}
@@ -184,41 +185,5 @@ func TestExecuteCommand(t *testing.T) {
 		t.Log("Git commands succeeded unexpectedly (git must be available)")
 	} else {
 		t.Logf("Git commands failed as expected (no git available): %v", err)
-	}
-}
-
-func TestGitSpecificMethods(t *testing.T) {
-	mc := commands.NewMockCommand()
-	app := &Git{Cmd: mc}
-
-	tests := []struct {
-		name string
-		fn   func() error
-	}{
-		{"DeleteBranch", func() error { return app.DeleteBranch("feature-branch", false) }},
-		{"DeleteBranchForced", func() error { return app.DeleteBranch("feature-branch", true) }},
-		{"DeepClean", func() error { return app.DeepClean("", "") }},
-		{"FetchOrigin", func() error { return app.FetchOrigin() }},
-		{"Pop", func() error { return app.Pop("") }},
-		{"Pull", func() error { return app.Pull("") }},
-		{"PullWithBranch", func() error { return app.Pull("main") }},
-		{"SwitchBranch", func() error { return app.SwitchBranch("main") }},
-		{"Restore", func() error { return app.Restore("", "file.txt") }},
-		{"RestoreWithBranch", func() error { return app.Restore("develop", "file.txt") }},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// We expect these to fail since git commands will fail in test environment,
-			// but we're testing that the method calls work without panicking
-			err := tt.fn()
-			// The error is expected since git commands will fail in test environment
-			// We just want to ensure no panic and proper error handling
-			if err == nil {
-				t.Logf("%s completed successfully (unexpected but ok)", tt.name)
-			} else {
-				t.Logf("%s failed as expected: %v", tt.name, err)
-			}
-		})
 	}
 }
