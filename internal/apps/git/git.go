@@ -1,19 +1,24 @@
-// -------------------------
-// NOTE: Git version control system with devgita integration
-// - **Documentation**: https://git-scm.com/doc
-// - **Devgita documentation**: Git is the distributed version control system. Here are some useful commands to get you started:
-//   - Check status: `git status`
-//   - Clone repository: `git clone <url> <directory>`
-//   - Switch branch: `git checkout <branch>`
-//   - Create and switch to new branch: `git checkout -b <branch>`
-//   - Stage changes: `git add .`
-//   - Commit changes: `git commit -m "message"`
-//   - Push changes: `git push origin <branch>`
-//   - Pull changes: `git pull origin <branch>`
-//   - Apply stashed changes: `git stash pop`
-//   - View commit history: `git log`
-//   - Clean ignored files: `git clean -X -d -f`
-// -------------------------
+// Git version control system with devgita integration
+//
+// Git is the distributed version control system that tracks changes in source code
+// during software development. This module provides installation and configuration
+// management for Git with devgita integration.
+//
+// References:
+// - Git Documentation: https://git-scm.com/doc
+// - Git Commands Reference: https://git-scm.com/docs
+//
+// Common Git commands available through ExecuteCommand():
+//   - git status - Show working tree status
+//   - git clone <url> <dir> - Clone repository
+//   - git checkout <branch> - Switch branch
+//   - git add . - Stage changes
+//   - git commit -m "msg" - Commit changes
+//   - git push origin <branch> - Push changes
+//   - git pull origin <branch> - Pull changes
+//   - git stash pop - Apply stashed changes
+//   - git log - View commit history
+//   - git clean -X -d -f - Clean ignored files
 
 package git
 
@@ -38,8 +43,16 @@ func New() *Git {
 	return &Git{Cmd: osCmd, Base: *baseCmd}
 }
 
-func (g *Git) ForceInstall() error {
+func (g *Git) Install() error {
 	return g.Cmd.InstallPackage(constants.Git)
+}
+
+func (g *Git) ForceInstall() error {
+	err := g.Uninstall()
+	if err != nil {
+		return fmt.Errorf("failed to uninstall git: %w", err)
+	}
+	return g.Install()
 }
 
 func (g *Git) SoftInstall() error {
@@ -50,13 +63,8 @@ func (g *Git) Uninstall() error {
 	return fmt.Errorf("git uninstall not supported through devgita")
 }
 
-// Standardized configuration methods
-func configure() error {
-	return files.CopyDir(paths.GitConfigAppDir, paths.GitConfigLocalDir)
-}
-
 func (g *Git) ForceConfigure() error {
-	return configure()
+	return files.CopyDir(paths.GitConfigAppDir, paths.GitConfigLocalDir)
 }
 
 func (g *Git) SoftConfigure() error {
@@ -64,10 +72,10 @@ func (g *Git) SoftConfigure() error {
 	if files.FileAlreadyExist(configFile) {
 		return nil
 	}
-	return configure()
+	return files.CopyDir(paths.GitConfigAppDir, paths.GitConfigLocalDir)
 }
 
-// Standardized execution method
+// Standard execution method
 func (g *Git) ExecuteCommand(args ...string) error {
 	execCommand := cmd.CommandParams{
 		PreExecMsg:  "",

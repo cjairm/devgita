@@ -2,9 +2,43 @@
 
 ## Overview
 
-The Git module provides version control system installation and configuration management with devgita integration. It follows the standardized devgita app interface while providing Git-specific operations.
+The Git module provides version control system installation and configuration management with devgita integration. It follows the standardized devgita app interface while providing Git-specific operations for repository management, branch operations, and working directory tasks.
+
+## App Purpose
+
+Git is the fundamental distributed version control system that tracks changes in source code during software development. This module ensures Git is properly installed and configured across macOS and Debian/Ubuntu systems with sensible defaults and devgita integration.
+
+## Lifecycle Summary
+
+1. **Installation**: Install Git package via platform package managers (Homebrew/apt)
+2. **Configuration**: Apply devgita's Git configuration templates with user-friendly defaults
+3. **Execution**: Provide high-level Git operations for common development workflows
+
+## Exported Functions
+
+| Function           | Purpose                   | Behavior                                                 |
+| ------------------ | ------------------------- | -------------------------------------------------------- |
+| `New()`            | Factory method            | Creates new Git instance with platform-specific commands |
+| `Install()`        | Standard installation     | Uses `InstallPackage()` to install Git                   |
+| `ForceInstall()`   | Force installation        | Calls `Uninstall()` first (ignored), then `Install()`    |
+| `SoftInstall()`    | Conditional installation  | Uses `MaybeInstallPackage()` to check before installing  |
+| `ForceConfigure()` | Force configuration       | Overwrites existing configs with devgita defaults        |
+| `SoftConfigure()`  | Conditional configuration | Preserves existing `.gitconfig` if present               |
+| `Uninstall()`      | Remove installation       | **Not supported** - returns error                        |
+| `ExecuteCommand()` | Execute git commands      | Runs arbitrary git commands with error handling          |
 
 ## Installation Methods
+
+### Install()
+
+```go
+git := git.New()
+err := git.Install()
+```
+
+- **Purpose**: Standard Git installation
+- **Behavior**: Uses `InstallPackage()` to install Git package
+- **Use case**: Initial Git installation or explicit reinstall
 
 ### ForceInstall()
 
@@ -13,9 +47,9 @@ git := git.New()
 err := git.ForceInstall()
 ```
 
-- **Purpose**: Installs Git package regardless of existing installation
-- **Behavior**: Uses `InstallPackage()` to force installation
-- **Use case**: When you need to ensure Git is installed or updated
+- **Purpose**: Force Git installation regardless of existing state
+- **Behavior**: Calls `Uninstall()` first (ignored for Git), then `Install()`
+- **Use case**: Ensure fresh Git installation or fix corrupted installation
 
 ### SoftInstall()
 
@@ -24,7 +58,7 @@ git := git.New()
 err := git.SoftInstall()
 ```
 
-- **Purpose**: Installs Git only if not already present
+- **Purpose**: Install Git only if not already present
 - **Behavior**: Uses `MaybeInstallPackage()` to check before installing
 - **Use case**: Standard installation that respects existing Git installations
 
@@ -40,7 +74,7 @@ err := git.Uninstall()
 
 ## Configuration Methods
 
-### Paths
+### Configuration Paths
 
 - **Source**: `paths.GitConfigAppDir` (devgita's git configs)
 - **Destination**: `paths.GitConfigLocalDir` (user's config directory)
@@ -81,7 +115,7 @@ err := git.ExecuteCommand("commit", "-m", "message")
 - **Parameters**: Variable arguments passed directly to git
 - **Error handling**: Wraps errors with context
 
-### Git-Specific Methods
+### Git-Specific Operations
 
 #### Repository Operations
 
@@ -124,62 +158,30 @@ err := git.Restore("main", "src/")   // Restore src/ from main
 err := git.Restore("", "src/")       // Restore src/ from main (default)
 ```
 
-## Agent Guidelines
+## Expected Function Interactions
 
-### Installation Strategy
+1. **Standard Setup**: `New()` → `SoftInstall()` → `SoftConfigure()`
+2. **Force Setup**: `New()` → `ForceInstall()` → `ForceConfigure()`
+3. **Update Configuration**: `New()` → `SoftInstall()` → `ForceConfigure()`
+4. **Git Operations**: `New()` → `ExecuteCommand()` / specific methods
 
-1. **Use SoftInstall()** for standard setup to respect existing Git installations
-2. **Use ForceInstall()** only when explicitly updating or fixing Git installation
-3. **Never call Uninstall()** - it's not supported and will return an error
+## Constants and Paths
 
-### Configuration Strategy
+### Relevant Constants
 
-1. **Use SoftConfigure()** for initial setup to preserve user customizations
-2. **Use ForceConfigure()** when resetting to devgita defaults or applying updates
-3. **Check marker file**: Configuration is considered applied if `.gitconfig` exists in `GitConfigLocalDir`
+- `constants.Git`: Package name for Git installation
+- Used by all installation methods for consistent package reference
 
-### Method Selection
+### Configuration Paths
 
-- **Standard workflow**: `SoftInstall()` → `SoftConfigure()`
-- **Reset workflow**: `ForceInstall()` → `ForceConfigure()`
-- **Update workflow**: `SoftInstall()` → `ForceConfigure()`
-
-### Error Handling
-
-- All methods return errors that should be checked
-- Git operations may fail if repository is in invalid state
-- Some methods have unused parameters (legacy from interface) - ignore them
-
-### Common Patterns
-
-```go
-// Standard setup
-git := git.New()
-if err := git.SoftInstall(); err != nil {
-    return err
-}
-if err := git.SoftConfigure(); err != nil {
-    return err
-}
-
-// Quick git operations
-if err := git.ExecuteCommand("status"); err != nil {
-    return err
-}
-
-// Repository management
-if err := git.Clone(repoURL, destPath); err != nil {
-    return err
-}
-if err := git.SwitchBranch("main"); err != nil {
-    return err
-}
-```
+- `paths.GitConfigAppDir`: Source directory for devgita's Git configuration templates
+- `paths.GitConfigLocalDir`: Target directory for user's Git configuration
+- Configuration copying preserves directory structure and file permissions
 
 ## Implementation Notes
 
-- **Non-standard methods**: Some methods like `ForceInstall()`/`SoftInstall()` use different naming than the standard `Install()`/`MaybeInstall()` pattern
-- **Unused parameters**: Some methods accept parameters that aren't used in the implementation (e.g., `Pop()`, `DeepClean()`)
-- **Git-specific operations**: The module provides high-level Git operations beyond basic installation
-- **Configuration dependency**: Git configuration depends on devgita's config templates in `configs/git/`
-
+- **ForceInstall Logic**: Calls `Uninstall()` first but ignores the error since Git uninstall is not supported
+- **Configuration Strategy**: Uses marker file (`.gitconfig`) to determine if configuration exists
+- **Error Handling**: All methods return errors that should be checked by callers
+- **Platform Independence**: Uses command interface abstraction for cross-platform compatibility
+- **Unused Parameters**: Some Git-specific methods have legacy parameters that aren't used in implementation

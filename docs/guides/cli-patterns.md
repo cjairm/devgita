@@ -1,7 +1,7 @@
 # Why: Cobra framework usage in cmd/ Content:
 
-• Command structure and flag handling
-• Help system customization
+- Command structure and flag handling
+- Help system customization
 
 ## `dg install` Command Structure
 
@@ -41,17 +41,6 @@ var installCmd = &cobra.Command{
    - **Languages**: Node.js, Python, Go, Rust (interactive selection)
    - **Databases**: PostgreSQL, Redis, MongoDB (interactive selection)
    - **Desktop**: GUI applications like Aerospace
-
-### Category Logic
-
-```go
-func shouldInstall(category string, only, skip map[string]bool) bool {
-    if len(only) > 0 {
-        return only[category]  // Whitelist mode
-    }
-    return !skip[category]    // Blacklist mode
-}
-```
 
 ### Help System Features
 
