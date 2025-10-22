@@ -13,8 +13,8 @@ import (
 	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/internal/tooling/databases"
 	"github.com/cjairm/devgita/internal/tooling/desktop"
-	"github.com/cjairm/devgita/internal/tooling/terminal"
 	"github.com/cjairm/devgita/internal/tooling/languages"
+	"github.com/cjairm/devgita/internal/tooling/terminal"
 	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/logger"
 	"github.com/cjairm/devgita/pkg/paths"
@@ -73,8 +73,6 @@ func run(cmd *cobra.Command, args []string) {
 
 	logger.L().Debugw("flags", "only", onlySet, "skip", skipSet, "verbose", verbose)
 
-	var err error
-
 	utils.PrintBold(constants.Devgita)
 	utils.Print("=> Begin installation (or abort with ctrl+c)...", "")
 	utils.Print("===============================================", "")
@@ -91,47 +89,11 @@ func run(cmd *cobra.Command, args []string) {
 	utils.MaybeExitWithError(g.SoftInstall())
 
 	installDevgita(g)
-
 	setupDevgitaConfig()
-
-	utils.PrintInfo("Preparing to install essential tools and packages...")
-	if shouldInstall("terminal", onlySet, skipSet) {
-		t := terminal.New()
-		t.InstallAll()
-		err = t.ConfigureZsh()
-		utils.MaybeExitWithError(err)
-	} else {
-		utils.PrintInfo("Skipping terminal tools installation")
-	}
-
-	utils.PrintInfo("Installing dev languages")
-	if shouldInstall("languages", onlySet, skipSet) {
-		utils.PrintInfo("Installing development languages")
-		l := languages.New()
-		ctx, err = l.ChooseLanguages(ctx)
-		utils.MaybeExitWithError(err)
-		l.InstallChosen(ctx)
-	} else {
-		utils.PrintInfo("Skipping development languages installation")
-	}
-
-	utils.PrintInfo("Installing databases")
-	if shouldInstall("databases", onlySet, skipSet) {
-		db := databases.New()
-		ctx, err = db.ChooseDatabases(ctx)
-		utils.MaybeExitWithError(err)
-		db.InstallChosen(ctx)
-	} else {
-		utils.PrintInfo("Skipping databases installation")
-	}
-
-	utils.PrintInfo("Preparing to install desktop apps...")
-	if shouldInstall("desktop", onlySet, skipSet) {
-		d := desktop.New()
-		d.InstallAll()
-	} else {
-		utils.PrintInfo("Skipping desktop apps installation")
-	}
+	installTerminalTools(onlySet, skipSet)
+	installLanguages(ctx, onlySet, skipSet)
+	installDatabases(ctx, onlySet, skipSet)
+	installDesktopTools(onlySet, skipSet)
 }
 
 func setupDevgitaConfig() {
@@ -159,4 +121,53 @@ func shouldInstall(category string, only, skip map[string]bool) bool {
 		return only[category]
 	}
 	return !skip[category]
+}
+
+func installTerminalTools(onlySet, skipSet map[string]bool) {
+	utils.PrintInfo("Preparing to install essential tools and packages...")
+	if shouldInstall("terminal", onlySet, skipSet) {
+		t := terminal.New()
+		t.InstallAll()
+		err := t.ConfigureZsh()
+		utils.MaybeExitWithError(err)
+	} else {
+		utils.PrintInfo("Skipping terminal tools installation")
+	}
+}
+
+func installLanguages(ctx context.Context, onlySet, skipSet map[string]bool) {
+	utils.PrintInfo("Installing dev languages")
+	if shouldInstall("languages", onlySet, skipSet) {
+		utils.PrintInfo("Installing development languages")
+		l := languages.New()
+		ctx, err := l.ChooseLanguages(ctx)
+		utils.MaybeExitWithError(err)
+		l.InstallChosen(ctx)
+	} else {
+		utils.PrintInfo("Skipping development languages installation")
+	}
+}
+
+func installDatabases(ctx context.Context, onlySet, skipSet map[string]bool) {
+	utils.PrintInfo("Installing databases")
+	if shouldInstall("databases", onlySet, skipSet) {
+		utils.PrintInfo("Installing databases")
+		d := databases.New()
+		ctx, err := d.ChooseDatabases(ctx)
+		utils.MaybeExitWithError(err)
+		d.InstallChosen(ctx)
+	} else {
+		utils.PrintInfo("Skipping databases installation")
+	}
+}
+
+func installDesktopTools(onlySet, skipSet map[string]bool) {
+	utils.PrintInfo("Installing desktop applications")
+	if shouldInstall("desktop", onlySet, skipSet) {
+		utils.PrintInfo("Installing desktop applications")
+		desktopTool := desktop.New()
+		desktopTool.InstallAll()
+	} else {
+		utils.PrintInfo("Skipping desktop applications installation")
+	}
 }
