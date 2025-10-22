@@ -1,4 +1,4 @@
-package devlanguages
+package languages
 
 import (
 	"context"

@@ -8,15 +8,15 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/cjairm/devgita/internal/apps/databases"
-	"github.com/cjairm/devgita/internal/apps/desktop"
-	devlanguages "github.com/cjairm/devgita/internal/apps/devLanguages"
 	"github.com/cjairm/devgita/internal/apps/git"
-	"github.com/cjairm/devgita/internal/apps/terminal"
 	"github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/internal/config"
-	"github.com/cjairm/devgita/pkg/logger"
+	"github.com/cjairm/devgita/internal/tooling/databases"
+	"github.com/cjairm/devgita/internal/tooling/desktop"
+	"github.com/cjairm/devgita/internal/tooling/terminal"
+	"github.com/cjairm/devgita/internal/tooling/languages"
 	"github.com/cjairm/devgita/pkg/constants"
+	"github.com/cjairm/devgita/pkg/logger"
 	"github.com/cjairm/devgita/pkg/paths"
 	"github.com/cjairm/devgita/pkg/utils"
 	"github.com/spf13/cobra"
@@ -107,10 +107,10 @@ func run(cmd *cobra.Command, args []string) {
 	utils.PrintInfo("Installing dev languages")
 	if shouldInstall("languages", onlySet, skipSet) {
 		utils.PrintInfo("Installing development languages")
-		dl := devlanguages.New()
-		ctx, err = dl.ChooseLanguages(ctx)
+		l := languages.New()
+		ctx, err = l.ChooseLanguages(ctx)
 		utils.MaybeExitWithError(err)
-		dl.InstallChosen(ctx)
+		l.InstallChosen(ctx)
 	} else {
 		utils.PrintInfo("Skipping development languages installation")
 	}

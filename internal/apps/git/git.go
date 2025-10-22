@@ -75,7 +75,6 @@ func (g *Git) SoftConfigure() error {
 	return files.CopyDir(paths.GitConfigAppDir, paths.GitConfigLocalDir)
 }
 
-// Standard execution method
 func (g *Git) ExecuteCommand(args ...string) error {
 	execCommand := cmd.CommandParams{
 		PreExecMsg:  "",
@@ -90,7 +89,6 @@ func (g *Git) ExecuteCommand(args ...string) error {
 	return nil
 }
 
-// Git-specific methods
 func (g *Git) Clone(url, dstPath string) error {
 	return g.ExecuteCommand("clone", url, dstPath)
 }
