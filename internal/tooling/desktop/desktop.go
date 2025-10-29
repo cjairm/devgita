@@ -106,11 +106,11 @@ func (d *Desktop) InstallFlameshot() error {
 
 func (d *Desktop) InstallAerospace() error {
 	a := aerospace.New()
-	err := a.MaybeInstall()
+	err := a.SoftInstall()
 	if err != nil {
 		return err
 	}
-	err = a.MaybeSetup()
+	err = a.SoftConfigure()
 	if err != nil {
 		return err
 	}

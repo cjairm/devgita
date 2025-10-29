@@ -47,16 +47,16 @@ func (g *Git) Install() error {
 	return g.Cmd.InstallPackage(constants.Git)
 }
 
+func (g *Git) SoftInstall() error {
+	return g.Cmd.MaybeInstallPackage(constants.Git)
+}
+
 func (g *Git) ForceInstall() error {
 	err := g.Uninstall()
 	if err != nil {
 		return fmt.Errorf("failed to uninstall git: %w", err)
 	}
 	return g.Install()
-}
-
-func (g *Git) SoftInstall() error {
-	return g.Cmd.MaybeInstallPackage(constants.Git)
 }
 
 func (g *Git) Uninstall() error {
