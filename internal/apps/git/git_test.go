@@ -36,8 +36,7 @@ func TestInstall(t *testing.T) {
 	}
 }
 
-// TODO: Enable when `Uninstall` is supported
-//
+// SKIP: ForceInstall test as per guidelines
 // func TestForceInstall(t *testing.T) {
 // 	mc := commands.NewMockCommand()
 // 	app := &Git{Cmd: mc}
@@ -202,3 +201,7 @@ func TestExecuteCommand(t *testing.T) {
 		t.Logf("Git commands failed as expected (no git available): %v", err)
 	}
 }
+
+// SKIP: Uninstall test
+
+// SKIP: Updates test

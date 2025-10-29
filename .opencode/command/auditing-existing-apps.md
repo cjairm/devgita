@@ -51,7 +51,20 @@ imports
 - Do not remove or alter any existing constants or paths under pkg/constants or pkg/paths.
 - If references such as `$ARGUMENTSConfigAppDir` or `$ARGUMENTSConfigLocalDir` already exist, leave them unchanged.
 - All renames (e.g., Setup → ForceConfigure) and new additions (e.g., ForceInstall, Uninstall) should occur **only within the app file**.
-- Make sure to handle errors
+- Make sure to handle errors (Never skip errors)
+  AVOID:
+  ```
+  _ = app.X()
+  return app.Y()
+  ```
+  INSTEAD do:
+  ```
+  err = = app.X()
+  if err != nil {
+    return fmt.Errorf("failed to X app: %w", err)
+  }
+  return app.Y()
+  ```
 
 # Tests
 
@@ -60,14 +73,17 @@ For each app under `internal/apps/$ARGUMENTS/`, create a corresponding test file
 Tests must exist for:
 
 - New
-- ForceInstall
 - Install
 - SoftInstall
 - ForceConfigure
 - SoftConfigure
-- Uninstall
 - ExecuteCommand
-- Update
+
+Tests to be SKIPPED for:
+
+- ForceInstall (SKIP test)
+- Uninstall (SKIP test)
+- Update (No test)
 
 Use existing mocks located at: `@internal/commands/mock.go`
 Follow existing test patterns where possible, focusing on structure and expectations, not logic details.
@@ -90,3 +106,7 @@ Provide for each app:
 3. List of test cases (function names and output expectations).
 4. Documentation diff or new doc draft (in Markdown).
 5. Notes on anything missing, unclear, or inferred.
+
+```
+
+```

@@ -133,3 +133,7 @@ func (g *Git) Restore(branch, files string) error {
 	}
 	return g.ExecuteCommand("restore", "--source", branch, "--", files)
 }
+
+func (g *Git) Update() error {
+	return fmt.Errorf("git update not implemented through devgita")
+}

@@ -26,6 +26,7 @@ Git is the fundamental distributed version control system that tracks changes in
 | `SoftConfigure()`  | Conditional configuration | Preserves existing `.gitconfig` if present               |
 | `Uninstall()`      | Remove installation       | **Not supported** - returns error                        |
 | `ExecuteCommand()` | Execute git commands      | Runs arbitrary git commands with error handling          |
+| `Update()`         | Update installation       | **Not implemented** - returns error                      |
 
 ## Installation Methods
 
@@ -71,6 +72,16 @@ err := git.Uninstall()
 - **Purpose**: Remove Git installation
 - **Behavior**: **Not supported** - returns error
 - **Rationale**: Git is a fundamental tool that shouldn't be uninstalled via devgita
+
+### Update()
+
+```go
+err := git.Update()
+```
+
+- **Purpose**: Update Git installation
+- **Behavior**: **Not implemented** - returns error
+- **Rationale**: Git updates are typically handled by the system package manager
 
 ## Configuration Methods
 
@@ -185,3 +196,4 @@ err := git.Restore("", "src/")       // Restore src/ from main (default)
 - **Error Handling**: All methods return errors that should be checked by callers
 - **Platform Independence**: Uses command interface abstraction for cross-platform compatibility
 - **Unused Parameters**: Some Git-specific methods have legacy parameters that aren't used in implementation
+- **Update Method**: Not implemented as Git updates should be handled by system package managers
