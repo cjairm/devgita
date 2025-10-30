@@ -69,23 +69,11 @@ func (d *Desktop) InstallDocker() error {
 
 func (d *Desktop) InstallAlacritty() error {
 	a := alacritty.New()
-	err := a.MaybeInstall()
+	err := a.SoftInstall()
 	if err != nil {
 		return err
 	}
-	err = a.MaybeSetupApp()
-	if err != nil {
-		return err
-	}
-	err = a.MaybeSetupFont()
-	if err != nil {
-		return err
-	}
-	err = a.MaybeSetupTheme()
-	if err != nil {
-		return err
-	}
-	err = a.UpdateConfigFilesWithCurrentHomeDir()
+	err = a.SoftConfigure()
 	if err != nil {
 		return err
 	}

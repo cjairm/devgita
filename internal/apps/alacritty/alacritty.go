@@ -1,6 +1,11 @@
+// Package alacritty provides installation and configuration management for Alacritty terminal emulator.
+// Alacritty is a fast, cross-platform terminal emulator written in Rust that uses GPU acceleration.
+// This module follows the standardized devgita app interface for consistent lifecycle management.
+
 package alacritty
 
 import (
+	"fmt"
 	"path/filepath"
 
 	cmd "github.com/cjairm/devgita/internal/commands"
@@ -24,38 +29,99 @@ func (a *Alacritty) Install() error {
 	return a.Cmd.InstallDesktopApp(constants.Alacritty)
 }
 
-func (a *Alacritty) MaybeInstall() error {
+func (a *Alacritty) SoftInstall() error {
 	return a.Cmd.MaybeInstallDesktopApp(constants.Alacritty)
 }
 
-func (a *Alacritty) SetupApp() error {
+func (a *Alacritty) ForceInstall() error {
+	err := a.Uninstall()
+	if err != nil {
+		return fmt.Errorf("failed to uninstall alacritty: %w", err)
+	}
+	return a.Install()
+}
+
+func (a *Alacritty) ForceConfigureApp() error {
 	return files.CopyDir(paths.AlacrittyConfigAppDir, paths.AlacrittyConfigLocalDir)
 }
 
-func (a *Alacritty) SetupFont() error {
+func (a *Alacritty) ForceConfigureFont() error {
 	return files.CopyDir(
 		filepath.Join(paths.AlacrittyFontsAppDir, "default"),
 		paths.AlacrittyConfigLocalDir,
 	)
 }
 
-func (a *Alacritty) SetupTheme() error {
+func (a *Alacritty) ForceConfigureTheme() error {
 	return files.CopyDir(
 		filepath.Join(paths.AlacrittyThemesAppDir, "default"),
 		paths.AlacrittyConfigLocalDir,
 	)
 }
 
-func (a *Alacritty) MaybeSetupApp() error {
-	return maybeSetup(a.SetupApp, paths.AlacrittyConfigLocalDir, "alacritty.toml")
+func (a *Alacritty) SoftConfigureApp() error {
+	return maybeConfigure(a.ForceConfigureApp, paths.AlacrittyConfigLocalDir, "alacritty.toml")
 }
 
-func (a *Alacritty) MaybeSetupFont() error {
-	return maybeSetup(a.SetupFont, paths.AlacrittyConfigLocalDir, "font.toml")
+func (a *Alacritty) SoftConfigureFont() error {
+	return maybeConfigure(a.ForceConfigureFont, paths.AlacrittyConfigLocalDir, "font.toml")
 }
 
-func (a *Alacritty) MaybeSetupTheme() error {
-	return maybeSetup(a.SetupFont, paths.AlacrittyConfigLocalDir, "theme.toml")
+func (a *Alacritty) SoftConfigureTheme() error {
+	return maybeConfigure(a.ForceConfigureTheme, paths.AlacrittyConfigLocalDir, "theme.toml")
+}
+
+func (a *Alacritty) ForceConfigure() error {
+	err := a.ForceConfigureApp()
+	if err != nil {
+		return fmt.Errorf("failed to setup app configuration: %w", err)
+	}
+	err = a.ForceConfigureFont()
+	if err != nil {
+		return fmt.Errorf("failed to setup font configuration: %w", err)
+	}
+	err = a.ForceConfigureTheme()
+	if err != nil {
+		return fmt.Errorf("failed to setup theme configuration: %w", err)
+	}
+	err = a.UpdateConfigFilesWithCurrentHomeDir()
+	if err != nil {
+		return fmt.Errorf("failed to update config files with home directory: %w", err)
+	}
+	return nil
+}
+
+func (a *Alacritty) SoftConfigure() error {
+	err := a.SoftConfigureApp()
+	if err != nil {
+		return fmt.Errorf("failed to setup app configuration: %w", err)
+	}
+	err = a.SoftConfigureFont()
+	if err != nil {
+		return fmt.Errorf("failed to setup font configuration: %w", err)
+	}
+	err = a.SoftConfigureTheme()
+	if err != nil {
+		return fmt.Errorf("failed to setup theme configuration: %w", err)
+	}
+	err = a.UpdateConfigFilesWithCurrentHomeDir()
+	if err != nil {
+		return fmt.Errorf("failed to update config files with home directory: %w", err)
+	}
+	return nil
+}
+
+func (a *Alacritty) Uninstall() error {
+	return fmt.Errorf("uninstall not implemented for alacritty")
+}
+
+func (a *Alacritty) ExecuteCommand(args ...string) error {
+	// No alacritty commands in terminal
+	return nil
+}
+
+func (a *Alacritty) Update() error {
+	return fmt.Errorf("update not implemented for alacritty")
 }
 
 func (a *Alacritty) UpdateConfigFilesWithCurrentHomeDir() error {
@@ -63,7 +129,7 @@ func (a *Alacritty) UpdateConfigFilesWithCurrentHomeDir() error {
 	return files.UpdateFile(alacrittyConfigFile, "<ALACRITTY-CONFIG-PATH>", paths.ConfigDir)
 }
 
-func maybeSetup(setupFunc func() error, localConfig string, fileSegments ...string) error {
+func maybeConfigure(setupFunc func() error, localConfig string, fileSegments ...string) error {
 	filePath := localConfig
 	for _, segment := range fileSegments {
 		filePath = filepath.Join(filePath, segment)
