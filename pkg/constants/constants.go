@@ -36,6 +36,7 @@ const (
 	Fastfetch = "fastfetch"
 	Git       = "git"
 	Neovim    = "neovim"
+	Mise      = "mise"
 	Nvim      = "nvim"
 	Tmux      = "tmux"
 

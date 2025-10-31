@@ -284,7 +284,7 @@ func (t *Terminal) InstallCoreLibs() error {
 // installs Mise
 func (t *Terminal) InstallMise() error {
 	m := mise.New()
-	return m.MaybeInstall()
+	return m.SoftInstall()
 }
 
 func (t *Terminal) DisplayGithubInstructions() error {
