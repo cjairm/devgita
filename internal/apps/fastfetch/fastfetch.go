@@ -1,7 +1,6 @@
-// -------------------------
-// NOTE: Write documentation or create icon to open and get information of this Mac
-// - Documentation: https://github.com/fastfetch-cli/fastfetch
-// -------------------------
+// Fastfetch module provides installation and configuration management for fastfetch with devgita integration.
+// Fastfetch is a neofetch-like tool for fetching system information and displaying it prettily.
+// Documentation: https://github.com/fastfetch-cli/fastfetch
 
 package fastfetch
 
@@ -30,24 +29,36 @@ func (f *Fastfetch) Install() error {
 	return f.Cmd.InstallPackage("fastfetch")
 }
 
-func (f *Fastfetch) MaybeInstall() error {
+func (f *Fastfetch) ForceInstall() error {
+	err := f.Uninstall()
+	if err != nil {
+		return fmt.Errorf("failed to uninstall fastfetch: %w", err)
+	}
+	return f.Install()
+}
+
+func (f *Fastfetch) SoftInstall() error {
 	return f.Cmd.MaybeInstallPackage("fastfetch")
 }
 
-func (f *Fastfetch) Setup() error {
+func (f *Fastfetch) ForceConfigure() error {
 	return files.CopyDir(paths.FastFetchConfigAppDir, paths.FastFetchConfigLocalDir)
 }
 
-func (f *Fastfetch) MaybeSetup() error {
+func (f *Fastfetch) SoftConfigure() error {
 	fastfetchConfigFile := filepath.Join(paths.FastFetchConfigLocalDir, "config.jsonc")
 	isFilePresent := files.FileAlreadyExist(fastfetchConfigFile)
 	if isFilePresent {
 		return nil
 	}
-	return f.Setup()
+	return f.ForceConfigure()
 }
 
-func (f *Fastfetch) Run(args ...string) error {
+func (f *Fastfetch) Uninstall() error {
+	return fmt.Errorf("uninstall not implemented for fastfetch")
+}
+
+func (f *Fastfetch) ExecuteCommand(args ...string) error {
 	execCommand := cmd.CommandParams{
 		PreExecMsg:  "",
 		PostExecMsg: "",
@@ -59,4 +70,8 @@ func (f *Fastfetch) Run(args ...string) error {
 		return fmt.Errorf("failed to run fastfetch command: %w", err)
 	}
 	return nil
+}
+
+func (f *Fastfetch) Update() error {
+	return fmt.Errorf("update not implemented for fastfetch")
 }

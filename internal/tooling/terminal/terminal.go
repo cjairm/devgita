@@ -172,12 +172,10 @@ func (t *Terminal) InstallUnzip() error {
 
 func (t *Terminal) InstallFastFetch() error {
 	ff := fastfetch.New()
-	err := ff.MaybeInstall()
-	if err != nil {
+	if err := ff.SoftInstall(); err != nil {
 		return err
 	}
-	err = ff.MaybeSetup()
-	if err != nil {
+	if err := ff.SoftConfigure(); err != nil {
 		return err
 	}
 	return nil
