@@ -128,11 +128,11 @@ func (t *Terminal) ConfigureZsh() error {
 
 	utils.PrintInfo("Installing zsh-autosuggestions...")
 	za := autosuggestions.New()
-	err = za.MaybeInstall()
+	err = za.SoftInstall()
 	if err != nil {
 		return err
 	}
-	err = za.MaybeSetup()
+	err = za.SoftConfigure()
 	if err != nil {
 		return err
 	}
