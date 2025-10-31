@@ -16,17 +16,17 @@ Zsh-autosuggestions is a Fish shell-like autosuggestion plugin for Zsh that sugg
 
 ## Exported Functions
 
-| Function           | Purpose                   | Behavior                                                         |
-| ------------------ | ------------------------- | ---------------------------------------------------------------- |
+| Function           | Purpose                   | Behavior                                                             |
+| ------------------ | ------------------------- | -------------------------------------------------------------------- |
 | `New()`            | Factory method            | Creates new Autosuggestions instance with platform-specific commands |
-| `Install()`        | Standard installation     | Uses `InstallPackage()` to install zsh-autosuggestions          |
-| `ForceInstall()`   | Force installation        | Calls `Uninstall()` first (ignored), then `Install()`           |
-| `SoftInstall()`    | Conditional installation  | Uses `MaybeInstallPackage()` to check before installing         |
-| `ForceConfigure()` | Force configuration       | Adds autosuggestions source line to devgita.zsh                 |
-| `SoftConfigure()`  | Conditional configuration | Preserves existing configuration if already present              |
-| `Uninstall()`      | Remove installation       | **Not supported** - returns error                               |
-| `ExecuteCommand()` | Execute commands          | **Not implemented** - returns error                             |
-| `Update()`         | Update installation       | **Not implemented** - returns error                             |
+| `Install()`        | Standard installation     | Uses `InstallPackage()` to install zsh-autosuggestions               |
+| `ForceInstall()`   | Force installation        | Calls `Uninstall()` first (returns error if fails), then `Install()` |
+| `SoftInstall()`    | Conditional installation  | Uses `MaybeInstallPackage()` to check before installing              |
+| `ForceConfigure()` | Force configuration       | Adds autosuggestions source line to devgita.zsh                      |
+| `SoftConfigure()`  | Conditional configuration | Preserves existing configuration if already present                  |
+| `Uninstall()`      | Remove installation       | **Not supported** - returns error                                    |
+| `ExecuteCommand()` | Execute commands          | **No operation** - returns nil                                       |
+| `Update()`         | Update installation       | **Not implemented** - returns error                                  |
 
 ## Installation Methods
 
@@ -49,7 +49,7 @@ err := autosuggestions.ForceInstall()
 ```
 
 - **Purpose**: Force zsh-autosuggestions installation regardless of existing state
-- **Behavior**: Calls `Uninstall()` first (ignored for autosuggestions), then `Install()`
+- **Behavior**: Calls `Uninstall()` first (returns error if it fails), then `Install()`
 - **Use case**: Ensure fresh autosuggestions installation or fix corrupted installation
 
 ### SoftInstall()
@@ -121,8 +121,8 @@ err := autosuggestions.ExecuteCommand("--version")
 ```
 
 - **Purpose**: Execute autosuggestions-related commands
-- **Behavior**: **Not implemented** - returns error
-- **Rationale**: Autosuggestions is a shell plugin without standalone commands
+- **Behavior**: **No operation** - returns nil (success)
+- **Rationale**: Autosuggestions is a shell plugin without standalone commands, but returns success for interface compliance
 
 ## Expected Function Interactions
 
@@ -163,6 +163,7 @@ source $(brew --prefix)/share/zsh-autosuggestions/zsh-autosuggestions.zsh
 ```
 
 This line:
+
 - Sources the autosuggestions plugin from the Homebrew installation path
 - Integrates with Zsh to provide command suggestions
 - Automatically loads when the shell starts
@@ -173,7 +174,7 @@ This line:
 The module maintains backward compatibility through deprecated functions:
 
 - `MaybeInstall()` → Use `SoftInstall()` instead
-- `Setup()` → Use `ForceConfigure()` instead  
+- `Setup()` → Use `ForceConfigure()` instead
 - `MaybeSetup()` → Use `SoftConfigure()` instead
 
 ## Troubleshooting
@@ -193,3 +194,4 @@ The module maintains backward compatibility through deprecated functions:
 - May conflict with other autosuggestion plugins
 
 This module provides essential command-line productivity enhancement within the devgita development environment setup.
+

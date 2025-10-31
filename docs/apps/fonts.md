@@ -16,17 +16,17 @@ Fonts in devgita refer to developer-oriented typefaces, particularly Nerd Fonts 
 
 ## Exported Functions
 
-| Function           | Purpose                   | Behavior                                                       |
-| ------------------ | ------------------------- | -------------------------------------------------------------- |
-| `New()`            | Factory method            | Creates new Fonts instance with platform-specific commands    |
-| `Install()`        | Standard installation     | Installs default JetBrains Mono Nerd Font                     |
-| `ForceInstall()`   | Force installation        | Calls `Uninstall()` first (ignored), then `Install()`         |
-| `SoftInstall()`    | Conditional installation  | Uses `MaybeInstallFont()` to check before installing          |
-| `ForceConfigure()` | Force configuration       | **Not applicable** - returns nil                              |
-| `SoftConfigure()`  | Conditional configuration | **Not applicable** - returns nil                              |
-| `Uninstall()`      | Remove installation       | **Not supported** - returns error                             |
-| `ExecuteCommand()` | Execute font commands     | **Not applicable** - returns error                            |
-| `Update()`         | Update installation       | **Not implemented** - returns error                           |
+| Function                 | Purpose                   | Behavior                                                             |
+| ------------------------ | ------------------------- | -------------------------------------------------------------------- |
+| `New()`                  | Factory method            | Creates new Fonts instance with platform-specific commands           |
+| `Install(fontName)`      | Standard installation     | Installs specified font by name                                      |
+| `ForceInstall(fontName)` | Force installation        | Calls `Uninstall()` first (returns error if fails), then `Install()` |
+| `SoftInstall(fontName)`  | Conditional installation  | Uses `MaybeInstallFont()` to check before installing font            |
+| `ForceConfigure()`       | Force configuration       | **Not applicable** - returns nil                                     |
+| `SoftConfigure()`        | Conditional configuration | **Not applicable** - returns nil                                     |
+| `Uninstall()`            | Remove installation       | **Not supported** - returns error                                    |
+| `ExecuteCommand()`       | Execute font commands     | **Not applicable** - returns nil                                     |
+| `Update()`               | Update installation       | **Not implemented** - returns error                                  |
 
 ## Installation Methods
 
@@ -34,33 +34,36 @@ Fonts in devgita refer to developer-oriented typefaces, particularly Nerd Fonts 
 
 ```go
 fonts := fonts.New()
-err := fonts.Install()
+err := fonts.Install("font-jetbrains-mono-nerd-font")
 ```
 
-- **Purpose**: Standard font installation with default JetBrains Mono Nerd Font
-- **Behavior**: Uses `InstallDesktopApp()` to install `font-jetbrains-mono-nerd-font`
-- **Use case**: Initial font installation for development environment
+- **Purpose**: Standard font installation with specified font name
+- **Parameters**: `fontName string` - Name of the font package to install
+- **Behavior**: Uses `InstallDesktopApp()` to install the specified font
+- **Use case**: Install specific font for development environment
 
 ### ForceInstall()
 
 ```go
 fonts := fonts.New()
-err := fonts.ForceInstall()
+err := fonts.ForceInstall("font-hack-nerd-font")
 ```
 
 - **Purpose**: Force font installation regardless of existing state
-- **Behavior**: Calls `Uninstall()` first (ignored for fonts), then `Install()`
+- **Parameters**: `fontName string` - Name of the font package to install
+- **Behavior**: Calls `Uninstall()` first (returns error if it fails), then `Install()`
 - **Use case**: Ensure fresh font installation or fix corrupted installation
 
 ### SoftInstall()
 
 ```go
 fonts := fonts.New()
-err := fonts.SoftInstall()
+err := fonts.SoftInstall("font-meslo-lg-nerd-font")
 ```
 
-- **Purpose**: Install default font only if not already present
-- **Behavior**: Uses `MaybeInstallFont()` to check before installing JetBrains Mono
+- **Purpose**: Install specified font only if not already present
+- **Parameters**: `fontName string` - Name of the font package to install
+- **Behavior**: Uses `MaybeInstallFont()` to check before installing the specified font
 - **Use case**: Standard installation that respects existing font installations
 
 ### Uninstall()
@@ -105,30 +108,10 @@ err := fonts.ExecuteCommand("--version")
 ```
 
 - **Purpose**: Execute font-related commands
-- **Behavior**: **Not applicable** - returns error
-- **Rationale**: Fonts are desktop applications without CLI commands
+- **Behavior**: **Not applicable** - returns nil (success)
+- **Rationale**: Fonts are desktop applications without CLI commands, but returns success for interface compliance
 
 ## Font-Specific Operations
-
-### InstallFont()
-
-```go
-err := fonts.InstallFont("font-hack-nerd-font")
-```
-
-- **Purpose**: Install a specific font by name
-- **Parameters**: Font package name (e.g., "font-jetbrains-mono-nerd-font")
-- **Use case**: Install individual fonts from the available collection
-
-### SoftInstallFont()
-
-```go
-err := fonts.SoftInstallFont("font-meslo-lg-nerd-font")
-```
-
-- **Purpose**: Conditionally install specific font if not already present
-- **Parameters**: Font package name
-- **Use case**: Safe installation that avoids conflicts
 
 ### Available()
 
@@ -146,31 +129,31 @@ availableFonts := fonts.Available()
   - `font-fira-mono`
   - `font-jetbrains-mono-nerd-font`
 
-### InstallAll()
+### SoftInstallAll()
 
 ```go
-err := fonts.InstallAll()
+err := fonts.SoftInstallAll()
 ```
 
 - **Purpose**: Install all available fonts from the collection
-- **Behavior**: Iterates through `Available()` list and calls `SoftInstallFont()` for each
+- **Behavior**: Iterates through `Available()` list and calls `SoftInstall()` for each
 - **Error handling**: Returns last error encountered, but continues installation
 - **Use case**: Set up complete development font collection
 
 ## Expected Function Interactions
 
-1. **Standard Setup**: `New()` → `SoftInstall()` → `SoftConfigure()` (no-op)
-2. **Force Setup**: `New()` → `ForceInstall()` → `ForceConfigure()` (no-op)
-3. **Collection Setup**: `New()` → `InstallAll()`
-4. **Individual Font**: `New()` → `InstallFont("font-name")`
-5. **Safe Individual**: `New()` → `SoftInstallFont("font-name")`
+1. **Standard Setup**: `New()` → `SoftInstall("font-name")` → `SoftConfigure()` (no-op)
+2. **Force Setup**: `New()` → `ForceInstall("font-name")` → `ForceConfigure()` (no-op)
+3. **Collection Setup**: `New()` → `SoftInstallAll()`
+4. **Individual Font**: `New()` → `Install("font-name")`
+5. **Safe Individual**: `New()` → `SoftInstall("font-name")`
 
 ## Constants and Paths
 
 ### Default Font
 
-- **Package name**: `"font-jetbrains-mono-nerd-font"`
-- Used by `Install()` and `SoftInstall()` methods
+- **No default**: All methods require explicit `fontName` parameter
+- Recommended starter: `"font-jetbrains-mono-nerd-font"`
 - JetBrains Mono chosen for excellent programming ligatures and readability
 
 ### Font Collection
@@ -187,10 +170,11 @@ All fonts in the `Available()` list are Nerd Fonts or developer-focused typeface
 
 - **Desktop App Installation**: Uses `InstallDesktopApp()` and `MaybeInstallFont()` for platform-appropriate installation
 - **No Configuration**: Fonts don't require separate config files - installation handles system integration
-- **Error Propagation**: `InstallAll()` continues installing even if individual fonts fail
-- **ForceInstall Logic**: Calls `Uninstall()` first but ignores error since font uninstall is not supported
+- **Error Propagation**: `SoftInstallAll()` continues installing even if individual fonts fail
+- **ForceInstall Logic**: Calls `Uninstall()` first (returns error if it fails) since font uninstall is not supported
 - **Platform Independence**: Works on both macOS (Homebrew) and Linux (apt) through desktop app installation
 - **Font Caching**: System handles font cache updates automatically after installation
+- **Required Parameters**: All installation methods require explicit `fontName` parameter
 - **Legacy Compatibility**: Maintains deprecated function aliases for backward compatibility
 
 ## Font Installation Process
@@ -222,8 +206,8 @@ fc-cache -fv
 
 The module maintains backward compatibility through deprecated functions:
 
-- `MaybeInstall(fontName string)` → Use `SoftInstallFont(fontName)` instead
-- `MaybeInstallAll()` → Use `InstallAll()` instead
+- `MaybeInstall(fontName string)` → Use `SoftInstall(fontName)` instead
+- `MaybeInstallAll()` → Use `SoftInstallAll()` instead
 
 ## Troubleshooting
 
@@ -255,3 +239,4 @@ echo "Font test: → ← ↑ ↓ ★ ♠ ♥ ♦ ♣"
 ```
 
 This module provides essential font management capabilities for creating a consistent, visually appealing development environment across different platforms and applications.
+

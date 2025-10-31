@@ -16,17 +16,17 @@ Fastfetch is a neofetch-like tool written in C that fetches system information a
 
 ## Exported Functions
 
-| Function           | Purpose                   | Behavior                                                       |
-| ------------------ | ------------------------- | -------------------------------------------------------------- |
-| `New()`            | Factory method            | Creates new Fastfetch instance with platform-specific commands |
-| `Install()`        | Standard installation     | Uses `InstallPackage()` to install fastfetch                   |
-| `ForceInstall()`   | Force installation        | Calls `Uninstall()` first (ignored), then `Install()`          |
-| `SoftInstall()`    | Conditional installation  | Uses `MaybeInstallPackage()` to check before installing        |
-| `ForceConfigure()` | Force configuration       | Overwrites existing configs with devgita defaults              |
-| `SoftConfigure()`  | Conditional configuration | Preserves existing config.jsonc if present                     |
-| `Uninstall()`      | Remove installation       | **Not supported** - returns error                              |
-| `ExecuteCommand()` | Execute fastfetch command | Runs fastfetch with provided arguments                         |
-| `Update()`         | Update installation       | **Not implemented** - returns error                            |
+| Function           | Purpose                   | Behavior                                                             |
+| ------------------ | ------------------------- | -------------------------------------------------------------------- |
+| `New()`            | Factory method            | Creates new Fastfetch instance with platform-specific commands       |
+| `Install()`        | Standard installation     | Uses `InstallPackage()` to install fastfetch                         |
+| `ForceInstall()`   | Force installation        | Calls `Uninstall()` first (returns error if fails), then `Install()` |
+| `SoftInstall()`    | Conditional installation  | Uses `MaybeInstallPackage()` to check before installing              |
+| `ForceConfigure()` | Force configuration       | Overwrites existing configs with devgita defaults                    |
+| `SoftConfigure()`  | Conditional configuration | Preserves existing config.jsonc if present                           |
+| `Uninstall()`      | Remove installation       | **Not supported** - returns error                                    |
+| `ExecuteCommand()` | Execute fastfetch command | Runs fastfetch with provided arguments                               |
+| `Update()`         | Update installation       | **Not implemented** - returns error                                  |
 
 ## Installation Methods
 
@@ -49,7 +49,7 @@ err := fastfetch.ForceInstall()
 ```
 
 - **Purpose**: Force fastfetch installation regardless of existing state
-- **Behavior**: Calls `Uninstall()` first (ignored for fastfetch), then `Install()`
+- **Behavior**: Calls `Uninstall()` first (returns error if it fails), then `Install()`
 - **Use case**: Ensure fresh fastfetch installation or fix corrupted installation
 
 ### SoftInstall()
@@ -200,7 +200,7 @@ fastfetch --modules OS,Host,CPU,Memory
 
 ## Implementation Notes
 
-- **ForceInstall Logic**: Calls `Uninstall()` first but ignores the error since fastfetch uninstall is not supported
+- **ForceInstall Logic**: Calls `Uninstall()` first and returns the error if it fails since fastfetch uninstall is not supported
 - **Configuration Strategy**: Uses marker file (`config.jsonc`) to determine if configuration exists
 - **Directory Copying**: Uses `files.CopyDir()` for complete configuration directory replication
 - **Command Execution**: Uses `BaseCommand.ExecCommand()` with `CommandParams` structure for consistent execution
@@ -216,17 +216,17 @@ The fastfetch configuration (`config.jsonc`) typically includes:
 
 ```jsonc
 {
-    "$schema": "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json",
-    "logo": {
-        "source": "auto",
-        "padding": {
-            "top": 1,
-            "left": 4
-        }
+  "$schema": "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json",
+  "logo": {
+    "source": "auto",
+    "padding": {
+      "top": 1,
+      "left": 4,
     },
-    "display": {
-        "separator": " ~ "
-    }
+  },
+  "display": {
+    "separator": " ~ ",
+  },
 }
 ```
 
@@ -234,37 +234,37 @@ The fastfetch configuration (`config.jsonc`) typically includes:
 
 ```jsonc
 {
-    "modules": [
-        "title",
-        "separator",
-        "os",
-        "host",
-        "kernel",
-        "uptime",
-        "packages",
-        "shell",
-        "display",
-        "de",
-        "wm",
-        "wmtheme",
-        "theme",
-        "icons",
-        "font",
-        "cursor",
-        "terminal",
-        "terminalfont",
-        "cpu",
-        "gpu",
-        "memory",
-        "swap",
-        "disk",
-        "localip",
-        "battery",
-        "poweradapter",
-        "locale",
-        "break",
-        "colors"
-    ]
+  "modules": [
+    "title",
+    "separator",
+    "os",
+    "host",
+    "kernel",
+    "uptime",
+    "packages",
+    "shell",
+    "display",
+    "de",
+    "wm",
+    "wmtheme",
+    "theme",
+    "icons",
+    "font",
+    "cursor",
+    "terminal",
+    "terminalfont",
+    "cpu",
+    "gpu",
+    "memory",
+    "swap",
+    "disk",
+    "localip",
+    "battery",
+    "poweradapter",
+    "locale",
+    "break",
+    "colors",
+  ],
 }
 ```
 
@@ -272,24 +272,24 @@ The fastfetch configuration (`config.jsonc`) typically includes:
 
 ```jsonc
 {
-    "display": {
-        "separator": " │ ",
-        "color": {
-            "keys": "blue",
-            "title": "yellow"
-        },
-        "key": {
-            "width": 18,
-            "paddingLeft": 2
-        }
+  "display": {
+    "separator": " │ ",
+    "color": {
+      "keys": "blue",
+      "title": "yellow",
     },
-    "logo": {
-        "source": "small",
-        "color": {
-            "1": "blue",
-            "2": "cyan"
-        }
-    }
+    "key": {
+      "width": 18,
+      "paddingLeft": 2,
+    },
+  },
+  "logo": {
+    "source": "small",
+    "color": {
+      "1": "blue",
+      "2": "cyan",
+    },
+  },
 }
 ```
 
@@ -298,7 +298,7 @@ The fastfetch configuration (`config.jsonc`) typically includes:
 The module maintains backward compatibility through deprecated functions:
 
 - `MaybeInstall()` → Use `SoftInstall()` instead
-- `Setup()` → Use `ForceConfigure()` instead  
+- `Setup()` → Use `ForceConfigure()` instead
 - `MaybeSetup()` → Use `SoftConfigure()` instead
 - `Run()` → Use `ExecuteCommand()` instead
 
@@ -315,8 +315,9 @@ The module maintains backward compatibility through deprecated functions:
 ### Platform Considerations
 
 - **macOS**: Installed via Homebrew package manager
-- **Linux**: Installed via apt package manager  
+- **Linux**: Installed via apt package manager
 - **Configuration Location**: Cross-platform config directory handling
 - **Module Availability**: Some modules may not be available on all platforms
 
 This module provides a robust foundation for fastfetch system information display integration within the devgita development environment setup.
+
