@@ -1,8 +1,10 @@
 package fonts
 
 import (
+	"errors"
+	"fmt"
+
 	cmd "github.com/cjairm/devgita/internal/commands"
-	"github.com/cjairm/devgita/pkg/logger"
 )
 
 type Fonts struct {
@@ -18,8 +20,36 @@ func (f *Fonts) Install(fontName string) error {
 	return f.Cmd.InstallDesktopApp(fontName)
 }
 
-func (f *Fonts) MaybeInstall(fontName string) error {
+func (f *Fonts) ForceInstall(fontName string) error {
+	err := f.Uninstall(fontName)
+	if err != nil {
+		return fmt.Errorf("failed to uninstall fonts: %w", err)
+	}
+	return f.Install(fontName)
+}
+
+func (f *Fonts) SoftInstall(fontName string) error {
 	return f.Cmd.MaybeInstallFont("", fontName, false)
+}
+
+func (f *Fonts) ForceConfigure() error {
+	return nil
+}
+
+func (f *Fonts) SoftConfigure() error {
+	return nil
+}
+
+func (f *Fonts) Uninstall(_fontName string) error {
+	return errors.New("font uninstallation is not supported")
+}
+
+func (f *Fonts) ExecuteCommand(args ...string) error {
+	return nil
+}
+
+func (f *Fonts) Update() error {
+	return errors.New("font updates are not implemented - use system package manager")
 }
 
 func (f *Fonts) Available() []string {
@@ -32,12 +62,11 @@ func (f *Fonts) Available() []string {
 	}
 }
 
-func (f *Fonts) MaybeInstallAll() {
+func (f *Fonts) SoftInstallAll() {
 	availableFonts := f.Available()
-	logger.L().Info("Available fonts: ", availableFonts)
 	if len(availableFonts) > 0 {
 		for _, font := range availableFonts {
-			f.MaybeInstall(font)
+			f.SoftInstall(font)
 		}
 	}
 }

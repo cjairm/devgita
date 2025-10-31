@@ -30,7 +30,7 @@ func (d *Desktop) InstallAll() error {
 
 	utils.PrintInfo("Installing fonts (if no previously installed)...")
 	f := fonts.New()
-	f.MaybeInstallAll()
+	f.SoftInstallAll()
 
 	utils.PrintInfo("Installing gimp (if no previously installed)...")
 	err = d.InstallGimp()
