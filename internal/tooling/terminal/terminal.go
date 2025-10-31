@@ -117,11 +117,11 @@ func (t *Terminal) ConfigureZsh() error {
 
 	utils.PrintInfo("Installing terminal theme...")
 	p := powerlevel10k.New()
-	err = p.MaybeInstall()
+	err = p.SoftInstall()
 	if err != nil {
 		return err
 	}
-	err = p.MaybeSetup()
+	err = p.SoftConfigure()
 	if err != nil {
 		return err
 	}

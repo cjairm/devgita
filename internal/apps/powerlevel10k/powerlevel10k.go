@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 
 	cmd "github.com/cjairm/devgita/internal/commands"
+	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/files"
 	"github.com/cjairm/devgita/pkg/paths"
 )
@@ -21,21 +22,28 @@ func New() *PowerLevel10k {
 }
 
 func (p *PowerLevel10k) Install() error {
-	return p.Cmd.InstallPackage("powerlevel10k")
+	return p.Cmd.InstallPackage(constants.Powerlevel10k)
 }
 
-func (p *PowerLevel10k) MaybeInstall() error {
-	return p.Cmd.MaybeInstallPackage("powerlevel10k")
+func (p *PowerLevel10k) ForceInstall() error {
+	if err := p.Uninstall(); err != nil {
+		return fmt.Errorf("failed to uninstall powerlevel10k before force install: %w", err)
+	}
+	return p.Install()
 }
 
-func (p *PowerLevel10k) Setup() error {
+func (p *PowerLevel10k) SoftInstall() error {
+	return p.Cmd.MaybeInstallPackage(constants.Powerlevel10k)
+}
+
+func (p *PowerLevel10k) ForceConfigure() error {
 	return files.AddLineToFile(
 		"source $(brew --prefix)/share/powerlevel10k/powerlevel10k.zsh-theme",
 		filepath.Join(paths.AppDir, "devgita.zsh"),
 	)
 }
 
-func (p *PowerLevel10k) MaybeSetup() error {
+func (p *PowerLevel10k) SoftConfigure() error {
 	isConfigured, err := files.ContentExistsInFile(
 		filepath.Join(paths.AppDir, "devgita.zsh"),
 		"powerlevel10k.zsh-theme",
@@ -43,17 +51,17 @@ func (p *PowerLevel10k) MaybeSetup() error {
 	if err != nil {
 		return err
 	}
-	if isConfigured == true {
+	if isConfigured {
 		return nil
 	}
-	return p.Setup()
+	return p.ForceConfigure()
 }
 
-func (p *PowerLevel10k) Reconfigure() error {
-	return p.Run("configure")
+func (p *PowerLevel10k) Uninstall() error {
+	return fmt.Errorf("uninstall not supported for %s", constants.Powerlevel10k)
 }
 
-func (p *PowerLevel10k) Run(args ...string) error {
+func (p *PowerLevel10k) ExecuteCommand(args ...string) error {
 	execCommand := cmd.CommandParams{
 		PreExecMsg:  "",
 		PostExecMsg: "",
@@ -65,4 +73,12 @@ func (p *PowerLevel10k) Run(args ...string) error {
 		return fmt.Errorf("failed to run powerlevel10k command: %w", err)
 	}
 	return nil
+}
+
+func (p *PowerLevel10k) Update() error {
+	return fmt.Errorf("update not implemented for %s", constants.Powerlevel10k)
+}
+
+func (p *PowerLevel10k) Reconfigure() error {
+	return p.ExecuteCommand("configure")
 }

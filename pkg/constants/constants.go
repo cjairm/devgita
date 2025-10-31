@@ -31,14 +31,16 @@ const (
 	GlobalConfigFile     = "global_config.yaml"
 
 	// App names
-	Aerospace = "aerospace"
-	Alacritty = "alacritty"
-	Fastfetch = "fastfetch"
-	Git       = "git"
-	Neovim    = "neovim"
-	Mise      = "mise"
-	Nvim      = "nvim"
-	Tmux      = "tmux"
+	Aerospace          = "aerospace"
+	Alacritty          = "alacritty"
+	Fastfetch          = "fastfetch"
+	Git                = "git"
+	Neovim             = "neovim"
+	Mise               = "mise"
+	Nvim               = "nvim"
+	Powerlevel10k      = "powerlevel10k"
+	Syntaxhighlighting = "zsh-syntax-highlighting"
+	Tmux               = "tmux"
 
 	// Other available folders for installation
 	Bash   = "bash"
