@@ -198,11 +198,11 @@ func (t *Terminal) InstallLazyGit() error {
 
 func (t *Terminal) InstallNeovim() error {
 	nv := neovim.New()
-	err := nv.MaybeInstall()
+	err := nv.SoftInstall()
 	if err != nil {
 		return err
 	}
-	err = nv.MaybeSetup()
+	err = nv.SoftConfigure()
 	if err != nil {
 		return err
 	}

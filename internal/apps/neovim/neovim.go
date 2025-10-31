@@ -1,14 +1,12 @@
-// -------------------------
-// TODO: Write documentation how to use this
-// - Kickstart documentation: https://github.com/nvim-lua/kickstart.nvim?tab=readme-ov-file
-// - Personal configuration: https://github.com/cjairm/devenv/blob/main/nvim/init.lua
-// - Releases: https://github.com/neovim/neovim/releases
-// - Check version before setup
-// - Download app directly instead of using `brew`
+// Package neovim provides installation and configuration management for Neovim editor with devgita integration.
+// It follows the standardized devgita app interface while providing Neovim-specific operations for editor
+// setup, LSP configuration, and development environment customization.
 //
-// NOTE: Is it possible to install different themes?
-// If so, see more here: https://linovox.com/the-best-color-schemes-for-neovim-nvim/
-// -------------------------
+// References:
+// - Kickstart documentation: https://github.com/nvim-lua/kickstart.nvim
+// - Neovim releases: https://github.com/neovim/neovim/releases
+// - Configuration examples: https://github.com/cjairm/devenv/blob/main/nvim/init.lua
+// - Color schemes: https://linovox.com/the-best-color-schemes-for-neovim-nvim/
 
 package neovim
 
@@ -39,26 +37,56 @@ func New() *Neovim {
 }
 
 func (n *Neovim) Install() error {
-	return n.Cmd.InstallPackage("neovim")
+	return n.Cmd.InstallPackage(constants.Neovim)
 }
 
-func (n *Neovim) MaybeInstall() error {
-	return n.Cmd.MaybeInstallPackage("neovim")
+func (n *Neovim) ForceInstall() error {
+	err := n.Uninstall()
+	if err != nil {
+		return fmt.Errorf("failed to uninstall Neovim before force install: %w", err)
+	}
+	return n.Install()
 }
 
-func (n *Neovim) Setup() error {
+func (n *Neovim) SoftInstall() error {
+	return n.Cmd.MaybeInstallPackage(constants.Neovim)
+}
+
+func (n *Neovim) ForceConfigure() error {
 	if err := n.CheckVersion(); err != nil {
-		return err
+		return fmt.Errorf("failed to check Neovim version: %w", err)
 	}
 	return files.CopyDir(paths.NeovimConfigAppDir, paths.NvimConfigLocalDir)
 }
 
-func (n *Neovim) MaybeSetup() error {
+func (n *Neovim) SoftConfigure() error {
 	isFilePresent := files.FileAlreadyExist(filepath.Join(paths.NvimConfigLocalDir, "init.lua"))
 	if isFilePresent {
 		return nil
 	}
-	return n.Setup()
+	return n.ForceConfigure()
+}
+
+func (n *Neovim) Uninstall() error {
+	return fmt.Errorf("uninstall operation not supported for Neovim")
+}
+
+func (n *Neovim) ExecuteCommand(args ...string) error {
+	execCommand := cmd.CommandParams{
+		PreExecMsg:  "",
+		PostExecMsg: "",
+		IsSudo:      false,
+		Command:     constants.Nvim,
+		Args:        args,
+	}
+	if _, _, err := n.Base.ExecCommand(execCommand); err != nil {
+		return fmt.Errorf("failed to execute Neovim command: %w", err)
+	}
+	return nil
+}
+
+func (n *Neovim) Update() error {
+	return fmt.Errorf("update operation not implemented for Neovim")
 }
 
 func (n *Neovim) CheckVersion() error {
@@ -81,20 +109,6 @@ func (n *Neovim) CheckVersion() error {
 	return fmt.Errorf("could not parse Neovim version")
 }
 
-func (n *Neovim) Run(args ...string) error {
-	execCommand := cmd.CommandParams{
-		PreExecMsg:  "",
-		PostExecMsg: "",
-		IsSudo:      false,
-		Command:     constants.Nvim,
-		Args:        args,
-	}
-	if _, _, err := n.Base.ExecCommand(execCommand); err != nil {
-		return fmt.Errorf("failed to run Neovim: %w", err)
-	}
-	return nil
-}
-
 func isVersionEqualOrHigher(currentVersion, requiredVersion string) bool {
 	currentParts := strings.Split(currentVersion, ".")
 	requiredParts := strings.Split(requiredVersion, ".")
@@ -115,4 +129,24 @@ func isVersionEqualOrHigher(currentVersion, requiredVersion string) bool {
 		}
 	}
 	return true
+}
+
+// Deprecated: Use SoftInstall() instead
+func (n *Neovim) MaybeInstall() error {
+	return n.SoftInstall()
+}
+
+// Deprecated: Use ForceConfigure() instead
+func (n *Neovim) Setup() error {
+	return n.ForceConfigure()
+}
+
+// Deprecated: Use SoftConfigure() instead
+func (n *Neovim) MaybeSetup() error {
+	return n.SoftConfigure()
+}
+
+// Deprecated: Use ExecuteCommand() instead
+func (n *Neovim) Run(args ...string) error {
+	return n.ExecuteCommand(args...)
 }
