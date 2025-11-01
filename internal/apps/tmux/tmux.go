@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 
 	cmd "github.com/cjairm/devgita/internal/commands"
+	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/files"
 	"github.com/cjairm/devgita/pkg/paths"
 )
@@ -30,43 +31,58 @@ func New() *Tmux {
 }
 
 func (t *Tmux) Install() error {
-	return t.Cmd.InstallPackage("tmux")
+	return t.Cmd.InstallPackage(constants.Tmux)
 }
 
-func (t *Tmux) MaybeInstall() error {
-	return t.Cmd.MaybeInstallPackage("tmux")
+func (t *Tmux) ForceInstall() error {
+	if err := t.Uninstall(); err != nil {
+		return fmt.Errorf("failed to uninstall tmux before force install: %w", err)
+	}
+	return t.Install()
 }
 
-func (t *Tmux) Setup() error {
+func (t *Tmux) SoftInstall() error {
+	return t.Cmd.MaybeInstallPackage(constants.Tmux)
+}
+
+func (t *Tmux) ForceConfigure() error {
 	return files.CopyFile(
 		filepath.Join(paths.TmuxConfigAppDir, ".tmux.conf"),
 		filepath.Join(paths.HomeDir, ".tmux.conf"),
 	)
 }
 
-func (t *Tmux) MaybeSetup() error {
+func (t *Tmux) SoftConfigure() error {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get user home directory: %w", err)
 	}
 	tmuxConfigFile := filepath.Join(homeDir, ".tmux.conf")
 	isFilePresent := files.FileAlreadyExist(tmuxConfigFile)
 	if isFilePresent {
 		return nil
 	}
-	return t.Setup()
+	return t.ForceConfigure()
 }
 
-func (t *Tmux) Run(args ...string) error {
+func (t *Tmux) Uninstall() error {
+	return fmt.Errorf("tmux uninstall is not supported")
+}
+
+func (t *Tmux) ExecuteCommand(args ...string) error {
 	execCommand := cmd.CommandParams{
 		PreExecMsg:  "",
 		PostExecMsg: "",
 		IsSudo:      false,
-		Command:     "tmux",
+		Command:     constants.Tmux,
 		Args:        args,
 	}
 	if _, _, err := t.Base.ExecCommand(execCommand); err != nil {
-		return fmt.Errorf("failed to run tmux command: %w", err)
+		return fmt.Errorf("failed to execute tmux command: %w", err)
 	}
 	return nil
+}
+
+func (t *Tmux) Update() error {
+	return fmt.Errorf("tmux update is not implemented")
 }

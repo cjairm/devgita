@@ -211,11 +211,11 @@ func (t *Terminal) InstallNeovim() error {
 
 func (t *Terminal) InstallTmux() error {
 	tm := tmux.New()
-	err := tm.MaybeInstall()
+	err := tm.SoftInstall()
 	if err != nil {
 		return err
 	}
-	err = tm.MaybeSetup()
+	err = tm.SoftConfigure()
 	if err != nil {
 		return err
 	}
