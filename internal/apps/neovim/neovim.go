@@ -1,12 +1,14 @@
-// Package neovim provides installation and configuration management for Neovim editor with devgita integration.
-// It follows the standardized devgita app interface while providing Neovim-specific operations for editor
-// setup, LSP configuration, and development environment customization.
+// -------------------------
+// TODO: Write documentation how to use this
+// - Kickstart documentation: https://github.com/nvim-lua/kickstart.nvim?tab=readme-ov-file
+// - Personal configuration: https://github.com/cjairm/devenv/blob/main/nvim/init.lua
+// - Releases: https://github.com/neovim/neovim/releases
+// - Check version before setup
+// - Download app directly instead of using `brew`
 //
-// References:
-// - Kickstart documentation: https://github.com/nvim-lua/kickstart.nvim
-// - Neovim releases: https://github.com/neovim/neovim/releases
-// - Configuration examples: https://github.com/cjairm/devenv/blob/main/nvim/init.lua
-// - Color schemes: https://linovox.com/the-best-color-schemes-for-neovim-nvim/
+// NOTE: Is it possible to install different themes?
+// If so, see more here: https://linovox.com/the-best-color-schemes-for-neovim-nvim/
+// -------------------------
 
 package neovim
 
