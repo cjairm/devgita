@@ -139,11 +139,11 @@ func (t *Terminal) ConfigureZsh() error {
 
 	utils.PrintInfo("Installing zsh-syntax-highlighting...")
 	sh := syntaxhighlighting.New()
-	err = sh.MaybeInstall()
+	err = sh.SoftInstall()
 	if err != nil {
 		return err
 	}
-	err = sh.MaybeSetup()
+	err = sh.SoftConfigure()
 	if err != nil {
 		return err
 	}
