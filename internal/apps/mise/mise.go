@@ -16,13 +16,13 @@ import (
 
 type Mise struct {
 	Cmd  cmd.Command
-	Base cmd.BaseCommand
+	Base cmd.BaseCommandExecutor
 }
 
 func New() *Mise {
 	osCmd := cmd.NewCommand()
 	baseCmd := cmd.NewBaseCommand()
-	return &Mise{Cmd: osCmd, Base: *baseCmd}
+	return &Mise{Cmd: osCmd, Base: baseCmd}
 }
 
 func (m *Mise) Install() error {

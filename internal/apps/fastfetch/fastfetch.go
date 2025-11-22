@@ -16,13 +16,13 @@ import (
 
 type Fastfetch struct {
 	Cmd  cmd.Command
-	Base cmd.BaseCommand
+	Base cmd.BaseCommandExecutor
 }
 
 func New() *Fastfetch {
 	osCmd := cmd.NewCommand()
 	baseCmd := cmd.NewBaseCommand()
-	return &Fastfetch{Cmd: osCmd, Base: *baseCmd}
+	return &Fastfetch{Cmd: osCmd, Base: baseCmd}
 }
 
 func (f *Fastfetch) Install() error {

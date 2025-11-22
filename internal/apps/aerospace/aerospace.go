@@ -21,13 +21,13 @@ import (
 
 type Aerospace struct {
 	Cmd  cmd.Command
-	Base cmd.BaseCommand
+	Base cmd.BaseCommandExecutor
 }
 
 func New() *Aerospace {
 	osCmd := cmd.NewCommand()
 	baseCmd := cmd.NewBaseCommand()
-	return &Aerospace{Cmd: osCmd, Base: *baseCmd}
+	return &Aerospace{Cmd: osCmd, Base: baseCmd}
 }
 
 func (a *Aerospace) Install() error {

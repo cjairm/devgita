@@ -1,6 +1,7 @@
 package curl
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -82,35 +83,84 @@ func TestSoftConfigure(t *testing.T) {
 }
 
 func TestExecuteCommand(t *testing.T) {
-	// Note: In an ideal architecture, we would mock BaseCommand.ExecCommand
-	// to avoid running actual system commands in tests. Currently, the BaseCommand
-	// struct doesn't implement an interface that we can easily mock.
-	//
-	// For now, this test creates a Curl instance with MockCommand (which handles
-	// the Command interface methods) and a real BaseCommand. Since curl is likely
-	// not available in the test environment, the ExecCommand call will fail,
-	// which is the expected behavior for this test setup.
-	//
-	// TODO: Create an interface for BaseCommand to enable proper mocking of ExecCommand
-
 	mc := commands.NewMockCommand()
-	app := &Curl{Cmd: mc}
+	mockBase := commands.NewMockBaseCommand()
+	app := &Curl{Cmd: mc, Base: mockBase}
 
-	// Test that the method properly handles command execution
-	// This will likely fail since curl isn't available in test environment,
-	// but it verifies the method doesn't panic and properly wraps errors
-	err := app.ExecuteCommand("--version")
+	// Test 1: Successful execution
+	t.Run("successful execution", func(t *testing.T) {
+		mockBase.SetExecCommandResult("curl 7.64.1", "", nil)
 
-	// Verify error handling - should fail gracefully without panicking
-	if err == nil {
-		t.Log("Curl command succeeded unexpectedly (curl must be available in test environment)")
-	} else {
-		// Expected case: curl not available, should get a wrapped error
+		err := app.ExecuteCommand("--version")
+		if err != nil {
+			t.Fatalf("ExecuteCommand failed: %v", err)
+		}
+
+		// Verify ExecCommand was called once
+		if mockBase.GetExecCommandCallCount() != 1 {
+			t.Fatalf("Expected 1 ExecCommand call, got %d", mockBase.GetExecCommandCallCount())
+		}
+
+		// Verify command parameters
+		lastCall := mockBase.GetLastExecCommandCall()
+		if lastCall == nil {
+			t.Fatal("No ExecCommand call recorded")
+		}
+		if lastCall.Command != "curl" {
+			t.Fatalf("Expected command 'curl', got %q", lastCall.Command)
+		}
+		if len(lastCall.Args) != 1 || lastCall.Args[0] != "--version" {
+			t.Fatalf("Expected args ['--version'], got %v", lastCall.Args)
+		}
+		if lastCall.IsSudo {
+			t.Fatal("Expected IsSudo to be false")
+		}
+	})
+
+	// Test 2: Error handling
+	t.Run("command execution error", func(t *testing.T) {
+		mockBase.ResetExecCommand()
+		mockBase.SetExecCommandResult(
+			"",
+			"command not found",
+			fmt.Errorf("command not found: curl"),
+		)
+
+		err := app.ExecuteCommand("--invalid-flag")
+		if err == nil {
+			t.Fatal("Expected ExecuteCommand to return error")
+		}
 		if !strings.Contains(err.Error(), "failed to run curl command") {
 			t.Fatalf("Expected error to contain 'failed to run curl command', got: %v", err)
 		}
-		t.Logf("Curl command failed as expected (no curl available): %v", err)
-	}
+
+		// Verify the error was properly wrapped
+		if !strings.Contains(err.Error(), "command not found: curl") {
+			t.Fatalf("Expected error to contain original error message, got: %v", err)
+		}
+	})
+
+	// Test 3: Multiple arguments
+	t.Run("multiple arguments", func(t *testing.T) {
+		mockBase.ResetExecCommand()
+		mockBase.SetExecCommandResult("downloaded", "", nil)
+
+		err := app.ExecuteCommand("-o", "file.txt", "https://example.com")
+		if err != nil {
+			t.Fatalf("ExecuteCommand failed: %v", err)
+		}
+
+		lastCall := mockBase.GetLastExecCommandCall()
+		expectedArgs := []string{"-o", "file.txt", "https://example.com"}
+		if len(lastCall.Args) != len(expectedArgs) {
+			t.Fatalf("Expected %d args, got %d", len(expectedArgs), len(lastCall.Args))
+		}
+		for i, arg := range expectedArgs {
+			if lastCall.Args[i] != arg {
+				t.Fatalf("Expected arg[%d] to be %q, got %q", i, arg, lastCall.Args[i])
+			}
+		}
+	})
 }
 
 // SKIP: Uninstall test as per guidelines

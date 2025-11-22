@@ -29,13 +29,13 @@ import (
 
 type Neovim struct {
 	Cmd  cmd.Command
-	Base cmd.BaseCommand
+	Base cmd.BaseCommandExecutor
 }
 
 func New() *Neovim {
 	osCmd := cmd.NewCommand()
 	baseCmd := cmd.NewBaseCommand()
-	return &Neovim{Cmd: osCmd, Base: *baseCmd}
+	return &Neovim{Cmd: osCmd, Base: baseCmd}
 }
 
 func (n *Neovim) Install() error {

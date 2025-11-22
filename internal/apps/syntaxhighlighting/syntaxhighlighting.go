@@ -13,13 +13,13 @@ import (
 
 type Syntaxhighlighting struct {
 	Cmd  cmd.Command
-	Base cmd.BaseCommand
+	Base cmd.BaseCommandExecutor
 }
 
 func New() *Syntaxhighlighting {
 	osCmd := cmd.NewCommand()
 	baseCmd := cmd.NewBaseCommand()
-	return &Syntaxhighlighting{Cmd: osCmd, Base: *baseCmd}
+	return &Syntaxhighlighting{Cmd: osCmd, Base: baseCmd}
 }
 
 func (a *Syntaxhighlighting) Install() error {

@@ -1,8 +1,10 @@
 package git
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/cjairm/devgita/internal/commands"
@@ -185,21 +187,75 @@ func TestSoftConfigure(t *testing.T) {
 }
 
 func TestExecuteCommand(t *testing.T) {
-	// These tests use the actual BaseCommand but won't execute actual git commands
-	// since we expect git to fail in test environment
 	mc := commands.NewMockCommand()
-	app := &Git{Cmd: mc}
+	mockBase := commands.NewMockBaseCommand()
+	app := &Git{Cmd: mc, Base: mockBase}
 
-	// Test that methods don't panic - they will fail due to git not being available
-	// but that's expected in test environment
-	err := app.ExecuteCommand("--version")
+	// Test 1: Successful execution
+	t.Run("successful execution", func(t *testing.T) {
+		mockBase.SetExecCommandResult("git version 2.39.0", "", nil)
 
-	// Both should fail similarly since git isn't available, but shouldn't panic
-	if err == nil {
-		t.Log("Git commands succeeded unexpectedly (git must be available)")
-	} else {
-		t.Logf("Git commands failed as expected (no git available): %v", err)
-	}
+		err := app.ExecuteCommand("--version")
+		if err != nil {
+			t.Fatalf("ExecuteCommand failed: %v", err)
+		}
+
+		// Verify ExecCommand was called once
+		if mockBase.GetExecCommandCallCount() != 1 {
+			t.Fatalf("Expected 1 ExecCommand call, got %d", mockBase.GetExecCommandCallCount())
+		}
+
+		// Verify command parameters
+		lastCall := mockBase.GetLastExecCommandCall()
+		if lastCall == nil {
+			t.Fatal("No ExecCommand call recorded")
+		}
+		if lastCall.Command != "git" {
+			t.Fatalf("Expected command 'git', got %q", lastCall.Command)
+		}
+		if len(lastCall.Args) != 1 || lastCall.Args[0] != "--version" {
+			t.Fatalf("Expected args ['--version'], got %v", lastCall.Args)
+		}
+		if lastCall.IsSudo {
+			t.Fatal("Expected IsSudo to be false")
+		}
+	})
+
+	// Test 2: Error handling
+	t.Run("command execution error", func(t *testing.T) {
+		mockBase.ResetExecCommand()
+		mockBase.SetExecCommandResult("", "command not found", fmt.Errorf("command not found: git"))
+
+		err := app.ExecuteCommand("--invalid-flag")
+		if err == nil {
+			t.Fatal("Expected ExecuteCommand to return error")
+		}
+		if !strings.Contains(err.Error(), "failed to run git command") {
+			t.Fatalf("Expected error to contain 'failed to run git command', got: %v", err)
+		}
+	})
+
+	// Test 3: Clone command
+	t.Run("clone command", func(t *testing.T) {
+		mockBase.ResetExecCommand()
+		mockBase.SetExecCommandResult("Cloning into...", "", nil)
+
+		err := app.Clone("https://github.com/user/repo.git", "/tmp/repo")
+		if err != nil {
+			t.Fatalf("Clone failed: %v", err)
+		}
+
+		lastCall := mockBase.GetLastExecCommandCall()
+		expectedArgs := []string{"clone", "https://github.com/user/repo.git", "/tmp/repo"}
+		if len(lastCall.Args) != len(expectedArgs) {
+			t.Fatalf("Expected %d args, got %d", len(expectedArgs), len(lastCall.Args))
+		}
+		for i, arg := range expectedArgs {
+			if lastCall.Args[i] != arg {
+				t.Fatalf("Expected arg[%d] to be %q, got %q", i, arg, lastCall.Args[i])
+			}
+		}
+	})
 }
 
 // SKIP: Uninstall test

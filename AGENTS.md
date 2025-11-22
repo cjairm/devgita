@@ -23,6 +23,19 @@
 - Configuration structs use YAML tags for serialization
 - Logger initialization with `logger.Init(verbose)` before use
 
+## Testing Guidelines
+
+- Follow testing patterns documented in `docs/guides/testing-patterns.md`
+- Use dependency injection via `BaseCommandExecutor` interface for testability
+- Initialize logger in test `init()` functions with `logger.Init(false)`
+- Use `MockBaseCommand` for testing command execution without running actual commands
+- Reset mock state between subtests with `ResetExecCommand()`
+- Use `t.TempDir()` for temporary directories in file operation tests
+- Organize related test scenarios with subtests using `t.Run()`
+- Verify command parameters with `GetLastExecCommandCall()` and `GetExecCommandCallCount()`
+- Test error wrapping and message context with `strings.Contains()`
+- Skip tests for unsupported methods (e.g., ForceInstall) with rationale comments
+
 ## Future App Docs Structure
 
 ```

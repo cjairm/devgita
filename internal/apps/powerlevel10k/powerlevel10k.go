@@ -12,13 +12,13 @@ import (
 
 type PowerLevel10k struct {
 	Cmd  cmd.Command
-	Base cmd.BaseCommand
+	Base cmd.BaseCommandExecutor
 }
 
 func New() *PowerLevel10k {
 	osCmd := cmd.NewCommand()
 	baseCmd := cmd.NewBaseCommand()
-	return &PowerLevel10k{Cmd: osCmd, Base: *baseCmd}
+	return &PowerLevel10k{Cmd: osCmd, Base: baseCmd}
 }
 
 func (p *PowerLevel10k) Install() error {

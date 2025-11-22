@@ -1,5 +1,7 @@
 package commands
 
+import "os/exec"
+
 // MockCommand provides a mock implementation of the Command interface for testing
 type MockCommand struct {
 	InstalledPkg          string
@@ -124,4 +126,115 @@ func (m *MockCommand) SetError(operation string, err error) {
 	case "validation":
 		m.ValidationError = err
 	}
+}
+
+// MockBaseCommand provides a mock implementation for BaseCommand methods
+// This allows tests to avoid running actual system commands
+type MockBaseCommand struct {
+	// Tracks all ExecCommand calls for verification
+	ExecCommandCalls []CommandParams
+
+	// Return values for ExecCommand
+	ExecCommandStdout string
+	ExecCommandStderr string
+	ExecCommandError  error
+
+	// Return values for presence checks
+	IsDesktopAppPresentResult bool
+	IsPackagePresentResult    bool
+	IsFontPresentResult       bool
+
+	// Return values for other methods
+	SetupError          error
+	MaybeSetupError     error
+	MaybeInstallError   error
+	InstallFontURLError error
+}
+
+// NewMockBaseCommand creates a new MockBaseCommand with sensible defaults
+func NewMockBaseCommand() *MockBaseCommand {
+	return &MockBaseCommand{
+		ExecCommandCalls:          []CommandParams{},
+		ExecCommandStdout:         "",
+		ExecCommandStderr:         "",
+		ExecCommandError:          nil,
+		IsDesktopAppPresentResult: false,
+		IsPackagePresentResult:    false,
+		IsFontPresentResult:       false,
+		SetupError:                nil,
+		MaybeSetupError:           nil,
+		MaybeInstallError:         nil,
+		InstallFontURLError:       nil,
+	}
+}
+
+// ExecCommand mocks the BaseCommand.ExecCommand method
+// It records the call parameters and returns the configured mock values
+func (m *MockBaseCommand) ExecCommand(cmd CommandParams) (string, string, error) {
+	m.ExecCommandCalls = append(m.ExecCommandCalls, cmd)
+	return m.ExecCommandStdout, m.ExecCommandStderr, m.ExecCommandError
+}
+
+// Setup mocks the BaseCommand.Setup method
+func (m *MockBaseCommand) Setup(line string) error {
+	return m.SetupError
+}
+
+// MaybeSetup mocks the BaseCommand.MaybeSetup method
+func (m *MockBaseCommand) MaybeSetup(line, toSearch string) error {
+	return m.MaybeSetupError
+}
+
+// IsDesktopAppPresent mocks the BaseCommand.IsDesktopAppPresent method
+func (m *MockBaseCommand) IsDesktopAppPresent(dirPath, appName string) (bool, error) {
+	return m.IsDesktopAppPresentResult, nil
+}
+
+// IsPackagePresent mocks the BaseCommand.IsPackagePresent method
+func (m *MockBaseCommand) IsPackagePresent(cmd *exec.Cmd, packageName string) (bool, error) {
+	return m.IsPackagePresentResult, nil
+}
+
+// IsFontPresent mocks the BaseCommand.IsFontPresent method
+func (m *MockBaseCommand) IsFontPresent(fontName string) (bool, error) {
+	return m.IsFontPresentResult, nil
+}
+
+// MaybeInstall mocks the BaseCommand.MaybeInstall method
+func (m *MockBaseCommand) MaybeInstall(itemName string, alias []string, checkInstalled func(string) (bool, error), installFunc func(string) error, installURLFunc func(string) error, itemType string) error {
+	return m.MaybeInstallError
+}
+
+// InstallFontFromURL mocks the BaseCommand.InstallFontFromURL method
+func (m *MockBaseCommand) InstallFontFromURL(url, fontFileName string, runCache bool) error {
+	return m.InstallFontURLError
+}
+
+// Reset clears all tracked state for reuse in multiple tests
+func (m *MockBaseCommand) ResetExecCommand() {
+	m.ExecCommandCalls = []CommandParams{}
+	m.ExecCommandStdout = ""
+	m.ExecCommandStderr = ""
+	m.ExecCommandError = nil
+}
+
+// SetExecCommandResult configures the return values for ExecCommand
+func (m *MockBaseCommand) SetExecCommandResult(stdout, stderr string, err error) {
+	m.ExecCommandStdout = stdout
+	m.ExecCommandStderr = stderr
+	m.ExecCommandError = err
+}
+
+// GetLastExecCommandCall returns the most recent ExecCommand call parameters
+// Returns nil if no calls have been made
+func (m *MockBaseCommand) GetLastExecCommandCall() *CommandParams {
+	if len(m.ExecCommandCalls) == 0 {
+		return nil
+	}
+	return &m.ExecCommandCalls[len(m.ExecCommandCalls)-1]
+}
+
+// GetExecCommandCallCount returns the number of times ExecCommand was called
+func (m *MockBaseCommand) GetExecCommandCallCount() int {
+	return len(m.ExecCommandCalls)
 }

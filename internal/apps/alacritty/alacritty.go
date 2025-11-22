@@ -16,13 +16,13 @@ import (
 
 type Alacritty struct {
 	Cmd  cmd.Command
-	Base cmd.BaseCommand
+	Base cmd.BaseCommandExecutor
 }
 
 func New() *Alacritty {
 	osCmd := cmd.NewCommand()
 	baseCmd := cmd.NewBaseCommand()
-	return &Alacritty{Cmd: osCmd, Base: *baseCmd}
+	return &Alacritty{Cmd: osCmd, Base: baseCmd}
 }
 
 func (a *Alacritty) Install() error {

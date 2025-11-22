@@ -10,14 +10,34 @@ import (
 	"strings"
 
 	"github.com/cjairm/devgita/internal/config"
-	"github.com/cjairm/devgita/pkg/logger"
 	"github.com/cjairm/devgita/pkg/files"
+	"github.com/cjairm/devgita/pkg/logger"
 	"github.com/cjairm/devgita/pkg/paths"
 	"github.com/cjairm/devgita/pkg/utils"
 )
 
 var LookPathFn = exec.LookPath
 var CommandFn = exec.Command
+
+// BaseCommandExecutor defines the interface for executing commands and managing system state
+// This interface allows for dependency injection and mocking in tests
+type BaseCommandExecutor interface {
+	// Command execution
+	ExecCommand(cmd CommandParams) (string, string, error)
+
+	// Shell configuration
+	Setup(line string) error
+	MaybeSetup(line, toSearch string) error
+
+	// System checks
+	IsDesktopAppPresent(dirPath, appName string) (bool, error)
+	IsPackagePresent(cmd *exec.Cmd, packageName string) (bool, error)
+	IsFontPresent(fontName string) (bool, error)
+
+	// Installation helpers
+	MaybeInstall(itemName string, alias []string, checkInstalled func(string) (bool, error), installFunc func(string) error, installURLFunc func(string) error, itemType string) error
+	InstallFontFromURL(url, fontFileName string, runCache bool) error
+}
 
 type BaseCommand struct {
 	Platform CustomizablePlatform

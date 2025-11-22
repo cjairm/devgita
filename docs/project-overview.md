@@ -106,10 +106,16 @@ already_installed:
 2. Add platform-specific installation logic
 3. Create configuration templates in `configs/newapp/`
 4. Register in appropriate tooling category
-5. Add tests with mock interfaces
+5. Add tests with mock interfaces (see `docs/guides/testing-patterns.md`)
 
 **Architecture patterns:**
 - Interface-based design for cross-platform compatibility
 - Factory pattern for platform detection
 - Context propagation for user selections
 - Centralized error handling via `utils.MaybeExitWithError()`
+- Dependency injection via `BaseCommandExecutor` interface for testability
+
+**Testing patterns:**
+- See comprehensive guide: `docs/guides/testing-patterns.md`
+- Use `MockBaseCommand` for isolated unit tests
+- Follow checklist for complete test coverage

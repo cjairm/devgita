@@ -14,13 +14,13 @@ import (
 
 type Autosuggestions struct {
 	Cmd  cmd.Command
-	Base cmd.BaseCommand
+	Base cmd.BaseCommandExecutor
 }
 
 func New() *Autosuggestions {
 	osCmd := cmd.NewCommand()
 	baseCmd := cmd.NewBaseCommand()
-	return &Autosuggestions{Cmd: osCmd, Base: *baseCmd}
+	return &Autosuggestions{Cmd: osCmd, Base: baseCmd}
 }
 
 func (a *Autosuggestions) Install() error {

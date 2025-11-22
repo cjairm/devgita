@@ -34,13 +34,13 @@ import (
 
 type Git struct {
 	Cmd  cmd.Command
-	Base cmd.BaseCommand
+	Base cmd.BaseCommandExecutor
 }
 
 func New() *Git {
 	osCmd := cmd.NewCommand()
 	baseCmd := cmd.NewBaseCommand()
-	return &Git{Cmd: osCmd, Base: *baseCmd}
+	return &Git{Cmd: osCmd, Base: baseCmd}
 }
 
 func (g *Git) Install() error {
