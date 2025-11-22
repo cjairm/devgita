@@ -71,11 +71,9 @@ func (c *Curl) SoftConfigure() error {
 
 func (c *Curl) ExecuteCommand(args ...string) error {
 	execCommand := cmd.CommandParams{
-		PreExecMsg:  "",
-		PostExecMsg: "",
-		IsSudo:      false,
-		Command:     "curl",
-		Args:        args,
+		IsSudo:  false,
+		Command: "curl",
+		Args:    args,
 	}
 	if _, _, err := c.Base.ExecCommand(execCommand); err != nil {
 		return fmt.Errorf("failed to run curl command: %w", err)

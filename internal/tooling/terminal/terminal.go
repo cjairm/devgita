@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/cjairm/devgita/internal/apps/autosuggestions"
+	"github.com/cjairm/devgita/internal/apps/curl"
 	"github.com/cjairm/devgita/internal/apps/fastfetch"
 	"github.com/cjairm/devgita/internal/apps/mise"
 	"github.com/cjairm/devgita/internal/apps/neovim"
@@ -39,8 +40,8 @@ func (t *Terminal) InstallAll() error {
 	ifErrorDisplayMessage(err, "instructions")
 
 	utils.PrintInfo("Installing curl (if no previously installed)...")
-	err = t.InstallCurl()
-	ifErrorDisplayMessage(err, "curl")
+	curl := curl.New()
+	ifErrorDisplayMessage(curl.SoftInstall(), "curl")
 
 	utils.PrintInfo("Installing and setting up fastfetch (if no previous configuration)...")
 	err = t.InstallFastFetch()
@@ -160,10 +161,6 @@ func (t *Terminal) ConfigureZsh() error {
 		return err
 	}
 	return t.Base.MaybeSetup("source $HOME/.config/devgita/devgita.zsh", "devgita.zsh")
-}
-
-func (t *Terminal) InstallCurl() error {
-	return t.Cmd.MaybeInstallPackage("curl")
 }
 
 func (t *Terminal) InstallUnzip() error {
