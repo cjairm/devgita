@@ -64,6 +64,7 @@ dg() {
   local allowed=(
     # git branch management
     "clean-branch"
+    "read-branches"
     "refresh-branch"
     "reset-branch"
     # npm dependency management
@@ -98,6 +99,19 @@ dg() {
 
       git checkout "$target" \
         && git reset --hard origin/"$target"
+      ;;
+
+    read-branches)
+      selected_branch=$(git branch | sort -u | fzf-tmux -p 50% --reverse)
+      if [[ -n "$selected_branch" ]]; then
+        # Copy to clipboard
+        if command -v pbcopy &>/dev/null; then
+          echo -n "$selected_branch" | pbcopy
+        elif command -v xclip &>/dev/null; then
+          echo -n "$selected_branch" | xclip -selection clipboard
+        fi
+        echo "Branch '$selected_branch' copied to clipboard!"
+      fi
       ;;
 
     refresh-branch)
