@@ -84,6 +84,10 @@ dg() {
     return 1
   fi
 
+  # -------------------------------------
+  # COMMAND DISPATCH
+  # -------------------------------------
+
   case "$cmd" in
     reset-branch)
       # Default to "main" if not provided
@@ -92,7 +96,7 @@ dg() {
       git checkout "$target" \
         && git fetch origin \
         && git pull origin "$target" \
-        && git branch -D "$(git branch | fzf)"
+        && git branch | fzf-tmux -p 50% --reverse | xargs git branch -D
       ;;
 
     reinstall-deps)
