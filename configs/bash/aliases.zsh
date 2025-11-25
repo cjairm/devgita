@@ -58,3 +58,58 @@ alias decompress="tar -xzf"
 
 # Mise
 alias mx="mise x --"
+
+# Custom
+dg() {
+  local allowed=(
+    "reset-branch"
+    "reinstall-deps"
+    "update-library"
+  )
+
+  local cmd="$1"
+  local target="$2"
+
+  # Validate command
+  local is_valid=false
+  for a in "${allowed[@]}"; do
+    if [[ "$cmd" == "$a" ]]; then
+      is_valid=true
+      break
+    fi
+  done
+
+  if [[ "$is_valid" == false ]]; then
+    echo "valid commands are: ${allowed[*]}"
+    return 1
+  fi
+
+  case "$cmd" in
+    reset-branch)
+      # Default to "main" if not provided
+      target="${target:-main}"
+
+      git checkout "$target" \
+        && git fetch origin \
+        && git pull origin "$target" \
+        && git branch -D "$(git branch | fzf)"
+      ;;
+
+    reinstall-deps)
+      git clean -Xdf \
+        && rm -rf node_modules/ \
+        && npm install \
+        && rm -f tsconfig.tsbuildinfo
+      ;;
+
+    update-library)
+      # Must provide target
+      if [[ -z "$target" ]]; then
+        echo "update-library requires a library name"
+        return 1
+      fi
+
+      rm -rf "node_modules/$target" && npm install
+      ;;
+  esac
+}
