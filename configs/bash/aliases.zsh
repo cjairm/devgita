@@ -62,10 +62,13 @@ alias mx="mise x --"
 # Custom
 dg() {
   local allowed=(
-    "reset-branch"
-    "reinstall-deps"
-    "update-library"
+    # git branch management
+    "clean-branch"
     "refresh-branch"
+    "reset-branch"
+    # npm dependency management
+    "reinstall-libraries"
+    "reinstall-library"
   )
 
   local cmd="$1"
@@ -85,36 +88,16 @@ dg() {
     return 1
   fi
 
-  # -------------------------------------
-  # COMMAND DISPATCH
-  # -------------------------------------
-
   case "$cmd" in
-    reset-branch)
+    # -------------------------------------
+    # Git Branch Management 
+    # -------------------------------------
+    clean-branch)
       # Default to "main" if not provided
       target="${target:-main}"
 
       git checkout "$target" \
-        && git fetch origin \
-        && git pull origin "$target" \
-        && git branch | fzf-tmux -p 50% --reverse | xargs git branch -D
-      ;;
-
-    reinstall-deps)
-      git clean -Xdf \
-        && rm -rf node_modules/ \
-        && npm install \
-        && rm -f tsconfig.tsbuildinfo
-      ;;
-
-    update-library)
-      # Must provide target
-      if [[ -z "$target" ]]; then
-        echo "update-library requires a library name"
-        return 1
-      fi
-
-      rm -rf "node_modules/$target" && npm install
+        && git reset --hard origin/"$target"
       ;;
 
     refresh-branch)
@@ -126,5 +109,36 @@ dg() {
         && git checkout - \
         && git merge "$target"
       ;;
+
+    reset-branch)
+      # Default to "main" if not provided
+      target="${target:-main}"
+
+      git checkout "$target" \
+        && git fetch origin \
+        && git pull origin "$target" \
+        && git branch | fzf-tmux -p 50% --reverse | xargs git branch -D
+      ;;
+
+    # -------------------------------------
+    # NPM Dependency Management
+    # -------------------------------------
+    reinstall-libraries)
+      git clean -Xdf \
+        && rm -rf node_modules/ \
+        && npm install \
+        && rm -f tsconfig.tsbuildinfo
+      ;;
+
+    reinstall-library)
+      # Must provide target
+      if [[ -z "$target" ]]; then
+        echo "update-library requires a library name"
+        return 1
+      fi
+
+      rm -rf "node_modules/$target" && npm install
+      ;;
+
   esac
 }
