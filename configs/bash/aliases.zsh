@@ -65,6 +65,7 @@ dg() {
     "reset-branch"
     "reinstall-deps"
     "update-library"
+    "refresh-branch"
   )
 
   local cmd="$1"
@@ -114,6 +115,15 @@ dg() {
       fi
 
       rm -rf "node_modules/$target" && npm install
+      ;;
+
+    refresh-branch)
+      # Default to "main" if not provided
+      target="${target:-main}"
+
+      git checkout "$target" \
+        && git pull origin "$target" \
+        && git checkout -
       ;;
   esac
 }
