@@ -123,7 +123,8 @@ dg() {
 
       git checkout "$target" \
         && git pull origin "$target" \
-        && git checkout -
+        && git checkout - \
+        && git merge "$target"
       ;;
   esac
 }
