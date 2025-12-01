@@ -33,6 +33,7 @@ const (
 	// App names
 	Aerospace          = "aerospace"
 	Alacritty          = "alacritty"
+	Curl               = "curl"
 	Fastfetch          = "fastfetch"
 	Git                = "git"
 	Neovim             = "neovim"
@@ -41,6 +42,7 @@ const (
 	Powerlevel10k      = "powerlevel10k"
 	Syntaxhighlighting = "zsh-syntax-highlighting"
 	Tmux               = "tmux"
+	Unzip              = "unzip"
 
 	// Other available folders for installation
 	Bash   = "bash"

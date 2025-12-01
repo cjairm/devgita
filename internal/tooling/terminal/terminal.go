@@ -15,7 +15,8 @@ import (
 	"github.com/cjairm/devgita/internal/apps/powerlevel10k"
 	"github.com/cjairm/devgita/internal/apps/syntaxhighlighting"
 	"github.com/cjairm/devgita/internal/apps/tmux"
-	commands "github.com/cjairm/devgita/internal/commands"
+	"github.com/cjairm/devgita/internal/apps/unzip"
+	"github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/files"
 	"github.com/cjairm/devgita/pkg/logger"
@@ -41,15 +42,15 @@ func (t *Terminal) InstallAll() error {
 
 	utils.PrintInfo("Installing curl (if no previously installed)...")
 	curl := curl.New()
-	ifErrorDisplayMessage(curl.SoftInstall(), "curl")
+	ifErrorDisplayMessage(curl.SoftInstall(), constants.Curl)
 
 	utils.PrintInfo("Installing and setting up fastfetch (if no previous configuration)...")
 	err = t.InstallFastFetch()
 	ifErrorDisplayMessage(err, "fastfetch")
 
 	utils.PrintInfo("Installing unzip (if no previously installed)...")
-	err = t.InstallUnzip()
-	ifErrorDisplayMessage(err, "unzip")
+	unzip := unzip.New()
+	ifErrorDisplayMessage(unzip.SoftInstall(), "unzip")
 
 	utils.PrintInfo("Installing gh (if no previously installed)...")
 	err = t.InstallGithubCli()
@@ -161,10 +162,6 @@ func (t *Terminal) ConfigureZsh() error {
 		return err
 	}
 	return t.Base.MaybeSetup("source $HOME/.config/devgita/devgita.zsh", "devgita.zsh")
-}
-
-func (t *Terminal) InstallUnzip() error {
-	return t.Cmd.MaybeInstallPackage("unzip")
 }
 
 func (t *Terminal) InstallFastFetch() error {

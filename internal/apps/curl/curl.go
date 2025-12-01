@@ -24,6 +24,7 @@ import (
 	"fmt"
 
 	cmd "github.com/cjairm/devgita/internal/commands"
+	"github.com/cjairm/devgita/pkg/constants"
 )
 
 type Curl struct {
@@ -72,7 +73,7 @@ func (c *Curl) SoftConfigure() error {
 func (c *Curl) ExecuteCommand(args ...string) error {
 	execCommand := cmd.CommandParams{
 		IsSudo:  false,
-		Command: "curl",
+		Command: constants.Curl,
 		Args:    args,
 	}
 	if _, _, err := c.Base.ExecCommand(execCommand); err != nil {

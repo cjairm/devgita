@@ -89,14 +89,15 @@ func run(cmd *cobra.Command, args []string) {
 	utils.MaybeExitWithError(g.SoftInstall())
 
 	installDevgita(g)
-	setupDevgitaConfig()
+	setupDevgita()
+
 	installTerminalTools(onlySet, skipSet)
 	installLanguages(ctx, onlySet, skipSet)
 	installDatabases(ctx, onlySet, skipSet)
 	installDesktopTools(onlySet, skipSet)
 }
 
-func setupDevgitaConfig() {
+func setupDevgita() {
 	utils.PrintInfo("- Setup global config")
 	globalConfig := &config.GlobalConfig{}
 	utils.MaybeExitWithError(globalConfig.Create())
