@@ -10,6 +10,7 @@ import (
 	"github.com/cjairm/devgita/internal/apps/autosuggestions"
 	"github.com/cjairm/devgita/internal/apps/curl"
 	"github.com/cjairm/devgita/internal/apps/fastfetch"
+	"github.com/cjairm/devgita/internal/apps/githubcli"
 	"github.com/cjairm/devgita/internal/apps/mise"
 	"github.com/cjairm/devgita/internal/apps/neovim"
 	"github.com/cjairm/devgita/internal/apps/powerlevel10k"
@@ -53,8 +54,8 @@ func (t *Terminal) InstallAll() error {
 	ifErrorDisplayMessage(unzip.SoftInstall(), "unzip")
 
 	utils.PrintInfo("Installing gh (if no previously installed)...")
-	err = t.InstallGithubCli()
-	ifErrorDisplayMessage(err, "gh")
+	githubcli := githubcli.New()
+	ifErrorDisplayMessage(githubcli.SoftInstall(), "gh")
 
 	utils.PrintInfo("Installing lazydocker (if no previously installed)...")
 	err = t.InstallLazyDocker()
@@ -173,10 +174,6 @@ func (t *Terminal) InstallFastFetch() error {
 		return err
 	}
 	return nil
-}
-
-func (t *Terminal) InstallGithubCli() error {
-	return t.Cmd.MaybeInstallPackage("gh")
 }
 
 func (t *Terminal) InstallLazyDocker() error {

@@ -36,6 +36,7 @@ const (
 	Curl               = "curl"
 	Fastfetch          = "fastfetch"
 	Git                = "git"
+	GithubCli          = "gh"
 	Neovim             = "neovim"
 	Mise               = "mise"
 	Nvim               = "nvim"
