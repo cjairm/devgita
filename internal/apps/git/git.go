@@ -77,11 +77,9 @@ func (g *Git) SoftConfigure() error {
 
 func (g *Git) ExecuteCommand(args ...string) error {
 	execCommand := cmd.CommandParams{
-		PreExecMsg:  "",
-		PostExecMsg: "",
-		IsSudo:      false,
-		Command:     constants.Git,
-		Args:        args,
+		IsSudo:  false,
+		Command: constants.Git,
+		Args:    args,
 	}
 	if _, _, err := g.Base.ExecCommand(execCommand); err != nil {
 		return fmt.Errorf("failed to run git command: %w", err)

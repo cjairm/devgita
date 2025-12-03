@@ -37,6 +37,7 @@ const (
 	Fastfetch          = "fastfetch"
 	Git                = "git"
 	GithubCli          = "gh"
+	Lazydocker         = "lazydocker"
 	Neovim             = "neovim"
 	Mise               = "mise"
 	Nvim               = "nvim"
