@@ -20,6 +20,7 @@ import (
 	"github.com/cjairm/devgita/internal/apps/tmux"
 	"github.com/cjairm/devgita/internal/apps/unzip"
 	"github.com/cjairm/devgita/internal/commands"
+	fzf "github.com/cjairm/devgita/internal/tooling/terminal/dev"
 	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/files"
 	"github.com/cjairm/devgita/pkg/logger"
@@ -206,7 +207,10 @@ func (t *Terminal) InstallTmux() error {
 
 // installs fzf, ripgrep, bat, eza, zoxide, btop, fd-find, tldr
 func (t *Terminal) InstallDevTools() error {
-	packages := []string{"fzf", "ripgrep", "bat", "eza", "zoxide", "btop", "fd", "tldr"}
+	fzfdev := fzf.New()
+	ifErrorDisplayMessage(fzfdev.SoftInstall(), "fzf")
+
+	packages := []string{"ripgrep", "bat", "eza", "zoxide", "btop", "fd", "tldr"}
 	for _, pkg := range packages {
 		if err := t.Cmd.MaybeInstallPackage(pkg); err != nil {
 			return err

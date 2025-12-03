@@ -35,6 +35,7 @@ const (
 	Alacritty          = "alacritty"
 	Curl               = "curl"
 	Fastfetch          = "fastfetch"
+	Fzf                = "fzf"
 	Git                = "git"
 	GithubCli          = "gh"
 	LazyDocker         = "lazydocker"
