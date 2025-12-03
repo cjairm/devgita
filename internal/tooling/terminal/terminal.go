@@ -12,6 +12,7 @@ import (
 	"github.com/cjairm/devgita/internal/apps/fastfetch"
 	"github.com/cjairm/devgita/internal/apps/githubcli"
 	"github.com/cjairm/devgita/internal/apps/lazydocker"
+	"github.com/cjairm/devgita/internal/apps/lazygit"
 	"github.com/cjairm/devgita/internal/apps/mise"
 	"github.com/cjairm/devgita/internal/apps/neovim"
 	"github.com/cjairm/devgita/internal/apps/powerlevel10k"
@@ -44,7 +45,7 @@ func (t *Terminal) InstallAll() error {
 
 	utils.PrintInfo("Installing curl (if no previously installed)...")
 	c := curl.New()
-	ifErrorDisplayMessage(c.SoftInstall(), constants.Curl)
+	ifErrorDisplayMessage(c.SoftInstall(), "curl")
 
 	utils.PrintInfo("Installing and setting up fastfetch (if no previous configuration)...")
 	err = t.InstallFastFetch()
@@ -63,8 +64,8 @@ func (t *Terminal) InstallAll() error {
 	ifErrorDisplayMessage(ld.SoftInstall(), "lazydocker")
 
 	utils.PrintInfo("Installing lazygit (if no previously installed)...")
-	err = t.InstallLazyGit()
-	ifErrorDisplayMessage(err, "lazygit")
+	lg := lazygit.New()
+	ifErrorDisplayMessage(lg.SoftInstall(), "lazygit")
 
 	utils.PrintInfo("Installing and setting up neovim (if no previous configuration)...")
 	err = t.InstallNeovim()
@@ -175,10 +176,6 @@ func (t *Terminal) InstallFastFetch() error {
 		return err
 	}
 	return nil
-}
-
-func (t *Terminal) InstallLazyGit() error {
-	return t.Cmd.MaybeInstallPackage("lazygit")
 }
 
 func (t *Terminal) InstallNeovim() error {
