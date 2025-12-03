@@ -97,8 +97,8 @@ func (t *Terminal) InstallAll() error {
 	)
 
 	utils.PrintInfo("Installing mise (if no previously installed)...")
-	err = t.InstallMise()
-	ifErrorDisplayMessage(err, "mise")
+	m := mise.New()
+	ifErrorDisplayMessage(m.SoftInstall(), "mise")
 
 	return nil
 }
@@ -261,12 +261,6 @@ func (t *Terminal) InstallCoreLibs() error {
 		}
 	}
 	return nil
-}
-
-// installs Mise
-func (t *Terminal) InstallMise() error {
-	m := mise.New()
-	return m.SoftInstall()
 }
 
 func (t *Terminal) DisplayGithubInstructions() error {
