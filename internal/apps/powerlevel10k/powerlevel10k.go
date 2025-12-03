@@ -63,11 +63,9 @@ func (p *PowerLevel10k) Uninstall() error {
 
 func (p *PowerLevel10k) ExecuteCommand(args ...string) error {
 	execCommand := cmd.CommandParams{
-		PreExecMsg:  "",
-		PostExecMsg: "",
-		IsSudo:      false,
-		Command:     "p10k",
-		Args:        args,
+		IsSudo:  false,
+		Command: "p10k",
+		Args:    args,
 	}
 	if _, _, err := p.Base.ExecCommand(execCommand); err != nil {
 		return fmt.Errorf("failed to run powerlevel10k command: %w", err)

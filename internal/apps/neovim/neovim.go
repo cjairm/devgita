@@ -75,11 +75,9 @@ func (n *Neovim) Uninstall() error {
 
 func (n *Neovim) ExecuteCommand(args ...string) error {
 	execCommand := cmd.CommandParams{
-		PreExecMsg:  "",
-		PostExecMsg: "",
-		IsSudo:      false,
-		Command:     constants.Nvim,
-		Args:        args,
+		IsSudo:  false,
+		Command: constants.Nvim,
+		Args:    args,
 	}
 	if _, _, err := n.Base.ExecCommand(execCommand); err != nil {
 		return fmt.Errorf("failed to execute Neovim command: %w", err)

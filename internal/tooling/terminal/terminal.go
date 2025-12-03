@@ -11,6 +11,7 @@ import (
 	"github.com/cjairm/devgita/internal/apps/curl"
 	"github.com/cjairm/devgita/internal/apps/fastfetch"
 	"github.com/cjairm/devgita/internal/apps/githubcli"
+	"github.com/cjairm/devgita/internal/apps/lazydocker"
 	"github.com/cjairm/devgita/internal/apps/mise"
 	"github.com/cjairm/devgita/internal/apps/neovim"
 	"github.com/cjairm/devgita/internal/apps/powerlevel10k"
@@ -42,24 +43,24 @@ func (t *Terminal) InstallAll() error {
 	ifErrorDisplayMessage(err, "instructions")
 
 	utils.PrintInfo("Installing curl (if no previously installed)...")
-	curl := curl.New()
-	ifErrorDisplayMessage(curl.SoftInstall(), constants.Curl)
+	c := curl.New()
+	ifErrorDisplayMessage(c.SoftInstall(), constants.Curl)
 
 	utils.PrintInfo("Installing and setting up fastfetch (if no previous configuration)...")
 	err = t.InstallFastFetch()
 	ifErrorDisplayMessage(err, "fastfetch")
 
 	utils.PrintInfo("Installing unzip (if no previously installed)...")
-	unzip := unzip.New()
-	ifErrorDisplayMessage(unzip.SoftInstall(), "unzip")
+	uz := unzip.New()
+	ifErrorDisplayMessage(uz.SoftInstall(), "unzip")
 
 	utils.PrintInfo("Installing gh (if no previously installed)...")
-	githubcli := githubcli.New()
-	ifErrorDisplayMessage(githubcli.SoftInstall(), "gh")
+	gh := githubcli.New()
+	ifErrorDisplayMessage(gh.SoftInstall(), "gh")
 
 	utils.PrintInfo("Installing lazydocker (if no previously installed)...")
-	err = t.InstallLazyDocker()
-	ifErrorDisplayMessage(err, "lazydocker")
+	ld := lazydocker.New()
+	ifErrorDisplayMessage(ld.SoftInstall(), "lazydocker")
 
 	utils.PrintInfo("Installing lazygit (if no previously installed)...")
 	err = t.InstallLazyGit()
@@ -174,13 +175,6 @@ func (t *Terminal) InstallFastFetch() error {
 		return err
 	}
 	return nil
-}
-
-func (t *Terminal) InstallLazyDocker() error {
-	return t.Cmd.MaybeInstallPackage(
-		"jesseduffield/lazydocker/lazydocker",
-		"lazydocker",
-	)
 }
 
 func (t *Terminal) InstallLazyGit() error {

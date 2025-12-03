@@ -71,11 +71,9 @@ func (t *Tmux) Uninstall() error {
 
 func (t *Tmux) ExecuteCommand(args ...string) error {
 	execCommand := cmd.CommandParams{
-		PreExecMsg:  "",
-		PostExecMsg: "",
-		IsSudo:      false,
-		Command:     constants.Tmux,
-		Args:        args,
+		IsSudo:  false,
+		Command: constants.Tmux,
+		Args:    args,
 	}
 	if _, _, err := t.Base.ExecCommand(execCommand); err != nil {
 		return fmt.Errorf("failed to execute tmux command: %w", err)

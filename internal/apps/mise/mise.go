@@ -59,11 +59,9 @@ func (m *Mise) Uninstall() error {
 
 func (m *Mise) ExecuteCommand(args ...string) error {
 	execCommand := cmd.CommandParams{
-		PreExecMsg:  "",
-		PostExecMsg: "",
-		IsSudo:      false,
-		Command:     constants.Mise,
-		Args:        args,
+		IsSudo:  false,
+		Command: constants.Mise,
+		Args:    args,
 	}
 	if _, _, err := m.Base.ExecCommand(execCommand); err != nil {
 		return fmt.Errorf("failed to run mise command: %w", err)

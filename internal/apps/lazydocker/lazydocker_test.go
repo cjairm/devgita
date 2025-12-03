@@ -25,13 +25,13 @@ func TestNew(t *testing.T) {
 
 var expectedPackageName = fmt.Sprintf(
 	"jesseduffield/%s/%s",
-	constants.Lazydocker,
-	constants.Lazydocker,
+	constants.LazyDocker,
+	constants.LazyDocker,
 )
 
 func TestInstall(t *testing.T) {
 	mc := commands.NewMockCommand()
-	app := &Lazydocker{Cmd: mc}
+	app := &LazyDocker{Cmd: mc}
 
 	if err := app.Install(); err != nil {
 		t.Fatalf("Install error: %v", err)
@@ -46,7 +46,7 @@ func TestInstall(t *testing.T) {
 // Testing this creates false negatives
 // func TestForceInstall(t *testing.T) {
 // 	mc := commands.NewMockCommand()
-// 	app := &Lazydocker{Cmd: mc}
+// 	app := &LazyDocker{Cmd: mc}
 //
 // 	if err := app.ForceInstall(); err != nil {
 // 		t.Fatalf("ForceInstall error: %v", err)
@@ -58,7 +58,7 @@ func TestInstall(t *testing.T) {
 
 func TestSoftInstall(t *testing.T) {
 	mc := commands.NewMockCommand()
-	app := &Lazydocker{Cmd: mc}
+	app := &LazyDocker{Cmd: mc}
 
 	if err := app.SoftInstall(); err != nil {
 		t.Fatalf("SoftInstall error: %v", err)
@@ -71,9 +71,9 @@ func TestSoftInstall(t *testing.T) {
 // SKIP: No relevant tests
 // func TestForceConfigure(t *testing.T) {
 // 	mc := commands.NewMockCommand()
-// 	app := &Lazydocker{Cmd: mc}
+// 	app := &LazyDocker{Cmd: mc}
 //
-// 	// Lazydocker doesn't apply default configuration in devgita
+// 	// LazyDocker doesn't apply default configuration in devgita
 // 	// ForceConfigure should return nil (no-op)
 // 	if err := app.ForceConfigure(); err != nil {
 // 		t.Fatalf("ForceConfigure error: %v", err)
@@ -82,9 +82,9 @@ func TestSoftInstall(t *testing.T) {
 //
 // func TestSoftConfigure(t *testing.T) {
 // 	mc := commands.NewMockCommand()
-// 	app := &Lazydocker{Cmd: mc}
+// 	app := &LazyDocker{Cmd: mc}
 //
-// 	// Lazydocker doesn't apply default configuration in devgita
+// 	// LazyDocker doesn't apply default configuration in devgita
 // 	// SoftConfigure should return nil (no-op)
 // 	if err := app.SoftConfigure(); err != nil {
 // 		t.Fatalf("SoftConfigure error: %v", err)
@@ -94,7 +94,7 @@ func TestSoftInstall(t *testing.T) {
 func TestExecuteCommand(t *testing.T) {
 	mc := commands.NewMockCommand()
 	mockBase := commands.NewMockBaseCommand()
-	app := &Lazydocker{Cmd: mc, Base: mockBase}
+	app := &LazyDocker{Cmd: mc, Base: mockBase}
 
 	// Test 1: Successful execution
 	t.Run("successful execution", func(t *testing.T) {
@@ -169,7 +169,7 @@ func TestExecuteCommand(t *testing.T) {
 // SKIP: Uninstall test as per guidelines
 // func TestUninstall(t *testing.T) {
 // 	mc := commands.NewMockCommand()
-// 	app := &Lazydocker{Cmd: mc}
+// 	app := &LazyDocker{Cmd: mc}
 //
 // 	err := app.Uninstall()
 // 	if err == nil {
@@ -183,7 +183,7 @@ func TestExecuteCommand(t *testing.T) {
 // SKIP: Update test as per guidelines
 // func TestUpdate(t *testing.T) {
 // 	mc := commands.NewMockCommand()
-// 	app := &Lazydocker{Cmd: mc}
+// 	app := &LazyDocker{Cmd: mc}
 //
 // 	err := app.Update()
 // 	if err == nil {

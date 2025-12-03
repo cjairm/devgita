@@ -37,7 +37,7 @@ const (
 	Fastfetch          = "fastfetch"
 	Git                = "git"
 	GithubCli          = "gh"
-	Lazydocker         = "lazydocker"
+	LazyDocker         = "lazydocker"
 	Neovim             = "neovim"
 	Mise               = "mise"
 	Nvim               = "nvim"
@@ -45,6 +45,7 @@ const (
 	Syntaxhighlighting = "zsh-syntax-highlighting"
 	Tmux               = "tmux"
 	Unzip              = "unzip"
+	ZshAutosuggestions = "zsh-autosuggestions"
 
 	// Other available folders for installation
 	Bash   = "bash"

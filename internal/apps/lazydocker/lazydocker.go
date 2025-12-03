@@ -1,12 +1,12 @@
-// Lazydocker terminal UI for Docker container and image management with devgita integration
+// LazyDocker terminal UI for Docker container and image management with devgita integration
 //
-// Lazydocker is a simple terminal UI for both docker and docker-compose, written in Go
+// LazyDocker is a simple terminal UI for both docker and docker-compose, written in Go
 // with the gocui library. It provides an interactive interface to manage Docker containers,
 // images, volumes, and networks, all from the comfort of the terminal.
 //
 // References:
-// - Lazydocker Repository: https://github.com/jesseduffield/lazydocker
-// - Lazydocker Documentation: https://github.com/jesseduffield/lazydocker/blob/master/docs/Config.md
+// - LazyDocker Repository: https://github.com/jesseduffield/lazydocker
+// - LazyDocker Documentation: https://github.com/jesseduffield/lazydocker/blob/master/docs/Config.md
 //
 // Common lazydocker commands available through ExecuteCommand():
 //   - lazydocker - Launch interactive TUI
@@ -23,65 +23,65 @@ import (
 	"github.com/cjairm/devgita/pkg/constants"
 )
 
-type Lazydocker struct {
+type LazyDocker struct {
 	Cmd  cmd.Command
 	Base cmd.BaseCommandExecutor
 }
 
-var packageName = fmt.Sprintf("jesseduffield/%s/%s", constants.Lazydocker, constants.Lazydocker)
+var packageName = fmt.Sprintf("jesseduffield/%s/%s", constants.LazyDocker, constants.LazyDocker)
 
-func New() *Lazydocker {
+func New() *LazyDocker {
 	osCmd := cmd.NewCommand()
 	baseCmd := cmd.NewBaseCommand()
-	return &Lazydocker{Cmd: osCmd, Base: baseCmd}
+	return &LazyDocker{Cmd: osCmd, Base: baseCmd}
 }
 
-func (l *Lazydocker) Install() error {
-	return l.Cmd.InstallPackage(packageName)
+func (ld *LazyDocker) Install() error {
+	return ld.Cmd.InstallPackage(packageName)
 }
 
-func (l *Lazydocker) SoftInstall() error {
-	return l.Cmd.MaybeInstallPackage(packageName, constants.Lazydocker)
+func (ld *LazyDocker) SoftInstall() error {
+	return ld.Cmd.MaybeInstallPackage(packageName, constants.LazyDocker)
 }
 
-func (l *Lazydocker) ForceInstall() error {
-	err := l.Uninstall()
+func (ld *LazyDocker) ForceInstall() error {
+	err := ld.Uninstall()
 	if err != nil {
 		return fmt.Errorf("failed to uninstall lazydocker: %w", err)
 	}
-	return l.Install()
+	return ld.Install()
 }
 
-func (l *Lazydocker) Uninstall() error {
+func (ld *LazyDocker) Uninstall() error {
 	return fmt.Errorf("lazydocker uninstall not supported through devgita")
 }
 
-func (l *Lazydocker) ForceConfigure() error {
-	// Lazydocker configuration is optional and user-specific
+func (ld *LazyDocker) ForceConfigure() error {
+	// LazyDocker configuration is optional and user-specific
 	// Configuration file typically located at ~/.config/lazydocker/config.yml
 	// For now, no default configuration is applied
 	return nil
 }
 
-func (l *Lazydocker) SoftConfigure() error {
-	// Lazydocker configuration is optional and user-specific
+func (ld *LazyDocker) SoftConfigure() error {
+	// LazyDocker configuration is optional and user-specific
 	// Configuration file typically located at ~/.config/lazydocker/config.yml
 	// For now, no default configuration is applied
 	return nil
 }
 
-func (l *Lazydocker) ExecuteCommand(args ...string) error {
+func (ld *LazyDocker) ExecuteCommand(args ...string) error {
 	execCommand := cmd.CommandParams{
 		IsSudo:  false,
-		Command: constants.Lazydocker,
+		Command: constants.LazyDocker,
 		Args:    args,
 	}
-	if _, _, err := l.Base.ExecCommand(execCommand); err != nil {
+	if _, _, err := ld.Base.ExecCommand(execCommand); err != nil {
 		return fmt.Errorf("failed to run lazydocker command: %w", err)
 	}
 	return nil
 }
 
-func (l *Lazydocker) Update() error {
+func (ld *LazyDocker) Update() error {
 	return fmt.Errorf("lazydocker update not implemented through devgita")
 }

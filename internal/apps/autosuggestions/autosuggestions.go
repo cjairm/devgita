@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	cmd "github.com/cjairm/devgita/internal/commands"
+	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/files"
 	"github.com/cjairm/devgita/pkg/paths"
 )
@@ -24,7 +25,7 @@ func New() *Autosuggestions {
 }
 
 func (a *Autosuggestions) Install() error {
-	return a.Cmd.InstallPackage("zsh-autosuggestions")
+	return a.Cmd.InstallPackage(constants.ZshAutosuggestions)
 }
 
 func (a *Autosuggestions) ForceInstall() error {
@@ -36,7 +37,7 @@ func (a *Autosuggestions) ForceInstall() error {
 }
 
 func (a *Autosuggestions) SoftInstall() error {
-	return a.Cmd.MaybeInstallPackage("zsh-autosuggestions")
+	return a.Cmd.MaybeInstallPackage(constants.ZshAutosuggestions)
 }
 
 func (a *Autosuggestions) ForceConfigure() error {
