@@ -21,6 +21,7 @@ import (
 	"github.com/cjairm/devgita/internal/apps/unzip"
 	"github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/internal/tooling/terminal/dev_tools/bat"
+	"github.com/cjairm/devgita/internal/tooling/terminal/dev_tools/eza"
 	"github.com/cjairm/devgita/internal/tooling/terminal/dev_tools/fzf"
 	"github.com/cjairm/devgita/internal/tooling/terminal/dev_tools/ripgrep"
 	"github.com/cjairm/devgita/pkg/constants"
@@ -216,12 +217,13 @@ func (t *Terminal) InstallDevTools() error {
 		{constants.Fzf, fzf.New()},
 		{constants.Ripgrep, ripgrep.New()},
 		{constants.Bat, bat.New()},
+		{constants.Eza, eza.New()},
 	}
 	for _, devtool := range devtools {
 		ifErrorDisplayMessage(devtool.app.SoftInstall(), devtool.name)
 	}
 
-	packages := []string{"eza", "zoxide", "btop", "fd", "tldr"}
+	packages := []string{"zoxide", "btop", "fd", "tldr"}
 	for _, pkg := range packages {
 		if err := t.Cmd.MaybeInstallPackage(pkg); err != nil {
 			return err

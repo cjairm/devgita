@@ -64,6 +64,30 @@ func (b *Bat) ForceConfigure() error {
 	// Users can create ~/.config/bat/config if desired for custom settings
 
 	// TODO: Replace `cat` with this app.
+	//
+	// Ex, export HOME={{.Home}}
+	//
+	// func main() {
+	// 	tmpl, err := template.ParseFiles("myfile.zsh")
+	// 	if err != nil {
+	// 		panic(err)
+	// 	}
+	//
+	// 	data := map[string]string{
+	// 		"Home": "/User/Somethin/haha",
+	// 	}
+	//
+	// 	outputFile, err := os.Create("myfile.generated.zsh")
+	// 	if err != nil {
+	// 		panic(err)
+	// 	}
+	// 	defer outputFile.Close()
+	//
+	// 	err = tmpl.Execute(outputFile, data)
+	// 	if err != nil {
+	// 		panic(err)
+	// 	}
+	// }
 	return nil
 }
 
@@ -73,6 +97,30 @@ func (b *Bat) SoftConfigure() error {
 	// Users can create ~/.config/bat/config if desired for custom settings
 
 	// TODO: Replace `cat` with this app.
+	//
+	// Ex, export HOME={{.Home}}
+	//
+	// func main() {
+	// 	tmpl, err := template.ParseFiles("myfile.zsh")
+	// 	if err != nil {
+	// 		panic(err)
+	// 	}
+	//
+	// 	data := map[string]string{
+	// 		"Home": "/User/Somethin/haha",
+	// 	}
+	//
+	// 	outputFile, err := os.Create("myfile.generated.zsh")
+	// 	if err != nil {
+	// 		panic(err)
+	// 	}
+	// 	defer outputFile.Close()
+	//
+	// 	err = tmpl.Execute(outputFile, data)
+	// 	if err != nil {
+	// 		panic(err)
+	// 	}
+	// }
 	return nil
 }
 

@@ -35,6 +35,7 @@ const (
 	Alacritty          = "alacritty"
 	Bat                = "bat"
 	Curl               = "curl"
+	Eza                = "eza"
 	Fastfetch          = "fastfetch"
 	Fzf                = "fzf"
 	Git                = "git"
