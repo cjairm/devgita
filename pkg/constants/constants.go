@@ -50,6 +50,7 @@ const (
 	Syntaxhighlighting = "zsh-syntax-highlighting"
 	Tmux               = "tmux"
 	Unzip              = "unzip"
+	Zoxide             = "zoxide"
 	ZshAutosuggestions = "zsh-autosuggestions"
 
 	// Other available folders for installation
