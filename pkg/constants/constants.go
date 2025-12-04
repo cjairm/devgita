@@ -50,6 +50,7 @@ const (
 	Powerlevel10k      = "powerlevel10k"
 	Ripgrep            = "rg"
 	Syntaxhighlighting = "zsh-syntax-highlighting"
+	Tldr               = "tldr"
 	Tmux               = "tmux"
 	Unzip              = "unzip"
 	Zoxide             = "zoxide"

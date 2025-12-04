@@ -26,6 +26,7 @@ import (
 	"github.com/cjairm/devgita/internal/tooling/terminal/dev_tools/fdfind"
 	"github.com/cjairm/devgita/internal/tooling/terminal/dev_tools/fzf"
 	"github.com/cjairm/devgita/internal/tooling/terminal/dev_tools/ripgrep"
+	"github.com/cjairm/devgita/internal/tooling/terminal/dev_tools/tldr"
 	"github.com/cjairm/devgita/internal/tooling/terminal/dev_tools/zoxide"
 	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/files"
@@ -224,16 +225,10 @@ func (t *Terminal) InstallDevTools() error {
 		{constants.Zoxide, zoxide.New()},
 		{constants.Btop, btop.New()},
 		{constants.FdFind, fdfind.New()},
+		{constants.Tldr, tldr.New()},
 	}
 	for _, devtool := range devtools {
 		ifErrorDisplayMessage(devtool.app.SoftInstall(), devtool.name)
-	}
-
-	packages := []string{"tldr"}
-	for _, pkg := range packages {
-		if err := t.Cmd.MaybeInstallPackage(pkg); err != nil {
-			return err
-		}
 	}
 	return nil
 }
