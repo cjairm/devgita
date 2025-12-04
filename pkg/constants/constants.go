@@ -49,6 +49,7 @@ const (
 	Neovim             = "neovim"
 	Mise               = "mise"
 	Nvim               = "nvim"
+	OpenSSL            = "openssl"
 	PkgConfig          = "pkg-config"
 	Powerlevel10k      = "powerlevel10k"
 	Ripgrep            = "rg"
