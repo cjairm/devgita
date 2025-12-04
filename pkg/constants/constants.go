@@ -33,6 +33,7 @@ const (
 	// App names
 	Aerospace          = "aerospace"
 	Alacritty          = "alacritty"
+	Autoconf           = "autoconf"
 	Bat                = "bat"
 	Btop               = "btop"
 	Curl               = "curl"
