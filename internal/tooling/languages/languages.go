@@ -41,6 +41,7 @@ func (dl *DevLanguages) AvailableLanguages() []string {
 		"Go",
 		"PHP",
 		"Python",
+		"Rust", // TODO: Make sure rust is supported
 	}
 }
 
@@ -81,6 +82,12 @@ func (dl *DevLanguages) InstallChosen(ctx context.Context) {
 				case "php":
 					utils.PrintInfo("Installing PHP latest (if no previously installed)...")
 					if err := dl.InstallNative("php"); err != nil {
+						utils.PrintError("Error: Unable to install PHP.")
+					}
+				case "rust":
+					utils.PrintInfo("Installing Rust latest (if no previously installed)...")
+					// FIXME: Before install with mise make sure rust is not installed via rustup
+					if err := dl.InstallWithMise("rust", "latest"); err != nil {
 						utils.PrintError("Error: Unable to install PHP.")
 					}
 				}

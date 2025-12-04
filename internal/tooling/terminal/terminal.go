@@ -238,7 +238,6 @@ func (t *Terminal) InstallCoreLibs() error {
 	}
 
 	libsLegacy := []string{
-		"rust", // Move this to languages
 		"openssl",
 		"readline",
 		"zlib",
