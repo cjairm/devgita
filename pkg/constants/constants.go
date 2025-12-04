@@ -47,6 +47,7 @@ const (
 	Neovim             = "neovim"
 	Mise               = "mise"
 	Nvim               = "nvim"
+	PkgConfig          = "pkg-config"
 	Powerlevel10k      = "powerlevel10k"
 	Ripgrep            = "rg"
 	Syntaxhighlighting = "zsh-syntax-highlighting"
