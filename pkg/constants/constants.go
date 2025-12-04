@@ -44,6 +44,7 @@ const (
 	Mise               = "mise"
 	Nvim               = "nvim"
 	Powerlevel10k      = "powerlevel10k"
+	Ripgrep            = "rg"
 	Syntaxhighlighting = "zsh-syntax-highlighting"
 	Tmux               = "tmux"
 	Unzip              = "unzip"

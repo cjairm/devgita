@@ -20,7 +20,8 @@ import (
 	"github.com/cjairm/devgita/internal/apps/tmux"
 	"github.com/cjairm/devgita/internal/apps/unzip"
 	"github.com/cjairm/devgita/internal/commands"
-	fzf "github.com/cjairm/devgita/internal/tooling/terminal/dev"
+	"github.com/cjairm/devgita/internal/tooling/terminal/dev_tools/fzf"
+	"github.com/cjairm/devgita/internal/tooling/terminal/dev_tools/ripgrep"
 	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/files"
 	"github.com/cjairm/devgita/pkg/logger"
@@ -207,10 +208,13 @@ func (t *Terminal) InstallTmux() error {
 
 // installs fzf, ripgrep, bat, eza, zoxide, btop, fd-find, tldr
 func (t *Terminal) InstallDevTools() error {
-	fzfdev := fzf.New()
-	ifErrorDisplayMessage(fzfdev.SoftInstall(), "fzf")
+	fzf_devtool := fzf.New()
+	ifErrorDisplayMessage(fzf_devtool.SoftInstall(), "fzf")
 
-	packages := []string{"ripgrep", "bat", "eza", "zoxide", "btop", "fd", "tldr"}
+	ripgrep_devtool := ripgrep.New()
+	ifErrorDisplayMessage(ripgrep_devtool.SoftInstall(), "ripgrep")
+
+	packages := []string{"bat", "eza", "zoxide", "btop", "fd", "tldr"}
 	for _, pkg := range packages {
 		if err := t.Cmd.MaybeInstallPackage(pkg); err != nil {
 			return err
