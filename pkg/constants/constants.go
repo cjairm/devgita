@@ -34,6 +34,7 @@ const (
 	Aerospace          = "aerospace"
 	Alacritty          = "alacritty"
 	Bat                = "bat"
+	Btop               = "btop"
 	Curl               = "curl"
 	Eza                = "eza"
 	Fastfetch          = "fastfetch"
