@@ -38,6 +38,7 @@ const (
 	Curl               = "curl"
 	Eza                = "eza"
 	Fastfetch          = "fastfetch"
+	FdFind             = "fd" // Equivalent to "fd-find" in Linux package managers
 	Fzf                = "fzf"
 	Git                = "git"
 	GithubCli          = "gh"

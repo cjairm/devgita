@@ -23,6 +23,7 @@ import (
 	"github.com/cjairm/devgita/internal/tooling/terminal/dev_tools/bat"
 	"github.com/cjairm/devgita/internal/tooling/terminal/dev_tools/btop"
 	"github.com/cjairm/devgita/internal/tooling/terminal/dev_tools/eza"
+	"github.com/cjairm/devgita/internal/tooling/terminal/dev_tools/fdfind"
 	"github.com/cjairm/devgita/internal/tooling/terminal/dev_tools/fzf"
 	"github.com/cjairm/devgita/internal/tooling/terminal/dev_tools/ripgrep"
 	"github.com/cjairm/devgita/internal/tooling/terminal/dev_tools/zoxide"
@@ -210,8 +211,8 @@ func (t *Terminal) InstallTmux() error {
 	return nil
 }
 
-// installs fzf, ripgrep, bat, eza, zoxide, btop, fd-find, tldr
 func (t *Terminal) InstallDevTools() error {
+	// should install fzf, ripgrep, bat, eza, zoxide, btop, fd-find, tldr
 	devtools := []struct {
 		name string
 		app  interface{ SoftInstall() error }
@@ -222,12 +223,13 @@ func (t *Terminal) InstallDevTools() error {
 		{constants.Eza, eza.New()},
 		{constants.Zoxide, zoxide.New()},
 		{constants.Btop, btop.New()},
+		{constants.FdFind, fdfind.New()},
 	}
 	for _, devtool := range devtools {
 		ifErrorDisplayMessage(devtool.app.SoftInstall(), devtool.name)
 	}
 
-	packages := []string{"fd", "tldr"}
+	packages := []string{"tldr"}
 	for _, pkg := range packages {
 		if err := t.Cmd.MaybeInstallPackage(pkg); err != nil {
 			return err
