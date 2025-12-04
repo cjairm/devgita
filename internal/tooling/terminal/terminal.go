@@ -20,6 +20,9 @@ import (
 	"github.com/cjairm/devgita/internal/apps/tmux"
 	"github.com/cjairm/devgita/internal/apps/unzip"
 	"github.com/cjairm/devgita/internal/commands"
+	"github.com/cjairm/devgita/internal/tooling/terminal/core/autoconf"
+	"github.com/cjairm/devgita/internal/tooling/terminal/core/bison"
+	"github.com/cjairm/devgita/internal/tooling/terminal/core/pkgconfig"
 	"github.com/cjairm/devgita/internal/tooling/terminal/dev_tools/bat"
 	"github.com/cjairm/devgita/internal/tooling/terminal/dev_tools/btop"
 	"github.com/cjairm/devgita/internal/tooling/terminal/dev_tools/eza"
@@ -51,29 +54,32 @@ func (t *Terminal) InstallAll() error {
 	err := t.DisplayGithubInstructions()
 	ifErrorDisplayMessage(err, "instructions")
 
-	utils.PrintInfo("Installing curl (if no previously installed)...")
-	c := curl.New()
-	ifErrorDisplayMessage(c.SoftInstall(), "curl")
+	if t.Base.Platform.IsMac() {
+		utils.PrintInfo("Installing xcode (if no previously installed)...")
+		err = t.InstallXCode()
+		ifErrorDisplayMessage(err, "xcode")
+	}
+
+	packages := []struct {
+		name string
+		app  interface{ SoftInstall() error }
+	}{
+		{constants.Curl, curl.New()},
+		{constants.Unzip, unzip.New()},
+		{constants.GithubCli, githubcli.New()},
+		{constants.LazyDocker, lazydocker.New()},
+		{constants.LazyGit, lazygit.New()},
+		{constants.Mise, mise.New()},
+	}
+	for _, singlePackage := range packages {
+		msg := fmt.Sprintf("Installing %s (if no previously installed)...", singlePackage.name)
+		utils.PrintInfo(msg)
+		ifErrorDisplayMessage(singlePackage.app.SoftInstall(), singlePackage.name)
+	}
 
 	utils.PrintInfo("Installing and setting up fastfetch (if no previous configuration)...")
 	err = t.InstallFastFetch()
 	ifErrorDisplayMessage(err, "fastfetch")
-
-	utils.PrintInfo("Installing unzip (if no previously installed)...")
-	uz := unzip.New()
-	ifErrorDisplayMessage(uz.SoftInstall(), "unzip")
-
-	utils.PrintInfo("Installing gh (if no previously installed)...")
-	gh := githubcli.New()
-	ifErrorDisplayMessage(gh.SoftInstall(), "gh")
-
-	utils.PrintInfo("Installing lazydocker (if no previously installed)...")
-	ld := lazydocker.New()
-	ifErrorDisplayMessage(ld.SoftInstall(), "lazydocker")
-
-	utils.PrintInfo("Installing lazygit (if no previously installed)...")
-	lg := lazygit.New()
-	ifErrorDisplayMessage(lg.SoftInstall(), "lazygit")
 
 	utils.PrintInfo("Installing and setting up neovim (if no previous configuration)...")
 	err = t.InstallNeovim()
@@ -83,30 +89,9 @@ func (t *Terminal) InstallAll() error {
 	err = t.InstallTmux()
 	ifErrorDisplayMessage(err, "tmux")
 
-	utils.PrintInfo(
-		"Installing fzf, ripgrep, bat, eza, zoxide, btop, fd-find, and tldr (if no previously installed)...",
-	)
-	err = t.InstallDevTools()
-	ifErrorDisplayMessage(err, "fzf, ripgrep, bat, eza, zoxide, btop, fd-find, and tldr")
+	t.InstallDevTools()
 
-	if t.Base.Platform.IsMac() {
-		utils.PrintInfo("Installing xcode (if no previously installed)...")
-		err = t.InstallXCode()
-		ifErrorDisplayMessage(err, "xcode")
-	}
-
-	utils.PrintInfo(
-		"Installing pkg-config, autoconf, bison, rust, openssl, readline, zlib, libyaml, ncurses, libffi, gdbm, jemalloc, vips, and mupdf (if no previously installed)...",
-	)
-	err = t.InstallCoreLibs()
-	ifErrorDisplayMessage(
-		err,
-		"pkg-config, autoconf, bison, rust, openssl, readline, zlib, libyaml, ncurses, libffi, gdbm, jemalloc, vips, and mupdf",
-	)
-
-	utils.PrintInfo("Installing mise (if no previously installed)...")
-	m := mise.New()
-	ifErrorDisplayMessage(m.SoftInstall(), "mise")
+	t.InstallCoreLibs()
 
 	return nil
 }
@@ -228,40 +213,32 @@ func (t *Terminal) InstallDevTools() error {
 		{constants.Tldr, tldr.New()},
 	}
 	for _, devtool := range devtools {
+		msg := fmt.Sprintf("Installing %s (if no previously installed)...", devtool.name)
+		utils.PrintInfo(msg)
 		ifErrorDisplayMessage(devtool.app.SoftInstall(), devtool.name)
 	}
 	return nil
 }
 
-// This dedicated to MacOS
-func (t *Terminal) InstallXCode() error {
-	isInstalled, err := isXcodeInstalled()
-	if err != nil {
-		return err
-	}
-	if isInstalled {
-		return nil
-	}
-	cmd := commands.CommandParams{
-		PreExecMsg:  "Installing Xcode Command Line Tools",
-		PostExecMsg: "",
-		IsSudo:      false,
-		Command:     "xcode-select",
-		Args:        []string{"--install"},
-	}
-	if _, _, err := t.Base.ExecCommand(cmd); err != nil {
-		return fmt.Errorf("failed to install Xcode Command Line Tools: %w", err)
-	}
-	return nil
-}
-
-// installs libs pkg-config, autoconf, bison, rust, openssl, readline, zlib, libyaml, ncurses, libffi, gdbm, jemalloc, vips, mupdf
 func (t *Terminal) InstallCoreLibs() error {
-	libs := []string{
-		"pkg-config",
-		"autoconf",
-		"bison",
-		"rust",
+	// installs libs pkg-config, autoconf, bison, rust, openssl, readline, zlib,
+	// libyaml, ncurses, libffi, gdbm, jemalloc, vips, mupdf
+	libs := []struct {
+		name string
+		app  interface{ SoftInstall() error }
+	}{
+		{constants.PkgConfig, pkgconfig.New()},
+		{constants.Autoconf, autoconf.New()},
+		{constants.Bison, bison.New()},
+	}
+	for _, lib := range libs {
+		msg := fmt.Sprintf("Installing %s (if no previously installed)...", lib.name)
+		utils.PrintInfo(msg)
+		ifErrorDisplayMessage(lib.app.SoftInstall(), lib.name)
+	}
+
+	libsLegacy := []string{
+		"rust", // Move this to languages
 		"openssl",
 		"readline",
 		"zlib",
@@ -273,8 +250,8 @@ func (t *Terminal) InstallCoreLibs() error {
 		"vips",
 		"mupdf",
 	}
-	for _, lib := range libs {
-		if err := t.Cmd.MaybeInstallPackage(lib); err != nil {
+	for _, libLegacy := range libsLegacy {
+		if err := t.Cmd.MaybeInstallPackage(libLegacy); err != nil {
 			return err
 		}
 	}
@@ -302,6 +279,28 @@ func (t *Terminal) DisplayGithubInstructions() error {
 		instructions,
 		false,
 	)
+}
+
+// This dedicated to MacOS
+func (t *Terminal) InstallXCode() error {
+	isInstalled, err := isXcodeInstalled()
+	if err != nil {
+		return err
+	}
+	if isInstalled {
+		return nil
+	}
+	cmd := commands.CommandParams{
+		PreExecMsg:  "Installing Xcode Command Line Tools",
+		PostExecMsg: "",
+		IsSudo:      false,
+		Command:     "xcode-select",
+		Args:        []string{"--install"},
+	}
+	if _, _, err := t.Base.ExecCommand(cmd); err != nil {
+		return fmt.Errorf("failed to install Xcode Command Line Tools: %w", err)
+	}
+	return nil
 }
 
 func isXcodeInstalled() (bool, error) {

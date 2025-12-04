@@ -34,6 +34,7 @@ const (
 	Aerospace          = "aerospace"
 	Alacritty          = "alacritty"
 	Autoconf           = "autoconf"
+	Bison              = "bison"
 	Bat                = "bat"
 	Btop               = "btop"
 	Curl               = "curl"
