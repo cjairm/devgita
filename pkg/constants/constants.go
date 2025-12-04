@@ -52,6 +52,7 @@ const (
 	OpenSSL            = "openssl"
 	PkgConfig          = "pkg-config"
 	Powerlevel10k      = "powerlevel10k"
+	Readline           = "readline"
 	Ripgrep            = "rg"
 	Syntaxhighlighting = "zsh-syntax-highlighting"
 	Tldr               = "tldr"

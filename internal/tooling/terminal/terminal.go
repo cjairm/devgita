@@ -24,6 +24,7 @@ import (
 	"github.com/cjairm/devgita/internal/tooling/terminal/core/bison"
 	"github.com/cjairm/devgita/internal/tooling/terminal/core/openssl"
 	"github.com/cjairm/devgita/internal/tooling/terminal/core/pkgconfig"
+	"github.com/cjairm/devgita/internal/tooling/terminal/core/readline"
 	"github.com/cjairm/devgita/internal/tooling/terminal/dev_tools/bat"
 	"github.com/cjairm/devgita/internal/tooling/terminal/dev_tools/btop"
 	"github.com/cjairm/devgita/internal/tooling/terminal/dev_tools/eza"
@@ -232,6 +233,7 @@ func (t *Terminal) InstallCoreLibs() error {
 		{constants.Autoconf, autoconf.New()},
 		{constants.Bison, bison.New()},
 		{constants.OpenSSL, openssl.New()},
+		{constants.Readline, readline.New()},
 	}
 	for _, lib := range libs {
 		msg := fmt.Sprintf("Installing %s (if no previously installed)...", lib.name)
@@ -240,7 +242,6 @@ func (t *Terminal) InstallCoreLibs() error {
 	}
 
 	libsLegacy := []string{
-		"readline",
 		"zlib",
 		"libyaml",
 		"ncurses",
