@@ -208,11 +208,16 @@ func (t *Terminal) InstallTmux() error {
 
 // installs fzf, ripgrep, bat, eza, zoxide, btop, fd-find, tldr
 func (t *Terminal) InstallDevTools() error {
-	fzf_devtool := fzf.New()
-	ifErrorDisplayMessage(fzf_devtool.SoftInstall(), "fzf")
-
-	ripgrep_devtool := ripgrep.New()
-	ifErrorDisplayMessage(ripgrep_devtool.SoftInstall(), "ripgrep")
+	devtools := []struct {
+		name string
+		app  interface{ SoftInstall() error }
+	}{
+		{"fzf", fzf.New()},
+		{"ripgrep", ripgrep.New()},
+	}
+	for _, devtool := range devtools {
+		ifErrorDisplayMessage(devtool.app.SoftInstall(), devtool.name)
+	}
 
 	packages := []string{"bat", "eza", "zoxide", "btop", "fd", "tldr"}
 	for _, pkg := range packages {
