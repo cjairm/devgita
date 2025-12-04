@@ -3,6 +3,7 @@
   "instructions": [
     "docs/project-overview.md",
     "docs/apps/**.md",
-    "docs/guides/**.md"
+    "docs/guides/**.md",
+    "docs/tooling/**.md"
   ]
 }

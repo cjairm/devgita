@@ -33,6 +33,7 @@ const (
 	// App names
 	Aerospace          = "aerospace"
 	Alacritty          = "alacritty"
+	Bat                = "bat"
 	Curl               = "curl"
 	Fastfetch          = "fastfetch"
 	Fzf                = "fzf"

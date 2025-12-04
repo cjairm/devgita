@@ -20,6 +20,7 @@ import (
 	"github.com/cjairm/devgita/internal/apps/tmux"
 	"github.com/cjairm/devgita/internal/apps/unzip"
 	"github.com/cjairm/devgita/internal/commands"
+	"github.com/cjairm/devgita/internal/tooling/terminal/dev_tools/bat"
 	"github.com/cjairm/devgita/internal/tooling/terminal/dev_tools/fzf"
 	"github.com/cjairm/devgita/internal/tooling/terminal/dev_tools/ripgrep"
 	"github.com/cjairm/devgita/pkg/constants"
@@ -212,14 +213,15 @@ func (t *Terminal) InstallDevTools() error {
 		name string
 		app  interface{ SoftInstall() error }
 	}{
-		{"fzf", fzf.New()},
-		{"ripgrep", ripgrep.New()},
+		{constants.Fzf, fzf.New()},
+		{constants.Ripgrep, ripgrep.New()},
+		{constants.Bat, bat.New()},
 	}
 	for _, devtool := range devtools {
 		ifErrorDisplayMessage(devtool.app.SoftInstall(), devtool.name)
 	}
 
-	packages := []string{"bat", "eza", "zoxide", "btop", "fd", "tldr"}
+	packages := []string{"eza", "zoxide", "btop", "fd", "tldr"}
 	for _, pkg := range packages {
 		if err := t.Cmd.MaybeInstallPackage(pkg); err != nil {
 			return err
