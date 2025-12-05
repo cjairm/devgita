@@ -72,6 +72,7 @@ func (l *Libyaml) SoftConfigure() error {
 }
 
 func (l *Libyaml) ExecuteCommand(args ...string) error {
+	// NOTE: libyaml is primarily a library, not a CLI tool
 	execCommand := cmd.CommandParams{
 		IsSudo:  false,
 		Command: constants.Libyaml,

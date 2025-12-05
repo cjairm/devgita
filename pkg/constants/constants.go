@@ -42,6 +42,7 @@ const (
 	Fastfetch          = "fastfetch"
 	FdFind             = "fd" // Equivalent to "fd-find" in Linux package managers
 	Fzf                = "fzf"
+	Gdbm               = "gdbm"
 	Git                = "git"
 	GithubCli          = "gh"
 	LazyDocker         = "lazydocker"
