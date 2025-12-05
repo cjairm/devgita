@@ -45,6 +45,7 @@ const (
 	Gdbm               = "gdbm"
 	Git                = "git"
 	GithubCli          = "gh"
+	Jemalloc           = "jemalloc"
 	LazyDocker         = "lazydocker"
 	LazyGit            = "lazygit"
 	Libffi             = "libffi"
