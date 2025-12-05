@@ -22,6 +22,7 @@ import (
 	"github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/internal/tooling/terminal/core/autoconf"
 	"github.com/cjairm/devgita/internal/tooling/terminal/core/bison"
+	"github.com/cjairm/devgita/internal/tooling/terminal/core/libyaml"
 	"github.com/cjairm/devgita/internal/tooling/terminal/core/openssl"
 	"github.com/cjairm/devgita/internal/tooling/terminal/core/pkgconfig"
 	"github.com/cjairm/devgita/internal/tooling/terminal/core/readline"
@@ -224,8 +225,8 @@ func (t *Terminal) InstallDevTools() error {
 }
 
 func (t *Terminal) InstallCoreLibs() error {
-	// installs libs pkg-config, autoconf, bison, rust, openssl, readline, zlib,
-	// libyaml, ncurses, libffi, gdbm, jemalloc, vips, mupdf
+	// installs libs pkg-config, autoconf, bison, openssl, readline, zlib,
+	//               libyaml, ncurses, libffi, gdbm, jemalloc, vips, mupdf
 	libs := []struct {
 		name string
 		app  interface{ SoftInstall() error }
@@ -236,6 +237,7 @@ func (t *Terminal) InstallCoreLibs() error {
 		{constants.OpenSSL, openssl.New()},
 		{constants.Readline, readline.New()},
 		{constants.Zlib, zlib.New()},
+		{constants.Libyaml, libyaml.New()},
 	}
 	for _, lib := range libs {
 		msg := fmt.Sprintf("Installing %s (if no previously installed)...", lib.name)
@@ -244,7 +246,6 @@ func (t *Terminal) InstallCoreLibs() error {
 	}
 
 	libsLegacy := []string{
-		"libyaml",
 		"ncurses",
 		"libffi",
 		"gdbm",
