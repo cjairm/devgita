@@ -50,6 +50,7 @@ const (
 	LazyGit            = "lazygit"
 	Libffi             = "libffi"
 	Libyaml            = "libyaml"
+	Mupdf              = "mupdf"
 	Ncurses            = "ncurses"
 	Neovim             = "neovim"
 	Mise               = "mise"

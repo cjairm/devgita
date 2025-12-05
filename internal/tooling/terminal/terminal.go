@@ -26,6 +26,7 @@ import (
 	"github.com/cjairm/devgita/internal/tooling/terminal/core/jemalloc"
 	"github.com/cjairm/devgita/internal/tooling/terminal/core/libffi"
 	"github.com/cjairm/devgita/internal/tooling/terminal/core/libyaml"
+	"github.com/cjairm/devgita/internal/tooling/terminal/core/mupdf"
 	"github.com/cjairm/devgita/internal/tooling/terminal/core/ncurses"
 	"github.com/cjairm/devgita/internal/tooling/terminal/core/openssl"
 	"github.com/cjairm/devgita/internal/tooling/terminal/core/pkgconfig"
@@ -59,50 +60,18 @@ func New() *Terminal {
 	return &Terminal{Cmd: osCmd, Base: *baseCmd}
 }
 
-func (t *Terminal) InstallAll() error {
+func (t *Terminal) InstallAll() {
 	err := t.DisplayGithubInstructions()
 	ifErrorDisplayMessage(err, "instructions")
-
 	if t.Base.Platform.IsMac() {
 		utils.PrintInfo("Installing xcode (if no previously installed)...")
 		err = t.InstallXCode()
 		ifErrorDisplayMessage(err, "xcode")
 	}
-
-	packages := []struct {
-		name string
-		app  interface{ SoftInstall() error }
-	}{
-		{constants.Curl, curl.New()},
-		{constants.Unzip, unzip.New()},
-		{constants.GithubCli, githubcli.New()},
-		{constants.LazyDocker, lazydocker.New()},
-		{constants.LazyGit, lazygit.New()},
-		{constants.Mise, mise.New()},
-	}
-	for _, singlePackage := range packages {
-		msg := fmt.Sprintf("Installing %s (if no previously installed)...", singlePackage.name)
-		utils.PrintInfo(msg)
-		ifErrorDisplayMessage(singlePackage.app.SoftInstall(), singlePackage.name)
-	}
-
-	utils.PrintInfo("Installing and setting up fastfetch (if no previous configuration)...")
-	err = t.InstallFastFetch()
-	ifErrorDisplayMessage(err, "fastfetch")
-
-	utils.PrintInfo("Installing and setting up neovim (if no previous configuration)...")
-	err = t.InstallNeovim()
-	ifErrorDisplayMessage(err, "neovim")
-
-	utils.PrintInfo("Installing and setting up tmux (if no previous configuration)...")
-	err = t.InstallTmux()
-	ifErrorDisplayMessage(err, "tmux")
-
+	t.InstallPackages()
+	t.InstallTerminalApps()
 	t.InstallDevTools()
-
 	t.InstallCoreLibs()
-
-	return nil
 }
 
 func (t *Terminal) ConfigureZsh() error {
@@ -169,44 +138,53 @@ func (t *Terminal) ConfigureZsh() error {
 	return t.Base.MaybeSetup("source $HOME/.config/devgita/devgita.zsh", "devgita.zsh")
 }
 
-func (t *Terminal) InstallFastFetch() error {
-	ff := fastfetch.New()
-	if err := ff.SoftInstall(); err != nil {
-		return err
+func (t *Terminal) InstallTerminalApps() {
+	terminalApps := []struct {
+		name string
+		app  interface {
+			SoftInstall() error
+			SoftConfigure() error
+		}
+	}{
+		{constants.Fastfetch, fastfetch.New()},
+		{constants.Neovim, neovim.New()},
+		{constants.Tmux, tmux.New()},
 	}
-	if err := ff.SoftConfigure(); err != nil {
-		return err
+	for _, terminalApp := range terminalApps {
+		msg := fmt.Sprintf("Installing %s (if no previously installed)...", terminalApp.name)
+		utils.PrintInfo(msg)
+		if err := terminalApp.app.SoftInstall(); err != nil {
+			ifErrorDisplayMessage(err, terminalApp.name)
+			continue
+		}
+		if err := terminalApp.app.SoftConfigure(); err != nil {
+			ifErrorDisplayMessage(err, terminalApp.name)
+			continue
+		}
 	}
-	return nil
 }
 
-func (t *Terminal) InstallNeovim() error {
-	nv := neovim.New()
-	err := nv.SoftInstall()
-	if err != nil {
-		return err
+func (t *Terminal) InstallPackages() {
+	// should install curl, unzip, gh, lazydocker, lazygit, mise
+	packages := []struct {
+		name string
+		app  interface{ SoftInstall() error }
+	}{
+		{constants.Curl, curl.New()},
+		{constants.Unzip, unzip.New()},
+		{constants.GithubCli, githubcli.New()},
+		{constants.LazyDocker, lazydocker.New()},
+		{constants.LazyGit, lazygit.New()},
+		{constants.Mise, mise.New()},
 	}
-	err = nv.SoftConfigure()
-	if err != nil {
-		return err
+	for _, singlePackage := range packages {
+		msg := fmt.Sprintf("Installing %s (if no previously installed)...", singlePackage.name)
+		utils.PrintInfo(msg)
+		ifErrorDisplayMessage(singlePackage.app.SoftInstall(), singlePackage.name)
 	}
-	return nil
 }
 
-func (t *Terminal) InstallTmux() error {
-	tm := tmux.New()
-	err := tm.SoftInstall()
-	if err != nil {
-		return err
-	}
-	err = tm.SoftConfigure()
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (t *Terminal) InstallDevTools() error {
+func (t *Terminal) InstallDevTools() {
 	// should install fzf, ripgrep, bat, eza, zoxide, btop, fd-find, tldr
 	devtools := []struct {
 		name string
@@ -226,10 +204,9 @@ func (t *Terminal) InstallDevTools() error {
 		utils.PrintInfo(msg)
 		ifErrorDisplayMessage(devtool.app.SoftInstall(), devtool.name)
 	}
-	return nil
 }
 
-func (t *Terminal) InstallCoreLibs() error {
+func (t *Terminal) InstallCoreLibs() {
 	// installs libs pkg-config, autoconf, bison, openssl, readline, zlib,
 	//               libyaml, ncurses, libffi, gdbm, jemalloc, vips, mupdf
 	libs := []struct {
@@ -248,22 +225,13 @@ func (t *Terminal) InstallCoreLibs() error {
 		{constants.Gdbm, gdbm.New()},
 		{constants.Jemalloc, jemalloc.New()},
 		{constants.Vips, vips.New()},
+		{constants.Mupdf, mupdf.New()},
 	}
 	for _, lib := range libs {
 		msg := fmt.Sprintf("Installing %s (if no previously installed)...", lib.name)
 		utils.PrintInfo(msg)
 		ifErrorDisplayMessage(lib.app.SoftInstall(), lib.name)
 	}
-
-	libsLegacy := []string{
-		"mupdf",
-	}
-	for _, libLegacy := range libsLegacy {
-		if err := t.Cmd.MaybeInstallPackage(libLegacy); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func (t *Terminal) DisplayGithubInstructions() error {
