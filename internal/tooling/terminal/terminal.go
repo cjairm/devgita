@@ -22,6 +22,7 @@ import (
 	"github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/internal/tooling/terminal/core/autoconf"
 	"github.com/cjairm/devgita/internal/tooling/terminal/core/bison"
+	"github.com/cjairm/devgita/internal/tooling/terminal/core/libffi"
 	"github.com/cjairm/devgita/internal/tooling/terminal/core/libyaml"
 	"github.com/cjairm/devgita/internal/tooling/terminal/core/ncurses"
 	"github.com/cjairm/devgita/internal/tooling/terminal/core/openssl"
@@ -240,6 +241,7 @@ func (t *Terminal) InstallCoreLibs() error {
 		{constants.Zlib, zlib.New()},
 		{constants.Libyaml, libyaml.New()},
 		{constants.Ncurses, ncurses.New()},
+		{constants.Libffi, libffi.New()},
 	}
 	for _, lib := range libs {
 		msg := fmt.Sprintf("Installing %s (if no previously installed)...", lib.name)
@@ -248,7 +250,6 @@ func (t *Terminal) InstallCoreLibs() error {
 	}
 
 	libsLegacy := []string{
-		"libffi",
 		"gdbm",
 		"jemalloc",
 		"vips",

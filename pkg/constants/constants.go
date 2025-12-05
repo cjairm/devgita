@@ -46,6 +46,7 @@ const (
 	GithubCli          = "gh"
 	LazyDocker         = "lazydocker"
 	LazyGit            = "lazygit"
+	Libffi             = "libffi"
 	Libyaml            = "libyaml"
 	Ncurses            = "ncurses"
 	Neovim             = "neovim"
