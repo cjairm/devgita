@@ -63,6 +63,7 @@ const (
 	Tldr               = "tldr"
 	Tmux               = "tmux"
 	Unzip              = "unzip"
+	Vips               = "vips"
 	Zlib               = "zlib"
 	Zoxide             = "zoxide"
 	ZshAutosuggestions = "zsh-autosuggestions"

@@ -30,6 +30,7 @@ import (
 	"github.com/cjairm/devgita/internal/tooling/terminal/core/openssl"
 	"github.com/cjairm/devgita/internal/tooling/terminal/core/pkgconfig"
 	"github.com/cjairm/devgita/internal/tooling/terminal/core/readline"
+	"github.com/cjairm/devgita/internal/tooling/terminal/core/vips"
 	"github.com/cjairm/devgita/internal/tooling/terminal/core/zlib"
 	"github.com/cjairm/devgita/internal/tooling/terminal/dev_tools/bat"
 	"github.com/cjairm/devgita/internal/tooling/terminal/dev_tools/btop"
@@ -246,6 +247,7 @@ func (t *Terminal) InstallCoreLibs() error {
 		{constants.Libffi, libffi.New()},
 		{constants.Gdbm, gdbm.New()},
 		{constants.Jemalloc, jemalloc.New()},
+		{constants.Vips, vips.New()},
 	}
 	for _, lib := range libs {
 		msg := fmt.Sprintf("Installing %s (if no previously installed)...", lib.name)
@@ -254,7 +256,6 @@ func (t *Terminal) InstallCoreLibs() error {
 	}
 
 	libsLegacy := []string{
-		"vips",
 		"mupdf",
 	}
 	for _, libLegacy := range libsLegacy {
