@@ -47,6 +47,7 @@ const (
 	LazyDocker         = "lazydocker"
 	LazyGit            = "lazygit"
 	Libyaml            = "libyaml"
+	Ncurses            = "ncurses"
 	Neovim             = "neovim"
 	Mise               = "mise"
 	Nvim               = "nvim"

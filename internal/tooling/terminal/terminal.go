@@ -23,6 +23,7 @@ import (
 	"github.com/cjairm/devgita/internal/tooling/terminal/core/autoconf"
 	"github.com/cjairm/devgita/internal/tooling/terminal/core/bison"
 	"github.com/cjairm/devgita/internal/tooling/terminal/core/libyaml"
+	"github.com/cjairm/devgita/internal/tooling/terminal/core/ncurses"
 	"github.com/cjairm/devgita/internal/tooling/terminal/core/openssl"
 	"github.com/cjairm/devgita/internal/tooling/terminal/core/pkgconfig"
 	"github.com/cjairm/devgita/internal/tooling/terminal/core/readline"
@@ -238,6 +239,7 @@ func (t *Terminal) InstallCoreLibs() error {
 		{constants.Readline, readline.New()},
 		{constants.Zlib, zlib.New()},
 		{constants.Libyaml, libyaml.New()},
+		{constants.Ncurses, ncurses.New()},
 	}
 	for _, lib := range libs {
 		msg := fmt.Sprintf("Installing %s (if no previously installed)...", lib.name)
@@ -246,7 +248,6 @@ func (t *Terminal) InstallCoreLibs() error {
 	}
 
 	libsLegacy := []string{
-		"ncurses",
 		"libffi",
 		"gdbm",
 		"jemalloc",
