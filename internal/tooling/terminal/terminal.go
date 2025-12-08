@@ -62,13 +62,10 @@ func New() *Terminal {
 
 func (t *Terminal) InstallAll() {
 	err := t.DisplayGithubInstructions()
-	ifErrorDisplayMessage(err, "instructions")
+	displayMessage(err, "instructions", true)
 	if t.Base.Platform.IsMac() {
-		utils.PrintInfo("Installing xcode (if no previously installed)...")
-		err = t.InstallXCode()
-		ifErrorDisplayMessage(err, "xcode")
+		displayMessage(t.InstallXCode(), "xcode")
 	}
-	t.InstallPackages()
 	t.InstallTerminalApps()
 	t.InstallDevTools()
 	t.InstallCoreLibs()
@@ -139,6 +136,7 @@ func (t *Terminal) ConfigureZsh() error {
 }
 
 func (t *Terminal) InstallTerminalApps() {
+	// should install lazydocker, lazygit, mise, fastfetch, neovim, tmux
 	terminalApps := []struct {
 		name string
 		app  interface {
@@ -151,45 +149,39 @@ func (t *Terminal) InstallTerminalApps() {
 		{constants.Tmux, tmux.New()},
 	}
 	for _, terminalApp := range terminalApps {
-		msg := fmt.Sprintf("Installing %s (if no previously installed)...", terminalApp.name)
-		utils.PrintInfo(msg)
 		if err := terminalApp.app.SoftInstall(); err != nil {
-			ifErrorDisplayMessage(err, terminalApp.name)
+			displayMessage(err, terminalApp.name)
 			continue
 		}
 		if err := terminalApp.app.SoftConfigure(); err != nil {
-			ifErrorDisplayMessage(err, terminalApp.name)
+			displayMessage(err, terminalApp.name, true)
 			continue
 		}
 	}
-}
 
-func (t *Terminal) InstallPackages() {
-	// should install curl, unzip, gh, lazydocker, lazygit, mise
-	packages := []struct {
+	tuis := []struct {
 		name string
 		app  interface{ SoftInstall() error }
 	}{
-		{constants.Curl, curl.New()},
-		{constants.Unzip, unzip.New()},
-		{constants.GithubCli, githubcli.New()},
 		{constants.LazyDocker, lazydocker.New()},
 		{constants.LazyGit, lazygit.New()},
-		{constants.Mise, mise.New()},
 	}
-	for _, singlePackage := range packages {
-		msg := fmt.Sprintf("Installing %s (if no previously installed)...", singlePackage.name)
-		utils.PrintInfo(msg)
-		ifErrorDisplayMessage(singlePackage.app.SoftInstall(), singlePackage.name)
+	for _, tui := range tuis {
+		displayMessage(tui.app.SoftInstall(), tui.name)
 	}
+
+	m := mise.New()
+	displayMessage(m.SoftInstall(), constants.Mise)
 }
 
 func (t *Terminal) InstallDevTools() {
-	// should install fzf, ripgrep, bat, eza, zoxide, btop, fd-find, tldr
+	// should install curl, fzf, ripgrep, bat, eza, gh, zoxide, btop, fd-find, tldr
 	devtools := []struct {
 		name string
 		app  interface{ SoftInstall() error }
 	}{
+		{constants.Curl, curl.New()},
+		{constants.GithubCli, githubcli.New()},
 		{constants.Fzf, fzf.New()},
 		{constants.Ripgrep, ripgrep.New()},
 		{constants.Bat, bat.New()},
@@ -200,15 +192,14 @@ func (t *Terminal) InstallDevTools() {
 		{constants.Tldr, tldr.New()},
 	}
 	for _, devtool := range devtools {
-		msg := fmt.Sprintf("Installing %s (if no previously installed)...", devtool.name)
-		utils.PrintInfo(msg)
-		ifErrorDisplayMessage(devtool.app.SoftInstall(), devtool.name)
+		displayMessage(devtool.app.SoftInstall(), devtool.name)
 	}
 }
 
 func (t *Terminal) InstallCoreLibs() {
 	// installs libs pkg-config, autoconf, bison, openssl, readline, zlib,
-	//               libyaml, ncurses, libffi, gdbm, jemalloc, vips, mupdf
+	//               libyaml, ncurses, libffi, gdbm, jemalloc, vips, mupdf,
+	//	         unzip
 	libs := []struct {
 		name string
 		app  interface{ SoftInstall() error }
@@ -226,11 +217,10 @@ func (t *Terminal) InstallCoreLibs() {
 		{constants.Jemalloc, jemalloc.New()},
 		{constants.Vips, vips.New()},
 		{constants.Mupdf, mupdf.New()},
+		{constants.Unzip, unzip.New()},
 	}
 	for _, lib := range libs {
-		msg := fmt.Sprintf("Installing %s (if no previously installed)...", lib.name)
-		utils.PrintInfo(msg)
-		ifErrorDisplayMessage(lib.app.SoftInstall(), lib.name)
+		displayMessage(lib.app.SoftInstall(), lib.name)
 	}
 }
 
@@ -295,14 +285,20 @@ func isXcodeInstalled() (bool, error) {
 	return false, nil
 }
 
-func ifErrorDisplayMessage(err error, packageName string) {
+func displayMessage(err error, name string, displayOnlyErrors ...bool) {
 	if err != nil {
-		logger.L().Errorw("Error installing ", "package_name", packageName, "error", err)
+		logger.L().Errorw("Error installing ", "package_name", name, "error", err)
 		utils.PrintWarning(
 			fmt.Sprintf(
 				"Install (%s) errored... To halt the installation, press ctrl+c or use --debug flag to see more details",
-				packageName,
+				name,
 			),
 		)
+	} else {
+		if displayOnlyErrors != nil && displayOnlyErrors[0] == true {
+			return
+		}
+		msg := fmt.Sprintf("Installing %s (if no previously installed)...", name)
+		utils.PrintInfo(msg)
 	}
 }
