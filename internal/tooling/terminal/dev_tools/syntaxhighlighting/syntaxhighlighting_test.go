@@ -1,4 +1,4 @@
-package syntaxhighlighting_test
+package syntaxhighlighting
 
 import (
 	"errors"
@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/cjairm/devgita/internal/apps/syntaxhighlighting"
 	"github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/pkg/logger"
 	"github.com/cjairm/devgita/pkg/paths"
@@ -20,7 +19,7 @@ func init() {
 func TestNew(t *testing.T) {
 	t.Helper()
 
-	app := syntaxhighlighting.New()
+	app := New()
 	if app == nil {
 		t.Error("Expected New() to return a non-nil Syntaxhighlighting instance")
 	}
@@ -53,7 +52,7 @@ func TestInstall(t *testing.T) {
 			mockCmd := commands.NewMockCommand()
 			mockCmd.InstallError = tt.installErr
 
-			app := &syntaxhighlighting.Syntaxhighlighting{
+			app := &Syntaxhighlighting{
 				Cmd: mockCmd,
 			}
 
@@ -80,7 +79,7 @@ func TestInstall(t *testing.T) {
 func TestForceInstall(t *testing.T) {
 	t.Helper()
 
-	app := syntaxhighlighting.New()
+	app := New()
 
 	// ForceInstall should always fail because Uninstall returns error
 	err := app.ForceInstall()
@@ -122,7 +121,7 @@ func TestSoftInstall(t *testing.T) {
 			mockCmd := commands.NewMockCommand()
 			mockCmd.MaybeInstallError = tt.installErr
 
-			app := &syntaxhighlighting.Syntaxhighlighting{
+			app := &Syntaxhighlighting{
 				Cmd: mockCmd,
 			}
 
@@ -164,7 +163,7 @@ func TestForceConfigure(t *testing.T) {
 	}
 	file.Close()
 
-	app := syntaxhighlighting.New()
+	app := New()
 
 	err = app.ForceConfigure()
 	if err != nil {
@@ -207,7 +206,7 @@ func TestSoftConfigure(t *testing.T) {
 		}
 		file.Close()
 
-		app := syntaxhighlighting.New()
+		app := New()
 
 		err = app.SoftConfigure()
 		if err != nil {
@@ -247,7 +246,7 @@ func TestSoftConfigure(t *testing.T) {
 			t.Fatalf("Failed to create test file: %v", err)
 		}
 
-		app := syntaxhighlighting.New()
+		app := New()
 
 		err = app.SoftConfigure()
 		if err != nil {
