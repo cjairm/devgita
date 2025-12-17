@@ -218,3 +218,151 @@ func TestIsDirEmpty(t *testing.T) {
 	}
 	t.Log("Correctly detected directory with subdirectories as non-empty")
 }
+
+func TestSoftCopyFile(t *testing.T) {
+	tempDir := createTempDir(t)
+	defer os.RemoveAll(tempDir)
+	logger.Init(false)
+
+	srcFilePath := createTempSourceFile(t, tempDir, "source.txt")
+	dstFilePath := filepath.Join(tempDir, "destination.txt")
+
+	t.Run("successful copy when destination does not exist", func(t *testing.T) {
+		// Test successful soft copy when destination doesn't exist
+		if err := files.SoftCopyFile(srcFilePath, dstFilePath); err != nil {
+			t.Fatalf("SoftCopyFile failed: %v", err)
+		}
+
+		// Verify the content of the destination file
+		dstContent, err := os.ReadFile(dstFilePath)
+		if err != nil {
+			t.Fatalf("Failed to read destination file: %v", err)
+		}
+		if string(dstContent) != fileContent {
+			t.Errorf("Expected content %q, got %q", fileContent, dstContent)
+		}
+		t.Log("File copied successfully when destination did not exist")
+	})
+
+	t.Run("skip copy when destination already exists", func(t *testing.T) {
+		// Modify the destination file to verify it's not overwritten
+		modifiedContent := "Modified content"
+		if err := os.WriteFile(dstFilePath, []byte(modifiedContent), 0644); err != nil {
+			t.Fatalf("Failed to modify destination file: %v", err)
+		}
+
+		// Attempt soft copy again
+		if err := files.SoftCopyFile(srcFilePath, dstFilePath); err != nil {
+			t.Fatalf("SoftCopyFile failed: %v", err)
+		}
+
+		// Verify the destination file was NOT overwritten
+		finalContent, err := os.ReadFile(dstFilePath)
+		if err != nil {
+			t.Fatalf("Failed to read destination file: %v", err)
+		}
+		if string(finalContent) != modifiedContent {
+			t.Errorf("SoftCopyFile overwrote existing file. Expected %q, got %q", modifiedContent, finalContent)
+		}
+		t.Log("Correctly skipped copying when destination already existed")
+	})
+
+	t.Run("error when source does not exist", func(t *testing.T) {
+		nonExistentSrc := filepath.Join(tempDir, "nonexistent.txt")
+		newDst := filepath.Join(tempDir, "newdest.txt")
+
+		err := files.SoftCopyFile(nonExistentSrc, newDst)
+		if err == nil {
+			t.Fatal("Expected an error when copying from a nonexistent file, got nil")
+		}
+		t.Logf("Correctly handled nonexistent source file: %v", err)
+	})
+}
+
+func TestSoftCopyDir(t *testing.T) {
+	tempDir := createTempDir(t)
+	defer os.RemoveAll(tempDir)
+	logger.Init(false)
+
+	srcDir := createTempSourceDir(t, tempDir)
+	dstDir := filepath.Join(tempDir, "destination")
+
+	t.Run("successful copy when destination does not exist", func(t *testing.T) {
+		// Test successful soft copy when destination doesn't exist
+		if err := files.SoftCopyDir(srcDir, dstDir); err != nil {
+			t.Fatalf("SoftCopyDir failed: %v", err)
+		}
+
+		// Verify the content of the destination directory
+		dstFile1 := filepath.Join(dstDir, "file1.txt")
+		dstFile2 := filepath.Join(dstDir, "subdir", "file2.txt")
+
+		if _, err := os.Stat(dstFile1); os.IsNotExist(err) {
+			t.Errorf("Expected file %q to exist, but it does not", dstFile1)
+		}
+
+		if _, err := os.Stat(dstFile2); os.IsNotExist(err) {
+			t.Errorf("Expected file %q to exist, but it does not", dstFile2)
+		}
+		t.Log("Directory copied successfully when destination did not exist")
+	})
+
+	t.Run("skip copy when destination exists with content", func(t *testing.T) {
+		// Create a marker file in destination to verify it's not overwritten
+		markerFile := filepath.Join(dstDir, "marker.txt")
+		markerContent := "This file should not be removed"
+		if err := os.WriteFile(markerFile, []byte(markerContent), 0644); err != nil {
+			t.Fatalf("Failed to create marker file: %v", err)
+		}
+
+		// Attempt soft copy again
+		if err := files.SoftCopyDir(srcDir, dstDir); err != nil {
+			t.Fatalf("SoftCopyDir failed: %v", err)
+		}
+
+		// Verify the marker file still exists
+		if _, err := os.Stat(markerFile); os.IsNotExist(err) {
+			t.Error("SoftCopyDir removed existing files when it should have skipped")
+		}
+
+		// Verify marker file content is unchanged
+		finalContent, err := os.ReadFile(markerFile)
+		if err != nil {
+			t.Fatalf("Failed to read marker file: %v", err)
+		}
+		if string(finalContent) != markerContent {
+			t.Errorf("Marker file content changed. Expected %q, got %q", markerContent, finalContent)
+		}
+		t.Log("Correctly skipped copying when destination already existed with content")
+	})
+
+	t.Run("copy when destination exists but is empty", func(t *testing.T) {
+		emptyDstDir := filepath.Join(tempDir, "empty_destination")
+		if err := os.Mkdir(emptyDstDir, 0755); err != nil {
+			t.Fatalf("Failed to create empty destination directory: %v", err)
+		}
+
+		// Attempt soft copy to empty directory
+		if err := files.SoftCopyDir(srcDir, emptyDstDir); err != nil {
+			t.Fatalf("SoftCopyDir failed on empty destination: %v", err)
+		}
+
+		// Verify files were copied
+		dstFile1 := filepath.Join(emptyDstDir, "file1.txt")
+		if _, err := os.Stat(dstFile1); os.IsNotExist(err) {
+			t.Errorf("Expected file %q to exist in empty destination, but it does not", dstFile1)
+		}
+		t.Log("Correctly copied to empty destination directory")
+	})
+
+	t.Run("error when source does not exist", func(t *testing.T) {
+		nonExistentSrc := filepath.Join(tempDir, "nonexistent_dir")
+		newDst := filepath.Join(tempDir, "newdest_dir")
+
+		err := files.SoftCopyDir(nonExistentSrc, newDst)
+		if err == nil {
+			t.Fatal("Expected an error when copying from a nonexistent directory, got nil")
+		}
+		t.Logf("Correctly handled nonexistent source directory: %v", err)
+	})
+}
