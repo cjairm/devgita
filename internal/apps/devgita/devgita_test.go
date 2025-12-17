@@ -99,6 +99,99 @@ func TestUninstall_DirectoryEmpty(t *testing.T) {
 	}
 }
 
+func TestUninstall_RemovesRepositoryAndConfig(t *testing.T) {
+	tempDir := t.TempDir()
+	appDir := filepath.Join(tempDir, "app")
+	configDir := filepath.Join(tempDir, "config")
+	devgitaConfigDir := filepath.Join(configDir, "devgita")
+
+	if err := os.MkdirAll(appDir, 0o755); err != nil {
+		t.Fatalf("Failed to create app directory: %v", err)
+	}
+	testFile := filepath.Join(appDir, "test.txt")
+	if err := os.WriteFile(testFile, []byte("content"), 0o644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	if err := os.MkdirAll(devgitaConfigDir, 0o755); err != nil {
+		t.Fatalf("Failed to create config directory: %v", err)
+	}
+	testGlobalConfigPath := filepath.Join(devgitaConfigDir, "global_config.yaml")
+	if err := os.WriteFile(testGlobalConfigPath, []byte("app_path: /test"), 0o644); err != nil {
+		t.Fatalf("Failed to create global config: %v", err)
+	}
+
+	// Override global paths and package-level variables
+	oldAppDir := paths.AppDir
+	oldConfigDir := paths.ConfigDir
+	oldConfigDirPath := configDirPath
+	oldGlobalConfigPath := globalConfigPath
+
+	paths.AppDir = appDir
+	paths.ConfigDir = configDir
+	configDirPath = devgitaConfigDir
+	globalConfigPath = testGlobalConfigPath
+
+	t.Cleanup(func() {
+		paths.AppDir = oldAppDir
+		paths.ConfigDir = oldConfigDir
+		configDirPath = oldConfigDirPath
+		globalConfigPath = oldGlobalConfigPath
+	})
+
+	dg := New()
+
+	err := dg.Uninstall()
+	if err != nil {
+		t.Fatalf("Uninstall() failed: %v", err)
+	}
+
+	if _, err := os.Stat(appDir); !os.IsNotExist(err) {
+		t.Fatal("Expected app directory to be removed")
+	}
+
+	if _, err := os.Stat(testGlobalConfigPath); !os.IsNotExist(err) {
+		t.Fatal("Expected global config file to be removed")
+	}
+
+	if _, err := os.Stat(devgitaConfigDir); !os.IsNotExist(err) {
+		t.Fatal("Expected devgita config directory to be removed")
+	}
+}
+
+func TestUninstall_NoRepositoryNoConfig(t *testing.T) {
+	tempDir := t.TempDir()
+	appDir := filepath.Join(tempDir, "app")
+	configDir := filepath.Join(tempDir, "config")
+	devgitaConfigDir := filepath.Join(configDir, "devgita")
+	testGlobalConfigPath := filepath.Join(devgitaConfigDir, "global_config.yaml")
+
+	// Override global paths and package-level variables
+	oldAppDir := paths.AppDir
+	oldConfigDir := paths.ConfigDir
+	oldConfigDirPath := configDirPath
+	oldGlobalConfigPath := globalConfigPath
+
+	paths.AppDir = appDir
+	paths.ConfigDir = configDir
+	configDirPath = devgitaConfigDir
+	globalConfigPath = testGlobalConfigPath
+
+	t.Cleanup(func() {
+		paths.AppDir = oldAppDir
+		paths.ConfigDir = oldConfigDir
+		configDirPath = oldConfigDirPath
+		globalConfigPath = oldGlobalConfigPath
+	})
+
+	dg := New()
+
+	err := dg.Uninstall()
+	if err != nil {
+		t.Fatalf("Uninstall() failed: %v", err)
+	}
+}
+
 func TestForceInstall(t *testing.T) {
 	tempDir := t.TempDir()
 
@@ -143,17 +236,25 @@ func TestForceConfigure_CreatesConfig(t *testing.T) {
 		t.Fatalf("Failed to create source config: %v", err)
 	}
 
-	// Override global paths
+	// Override global paths and package-level variables
 	oldConfigDir := paths.ConfigDir
 	oldAppDir := paths.AppDir
 	oldBashConfigAppDir := paths.BashConfigAppDir
+	oldConfigDirPath := configDirPath
+	oldGlobalConfigPath := globalConfigPath
+
 	paths.ConfigDir = configDir
 	paths.AppDir = appDir
 	paths.BashConfigAppDir = bashConfigDir
+	configDirPath = devgitaConfigDir
+	globalConfigPath = filepath.Join(devgitaConfigDir, "global_config.yaml")
+
 	t.Cleanup(func() {
 		paths.ConfigDir = oldConfigDir
 		paths.AppDir = oldAppDir
 		paths.BashConfigAppDir = oldBashConfigAppDir
+		configDirPath = oldConfigDirPath
+		globalConfigPath = oldGlobalConfigPath
 	})
 
 	dg := New()
@@ -216,16 +317,25 @@ func TestForceConfigure_OverwritesExisting(t *testing.T) {
 		t.Fatalf("Failed to create existing config: %v", err)
 	}
 
+	// Override global paths and package-level variables
 	oldConfigDir := paths.ConfigDir
 	oldAppDir := paths.AppDir
 	oldBashConfigAppDir := paths.BashConfigAppDir
+	oldConfigDirPath := configDirPath
+	oldGlobalConfigPath := globalConfigPath
+
 	paths.ConfigDir = configDir
 	paths.AppDir = appDir
 	paths.BashConfigAppDir = bashConfigDir
+	configDirPath = devgitaConfigDir
+	globalConfigPath = configPath
+
 	t.Cleanup(func() {
 		paths.ConfigDir = oldConfigDir
 		paths.AppDir = oldAppDir
 		paths.BashConfigAppDir = oldBashConfigAppDir
+		configDirPath = oldConfigDirPath
+		globalConfigPath = oldGlobalConfigPath
 	})
 
 	dg := New()
@@ -281,17 +391,25 @@ func TestSoftConfigure_PreservesExistingConfig(t *testing.T) {
 		t.Fatalf("Failed to create existing config: %v", err)
 	}
 
-	// Override global paths
+	// Override global paths and package-level variables
 	oldConfigDir := paths.ConfigDir
 	oldAppDir := paths.AppDir
 	oldBashConfigAppDir := paths.BashConfigAppDir
+	oldConfigDirPath := configDirPath
+	oldGlobalConfigPath := globalConfigPath
+
 	paths.ConfigDir = configDir
 	paths.AppDir = appDir
 	paths.BashConfigAppDir = bashConfigDir
+	configDirPath = devgitaConfigDir
+	globalConfigPath = configPath
+
 	t.Cleanup(func() {
 		paths.ConfigDir = oldConfigDir
 		paths.AppDir = oldAppDir
 		paths.BashConfigAppDir = oldBashConfigAppDir
+		configDirPath = oldConfigDirPath
+		globalConfigPath = oldGlobalConfigPath
 	})
 
 	dg := New()
