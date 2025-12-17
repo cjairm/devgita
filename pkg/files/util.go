@@ -60,6 +60,14 @@ func DirAlreadyExist(folderPath string) bool {
 	return info.IsDir()
 }
 
+func IsDirEmpty(dirPath string) bool {
+	entries, err := os.ReadDir(dirPath)
+	if err != nil {
+		return true // Treat read error as empty
+	}
+	return len(entries) == 0
+}
+
 func UpdateFile(filePath, searchText, replacementText string) error {
 	logger.L().
 		Debug("Updating file", "filePath", filePath, "searchText", searchText, "replacementText", replacementText)

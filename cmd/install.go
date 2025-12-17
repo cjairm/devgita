@@ -5,19 +5,16 @@ package cmd
 
 import (
 	"context"
-	"os"
-	"path/filepath"
 
+	"github.com/cjairm/devgita/internal/apps/devgita"
 	"github.com/cjairm/devgita/internal/apps/git"
 	"github.com/cjairm/devgita/internal/commands"
-	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/internal/tooling/databases"
 	"github.com/cjairm/devgita/internal/tooling/desktop"
 	"github.com/cjairm/devgita/internal/tooling/languages"
 	"github.com/cjairm/devgita/internal/tooling/terminal"
 	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/logger"
-	"github.com/cjairm/devgita/pkg/paths"
 	"github.com/cjairm/devgita/pkg/utils"
 	"github.com/spf13/cobra"
 )
@@ -88,44 +85,21 @@ func run(cmd *cobra.Command, args []string) {
 	g := git.New()
 	utils.MaybeExitWithError(g.SoftInstall())
 
-	installDevgita(g)
-	setupDevgita()
-
+	installDevgita()
 	installTerminalTools(onlySet, skipSet)
 	installLanguages(ctx, onlySet, skipSet)
 	installDatabases(ctx, onlySet, skipSet)
 	installDesktopTools(onlySet, skipSet)
 }
 
-func setupDevgita() {
-	utils.PrintInfo("- Setup global config")
-	globalConfig := &config.GlobalConfig{}
-	utils.MaybeExitWithError(globalConfig.Create())
-	utils.MaybeExitWithError(globalConfig.Load())
-	globalConfig.AppPath = paths.AppDir
-	globalConfig.ConfigPath = filepath.Join(paths.ConfigDir, constants.AppName)
-	utils.MaybeExitWithError(globalConfig.Save())
-}
-
-func installDevgita(g *git.Git) {
-	utils.PrintInfo("- Install devgita")
-	// Create folder if it doesn't exist
-	utils.MaybeExitWithError(os.MkdirAll(paths.AppDir, 0755))
-	// Clean folder before (re)installing
-	utils.MaybeExitWithError(os.RemoveAll(paths.AppDir))
-	// Install from repository
-	utils.MaybeExitWithError(g.Clone(constants.DevgitaRepositoryUrl, paths.AppDir))
-}
-
-func shouldInstall(category string, only, skip map[string]bool) bool {
-	if len(only) > 0 {
-		return only[category]
-	}
-	return !skip[category]
+func installDevgita() {
+	dg := devgita.New()
+	utils.PrintInfo("Installing & configuring devgita app")
+	utils.MaybeExitWithError(dg.SoftInstall())
+	utils.MaybeExitWithError(dg.SoftConfigure())
 }
 
 func installTerminalTools(onlySet, skipSet map[string]bool) {
-	utils.PrintInfo("Preparing to install essential tools and packages...")
 	if shouldInstall("terminal", onlySet, skipSet) {
 		t := terminal.New()
 		t.InstallAll()
@@ -137,9 +111,7 @@ func installTerminalTools(onlySet, skipSet map[string]bool) {
 }
 
 func installLanguages(ctx context.Context, onlySet, skipSet map[string]bool) {
-	utils.PrintInfo("Installing dev languages")
 	if shouldInstall("languages", onlySet, skipSet) {
-		utils.PrintInfo("Installing development languages")
 		l := languages.New()
 		ctx, err := l.ChooseLanguages(ctx)
 		utils.MaybeExitWithError(err)
@@ -150,9 +122,7 @@ func installLanguages(ctx context.Context, onlySet, skipSet map[string]bool) {
 }
 
 func installDatabases(ctx context.Context, onlySet, skipSet map[string]bool) {
-	utils.PrintInfo("Installing databases")
 	if shouldInstall("databases", onlySet, skipSet) {
-		utils.PrintInfo("Installing databases")
 		d := databases.New()
 		ctx, err := d.ChooseDatabases(ctx)
 		utils.MaybeExitWithError(err)
@@ -163,12 +133,17 @@ func installDatabases(ctx context.Context, onlySet, skipSet map[string]bool) {
 }
 
 func installDesktopTools(onlySet, skipSet map[string]bool) {
-	utils.PrintInfo("Installing desktop applications")
 	if shouldInstall("desktop", onlySet, skipSet) {
-		utils.PrintInfo("Installing desktop applications")
 		desktopTool := desktop.New()
 		desktopTool.InstallAll()
 	} else {
 		utils.PrintInfo("Skipping desktop applications installation")
 	}
+}
+
+func shouldInstall(category string, only, skip map[string]bool) bool {
+	if len(only) > 0 {
+		return only[category]
+	}
+	return !skip[category]
 }

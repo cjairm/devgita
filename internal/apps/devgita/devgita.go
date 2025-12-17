@@ -1,0 +1,99 @@
+package devgita
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+
+	"github.com/cjairm/devgita/internal/apps/git"
+	"github.com/cjairm/devgita/internal/config"
+	"github.com/cjairm/devgita/pkg/constants"
+	"github.com/cjairm/devgita/pkg/files"
+	"github.com/cjairm/devgita/pkg/logger"
+	"github.com/cjairm/devgita/pkg/paths"
+)
+
+type Devgita struct {
+	git git.Git
+}
+
+func New() *Devgita {
+	return &Devgita{git: *git.New()}
+}
+
+func (dg *Devgita) Install() error {
+	if err := os.MkdirAll(paths.AppDir, 0755); err != nil {
+		return err
+	}
+	if err := os.RemoveAll(paths.AppDir); err != nil {
+		return err
+	}
+	if err := dg.git.Clone(constants.DevgitaRepositoryUrl, paths.AppDir); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (dg *Devgita) SoftInstall() error {
+	if files.DirAlreadyExist(paths.AppDir) && !files.IsDirEmpty(paths.AppDir) {
+		logger.L().Info("Devgita repository already installed at %s", paths.AppDir)
+		return nil
+	}
+	return dg.Install()
+}
+
+func (dg *Devgita) ForceInstall() error {
+	err := dg.Uninstall()
+	if err != nil {
+		return fmt.Errorf("failed to uninstall devgita: %w", err)
+	}
+	return dg.Install()
+}
+
+func (dg *Devgita) Uninstall() error {
+	if !files.DirAlreadyExist(paths.AppDir) {
+		logger.L().Info("Devgita repository not found at %s, nothing to uninstall", paths.AppDir)
+		return nil
+	}
+	if files.IsDirEmpty(paths.AppDir) {
+		logger.L().
+			Info("Devgita repository directory is empty at %s, removing directory", paths.AppDir)
+		if err := os.Remove(paths.AppDir); err != nil {
+			return fmt.Errorf("failed to remove empty devgita directory: %w", err)
+		}
+		return nil
+	}
+	if err := os.RemoveAll(paths.AppDir); err != nil {
+		return fmt.Errorf("failed to uninstall devgita repository: %w", err)
+	}
+	return nil
+}
+
+func (dg *Devgita) ForceConfigure() error {
+	globalConfig := &config.GlobalConfig{}
+	if err := globalConfig.Create(); err != nil {
+		return fmt.Errorf("failed to create global config: %w", err)
+	}
+	if err := globalConfig.Load(); err != nil {
+		return fmt.Errorf("failed to load global config: %w", err)
+	}
+	globalConfig.AppPath = paths.AppDir
+	globalConfig.ConfigPath = filepath.Join(paths.ConfigDir, constants.AppName)
+	if err := globalConfig.Save(); err != nil {
+		return fmt.Errorf("failed to save global config: %w", err)
+	}
+	return nil
+}
+
+func (dg *Devgita) SoftConfigure() error {
+	globalConfigPath := filepath.Join(
+		paths.ConfigDir,
+		constants.AppName,
+		constants.GlobalConfigFile,
+	)
+	if files.FileAlreadyExist(globalConfigPath) {
+		logger.L().Info("Global config already exists at %s", globalConfigPath)
+		return nil
+	}
+	return dg.ForceConfigure()
+}

@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/cjairm/devgita/pkg/logger"
 	"github.com/cjairm/devgita/pkg/files"
+	"github.com/cjairm/devgita/pkg/logger"
 )
 
 var fileContent = "Hello, World!"
@@ -167,4 +167,54 @@ func TestCopyDir(t *testing.T) {
 	if _, err := os.Stat(readOnlyFile); os.IsNotExist(err) {
 		t.Errorf("Expected read-only file %q to still exist, but it does not", readOnlyFile)
 	}
+}
+
+func TestIsDirEmpty(t *testing.T) {
+	tempDir := createTempDir(t)
+	defer os.RemoveAll(tempDir)
+
+	// Test empty directory
+	emptyDir := filepath.Join(tempDir, "empty")
+	if err := os.Mkdir(emptyDir, 0755); err != nil {
+		t.Fatalf("Failed to create empty directory: %v", err)
+	}
+
+	if !files.IsDirEmpty(emptyDir) {
+		t.Errorf("Expected empty directory %q to be detected as empty", emptyDir)
+	}
+	t.Log("Correctly detected empty directory")
+
+	// Test directory with files
+	nonEmptyDir := filepath.Join(tempDir, "nonempty")
+	if err := os.Mkdir(nonEmptyDir, 0755); err != nil {
+		t.Fatalf("Failed to create non-empty directory: %v", err)
+	}
+	createTempSourceFile(t, nonEmptyDir, "file.txt")
+
+	if files.IsDirEmpty(nonEmptyDir) {
+		t.Errorf("Expected non-empty directory %q to be detected as non-empty", nonEmptyDir)
+	}
+	t.Log("Correctly detected non-empty directory")
+
+	// Test non-existent directory (should return true as it's treated as empty)
+	nonExistentDir := filepath.Join(tempDir, "nonexistent")
+	if !files.IsDirEmpty(nonExistentDir) {
+		t.Errorf("Expected non-existent directory to be treated as empty")
+	}
+	t.Log("Correctly treated non-existent directory as empty")
+
+	// Test directory with subdirectories
+	dirWithSubdir := filepath.Join(tempDir, "withsubdir")
+	if err := os.Mkdir(dirWithSubdir, 0755); err != nil {
+		t.Fatalf("Failed to create directory: %v", err)
+	}
+	subDir := filepath.Join(dirWithSubdir, "subdir")
+	if err := os.Mkdir(subDir, 0755); err != nil {
+		t.Fatalf("Failed to create subdirectory: %v", err)
+	}
+
+	if files.IsDirEmpty(dirWithSubdir) {
+		t.Errorf("Expected directory with subdirectories to be detected as non-empty")
+	}
+	t.Log("Correctly detected directory with subdirectories as non-empty")
 }
