@@ -262,7 +262,11 @@ func TestSoftCopyFile(t *testing.T) {
 			t.Fatalf("Failed to read destination file: %v", err)
 		}
 		if string(finalContent) != modifiedContent {
-			t.Errorf("SoftCopyFile overwrote existing file. Expected %q, got %q", modifiedContent, finalContent)
+			t.Errorf(
+				"SoftCopyFile overwrote existing file. Expected %q, got %q",
+				modifiedContent,
+				finalContent,
+			)
 		}
 		t.Log("Correctly skipped copying when destination already existed")
 	})
@@ -331,7 +335,11 @@ func TestSoftCopyDir(t *testing.T) {
 			t.Fatalf("Failed to read marker file: %v", err)
 		}
 		if string(finalContent) != markerContent {
-			t.Errorf("Marker file content changed. Expected %q, got %q", markerContent, finalContent)
+			t.Errorf(
+				"Marker file content changed. Expected %q, got %q",
+				markerContent,
+				finalContent,
+			)
 		}
 		t.Log("Correctly skipped copying when destination already existed with content")
 	})
@@ -364,5 +372,346 @@ func TestSoftCopyDir(t *testing.T) {
 			t.Fatal("Expected an error when copying from a nonexistent directory, got nil")
 		}
 		t.Logf("Correctly handled nonexistent source directory: %v", err)
+	})
+}
+
+func TestGenerateFromTemplate(t *testing.T) {
+	tempDir := createTempDir(t)
+	defer os.RemoveAll(tempDir)
+	logger.Init(false)
+
+	t.Run("successful template generation with map data", func(t *testing.T) {
+		// Create a template file
+		templatePath := filepath.Join(tempDir, "config.tmpl")
+		templateContent := `# Configuration file
+export HOME="{{.Home}}"
+export USER="{{.User}}"
+export DEBUG={{.Debug}}`
+
+		if err := os.WriteFile(templatePath, []byte(templateContent), 0644); err != nil {
+			t.Fatalf("Failed to create template file: %v", err)
+		}
+		// Prepare template data
+		data := map[string]any{
+			"Home":  "/home/testuser",
+			"User":  "testuser",
+			"Debug": true,
+		}
+		// Generate output file
+		outputPath := filepath.Join(tempDir, "config.sh")
+		if err := files.GenerateFromTemplate(templatePath, outputPath, data); err != nil {
+			t.Fatalf("GenerateFromTemplate failed: %v", err)
+		}
+
+		// Verify output file was created
+		if _, err := os.Stat(outputPath); os.IsNotExist(err) {
+			t.Fatalf("Expected output file %q to exist, but it does not", outputPath)
+		}
+
+		// Verify content
+		outputContent, err := os.ReadFile(outputPath)
+		if err != nil {
+			t.Fatalf("Failed to read output file: %v", err)
+		}
+
+		expectedContent := `# Configuration file
+export HOME="/home/testuser"
+export USER="testuser"
+export DEBUG=true`
+
+		if string(outputContent) != expectedContent {
+			t.Errorf("Content mismatch.\nExpected:\n%s\n\nGot:\n%s", expectedContent, outputContent)
+		}
+
+		// Verify file permissions
+		info, err := os.Stat(outputPath)
+		if err != nil {
+			t.Fatalf("Failed to stat output file: %v", err)
+		}
+		if info.Mode().Perm() != 0644 {
+			t.Errorf("Expected file permissions 0644, got %o", info.Mode().Perm())
+		}
+
+		t.Log("Successfully generated file from template with map data")
+	})
+
+	t.Run("successful template generation with struct data", func(t *testing.T) {
+		// Create a template file
+		templatePath := filepath.Join(tempDir, "shell.tmpl")
+		templateContent := `#!/bin/bash
+# Shell configuration for {{.Name}}
+export PATH="{{.BinPath}}:$PATH"
+export EDITOR="{{.Editor}}"`
+
+		if err := os.WriteFile(templatePath, []byte(templateContent), 0644); err != nil {
+			t.Fatalf("Failed to create template file: %v", err)
+		}
+
+		// Prepare template data as struct
+		type ShellConfig struct {
+			Name    string
+			BinPath string
+			Editor  string
+		}
+
+		data := ShellConfig{
+			Name:    "devgita",
+			BinPath: "/usr/local/bin",
+			Editor:  "nvim",
+		}
+
+		// Generate output file
+		outputPath := filepath.Join(tempDir, "shell_config.sh")
+		if err := files.GenerateFromTemplate(templatePath, outputPath, data); err != nil {
+			t.Fatalf("GenerateFromTemplate failed: %v", err)
+		}
+
+		// Verify content
+		outputContent, err := os.ReadFile(outputPath)
+		if err != nil {
+			t.Fatalf("Failed to read output file: %v", err)
+		}
+
+		expectedContent := `#!/bin/bash
+# Shell configuration for devgita
+export PATH="/usr/local/bin:$PATH"
+export EDITOR="nvim"`
+
+		if string(outputContent) != expectedContent {
+			t.Errorf("Content mismatch.\nExpected:\n%s\n\nGot:\n%s", expectedContent, outputContent)
+		}
+
+		t.Log("Successfully generated file from template with struct data")
+	})
+
+	t.Run("template with conditionals", func(t *testing.T) {
+		// Create a template file with conditional logic
+		templatePath := filepath.Join(tempDir, "conditional.tmpl")
+		templateContent := `# Config
+{{if .EnableDebug}}export DEBUG=1{{end}}
+{{if .EnableVerbose}}export VERBOSE=1{{end}}`
+
+		if err := os.WriteFile(templatePath, []byte(templateContent), 0644); err != nil {
+			t.Fatalf("Failed to create template file: %v", err)
+		}
+
+		// Test with debug enabled, verbose disabled
+		data := map[string]bool{
+			"EnableDebug":   true,
+			"EnableVerbose": false,
+		}
+
+		outputPath := filepath.Join(tempDir, "conditional_output.sh")
+		if err := files.GenerateFromTemplate(templatePath, outputPath, data); err != nil {
+			t.Fatalf("GenerateFromTemplate failed: %v", err)
+		}
+
+		// Verify content
+		outputContent, err := os.ReadFile(outputPath)
+		if err != nil {
+			t.Fatalf("Failed to read output file: %v", err)
+		}
+
+		expectedContent := `# Config
+export DEBUG=1
+`
+
+		if string(outputContent) != expectedContent {
+			t.Errorf("Content mismatch.\nExpected:\n%s\n\nGot:\n%s", expectedContent, outputContent)
+		}
+
+		t.Log("Successfully generated file with conditional logic")
+	})
+
+	t.Run("template with range/loops", func(t *testing.T) {
+		// Create a template file with loops
+		templatePath := filepath.Join(tempDir, "loop.tmpl")
+		templateContent := `# Packages to install
+{{range .Packages}}install {{.}}
+{{end}}`
+
+		if err := os.WriteFile(templatePath, []byte(templateContent), 0644); err != nil {
+			t.Fatalf("Failed to create template file: %v", err)
+		}
+
+		// Test with slice of packages
+		data := map[string][]string{
+			"Packages": {"curl", "git", "neovim", "tmux"},
+		}
+
+		outputPath := filepath.Join(tempDir, "install_packages.sh")
+		if err := files.GenerateFromTemplate(templatePath, outputPath, data); err != nil {
+			t.Fatalf("GenerateFromTemplate failed: %v", err)
+		}
+
+		// Verify content
+		outputContent, err := os.ReadFile(outputPath)
+		if err != nil {
+			t.Fatalf("Failed to read output file: %v", err)
+		}
+
+		expectedContent := `# Packages to install
+install curl
+install git
+install neovim
+install tmux
+`
+		if string(outputContent) != expectedContent {
+			t.Errorf("Content mismatch.\nExpected:\n%s\n\nGot:\n%s", expectedContent, outputContent)
+		}
+		t.Log("Successfully generated file with loops")
+	})
+
+	t.Run("error when template file does not exist", func(t *testing.T) {
+		nonExistentTemplate := filepath.Join(tempDir, "nonexistent.tmpl")
+		outputPath := filepath.Join(tempDir, "output.txt")
+		data := map[string]string{"Key": "Value"}
+
+		err := files.GenerateFromTemplate(nonExistentTemplate, outputPath, data)
+		if err == nil {
+			t.Fatal("Expected an error when template file does not exist, got nil")
+		}
+
+		if _, statErr := os.Stat(outputPath); !os.IsNotExist(statErr) {
+			t.Error("Output file should not be created when template parsing fails")
+		}
+
+		t.Logf("Correctly handled nonexistent template file: %v", err)
+	})
+
+	t.Run("error when template has syntax error", func(t *testing.T) {
+		// Create a template file with invalid syntax
+		templatePath := filepath.Join(tempDir, "invalid.tmpl")
+		templateContent := `Invalid template {{.MissingCloseBrace`
+
+		if err := os.WriteFile(templatePath, []byte(templateContent), 0644); err != nil {
+			t.Fatalf("Failed to create template file: %v", err)
+		}
+
+		outputPath := filepath.Join(tempDir, "invalid_output.txt")
+		data := map[string]string{"Key": "Value"}
+
+		err := files.GenerateFromTemplate(templatePath, outputPath, data)
+		if err == nil {
+			t.Fatal("Expected an error when template has syntax error, got nil")
+		}
+
+		t.Logf("Correctly handled template syntax error: %v", err)
+	})
+
+	t.Run("template with missing field returns empty value", func(t *testing.T) {
+		// Create a template that references a field not in data
+		// Note: Go templates don't error on missing fields, they return empty values
+		templatePath := filepath.Join(tempDir, "missing_field.tmpl")
+		templateContent := `Value: {{.MissingField}} - Other: {{.ExistingField}}`
+
+		if err := os.WriteFile(templatePath, []byte(templateContent), 0644); err != nil {
+			t.Fatalf("Failed to create template file: %v", err)
+		}
+
+		outputPath := filepath.Join(tempDir, "missing_field_output.txt")
+		data := map[string]string{"ExistingField": "Present"}
+
+		err := files.GenerateFromTemplate(templatePath, outputPath, data)
+		if err != nil {
+			t.Fatalf("GenerateFromTemplate failed: %v", err)
+		}
+
+		// Verify content - missing field should be empty
+		outputContent, err := os.ReadFile(outputPath)
+		if err != nil {
+			t.Fatalf("Failed to read output file: %v", err)
+		}
+
+		expectedContent := "Value: <no value> - Other: Present"
+		if string(outputContent) != expectedContent {
+			t.Errorf("Expected %q, got %q", expectedContent, outputContent)
+		}
+
+		t.Log("Template with missing field renders as <no value>")
+	})
+
+	t.Run("error when output directory does not exist", func(t *testing.T) {
+		// Create valid template
+		templatePath := filepath.Join(tempDir, "valid.tmpl")
+		templateContent := `Value: {{.Key}}`
+
+		if err := os.WriteFile(templatePath, []byte(templateContent), 0644); err != nil {
+			t.Fatalf("Failed to create template file: %v", err)
+		}
+
+		// Try to write to non-existent directory
+		outputPath := filepath.Join(tempDir, "nonexistent_dir", "output.txt")
+		data := map[string]string{"Key": "Value"}
+
+		err := files.GenerateFromTemplate(templatePath, outputPath, data)
+		if err == nil {
+			t.Fatal("Expected an error when output directory does not exist, got nil")
+		}
+
+		t.Logf("Correctly handled nonexistent output directory: %v", err)
+	})
+
+	t.Run("overwrite existing output file", func(t *testing.T) {
+		// Create template
+		templatePath := filepath.Join(tempDir, "overwrite.tmpl")
+		templateContent := `New content: {{.Value}}`
+
+		if err := os.WriteFile(templatePath, []byte(templateContent), 0644); err != nil {
+			t.Fatalf("Failed to create template file: %v", err)
+		}
+
+		// Create existing output file
+		outputPath := filepath.Join(tempDir, "overwrite_output.txt")
+		oldContent := "This should be overwritten"
+		if err := os.WriteFile(outputPath, []byte(oldContent), 0644); err != nil {
+			t.Fatalf("Failed to create existing output file: %v", err)
+		}
+
+		// Generate from template (should overwrite)
+		data := map[string]string{"Value": "Fresh data"}
+		if err := files.GenerateFromTemplate(templatePath, outputPath, data); err != nil {
+			t.Fatalf("GenerateFromTemplate failed: %v", err)
+		}
+
+		// Verify content was overwritten
+		newContent, err := os.ReadFile(outputPath)
+		if err != nil {
+			t.Fatalf("Failed to read output file: %v", err)
+		}
+
+		expectedContent := "New content: Fresh data"
+		if string(newContent) != expectedContent {
+			t.Errorf("Expected content %q, got %q", expectedContent, newContent)
+		}
+
+		t.Log("Successfully overwrote existing output file")
+	})
+
+	t.Run("empty template produces empty file", func(t *testing.T) {
+		// Create empty template
+		templatePath := filepath.Join(tempDir, "empty.tmpl")
+		if err := os.WriteFile(templatePath, []byte(""), 0644); err != nil {
+			t.Fatalf("Failed to create empty template file: %v", err)
+		}
+
+		outputPath := filepath.Join(tempDir, "empty_output.txt")
+		data := map[string]string{}
+
+		if err := files.GenerateFromTemplate(templatePath, outputPath, data); err != nil {
+			t.Fatalf("GenerateFromTemplate failed with empty template: %v", err)
+		}
+
+		// Verify empty output
+		content, err := os.ReadFile(outputPath)
+		if err != nil {
+			t.Fatalf("Failed to read output file: %v", err)
+		}
+
+		if len(content) != 0 {
+			t.Errorf("Expected empty output file, got %d bytes: %q", len(content), content)
+		}
+
+		t.Log("Successfully generated empty file from empty template")
 	})
 }

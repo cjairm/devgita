@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"text/template"
 
 	"github.com/cjairm/devgita/pkg/logger"
 )
@@ -184,6 +185,38 @@ func AddLineToFile(line, filePath string) error {
 	defer file.Close()
 	if _, err := file.WriteString("\n" + line); err != nil {
 		return fmt.Errorf("failed to write line to file %s: %w", filePath, err)
+	}
+	return nil
+}
+
+// GenerateFromTemplate parses a template file, applies the provided data, and writes
+// the result to the output path. The template file should use Go's text/template syntax.
+// The data parameter can be any struct, map, or value accessible in the template.
+// The output file is created with FilePermission (0644).
+//
+// Example template usage:
+//
+//	export HOME="{{.Home}}"
+//	export USER="{{.User}}"
+//
+// Returns an error if template parsing, execution, or file writing fails.
+func GenerateFromTemplate(templatePath, outputPath string, data any) error {
+	logger.L().
+		Debug("Generating file from template", "templatePath", templatePath, "outputPath", outputPath)
+	tmpl, err := template.ParseFiles(templatePath)
+	if err != nil {
+		return fmt.Errorf("failed to parse template %s: %w", templatePath, err)
+	}
+	outputFile, err := os.Create(outputPath)
+	if err != nil {
+		return fmt.Errorf("failed to create output file %s: %w", outputPath, err)
+	}
+	defer outputFile.Close()
+	if err := tmpl.Execute(outputFile, data); err != nil {
+		return fmt.Errorf("failed to execute template %s: %w", templatePath, err)
+	}
+	if err := os.Chmod(outputPath, FilePermission); err != nil {
+		return fmt.Errorf("failed to set permissions on %s: %w", outputPath, err)
 	}
 	return nil
 }
