@@ -19,7 +19,8 @@
 - Allow select between tmux and zellij
 - Allow select between opencode and claudecode
 - Install Ollama? So create a new category? AI tools?
-- Search for a good terminal app to run AI commands
+- Search for a good terminal app to run AI commands (??? what's this???)
+- [See](https://github.com/cjairm/devgita/blob/038da72eec456e0a60c50dce2bc9ab615c795fb2/configs/bash/init.zsh#L15) and extend to zip un remove all unneeded docs example node_modules, etc
 
 ### Commands
 
