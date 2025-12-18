@@ -40,6 +40,7 @@ var (
 	FontConfigAppDir      = GetAppDir(constants.ConfigAppDirName, constants.Fonts)
 	GitConfigAppDir       = GetAppDir(constants.ConfigAppDirName, constants.Git)
 	NeovimConfigAppDir    = GetAppDir(constants.ConfigAppDirName, constants.Neovim)
+	TemplatesAppDir       = GetAppDir(constants.ConfigAppDirName, constants.Templates)
 	ThemesConfigAppDir    = GetAppDir(constants.ConfigAppDirName, constants.Themes)
 	TmuxConfigAppDir      = GetAppDir(constants.ConfigAppDirName, constants.Tmux)
 

@@ -70,9 +70,13 @@ const (
 	ZshAutosuggestions = "zsh-autosuggestions"
 
 	// Other available folders for installation
-	Bash   = "bash"
-	Fonts  = "fonts"
-	Themes = "themes"
+	Bash      = "bash"
+	Fonts     = "fonts"
+	Themes    = "themes"
+	Templates = "templates"
+
+	// Template files
+	DevgitaShellTemplate = "devgita.zsh.tmpl"
 )
 
 var Devgita = `

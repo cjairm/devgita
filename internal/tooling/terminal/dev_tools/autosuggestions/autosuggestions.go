@@ -5,12 +5,10 @@ package autosuggestions
 
 import (
 	"fmt"
-	"path/filepath"
 
 	cmd "github.com/cjairm/devgita/internal/commands"
+	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/pkg/constants"
-	"github.com/cjairm/devgita/pkg/files"
-	"github.com/cjairm/devgita/pkg/paths"
 )
 
 type Autosuggestions struct {
@@ -40,29 +38,44 @@ func (a *Autosuggestions) SoftInstall() error {
 	return a.Cmd.MaybeInstallPackage(constants.ZshAutosuggestions)
 }
 
+// ForceConfigure enables autosuggestions feature and regenerates shell config
 func (a *Autosuggestions) ForceConfigure() error {
-	return files.AddLineToFile(
-		"source $(brew --prefix)/share/zsh-autosuggestions/zsh-autosuggestions.zsh",
-		filepath.Join(paths.AppDir, "devgita.zsh"),
-	)
+	gc := &config.GlobalConfig{}
+	if err := gc.Load(); err != nil {
+		return fmt.Errorf("failed to load global config: %w", err)
+	}
+	gc.EnableShellFeature(constants.ZshAutosuggestions)
+	if err := gc.RegenerateShellConfig(); err != nil {
+		return fmt.Errorf("failed to generate shell config: %w", err)
+	}
+	if err := gc.Save(); err != nil {
+		return fmt.Errorf("failed to save global config: %w", err)
+	}
+	return nil
 }
 
 func (a *Autosuggestions) SoftConfigure() error {
-	isConfigured, err := files.ContentExistsInFile(
-		filepath.Join(paths.AppDir, "devgita.zsh"),
-		"zsh-autosuggestions.zsh",
-	)
-	if err != nil {
-		return err
+	gc := &config.GlobalConfig{}
+	if err := gc.Load(); err != nil {
+		return fmt.Errorf("failed to load global config: %w", err)
 	}
-	if isConfigured == true {
+	if gc.IsShellFeatureEnabled(constants.ZshAutosuggestions) {
 		return nil
 	}
 	return a.ForceConfigure()
 }
 
 func (a *Autosuggestions) Uninstall() error {
-	return fmt.Errorf("uninstall not implemented for autosuggestions")
+	gc := &config.GlobalConfig{}
+	if err := gc.Load(); err != nil {
+		return fmt.Errorf("failed to load global config: %w", err)
+	}
+	gc.DisableShellFeature(constants.ZshAutosuggestions)
+	if err := gc.RegenerateShellConfig(); err != nil {
+		return fmt.Errorf("failed to generate shell config: %w", err)
+	}
+	// TODO: We still uninstall the app or remove downloaded doc - see `Install`
+	return gc.Save()
 }
 
 func (a *Autosuggestions) ExecuteCommand(args ...string) error {
@@ -70,5 +83,5 @@ func (a *Autosuggestions) ExecuteCommand(args ...string) error {
 }
 
 func (a *Autosuggestions) Update() error {
-	return fmt.Errorf("update not implemented for autosuggestions")
+	return fmt.Errorf("update not implemented - use system package manager")
 }

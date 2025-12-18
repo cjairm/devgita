@@ -1,13 +1,14 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
 
-	"github.com/cjairm/devgita/pkg/logger"
 	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/files"
+	"github.com/cjairm/devgita/pkg/logger"
 	"github.com/cjairm/devgita/pkg/paths"
 	"gopkg.in/yaml.v3"
 )
@@ -34,6 +35,16 @@ type AlreadyInstalledConfig struct {
 	Databases     []string `yaml:"databases"`
 }
 
+// ShellFeatures tracks which shell enhancements are enabled
+type ShellFeatures struct {
+	Mise                  bool `yaml:"mise"`
+	Zoxide                bool `yaml:"zoxide"`
+	ZshAutosuggestions    bool `yaml:"zsh_autosuggestions"`
+	ZshSyntaxHighlighting bool `yaml:"zsh_syntax_highlighting"`
+	Powerlevel10k         bool `yaml:"powerlevel10k"`
+	ExtendedCapabilities  bool `yaml:"extended_capabilities"`
+}
+
 type GlobalConfig struct {
 	AppPath          string                 `yaml:"app_path"`
 	ConfigPath       string                 `yaml:"config_path"`
@@ -42,6 +53,7 @@ type GlobalConfig struct {
 	CurrentTheme     string                 `yaml:"current_theme"`
 	Installed        InstalledConfig        `yaml:"installed"`
 	Shortcuts        map[string]string      `yaml:"shortcuts"`
+	Shell            ShellFeatures          `yaml:"shell"`
 }
 
 func getGlobalConfigFilePath() string {
@@ -175,4 +187,65 @@ func (gc *GlobalConfig) IsInstalledByDevgita(itemName, itemType string) bool {
 
 func (gc *GlobalConfig) IsAlreadyInstalled(itemName, itemType string) bool {
 	return gc.IsTracked(itemName, itemType, "already_installed")
+}
+
+// EnableShellFeature enables a shell feature by name
+func (gc *GlobalConfig) EnableShellFeature(featureName string) {
+	switch featureName {
+	case constants.Mise:
+		gc.Shell.Mise = true
+	case constants.Zoxide:
+		gc.Shell.Zoxide = true
+	case constants.ZshAutosuggestions:
+		gc.Shell.ZshAutosuggestions = true
+	case constants.Syntaxhighlighting:
+		gc.Shell.ZshSyntaxHighlighting = true
+	case constants.Powerlevel10k:
+		gc.Shell.Powerlevel10k = true
+	case "extended_capabilities":
+		gc.Shell.ExtendedCapabilities = true
+	}
+}
+
+// DisableShellFeature disables a shell feature by name
+func (gc *GlobalConfig) DisableShellFeature(featureName string) {
+	switch featureName {
+	case constants.Mise:
+		gc.Shell.Mise = false
+	case constants.Zoxide:
+		gc.Shell.Zoxide = false
+	case constants.ZshAutosuggestions:
+		gc.Shell.ZshAutosuggestions = false
+	case constants.Syntaxhighlighting:
+		gc.Shell.ZshSyntaxHighlighting = false
+	case constants.Powerlevel10k:
+		gc.Shell.Powerlevel10k = false
+	case "extended_capabilities":
+		gc.Shell.ExtendedCapabilities = false
+	}
+}
+
+// IsShellFeatureEnabled checks if a shell feature is enabled
+func (gc *GlobalConfig) IsShellFeatureEnabled(featureName string) bool {
+	switch featureName {
+	case constants.Mise:
+		return gc.Shell.Mise
+	case constants.Zoxide:
+		return gc.Shell.Zoxide
+	case constants.ZshAutosuggestions:
+		return gc.Shell.ZshAutosuggestions
+	case constants.Syntaxhighlighting:
+		return gc.Shell.ZshSyntaxHighlighting
+	case constants.Powerlevel10k:
+		return gc.Shell.Powerlevel10k
+	case "extended_capabilities":
+		return gc.Shell.ExtendedCapabilities
+	}
+	return false
+}
+
+func (gc *GlobalConfig) RegenerateShellConfig() error {
+	templatePath := filepath.Join(paths.TemplatesAppDir, constants.DevgitaShellTemplate)
+	outputPath := filepath.Join(paths.AppDir, fmt.Sprintf("%s.zsh", constants.AppName))
+	return files.GenerateFromTemplate(templatePath, outputPath, gc.Shell)
 }

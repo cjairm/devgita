@@ -1,0 +1,196 @@
+# ============================================================================
+# Devgita Shell Configuration
+# Auto-generated from template - DO NOT EDIT MANUALLY
+# ============================================================================
+
+# Core Tools
+# ----------------------------------------------------------------------------
+{{if .Mise}}
+# Mise - Polyglot runtime manager
+if command -v mise &> /dev/null; then
+  eval "$(mise activate zsh)"
+fi
+{{end}}
+
+{{if .Zoxide}}
+# Zoxide - Smarter cd command
+if command -v zoxide &> /dev/null; then
+  eval "$(zoxide init zsh)"
+fi
+{{end}}
+
+# Shell Enhancements
+# ----------------------------------------------------------------------------
+{{if .ZshAutosuggestions}}
+# Zsh Autosuggestions - Fish-like autosuggestions
+if [[ -f $(brew --prefix)/share/zsh-autosuggestions/zsh-autosuggestions.zsh ]]; then
+    source $(brew --prefix)/share/zsh-autosuggestions/zsh-autosuggestions.zsh
+fi
+{{end}}
+
+{{if .ZshSyntaxHighlighting}}
+# Zsh Syntax Highlighting - Fish-like syntax highlighting
+if [[ -f $(brew --prefix)/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ]]; then
+    source $(brew --prefix)/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+fi
+{{end}}
+
+# Theme
+# ----------------------------------------------------------------------------
+{{if .Powerlevel10k}}
+# Powerlevel10k - Fast and flexible Zsh theme
+if [[ -f $(brew --prefix)/share/powerlevel10k/powerlevel10k.zsh-theme ]]; then
+    source $(brew --prefix)/share/powerlevel10k/powerlevel10k.zsh-theme
+fi
+{{end}}
+
+# ============================================================================
+# Devgita Functions & Aliases
+# ============================================================================
+
+{{if .ExtendedCapabilities}}
+# Extended capabilities
+dge() {
+  local allowed=(
+    # git branch management
+    "delete-branch"
+    "refresh-branch"
+    "reset-main-branch"
+    # npm dependency management
+    "reinstall-libraries"
+    "reinstall-library"
+  )
+
+  local cmd="$1"
+  local target="$2"
+
+  # Validate command
+  local is_valid=false
+  for a in "${allowed[@]}"; do
+    if [[ "$cmd" == "$a" ]]; then
+      is_valid=true
+      break
+    fi
+  done
+
+  if [[ "$is_valid" == false ]]; then
+    echo "valid commands are: ${allowed[*]}"
+    return 1
+  fi
+
+  case "$cmd" in
+    # -------------------------------------
+    # Git Branch Management 
+    # -------------------------------------
+    delete-branch)
+      # Default to "main" if not provided
+      target="${target:-main}"
+
+      git checkout "$target" \
+        && git fetch origin \
+        && git pull origin "$target" \
+        && git branch | fzf-tmux -p 50% --reverse | xargs git branch -D
+      ;;
+
+    refresh-branch)
+      # Default to "main" if not provided
+      target="${target:-main}"
+
+      git checkout "$target" \
+        && git pull origin "$target" \
+        && git checkout - \
+        && git merge "$target"
+      ;;
+
+    reset-main-branch)
+      git checkout main && git reset --hard origin/main
+      ;;
+
+    # -------------------------------------
+    # NPM Dependency Management
+    # -------------------------------------
+    reinstall-libraries)
+      git clean -Xdf \
+        && rm -rf node_modules/ \
+        && npm install \
+        && rm -f tsconfig.tsbuildinfo
+      ;;
+
+    reinstall-library)
+      # Must provide target
+      if [[ -z "$target" ]]; then
+        echo "update-library requires a library name"
+        return 1
+      fi
+
+      rm -rf "node_modules/$target" && npm install
+      ;;
+
+  esac
+}
+{{end}}
+
+# File system
+alias ls='eza -lh --group-directories-first --icons'
+alias lsa='ls -a'
+alias lt='eza --tree --level=2 --long --icons --git'
+alias lta='lt -a'
+alias ff="fzf --preview 'bat --style=numbers --color=always {}'"
+
+# quick edits
+alias edit-zsh="nvim ~/.zshrc"
+alias edit-ohmyzsh="nvim ~/.oh-my-zsh"
+alias edit-tmux="nvim ~/.tmux.conf"
+alias edit-nvim="nvim ~/.config/nvim/init.lua"
+
+# Directories
+alias ..='cd ..'
+alias ...='cd ../..'
+alias ....='cd ../../..'
+
+# Tools
+alias lzg='lazygit'
+alias lzd='lazydocker'
+
+# Neovim
+alias n='nvim'
+alias ns="fd --type f --hidden --exclude .git | fzf-tmux -p  --reverse | xargs nvim"
+
+# Git
+alias g='git'
+alias gcm='git commit -m'
+alias gcam='git commit -a -m'
+alias gcad='git commit -a --amend'
+
+# Tmux
+alias tml="tmux list-sessions"
+alias tmk="tmux kill-session -t"
+alias tms="tmux switch-client -t"
+alias tmkall="tmux kill-server"
+alias tmclear="clear && tmux clear-history && clear"
+tmn() {
+    local session_name="$1"
+    local path="${2:-$HOME}"
+    /usr/local/bin/tmux new-session -d -s "$session_name" -c "$path"
+    /usr/local/bin/tmux switch-client -t "$session_name"
+}
+
+# Compression
+compress() { tar -czf "${1%/}.tar.gz" "${1%/}"; }
+alias decompress="tar -xzf"
+
+# Mise
+alias mx="mise x --"
+
+# ---- Zoxide (better cd) ----
+alias cd="z"
+
+# ---- Eza (better ls) ----
+alias ls="eza"
+
+# ---- Syntax highlighting (better cat) ----
+alias cat="bat"
+
+# ============================================================================
+# End of Devgita Configuration
+# ============================================================================
