@@ -1,13 +1,14 @@
+// PowerLevel10k module provides installation and configuration management for Powerlevel10k Zsh theme with devgita integration.
+// Powerlevel10k is a fast, customizable Zsh theme that provides a visually rich command-line prompt.
+
 package powerlevel10k
 
 import (
 	"fmt"
-	"path/filepath"
 
 	cmd "github.com/cjairm/devgita/internal/commands"
+	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/pkg/constants"
-	"github.com/cjairm/devgita/pkg/files"
-	"github.com/cjairm/devgita/pkg/paths"
 )
 
 type PowerLevel10k struct {
@@ -36,29 +37,44 @@ func (p *PowerLevel10k) SoftInstall() error {
 	return p.Cmd.MaybeInstallPackage(constants.Powerlevel10k)
 }
 
+// ForceConfigure enables powerlevel10k feature and regenerates shell config
 func (p *PowerLevel10k) ForceConfigure() error {
-	return files.AddLineToFile(
-		"source $(brew --prefix)/share/powerlevel10k/powerlevel10k.zsh-theme",
-		filepath.Join(paths.AppDir, "devgita.zsh"),
-	)
+	gc := &config.GlobalConfig{}
+	if err := gc.Load(); err != nil {
+		return fmt.Errorf("failed to load global config: %w", err)
+	}
+	gc.EnableShellFeature(constants.Powerlevel10k)
+	if err := gc.RegenerateShellConfig(); err != nil {
+		return fmt.Errorf("failed to generate shell config: %w", err)
+	}
+	if err := gc.Save(); err != nil {
+		return fmt.Errorf("failed to save global config: %w", err)
+	}
+	return nil
 }
 
 func (p *PowerLevel10k) SoftConfigure() error {
-	isConfigured, err := files.ContentExistsInFile(
-		filepath.Join(paths.AppDir, "devgita.zsh"),
-		"powerlevel10k.zsh-theme",
-	)
-	if err != nil {
-		return err
+	gc := &config.GlobalConfig{}
+	if err := gc.Load(); err != nil {
+		return fmt.Errorf("failed to load global config: %w", err)
 	}
-	if isConfigured {
+	if gc.IsShellFeatureEnabled(constants.Powerlevel10k) {
 		return nil
 	}
 	return p.ForceConfigure()
 }
 
 func (p *PowerLevel10k) Uninstall() error {
-	return fmt.Errorf("uninstall not supported for %s", constants.Powerlevel10k)
+	gc := &config.GlobalConfig{}
+	if err := gc.Load(); err != nil {
+		return fmt.Errorf("failed to load global config: %w", err)
+	}
+	gc.DisableShellFeature(constants.Powerlevel10k)
+	if err := gc.RegenerateShellConfig(); err != nil {
+		return fmt.Errorf("failed to generate shell config: %w", err)
+	}
+	// TODO: We still uninstall the app or remove downloaded doc - see `Install`
+	return gc.Save()
 }
 
 func (p *PowerLevel10k) ExecuteCommand(args ...string) error {

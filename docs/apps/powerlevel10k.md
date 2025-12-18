@@ -11,7 +11,7 @@ Powerlevel10k is a fast, customizable, and highly optimized Zsh theme that provi
 ## Lifecycle Summary
 
 1. **Installation**: Install powerlevel10k package via platform package managers (Homebrew/apt)
-2. **Configuration**: Apply devgita's shell configuration by adding Powerlevel10k source line to devgita.zsh
+2. **Configuration**: Enable powerlevel10k feature in GlobalConfig and regenerate shell configuration via templates
 3. **Execution**: Provide high-level Powerlevel10k operations for prompt configuration and theme management
 
 ## Exported Functions
@@ -22,9 +22,9 @@ Powerlevel10k is a fast, customizable, and highly optimized Zsh theme that provi
 | `Install()`        | Standard installation     | Uses `InstallPackage()` to install powerlevel10k                     |
 | `ForceInstall()`   | Force installation        | Calls `Uninstall()` first (returns error if fails), then `Install()` |
 | `SoftInstall()`    | Conditional installation  | Uses `MaybeInstallPackage()` to check before installing              |
-| `ForceConfigure()` | Force configuration       | Adds powerlevel10k source line to devgita.zsh                        |
-| `SoftConfigure()`  | Conditional configuration | Preserves existing configuration if already present                  |
-| `Uninstall()`      | Remove installation       | **Not supported** - returns error                                    |
+| `ForceConfigure()` | Force configuration       | Enables feature in GlobalConfig and regenerates shell configuration  |
+| `SoftConfigure()`  | Conditional configuration | Checks GlobalConfig; enables only if not already enabled             |
+| `Uninstall()`      | Remove installation       | **Fully supported** - Disables feature and regenerates shell config  |
 | `ExecuteCommand()` | Execute p10k commands     | Runs p10k with provided arguments                                    |
 | `Update()`         | Update installation       | **Not implemented** - returns error                                  |
 | `Reconfigure()`    | Reconfigure theme         | Runs p10k configure command for interactive setup                    |
@@ -70,9 +70,10 @@ err := p10k.SoftInstall()
 err := p10k.Uninstall()
 ```
 
-- **Purpose**: Remove Powerlevel10k installation
-- **Behavior**: **Not supported** - returns error
-- **Rationale**: Shell theme tools are typically managed at the system level
+- **Purpose**: Remove Powerlevel10k from shell configuration
+- **Behavior**: Loads GlobalConfig → Disables feature → Regenerates shell config → Saves
+- **Use case**: Remove Powerlevel10k from devgita shell without uninstalling the package
+- **Note**: This disables the feature in the shell configuration but does not remove the package itself
 
 ### Update()
 
@@ -86,11 +87,14 @@ err := p10k.Update()
 
 ## Configuration Methods
 
-### Configuration Paths
+### Configuration Strategy
 
-- **Target file**: `paths.AppDir/devgita.zsh` (devgita's shell initialization file)
-- **Configuration line**: `source $(brew --prefix)/share/powerlevel10k/powerlevel10k.zsh-theme`
-- **Detection string**: `powerlevel10k.zsh-theme` in the devgita.zsh file
+This module uses **template-based configuration management** via GlobalConfig:
+
+- **Template**: `configs/templates/devgita.zsh.tmpl` contains conditional sections
+- **GlobalConfig**: `~/.config/devgita/global_config.yaml` tracks enabled features
+- **Generated file**: `~/.config/devgita/devgita.zsh` (regenerated from template)
+- **Feature tracking**: `shell.powerlevel10k` boolean field in GlobalConfig
 
 ### ForceConfigure()
 
@@ -98,9 +102,13 @@ err := p10k.Update()
 err := p10k.ForceConfigure()
 ```
 
-- **Purpose**: Apply Powerlevel10k configuration regardless of existing state
-- **Behavior**: Adds the Powerlevel10k source line to devgita.zsh
-- **Use case**: Ensure Powerlevel10k is properly sourced in shell configuration
+- **Purpose**: Enable Powerlevel10k in shell configuration
+- **Behavior**: 
+  1. Loads GlobalConfig from disk
+  2. Enables `shell.powerlevel10k` feature
+  3. Regenerates `devgita.zsh` from template
+  4. Saves GlobalConfig back to disk
+- **Use case**: Enable Powerlevel10k or re-apply configuration
 
 ### SoftConfigure()
 
@@ -108,10 +116,13 @@ err := p10k.ForceConfigure()
 err := p10k.SoftConfigure()
 ```
 
-- **Purpose**: Apply Powerlevel10k configuration only if not already configured
-- **Behavior**: Checks for existing configuration; if found, does nothing
-- **Detection logic**: Searches for `powerlevel10k.zsh-theme` in `devgita.zsh`
-- **Use case**: Initial setup that preserves existing shell customizations
+- **Purpose**: Enable Powerlevel10k only if not already enabled
+- **Behavior**: 
+  1. Loads GlobalConfig from disk
+  2. Checks if `shell.powerlevel10k` is already enabled
+  3. If enabled, returns nil (no operation)
+  4. If not enabled, calls `ForceConfigure()`
+- **Use case**: Initial setup that preserves existing configuration state
 
 ## Execution Methods
 
@@ -194,8 +205,10 @@ p10k benchmark
 1. **Standard Setup**: `New()` → `SoftInstall()` → `SoftConfigure()`
 2. **Force Setup**: `New()` → `ForceInstall()` → `ForceConfigure()`
 3. **Update Configuration**: `New()` → `SoftInstall()` → `ForceConfigure()`
-4. **Interactive Setup**: `New()` → `SoftInstall()` → `SoftConfigure()` → `Reconfigure()`
-5. **P10k Operations**: `New()` → `ExecuteCommand()` with specific p10k arguments
+4. **Remove from Shell**: `New()` → `Uninstall()`
+5. **Interactive Setup**: `New()` → `SoftInstall()` → `SoftConfigure()` → `Reconfigure()`
+6. **P10k Operations**: `New()` → `ExecuteCommand()` with specific p10k arguments
+7. **Shell Integration**: Automatically loaded when shell starts via devgita.zsh
 
 ## Constants and Paths
 
@@ -206,34 +219,66 @@ p10k benchmark
 
 ### Configuration Paths
 
-- `paths.AppDir`: Directory containing devgita's shell configuration files
-- Target file: `filepath.Join(paths.AppDir, "devgita.zsh")`
-- Configuration integrates with devgita's overall shell setup
+- `paths.TemplatesAppDir`: Source directory for shell configuration templates
+- `paths.AppDir`: Target directory for generated shell configuration
+- Template file: `filepath.Join(paths.TemplatesAppDir, "devgita.zsh.tmpl")`
+- Generated file: `filepath.Join(paths.AppDir, "devgita.zsh")`
+- GlobalConfig file: `~/.config/devgita/global_config.yaml`
 
 ## Implementation Notes
 
 - **Shell Theme Nature**: Unlike typical applications, Powerlevel10k is a shell enhancement that modifies prompt appearance and behavior
-- **ForceInstall Logic**: Calls `Uninstall()` first but returns the error since Powerlevel10k uninstall is not supported
-- **Configuration Strategy**: Uses content detection to determine if configuration exists
+- **Template-Based Configuration**: Uses GlobalConfig and template regeneration instead of direct file manipulation
+- **Load-Modify-Regenerate-Save Pattern**: Each configuration method follows this transaction pattern
+- **Fresh GlobalConfig Instances**: Each method creates a new `&config.GlobalConfig{}` and loads from disk to prevent stale data
+- **Stateless Configuration**: GlobalConfig represents disk state, not app instance state
+- **ForceInstall Logic**: Calls `Uninstall()` first, which now properly disables the feature
 - **Error Handling**: All methods return errors that should be checked by callers
 - **Platform Independence**: Uses command interface abstraction for cross-platform compatibility
-- **Shell Integration**: Configuration is applied to devgita's shell initialization rather than standalone config files
 - **Update Method**: Not implemented as Powerlevel10k updates should be handled by system package managers
 
-## Configuration Structure
+## Template Integration
 
-The Powerlevel10k configuration adds a single source line to devgita.zsh:
+### Template Structure
+
+The Powerlevel10k configuration is defined in `configs/templates/devgita.zsh.tmpl`:
 
 ```bash
-source $(brew --prefix)/share/powerlevel10k/powerlevel10k.zsh-theme
+{{if .Powerlevel10k}}
+# Powerlevel10k - Fast, customizable Zsh theme
+if [[ -f $(brew --prefix)/share/powerlevel10k/powerlevel10k.zsh-theme ]]; then
+    source $(brew --prefix)/share/powerlevel10k/powerlevel10k.zsh-theme
+fi
+{{end}}
 ```
 
-This line:
+### GlobalConfig Tracking
 
-- Sources the Powerlevel10k theme from the Homebrew installation path
-- Integrates with Zsh to provide enhanced prompt functionality
-- Automatically loads when the shell starts
-- Works alongside other devgita shell enhancements
+The feature state is tracked in `~/.config/devgita/global_config.yaml`:
+
+```yaml
+shell:
+  powerlevel10k: true  # Enabled
+  # ... other shell features
+```
+
+### Generated Configuration
+
+When enabled, the generated `devgita.zsh` contains:
+
+```bash
+# Powerlevel10k - Fast, customizable Zsh theme
+if [[ -f $(brew --prefix)/share/powerlevel10k/powerlevel10k.zsh-theme ]]; then
+    source $(brew --prefix)/share/powerlevel10k/powerlevel10k.zsh-theme
+fi
+```
+
+This approach:
+- Provides single source of truth (template file)
+- Enables clean enable/disable operations
+- Prevents configuration conflicts
+- Makes tracking and version control easier
+- Ensures consistent regeneration
 
 ## Powerlevel10k Features
 
@@ -273,17 +318,27 @@ The module maintains backward compatibility through deprecated functions:
 ### Common Issues
 
 1. **Installation Fails**: Ensure package manager is available and updated
-2. **Theme Not Loading**: Verify shell configuration is properly sourced
-3. **Configuration Not Applied**: Check file permissions and paths
-4. **Duplicate Configuration**: Use `SoftConfigure()` to avoid duplicates
-5. **Slow Performance**: Run `p10k configure` to optimize settings
+2. **Theme Not Loading**: Verify shell configuration is properly sourced and GlobalConfig has feature enabled
+3. **Configuration Not Applied**: Check GlobalConfig file exists and feature is enabled
+4. **GlobalConfig Load Errors**: Ensure `~/.config/devgita/global_config.yaml` is valid YAML
+5. **Template Not Found**: Verify `configs/templates/devgita.zsh.tmpl` exists in devgita repository
+6. **Slow Performance**: Run `p10k configure` to optimize settings
 
 ### Shell Integration
 
 - Powerlevel10k requires Zsh shell to function
-- Configuration must be sourced in shell initialization
+- Configuration must be sourced in shell initialization (add `source ~/.config/devgita/devgita.zsh` to `.zshrc`)
 - Works best with devgita's complete shell setup
 - May conflict with other prompt themes
+- Should be loaded after other shell enhancements for optimal performance
+
+### Template System Benefits
+
+- **Single Source of Truth**: Template file is the only place shell configuration is defined
+- **Trackable**: Git can track template changes easily
+- **Predictable**: Regeneration always produces same output for same inputs
+- **No Conflicts**: No string manipulation or file appending/removing
+- **Clean Uninstall**: Disabling a feature regenerates without it
 
 ### Performance Optimization
 
