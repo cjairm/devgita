@@ -10,7 +10,7 @@ Target app is defined implicitly by `$ARGUMENTS`.
 Relevant paths:
 - App code: `internal/tooling/terminal/dev_tools/$ARGUMENTS/`
 - App entry file: `internal/tooling/terminal/dev_tools/$ARGUMENTS/$ARGUMENTS.go`
-- App documentation: `docs/tooling/terminal/dev_tools/$ARGUMENTS.md`
+- App documentation: `docs/tooling/terminal/dev_tools/$ARGUMENTS.md` or `docs/apps/$ARGUMENTS.md`
 
 Reference materials:
 - Project overview: `@docs/project-overview.md`
