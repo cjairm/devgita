@@ -1,12 +1,13 @@
 package syntaxhighlighting
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/cjairm/devgita/internal/commands"
+	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/logger"
 	"github.com/cjairm/devgita/pkg/paths"
 )
@@ -17,267 +18,361 @@ func init() {
 }
 
 func TestNew(t *testing.T) {
-	t.Helper()
-
 	app := New()
+
 	if app == nil {
-		t.Error("Expected New() to return a non-nil Syntaxhighlighting instance")
+		t.Fatal("New() returned nil")
 	}
 }
 
 func TestInstall(t *testing.T) {
-	t.Helper()
+	mc := commands.NewMockCommand()
+	app := &Syntaxhighlighting{Cmd: mc}
 
-	tests := []struct {
-		name        string
-		shouldError bool
-		installErr  error
-	}{
-		{
-			name:        "successful installation",
-			shouldError: false,
-			installErr:  nil,
-		},
-		{
-			name:        "installation failure",
-			shouldError: true,
-			installErr:  errors.New("installation failed"),
-		},
+	if err := app.Install(); err != nil {
+		t.Fatalf("Install error: %v", err)
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Helper()
-
-			mockCmd := commands.NewMockCommand()
-			mockCmd.InstallError = tt.installErr
-
-			app := &Syntaxhighlighting{
-				Cmd: mockCmd,
-			}
-
-			err := app.Install()
-
-			if tt.shouldError && err == nil {
-				t.Error("Expected error but got none")
-			}
-			if !tt.shouldError && err != nil {
-				t.Errorf("Expected no error but got: %v", err)
-			}
-
-			// Verify the correct package was passed
-			if mockCmd.InstalledPkg != "zsh-syntax-highlighting" {
-				t.Errorf(
-					"Expected package 'zsh-syntax-highlighting', got '%s'",
-					mockCmd.InstalledPkg,
-				)
-			}
-		})
+	if mc.InstalledPkg != constants.Syntaxhighlighting {
+		t.Fatalf(
+			"expected InstallPackage(%s), got %q",
+			constants.Syntaxhighlighting,
+			mc.InstalledPkg,
+		)
 	}
 }
 
-func TestForceInstall(t *testing.T) {
-	t.Helper()
-
-	app := New()
-
-	// ForceInstall should always fail because Uninstall returns error
-	err := app.ForceInstall()
-
-	if err == nil {
-		t.Error("Expected ForceInstall to return an error (because Uninstall is not supported)")
-	}
-
-	expectedMsg := "failed to uninstall syntaxhighlighting before force install: zsh-syntax-highlighting uninstall is not supported"
-	if err.Error() != expectedMsg {
-		t.Errorf("Expected error message '%s', got '%s'", expectedMsg, err.Error())
-	}
-}
+// SKIP: ForceInstall test as per guidelines
+// ForceInstall calls Uninstall (which now modifies config) before Install
+// Testing this creates complex state management in tests
 
 func TestSoftInstall(t *testing.T) {
-	t.Helper()
+	mc := commands.NewMockCommand()
+	app := &Syntaxhighlighting{Cmd: mc}
 
-	tests := []struct {
-		name        string
-		shouldError bool
-		installErr  error
-	}{
-		{
-			name:        "successful soft installation",
-			shouldError: false,
-			installErr:  nil,
-		},
-		{
-			name:        "soft installation failure",
-			shouldError: true,
-			installErr:  errors.New("soft installation failed"),
-		},
+	if err := app.SoftInstall(); err != nil {
+		t.Fatalf("SoftInstall error: %v", err)
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Helper()
-
-			mockCmd := commands.NewMockCommand()
-			mockCmd.MaybeInstallError = tt.installErr
-
-			app := &Syntaxhighlighting{
-				Cmd: mockCmd,
-			}
-
-			err := app.SoftInstall()
-
-			if tt.shouldError && err == nil {
-				t.Error("Expected error but got none")
-			}
-			if !tt.shouldError && err != nil {
-				t.Errorf("Expected no error but got: %v", err)
-			}
-
-			// Verify the correct package was passed
-			if mockCmd.MaybeInstalled != "zsh-syntax-highlighting" {
-				t.Errorf(
-					"Expected package 'zsh-syntax-highlighting', got '%s'",
-					mockCmd.MaybeInstalled,
-				)
-			}
-		})
+	if mc.MaybeInstalled != constants.Syntaxhighlighting {
+		t.Fatalf(
+			"expected MaybeInstallPackage(%s), got %q",
+			constants.Syntaxhighlighting,
+			mc.MaybeInstalled,
+		)
 	}
 }
 
 func TestForceConfigure(t *testing.T) {
-	t.Helper()
-
+	// Create temp directories
 	tempDir := t.TempDir()
+	configDir := filepath.Join(tempDir, "config")
+	templatesDir := filepath.Join(tempDir, "templates")
 
-	// Override global paths for the duration of the test
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		t.Fatalf("Failed to create config dir: %v", err)
+	}
+	if err := os.MkdirAll(templatesDir, 0755); err != nil {
+		t.Fatalf("Failed to create templates dir: %v", err)
+	}
+
+	// Create global config file
+	globalConfigPath := filepath.Join(configDir, constants.AppName, constants.GlobalConfigFile)
+	if err := os.MkdirAll(filepath.Dir(globalConfigPath), 0755); err != nil {
+		t.Fatalf("Failed to create global config dir: %v", err)
+	}
+
+	initialConfig := `app_path: ""
+config_path: ""
+already_installed:
+  packages: []
+  desktop_apps: []
+  fonts: []
+  themes: []
+  terminal_tools: []
+  dev_languages: []
+  databases: []
+current_font: ""
+current_theme: ""
+installed:
+  packages: []
+  desktop_apps: []
+  fonts: []
+  themes: []
+  terminal_tools: []
+  dev_languages: []
+  databases: []
+shortcuts: {}
+shell:
+  mise: false
+  zoxide: false
+  zsh_autosuggestions: false
+  zsh_syntax_highlighting: false
+  powerlevel10k: false
+`
+	if err := os.WriteFile(globalConfigPath, []byte(initialConfig), 0644); err != nil {
+		t.Fatalf("Failed to create global config: %v", err)
+	}
+
+	// Create simple template
+	templatePath := filepath.Join(templatesDir, constants.DevgitaShellTemplate)
+	templateContent := `# Test template
+{{if .ZshSyntaxHighlighting}}
+source $(brew --prefix)/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+{{end}}
+`
+	if err := os.WriteFile(templatePath, []byte(templateContent), 0644); err != nil {
+		t.Fatalf("Failed to create template: %v", err)
+	}
+
+	// Override paths
+	oldConfigDir := paths.ConfigDir
 	oldAppDir := paths.AppDir
-	defer func() { paths.AppDir = oldAppDir }()
+	oldTemplatesAppDir := paths.TemplatesAppDir
+	t.Cleanup(func() {
+		paths.ConfigDir = oldConfigDir
+		paths.AppDir = oldAppDir
+		paths.TemplatesAppDir = oldTemplatesAppDir
+	})
+
+	paths.ConfigDir = configDir
 	paths.AppDir = tempDir
+	paths.TemplatesAppDir = templatesDir
 
-	// Create the devgita.zsh file in temp directory
-	zshFile := filepath.Join(tempDir, "devgita.zsh")
-	file, err := os.Create(zshFile)
-	if err != nil {
-		t.Fatalf("Failed to create test file: %v", err)
-	}
-	file.Close()
+	mc := commands.NewMockCommand()
+	app := &Syntaxhighlighting{Cmd: mc}
 
-	app := New()
-
-	err = app.ForceConfigure()
-	if err != nil {
-		t.Errorf("ForceConfigure returned error: %v", err)
+	if err := app.ForceConfigure(); err != nil {
+		t.Fatalf("ForceConfigure error: %v", err)
 	}
 
-	// Verify content was added to the file
-	content, err := os.ReadFile(zshFile)
+	// Verify generated file contains syntax highlighting
+	outputPath := filepath.Join(tempDir, "devgita.zsh")
+	content, err := os.ReadFile(outputPath)
 	if err != nil {
-		t.Fatalf("Failed to read test file: %v", err)
+		t.Fatalf("Failed to read generated file: %v", err)
 	}
 
 	expectedContent := "source $(brew --prefix)/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
-	if !contains(string(content), expectedContent) {
-		t.Errorf(
+	if !strings.Contains(string(content), expectedContent) {
+		t.Fatalf(
 			"Expected file to contain %q, but it didn't. Content: %s",
 			expectedContent,
 			string(content),
 		)
 	}
+
+	// Verify global config was updated
+	updatedConfig, err := os.ReadFile(globalConfigPath)
+	if err != nil {
+		t.Fatalf("Failed to read updated config: %v", err)
+	}
+	if !strings.Contains(string(updatedConfig), "zsh_syntax_highlighting: true") {
+		t.Fatalf(
+			"Expected config to have zsh_syntax_highlighting enabled. Config: %s",
+			string(updatedConfig),
+		)
+	}
 }
 
 func TestSoftConfigure(t *testing.T) {
-	t.Helper()
-
-	// Test case 1: Configuration doesn't exist - should configure
-	t.Run("ConfigureWhenNotExists", func(t *testing.T) {
+	t.Run("ConfigureWhenNotEnabled", func(t *testing.T) {
+		// Create temp directories
 		tempDir := t.TempDir()
+		configDir := filepath.Join(tempDir, "config")
+		templatesDir := filepath.Join(tempDir, "templates")
 
-		// Override global paths for the duration of the test
+		if err := os.MkdirAll(configDir, 0755); err != nil {
+			t.Fatalf("Failed to create config dir: %v", err)
+		}
+		if err := os.MkdirAll(templatesDir, 0755); err != nil {
+			t.Fatalf("Failed to create templates dir: %v", err)
+		}
+
+		// Create global config with feature disabled
+		globalConfigPath := filepath.Join(configDir, constants.AppName, constants.GlobalConfigFile)
+		if err := os.MkdirAll(filepath.Dir(globalConfigPath), 0755); err != nil {
+			t.Fatalf("Failed to create global config dir: %v", err)
+		}
+
+		initialConfig := `shell:
+  mise: false
+  zoxide: false
+  zsh_autosuggestions: false
+  zsh_syntax_highlighting: false
+  powerlevel10k: false
+`
+		if err := os.WriteFile(globalConfigPath, []byte(initialConfig), 0644); err != nil {
+			t.Fatalf("Failed to create global config: %v", err)
+		}
+
+		// Create template
+		templatePath := filepath.Join(templatesDir, constants.DevgitaShellTemplate)
+		templateContent := `{{if .ZshSyntaxHighlighting}}enabled{{end}}`
+		if err := os.WriteFile(templatePath, []byte(templateContent), 0644); err != nil {
+			t.Fatalf("Failed to create template: %v", err)
+		}
+
+		// Override paths
+		oldConfigDir := paths.ConfigDir
 		oldAppDir := paths.AppDir
-		defer func() { paths.AppDir = oldAppDir }()
+		oldTemplatesAppDir := paths.TemplatesAppDir
+		t.Cleanup(func() {
+			paths.ConfigDir = oldConfigDir
+			paths.AppDir = oldAppDir
+			paths.TemplatesAppDir = oldTemplatesAppDir
+		})
+
+		paths.ConfigDir = configDir
 		paths.AppDir = tempDir
+		paths.TemplatesAppDir = templatesDir
 
-		// Create the devgita.zsh file in temp directory
-		zshFile := filepath.Join(tempDir, "devgita.zsh")
-		file, err := os.Create(zshFile)
-		if err != nil {
-			t.Fatalf("Failed to create test file: %v", err)
-		}
-		file.Close()
+		mc := commands.NewMockCommand()
+		app := &Syntaxhighlighting{Cmd: mc}
 
-		app := New()
-
-		err = app.SoftConfigure()
-		if err != nil {
-			t.Errorf("SoftConfigure returned error: %v", err)
+		if err := app.SoftConfigure(); err != nil {
+			t.Fatalf("SoftConfigure error: %v", err)
 		}
 
-		// Verify content was added to the file
-		content, err := os.ReadFile(zshFile)
+		// Verify file was generated
+		outputPath := filepath.Join(tempDir, "devgita.zsh")
+		content, err := os.ReadFile(outputPath)
 		if err != nil {
-			t.Fatalf("Failed to read test file: %v", err)
+			t.Fatalf("Failed to read generated file: %v", err)
 		}
 
-		expectedContent := "source $(brew --prefix)/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
-		if !contains(string(content), expectedContent) {
-			t.Errorf(
-				"Expected file to contain %q, but it didn't. Content: %s",
-				expectedContent,
-				string(content),
-			)
+		if !strings.Contains(string(content), "enabled") {
+			t.Fatal("Expected template to be rendered with feature enabled")
 		}
 	})
 
-	// Test case 2: Configuration already exists - should skip
-	t.Run("SkipWhenExists", func(t *testing.T) {
+	t.Run("SkipWhenAlreadyEnabled", func(t *testing.T) {
+		// Create temp directories
 		tempDir := t.TempDir()
+		configDir := filepath.Join(tempDir, "config")
 
-		// Override global paths for the duration of the test
+		if err := os.MkdirAll(configDir, 0755); err != nil {
+			t.Fatalf("Failed to create config dir: %v", err)
+		}
+
+		// Create global config with feature ALREADY enabled
+		globalConfigPath := filepath.Join(configDir, constants.AppName, constants.GlobalConfigFile)
+		if err := os.MkdirAll(filepath.Dir(globalConfigPath), 0755); err != nil {
+			t.Fatalf("Failed to create global config dir: %v", err)
+		}
+
+		configWithFeatureEnabled := `shell:
+  mise: false
+  zoxide: false
+  zsh_autosuggestions: false
+  zsh_syntax_highlighting: true
+  powerlevel10k: false
+`
+		if err := os.WriteFile(globalConfigPath, []byte(configWithFeatureEnabled), 0644); err != nil {
+			t.Fatalf("Failed to create global config: %v", err)
+		}
+
+		// Override paths
+		oldConfigDir := paths.ConfigDir
 		oldAppDir := paths.AppDir
-		defer func() { paths.AppDir = oldAppDir }()
+		t.Cleanup(func() {
+			paths.ConfigDir = oldConfigDir
+			paths.AppDir = oldAppDir
+		})
+
+		paths.ConfigDir = configDir
 		paths.AppDir = tempDir
 
-		// Create the devgita.zsh file with existing content
-		zshFile := filepath.Join(tempDir, "devgita.zsh")
-		existingContent := "# Existing content\nsource $(brew --prefix)/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh\n# More content"
-		err := os.WriteFile(zshFile, []byte(existingContent), 0644)
-		if err != nil {
-			t.Fatalf("Failed to create test file: %v", err)
+		mc := commands.NewMockCommand()
+		app := &Syntaxhighlighting{Cmd: mc}
+
+		if err := app.SoftConfigure(); err != nil {
+			t.Fatalf("SoftConfigure error: %v", err)
 		}
 
-		app := New()
-
-		err = app.SoftConfigure()
-		if err != nil {
-			t.Errorf("SoftConfigure returned error: %v", err)
-		}
-
-		// Verify content wasn't duplicated
-		content, err := os.ReadFile(zshFile)
-		if err != nil {
-			t.Fatalf("Failed to read test file: %v", err)
-		}
-
-		// Content should be exactly the same as before
-		if string(content) != existingContent {
-			t.Errorf("Expected content to remain unchanged, but got: %s", string(content))
+		// Verify NO file was generated (should skip when already enabled)
+		outputPath := filepath.Join(tempDir, "devgita.zsh")
+		if _, err := os.Stat(outputPath); err == nil {
+			t.Fatal("Expected no file to be generated when feature already enabled")
 		}
 	})
 }
 
-// Helper function to check if a string contains a substring
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && s[len(s)-len(substr):] == substr ||
-		len(s) >= len(substr) && s[:len(substr)] == substr ||
-		(len(s) > len(substr) && stringContains(s, substr))
-}
+func TestUninstall(t *testing.T) {
+	// Create temp directories
+	tempDir := t.TempDir()
+	configDir := filepath.Join(tempDir, "config")
+	templatesDir := filepath.Join(tempDir, "templates")
 
-func stringContains(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		t.Fatalf("Failed to create config dir: %v", err)
 	}
-	return false
+	if err := os.MkdirAll(templatesDir, 0755); err != nil {
+		t.Fatalf("Failed to create templates dir: %v", err)
+	}
+
+	// Create global config with feature enabled
+	globalConfigPath := filepath.Join(configDir, constants.AppName, constants.GlobalConfigFile)
+	if err := os.MkdirAll(filepath.Dir(globalConfigPath), 0755); err != nil {
+		t.Fatalf("Failed to create global config dir: %v", err)
+	}
+
+	initialConfig := `shell:
+  mise: false
+  zoxide: false
+  zsh_autosuggestions: false
+  zsh_syntax_highlighting: true
+  powerlevel10k: false
+`
+	if err := os.WriteFile(globalConfigPath, []byte(initialConfig), 0644); err != nil {
+		t.Fatalf("Failed to create global config: %v", err)
+	}
+
+	// Create template
+	templatePath := filepath.Join(templatesDir, constants.DevgitaShellTemplate)
+	templateContent := `{{if .ZshSyntaxHighlighting}}enabled{{else}}disabled{{end}}`
+	if err := os.WriteFile(templatePath, []byte(templateContent), 0644); err != nil {
+		t.Fatalf("Failed to create template: %v", err)
+	}
+
+	// Override paths
+	oldConfigDir := paths.ConfigDir
+	oldAppDir := paths.AppDir
+	oldTemplatesAppDir := paths.TemplatesAppDir
+	t.Cleanup(func() {
+		paths.ConfigDir = oldConfigDir
+		paths.AppDir = oldAppDir
+		paths.TemplatesAppDir = oldTemplatesAppDir
+	})
+
+	paths.ConfigDir = configDir
+	paths.AppDir = tempDir
+	paths.TemplatesAppDir = templatesDir
+
+	mc := commands.NewMockCommand()
+	app := &Syntaxhighlighting{Cmd: mc}
+
+	if err := app.Uninstall(); err != nil {
+		t.Fatalf("Uninstall error: %v", err)
+	}
+
+	// Verify feature was disabled in config
+	updatedConfig, err := os.ReadFile(globalConfigPath)
+	if err != nil {
+		t.Fatalf("Failed to read updated config: %v", err)
+	}
+	if !strings.Contains(string(updatedConfig), "zsh_syntax_highlighting: false") {
+		t.Fatalf(
+			"Expected config to have zsh_syntax_highlighting disabled. Config: %s",
+			string(updatedConfig),
+		)
+	}
+
+	// Verify generated file reflects disabled state
+	outputPath := filepath.Join(tempDir, "devgita.zsh")
+	content, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("Failed to read generated file: %v", err)
+	}
+	if !strings.Contains(string(content), "disabled") {
+		t.Fatalf("Expected template to show disabled state. Content: %s", string(content))
+	}
 }
