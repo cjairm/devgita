@@ -19,12 +19,9 @@
 //   - zoxide init zsh - Generate shell initialization script
 //
 // Shell integration:
-//   After installation, add to your shell config:
-//   - zsh: eval "$(zoxide init zsh)"
-//   - bash: eval "$(zoxide init bash)"
-//   - fish: zoxide init fish | source
-//
-//   This enables the 'z' command for smart navigation:
+//   After installation and configuration, zoxide is automatically enabled via
+//   devgita's template-based shell configuration system. The 'z' command becomes
+//   available for smart navigation:
 //   - z foo - Jump to directory matching 'foo'
 //   - zi foo - Interactive selection when multiple matches
 
@@ -34,6 +31,7 @@ import (
 	"fmt"
 
 	cmd "github.com/cjairm/devgita/internal/commands"
+	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/pkg/constants"
 )
 
@@ -64,79 +62,48 @@ func (z *Zoxide) ForceInstall() error {
 	return z.Install()
 }
 
-func (z *Zoxide) Uninstall() error {
-	return fmt.Errorf("zoxide uninstall not supported through devgita")
-}
-
+// ForceConfigure enables zoxide shell integration and regenerates shell config
 func (z *Zoxide) ForceConfigure() error {
-	// Zoxide typically doesn't require separate configuration files
-	// Shell integration is handled via 'zoxide init' command
-	// Configuration is usually handled via shell initialization scripts
-
-	// TODO: Replace `cd` with this app.
-	//
-	// Ex, export HOME={{.Home}}
-	//
-	// func main() {
-	// 	tmpl, err := template.ParseFiles("myfile.zsh")
-	// 	if err != nil {
-	// 		panic(err)
-	// 	}
-	//
-	// 	data := map[string]string{
-	// 		"Home": "/User/Somethin/haha",
-	// 	}
-	//
-	// 	outputFile, err := os.Create("myfile.generated.zsh")
-	// 	if err != nil {
-	// 		panic(err)
-	// 	}
-	// 	defer outputFile.Close()
-	//
-	// 	err = tmpl.Execute(outputFile, data)
-	// 	if err != nil {
-	// 		panic(err)
-	// 	}
-	// }
+	gc := &config.GlobalConfig{}
+	if err := gc.Load(); err != nil {
+		return fmt.Errorf("failed to load global config: %w", err)
+	}
+	gc.EnableShellFeature(constants.Zoxide)
+	if err := gc.RegenerateShellConfig(); err != nil {
+		return fmt.Errorf("failed to generate shell config: %w", err)
+	}
+	if err := gc.Save(); err != nil {
+		return fmt.Errorf("failed to save global config: %w", err)
+	}
 	return nil
 }
 
 func (z *Zoxide) SoftConfigure() error {
-	// Zoxide typically doesn't require separate configuration files
-	// Shell integration is handled via 'zoxide init' command
-	// Configuration is usually handled via shell initialization scripts
+	gc := &config.GlobalConfig{}
+	if err := gc.Load(); err != nil {
+		return fmt.Errorf("failed to load global config: %w", err)
+	}
+	if gc.IsShellFeatureEnabled(constants.Zoxide) {
+		return nil
+	}
+	return z.ForceConfigure()
+}
 
-	// TODO: Replace `cd` with this app.
-	//
-	// Ex, export HOME={{.Home}}
-	//
-	// func main() {
-	// 	tmpl, err := template.ParseFiles("myfile.zsh")
-	// 	if err != nil {
-	// 		panic(err)
-	// 	}
-	//
-	// 	data := map[string]string{
-	// 		"Home": "/User/Somethin/haha",
-	// 	}
-	//
-	// 	outputFile, err := os.Create("myfile.generated.zsh")
-	// 	if err != nil {
-	// 		panic(err)
-	// 	}
-	// 	defer outputFile.Close()
-	//
-	// 	err = tmpl.Execute(outputFile, data)
-	// 	if err != nil {
-	// 		panic(err)
-	// 	}
-	// }
-	return nil
+func (z *Zoxide) Uninstall() error {
+	gc := &config.GlobalConfig{}
+	if err := gc.Load(); err != nil {
+		return fmt.Errorf("failed to load global config: %w", err)
+	}
+	gc.DisableShellFeature(constants.Zoxide)
+	if err := gc.RegenerateShellConfig(); err != nil {
+		return fmt.Errorf("failed to generate shell config: %w", err)
+	}
+	// TODO: We still uninstall the app or remove downloaded doc - see `Install`
+	return gc.Save()
 }
 
 func (z *Zoxide) ExecuteCommand(args ...string) error {
 	execCommand := cmd.CommandParams{
-		IsSudo:  false,
 		Command: constants.Zoxide,
 		Args:    args,
 	}

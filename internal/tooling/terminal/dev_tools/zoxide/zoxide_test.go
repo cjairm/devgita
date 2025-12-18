@@ -2,11 +2,15 @@ package zoxide
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/cjairm/devgita/internal/commands"
+	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/logger"
+	"github.com/cjairm/devgita/pkg/paths"
 )
 
 func init() {
@@ -34,18 +38,9 @@ func TestInstall(t *testing.T) {
 }
 
 // SKIP: ForceInstall test as per guidelines
-// func TestForceInstall(t *testing.T) {
-// 	mc := commands.NewMockCommand()
-// 	app := &Zoxide{Cmd: mc}
-//
-// 	if err := app.ForceInstall(); err != nil {
-// 		t.Fatalf("ForceInstall error: %v", err)
-// 	}
-// 	// ForceInstall should call Install() which uses InstallPackage
-// 	if mc.InstalledPkg != "zoxide" {
-// 		t.Fatalf("expected InstallPackage(%s), got %q", "zoxide", mc.InstalledPkg)
-// 	}
-// }
+// ForceInstall calls Uninstall (which now modifies GlobalConfig) before Install
+// Testing this creates false negatives and state dependencies
+// func TestForceInstall(t *testing.T) { ... }
 
 func TestSoftInstall(t *testing.T) {
 	mc := commands.NewMockCommand()
@@ -59,29 +54,325 @@ func TestSoftInstall(t *testing.T) {
 	}
 }
 
-// SKIP: ForceConfigure test isn't needed for now
-// func TestForceConfigure(t *testing.T) {
-// 	mc := commands.NewMockCommand()
-// 	app := &Zoxide{Cmd: mc}
-//
-// 	// Zoxide doesn't require separate configuration files
-// 	// so ForceConfigure should return nil (no-op)
-// 	if err := app.ForceConfigure(); err != nil {
-// 		t.Fatalf("ForceConfigure error: %v", err)
-// 	}
-// }
+func TestForceConfigure(t *testing.T) {
+	// Create temp directories
+	tempDir := t.TempDir()
+	configDir := filepath.Join(tempDir, "config")
+	templatesDir := filepath.Join(tempDir, "templates")
 
-// SKIP: ForceConfigure test isn't needed for now
-// func TestSoftConfigure(t *testing.T) {
-// 	mc := commands.NewMockCommand()
-// 	app := &Zoxide{Cmd: mc}
-//
-// 	// Zoxide doesn't require separate configuration files
-// 	// so SoftConfigure should return nil (no-op)
-// 	if err := app.SoftConfigure(); err != nil {
-// 		t.Fatalf("SoftConfigure error: %v", err)
-// 	}
-// }
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		t.Fatalf("Failed to create config dir: %v", err)
+	}
+	if err := os.MkdirAll(templatesDir, 0755); err != nil {
+		t.Fatalf("Failed to create templates dir: %v", err)
+	}
+
+	// Create global config file
+	globalConfigPath := filepath.Join(configDir, constants.AppName, constants.GlobalConfigFile)
+	if err := os.MkdirAll(filepath.Dir(globalConfigPath), 0755); err != nil {
+		t.Fatalf("Failed to create global config dir: %v", err)
+	}
+
+	initialConfig := `app_path: ""
+config_path: ""
+already_installed:
+  packages: []
+  desktop_apps: []
+  fonts: []
+  themes: []
+  terminal_tools: []
+  dev_languages: []
+  databases: []
+current_font: ""
+current_theme: ""
+installed:
+  packages: []
+  desktop_apps: []
+  fonts: []
+  themes: []
+  terminal_tools: []
+  dev_languages: []
+  databases: []
+shortcuts: {}
+shell:
+  mise: false
+  zoxide: false
+  zsh_autosuggestions: false
+  zsh_syntax_highlighting: false
+  powerlevel10k: false
+  extended_capabilities: false
+`
+	if err := os.WriteFile(globalConfigPath, []byte(initialConfig), 0644); err != nil {
+		t.Fatalf("Failed to create global config: %v", err)
+	}
+
+	// Create simple template
+	templatePath := filepath.Join(templatesDir, constants.DevgitaShellTemplate)
+	templateContent := `# Test template
+{{if .Zoxide}}
+eval "$(zoxide init zsh)"
+{{end}}
+`
+	if err := os.WriteFile(templatePath, []byte(templateContent), 0644); err != nil {
+		t.Fatalf("Failed to create template: %v", err)
+	}
+
+	// Override paths
+	oldConfigDir := paths.ConfigDir
+	oldAppDir := paths.AppDir
+	oldTemplatesAppDir := paths.TemplatesAppDir
+	t.Cleanup(func() {
+		paths.ConfigDir = oldConfigDir
+		paths.AppDir = oldAppDir
+		paths.TemplatesAppDir = oldTemplatesAppDir
+	})
+
+	paths.ConfigDir = configDir
+	paths.AppDir = tempDir
+	paths.TemplatesAppDir = templatesDir
+
+	mc := commands.NewMockCommand()
+	app := &Zoxide{Cmd: mc}
+
+	if err := app.ForceConfigure(); err != nil {
+		t.Fatalf("ForceConfigure error: %v", err)
+	}
+
+	// Verify generated file contains zoxide initialization
+	outputPath := filepath.Join(tempDir, "devgita.zsh")
+	content, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("Failed to read generated file: %v", err)
+	}
+
+	expectedContent := `eval "$(zoxide init zsh)"`
+	if !strings.Contains(string(content), expectedContent) {
+		t.Fatalf(
+			"Expected file to contain %q, but it didn't. Content: %s",
+			expectedContent,
+			string(content),
+		)
+	}
+
+	// Verify global config was updated
+	updatedConfig, err := os.ReadFile(globalConfigPath)
+	if err != nil {
+		t.Fatalf("Failed to read updated config: %v", err)
+	}
+	if !strings.Contains(string(updatedConfig), "zoxide: true") {
+		t.Fatalf(
+			"Expected config to have zoxide enabled. Config: %s",
+			string(updatedConfig),
+		)
+	}
+}
+
+func TestSoftConfigure(t *testing.T) {
+	t.Run("ConfigureWhenNotEnabled", func(t *testing.T) {
+		// Create temp directories
+		tempDir := t.TempDir()
+		configDir := filepath.Join(tempDir, "config")
+		templatesDir := filepath.Join(tempDir, "templates")
+
+		if err := os.MkdirAll(configDir, 0755); err != nil {
+			t.Fatalf("Failed to create config dir: %v", err)
+		}
+		if err := os.MkdirAll(templatesDir, 0755); err != nil {
+			t.Fatalf("Failed to create templates dir: %v", err)
+		}
+
+		// Create global config with feature disabled
+		globalConfigPath := filepath.Join(configDir, constants.AppName, constants.GlobalConfigFile)
+		if err := os.MkdirAll(filepath.Dir(globalConfigPath), 0755); err != nil {
+			t.Fatalf("Failed to create global config dir: %v", err)
+		}
+
+		initialConfig := `shell:
+  mise: false
+  zoxide: false
+  zsh_autosuggestions: false
+  zsh_syntax_highlighting: false
+  powerlevel10k: false
+  extended_capabilities: false
+`
+		if err := os.WriteFile(globalConfigPath, []byte(initialConfig), 0644); err != nil {
+			t.Fatalf("Failed to create global config: %v", err)
+		}
+
+		// Create template
+		templatePath := filepath.Join(templatesDir, constants.DevgitaShellTemplate)
+		templateContent := `{{if .Zoxide}}enabled{{end}}`
+		if err := os.WriteFile(templatePath, []byte(templateContent), 0644); err != nil {
+			t.Fatalf("Failed to create template: %v", err)
+		}
+
+		// Override paths
+		oldConfigDir := paths.ConfigDir
+		oldAppDir := paths.AppDir
+		oldTemplatesAppDir := paths.TemplatesAppDir
+		t.Cleanup(func() {
+			paths.ConfigDir = oldConfigDir
+			paths.AppDir = oldAppDir
+			paths.TemplatesAppDir = oldTemplatesAppDir
+		})
+
+		paths.ConfigDir = configDir
+		paths.AppDir = tempDir
+		paths.TemplatesAppDir = templatesDir
+
+		mc := commands.NewMockCommand()
+		app := &Zoxide{Cmd: mc}
+
+		if err := app.SoftConfigure(); err != nil {
+			t.Fatalf("SoftConfigure error: %v", err)
+		}
+
+		// Verify file was generated
+		outputPath := filepath.Join(tempDir, "devgita.zsh")
+		content, err := os.ReadFile(outputPath)
+		if err != nil {
+			t.Fatalf("Failed to read generated file: %v", err)
+		}
+
+		if !strings.Contains(string(content), "enabled") {
+			t.Fatal("Expected template to be rendered with feature enabled")
+		}
+	})
+
+	t.Run("SkipWhenAlreadyEnabled", func(t *testing.T) {
+		// Create temp directories
+		tempDir := t.TempDir()
+		configDir := filepath.Join(tempDir, "config")
+
+		if err := os.MkdirAll(configDir, 0755); err != nil {
+			t.Fatalf("Failed to create config dir: %v", err)
+		}
+
+		// Create global config with feature ALREADY enabled
+		globalConfigPath := filepath.Join(configDir, constants.AppName, constants.GlobalConfigFile)
+		if err := os.MkdirAll(filepath.Dir(globalConfigPath), 0755); err != nil {
+			t.Fatalf("Failed to create global config dir: %v", err)
+		}
+
+		configWithFeatureEnabled := `shell:
+  mise: false
+  zoxide: true
+  zsh_autosuggestions: false
+  zsh_syntax_highlighting: false
+  powerlevel10k: false
+  extended_capabilities: false
+`
+		if err := os.WriteFile(globalConfigPath, []byte(configWithFeatureEnabled), 0644); err != nil {
+			t.Fatalf("Failed to create global config: %v", err)
+		}
+
+		// Override paths
+		oldConfigDir := paths.ConfigDir
+		oldAppDir := paths.AppDir
+		t.Cleanup(func() {
+			paths.ConfigDir = oldConfigDir
+			paths.AppDir = oldAppDir
+		})
+
+		paths.ConfigDir = configDir
+		paths.AppDir = tempDir
+
+		mc := commands.NewMockCommand()
+		app := &Zoxide{Cmd: mc}
+
+		if err := app.SoftConfigure(); err != nil {
+			t.Fatalf("SoftConfigure error: %v", err)
+		}
+
+		// Verify NO file was generated (should skip when already enabled)
+		outputPath := filepath.Join(tempDir, "devgita.zsh")
+		if _, err := os.Stat(outputPath); err == nil {
+			t.Fatal("Expected no file to be generated when feature already enabled")
+		}
+	})
+}
+
+func TestUninstall(t *testing.T) {
+	// Create temp directories
+	tempDir := t.TempDir()
+	configDir := filepath.Join(tempDir, "config")
+	templatesDir := filepath.Join(tempDir, "templates")
+
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		t.Fatalf("Failed to create config dir: %v", err)
+	}
+	if err := os.MkdirAll(templatesDir, 0755); err != nil {
+		t.Fatalf("Failed to create templates dir: %v", err)
+	}
+
+	// Create global config with feature enabled
+	globalConfigPath := filepath.Join(configDir, constants.AppName, constants.GlobalConfigFile)
+	if err := os.MkdirAll(filepath.Dir(globalConfigPath), 0755); err != nil {
+		t.Fatalf("Failed to create global config dir: %v", err)
+	}
+
+	initialConfig := `shell:
+  mise: false
+  zoxide: true
+  zsh_autosuggestions: false
+  zsh_syntax_highlighting: false
+  powerlevel10k: false
+  extended_capabilities: false
+`
+	if err := os.WriteFile(globalConfigPath, []byte(initialConfig), 0644); err != nil {
+		t.Fatalf("Failed to create global config: %v", err)
+	}
+
+	// Create template
+	templatePath := filepath.Join(templatesDir, constants.DevgitaShellTemplate)
+	templateContent := `{{if .Zoxide}}enabled{{else}}disabled{{end}}`
+	if err := os.WriteFile(templatePath, []byte(templateContent), 0644); err != nil {
+		t.Fatalf("Failed to create template: %v", err)
+	}
+
+	// Override paths
+	oldConfigDir := paths.ConfigDir
+	oldAppDir := paths.AppDir
+	oldTemplatesAppDir := paths.TemplatesAppDir
+	t.Cleanup(func() {
+		paths.ConfigDir = oldConfigDir
+		paths.AppDir = oldAppDir
+		paths.TemplatesAppDir = oldTemplatesAppDir
+	})
+
+	paths.ConfigDir = configDir
+	paths.AppDir = tempDir
+	paths.TemplatesAppDir = templatesDir
+
+	mc := commands.NewMockCommand()
+	app := &Zoxide{Cmd: mc}
+
+	if err := app.Uninstall(); err != nil {
+		t.Fatalf("Uninstall error: %v", err)
+	}
+
+	// Verify feature was disabled in config
+	updatedConfig, err := os.ReadFile(globalConfigPath)
+	if err != nil {
+		t.Fatalf("Failed to read updated config: %v", err)
+	}
+	if !strings.Contains(string(updatedConfig), "zoxide: false") {
+		t.Fatalf(
+			"Expected config to have zoxide disabled. Config: %s",
+			string(updatedConfig),
+		)
+	}
+
+	// Verify generated file reflects disabled state
+	outputPath := filepath.Join(tempDir, "devgita.zsh")
+	content, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("Failed to read generated file: %v", err)
+	}
+	if !strings.Contains(string(content), "disabled") {
+		t.Fatalf("Expected template to show disabled state. Content: %s", string(content))
+	}
+}
 
 func TestExecuteCommand(t *testing.T) {
 	mc := commands.NewMockCommand()
@@ -164,30 +455,15 @@ func TestExecuteCommand(t *testing.T) {
 	})
 }
 
-// SKIP: Uninstall test as per guidelines
-// func TestUninstall(t *testing.T) {
-// 	mc := commands.NewMockCommand()
-// 	app := &Zoxide{Cmd: mc}
-//
-// 	err := app.Uninstall()
-// 	if err == nil {
-// 		t.Fatal("expected Uninstall to return error for unsupported operation")
-// 	}
-// 	if err.Error() != "zoxide uninstall not supported through devgita" {
-// 		t.Fatalf("unexpected error message: %v", err)
-// 	}
-// }
+func TestUpdate(t *testing.T) {
+	mc := commands.NewMockCommand()
+	app := &Zoxide{Cmd: mc}
 
-// SKIP: Update test as per guidelines
-// func TestUpdate(t *testing.T) {
-// 	mc := commands.NewMockCommand()
-// 	app := &Zoxide{Cmd: mc}
-//
-// 	err := app.Update()
-// 	if err == nil {
-// 		t.Fatal("expected Update to return error for unsupported operation")
-// 	}
-// 	if err.Error() != "zoxide update not implemented through devgita" {
-// 		t.Fatalf("unexpected error message: %v", err)
-// 	}
-// }
+	err := app.Update()
+	if err == nil {
+		t.Fatal("expected Update to return error for unsupported operation")
+	}
+	if err.Error() != "zoxide update not implemented through devgita" {
+		t.Fatalf("unexpected error message: %v", err)
+	}
+}
