@@ -11,6 +11,7 @@ import (
 	"fmt"
 
 	cmd "github.com/cjairm/devgita/internal/commands"
+	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/pkg/constants"
 )
 
@@ -26,7 +27,7 @@ func New() *Mise {
 }
 
 func (m *Mise) Install() error {
-	return m.Cmd.InstallPackage("mise")
+	return m.Cmd.InstallPackage(constants.Mise)
 }
 
 func (m *Mise) ForceInstall() error {
@@ -38,28 +39,51 @@ func (m *Mise) ForceInstall() error {
 }
 
 func (m *Mise) SoftInstall() error {
-	return m.Cmd.MaybeInstallPackage("mise")
+	return m.Cmd.MaybeInstallPackage(constants.Mise)
 }
 
+// ForceConfigure enables mise shell integration and regenerates shell config
 func (m *Mise) ForceConfigure() error {
-	return fmt.Errorf(
-		"mise configuration not implemented - runtime management handled via UseGlobal",
-	)
+	gc := &config.GlobalConfig{}
+	if err := gc.Load(); err != nil {
+		return fmt.Errorf("failed to load global config: %w", err)
+	}
+	gc.EnableShellFeature(constants.Mise)
+	if err := gc.RegenerateShellConfig(); err != nil {
+		return fmt.Errorf("failed to generate shell config: %w", err)
+	}
+	if err := gc.Save(); err != nil {
+		return fmt.Errorf("failed to save global config: %w", err)
+	}
+	return nil
 }
 
 func (m *Mise) SoftConfigure() error {
-	return fmt.Errorf(
-		"mise configuration not implemented - runtime management handled via UseGlobal",
-	)
+	gc := &config.GlobalConfig{}
+	if err := gc.Load(); err != nil {
+		return fmt.Errorf("failed to load global config: %w", err)
+	}
+	if gc.IsShellFeatureEnabled(constants.Mise) {
+		return nil
+	}
+	return m.ForceConfigure()
 }
 
 func (m *Mise) Uninstall() error {
-	return fmt.Errorf("uninstall not implemented for mise")
+	gc := &config.GlobalConfig{}
+	if err := gc.Load(); err != nil {
+		return fmt.Errorf("failed to load global config: %w", err)
+	}
+	gc.DisableShellFeature(constants.Mise)
+	if err := gc.RegenerateShellConfig(); err != nil {
+		return fmt.Errorf("failed to generate shell config: %w", err)
+	}
+	// TODO: We still uninstall the app or remove downloaded doc - see `Install`
+	return gc.Save()
 }
 
 func (m *Mise) ExecuteCommand(args ...string) error {
 	execCommand := cmd.CommandParams{
-		IsSudo:  false,
 		Command: constants.Mise,
 		Args:    args,
 	}

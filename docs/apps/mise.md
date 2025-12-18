@@ -4,14 +4,16 @@
 
 The Mise module provides runtime environment management with devgita integration. It follows the standardized devgita app interface while providing mise-specific operations for managing programming language runtimes including Node.js, Python, Go, Ruby, and many others via the mise.jdx.dev tool.
 
+**Note**: This module uses devgita's template-based configuration management system for shell integration. Configuration changes are tracked in GlobalConfig and shell configuration is regenerated from templates rather than direct file manipulation.
+
 ## App Purpose
 
-Mise (formerly rtx) is a polyglot runtime manager that replaces tools like nvm, pyenv, rbenv, etc. This module ensures mise is properly installed and provides high-level operations for setting global runtime versions, managing language environments, and handling development tool chains across different programming languages.
+Mise (formerly rtx) is a polyglot runtime manager that replaces tools like nvm, pyenv, rbenv, etc. This module ensures mise is properly installed, provides shell integration via template-based GlobalConfig management, and offers high-level operations for setting global runtime versions, managing language environments, and handling development tool chains across different programming languages.
 
 ## Lifecycle Summary
 
 1. **Installation**: Install mise package via platform package managers (Homebrew/apt)
-2. **Configuration**: No traditional config files - mise manages runtimes via CLI commands
+2. **Configuration**: Enable mise shell integration in GlobalConfig and regenerate shell configuration via templates
 3. **Execution**: Provide high-level mise operations for runtime management and version control
 
 ## Exported Functions
@@ -22,9 +24,9 @@ Mise (formerly rtx) is a polyglot runtime manager that replaces tools like nvm, 
 | `Install()`        | Standard installation     | Uses `InstallPackage()` to install mise                              |
 | `ForceInstall()`   | Force installation        | Calls `Uninstall()` first (returns error if fails), then `Install()` |
 | `SoftInstall()`    | Conditional installation  | Uses `MaybeInstallPackage()` to check before installing              |
-| `ForceConfigure()` | Force configuration       | **Not applicable** - returns error                                   |
-| `SoftConfigure()`  | Conditional configuration | **Not applicable** - returns error                                   |
-| `Uninstall()`      | Remove installation       | **Not supported** - returns error                                    |
+| `ForceConfigure()` | Force configuration       | Enables shell integration and regenerates shell configuration        |
+| `SoftConfigure()`  | Conditional configuration | Checks GlobalConfig; enables only if not already enabled             |
+| `Uninstall()`      | Remove installation       | **Fully supported** - Disables shell integration and regenerates config |
 | `ExecuteCommand()` | Execute mise command      | Runs mise with provided arguments                                     |
 | `Update()`         | Update installation       | **Not implemented** - returns error                                  |
 | `UseGlobal()`      | Set global runtime        | Sets global version for specified language                           |
@@ -70,9 +72,10 @@ err := mise.SoftInstall()
 err := mise.Uninstall()
 ```
 
-- **Purpose**: Remove mise installation
-- **Behavior**: **Not supported** - returns error
-- **Rationale**: Runtime managers are typically managed at the system level
+- **Purpose**: Remove mise shell integration
+- **Behavior**: Loads GlobalConfig → Disables feature → Regenerates shell config → Persists updated state
+- **Use case**: Remove mise shell integration from devgita without uninstalling the package
+- **Note**: This disables the shell integration feature but does not remove the package itself
 
 ### Update()
 
@@ -86,16 +89,42 @@ err := mise.Update()
 
 ## Configuration Methods
 
-### ForceConfigure() & SoftConfigure()
+### Configuration Strategy
+
+This module uses **template-based configuration management** via GlobalConfig:
+
+- **Template**: `configs/templates/devgita.zsh.tmpl` contains conditional sections
+- **GlobalConfig**: `~/.config/devgita/global_config.yaml` tracks enabled features
+- **Generated file**: `~/.config/devgita/devgita.zsh` (regenerated from template)
+- **Feature tracking**: `shell.mise` boolean field in GlobalConfig
+
+### ForceConfigure()
 
 ```go
 err := mise.ForceConfigure()
+```
+
+- **Purpose**: Enable mise shell integration in shell configuration
+- **Behavior**: 
+  1. Loads GlobalConfig from disk
+  2. Enables `shell.mise` feature
+  3. Regenerates `devgita.zsh` from template
+  4. Saves GlobalConfig back to disk
+- **Use case**: Enable mise shell integration or re-apply configuration
+
+### SoftConfigure()
+
+```go
 err := mise.SoftConfigure()
 ```
 
-- **Purpose**: Apply mise configuration
-- **Behavior**: **Not applicable** - both return errors
-- **Rationale**: Mise doesn't use traditional config files; runtime management is handled via CLI commands and global settings
+- **Purpose**: Enable mise shell integration only if not already enabled
+- **Behavior**: 
+  1. Loads GlobalConfig from disk
+  2. Checks if `shell.mise` is already enabled
+  3. If enabled, returns nil (no operation)
+  4. If not enabled, calls `ForceConfigure()`
+- **Use case**: Initial setup that preserves existing configuration state
 
 ## Execution Methods
 
@@ -125,7 +154,7 @@ err := mise.UseGlobal("go", "latest")
 - **Parameters**: 
   - `language string` - Programming language name (e.g., "node", "python", "go")
   - `version string` - Version to set globally (e.g., "20", "3.11.0", "latest")
-- **Behavior**: Executes `mise global <language>@<version>`
+- **Behavior**: Executes `mise use --global <language>@<version>`
 - **Validation**: Returns error if language or version parameters are empty
 - **Use case**: Configure default runtime versions for development environment
 
@@ -186,34 +215,89 @@ mise info node
 
 ## Expected Function Interactions
 
-1. **Standard Setup**: `New()` → `SoftInstall()` → `SoftConfigure()` (returns error)
-2. **Force Setup**: `New()` → `ForceInstall()` → `ForceConfigure()` (returns error)
-3. **Runtime Management**: `New()` → `SoftInstall()` → `UseGlobal("node", "20")`
+1. **Standard Setup**: `New()` → `SoftInstall()` → `SoftConfigure()`
+2. **Force Setup**: `New()` → `ForceInstall()` → `ForceConfigure()`
+3. **Runtime Management**: `New()` → `SoftInstall()` → `SoftConfigure()` → `UseGlobal("node", "20")`
 4. **Mise Operations**: `New()` → `ExecuteCommand()` with specific mise arguments
+5. **Remove Integration**: `New()` → `Uninstall()`
 
 ## Constants and Paths
 
 ### Relevant Constants
 
-- Package name: `"mise"` used directly for installation
-- Used by all installation methods for consistent package reference
+- `constants.Mise`: Package name ("mise") used for installation and feature tracking
+- Used consistently across all methods for package management and GlobalConfig operations
 
-### Configuration Approach
+### Configuration Paths
 
-- **No traditional config files**: Mise manages runtimes via CLI commands and global settings
+- `paths.TemplatesAppDir`: Source directory for shell configuration templates
+- `paths.AppDir`: Target directory for generated shell configuration
+- Template file: `filepath.Join(paths.TemplatesAppDir, "devgita.zsh.tmpl")`
+- Generated file: `filepath.Join(paths.AppDir, "devgita.zsh")`
+- GlobalConfig file: `~/.config/devgita/global_config.yaml`
+
+### Runtime Configuration
+
 - **Global versions**: Stored in `~/.config/mise/config.toml` (managed by mise itself)
 - **Local versions**: Stored in `.tool-versions` or `.mise.toml` files (project-specific)
-- **Devgita integration**: Uses `UseGlobal()` to set development environment defaults
+- **Shell integration**: Managed via devgita's GlobalConfig and template system
 
 ## Implementation Notes
 
+- **Shell Integration Nature**: Mise requires shell activation for automatic version switching
+- **Template-Based Configuration**: Uses GlobalConfig and template regeneration for shell integration
+- **Load-Modify-Regenerate-Save Pattern**: Each configuration method follows this transaction pattern
+- **Fresh GlobalConfig Instances**: Each method creates a new `&config.GlobalConfig{}` and loads from disk to prevent stale data
+- **Stateless Configuration**: GlobalConfig represents disk state, not app instance state
+- **ForceInstall Logic**: Calls `Uninstall()` first, which now properly disables the shell integration feature
 - **Runtime Manager Nature**: Unlike typical applications, mise manages other tools rather than being a standalone application
-- **ForceInstall Logic**: Calls `Uninstall()` first and returns the error if it fails since mise uninstall is not supported
-- **Configuration Strategy**: Returns errors for `ForceConfigure()` and `SoftConfigure()` since mise doesn't use traditional config files
 - **Error Handling**: All methods return errors that should be checked by callers
 - **Platform Independence**: Uses command interface abstraction for cross-platform compatibility
 - **Validation**: `UseGlobal()` validates that both language and version parameters are provided
 - **Update Method**: Not implemented as mise updates should be handled by system package managers
+
+## Template Integration
+
+### Template Structure
+
+The mise shell integration is defined in `configs/templates/devgita.zsh.tmpl`:
+
+```bash
+{{if .Mise}}
+# Mise - Polyglot runtime manager
+if command -v mise &> /dev/null; then
+  eval "$(mise activate zsh)"
+fi
+{{end}}
+```
+
+### GlobalConfig Tracking
+
+The feature state is tracked in `~/.config/devgita/global_config.yaml`:
+
+```yaml
+shell:
+  mise: true  # Enabled
+  # ... other shell features
+```
+
+### Generated Configuration
+
+When enabled, the generated `devgita.zsh` contains:
+
+```bash
+# Mise - Polyglot runtime manager
+if command -v mise &> /dev/null; then
+  eval "$(mise activate zsh)"
+fi
+```
+
+This approach:
+- Provides single source of truth (template file)
+- Enables clean enable/disable operations
+- Prevents configuration conflicts
+- Makes tracking and version control easier
+- Ensures consistent regeneration
 
 ## Supported Languages
 
@@ -245,6 +329,12 @@ mise := mise.New()
 
 // Install mise
 err := mise.SoftInstall()
+if err != nil {
+    return err
+}
+
+// Enable shell integration
+err = mise.SoftConfigure()
 if err != nil {
     return err
 }
@@ -284,8 +374,8 @@ err = mise.ExecuteCommand("update")
 The module maintains backward compatibility through deprecated functions:
 
 - `MaybeInstall()` → Use `SoftInstall()` instead
-- `Setup()` → Use `ForceConfigure()` instead (note: will return error)
-- `MaybeSetup()` → Use `SoftConfigure()` instead (note: will return error)
+- `Setup()` → Use `ForceConfigure()` instead
+- `MaybeSetup()` → Use `SoftConfigure()` instead
 - `Run()` → Use `ExecuteCommand()` instead
 
 ## Troubleshooting
@@ -296,21 +386,30 @@ The module maintains backward compatibility through deprecated functions:
 2. **Runtime Installation Fails**: Check internet connectivity and tool availability
 3. **Commands Don't Work**: Verify mise is installed and accessible in PATH
 4. **Version Conflicts**: Use `mise current` to check active versions
-5. **Shell Integration**: Ensure mise is properly configured in shell profile
+5. **Shell Integration Not Working**: Verify GlobalConfig has feature enabled and shell configuration is sourced
+6. **GlobalConfig Load Errors**: Ensure `~/.config/devgita/global_config.yaml` is valid YAML
+7. **Template Not Found**: Verify `configs/templates/devgita.zsh.tmpl` exists in devgita repository
 
 ### Platform Considerations
 
 - **macOS**: Installed via Homebrew package manager
 - **Linux**: Installed via apt package manager
-- **Shell Integration**: Requires shell hook for automatic version switching
+- **Shell Integration**: Requires shell activation for automatic version switching
 - **PATH Management**: Mise manages runtime paths automatically
 
-### Configuration Files
+### Shell Integration
 
-While mise doesn't use traditional config templates like other devgita apps, it does create and manage:
+- Shell integration requires Zsh shell to function
+- Configuration must be sourced in shell initialization (add `source ~/.config/devgita/devgita.zsh` to `.zshrc`)
+- Works best with devgita's complete shell setup
+- May conflict with other runtime managers if not properly configured
 
-- **Global config**: `~/.config/mise/config.toml`
-- **Local config**: `.tool-versions` or `.mise.toml` in project directories
-- **Shell integration**: Automatic PATH management and version switching
+### Template System Benefits
 
-This module provides essential runtime management capabilities for maintaining consistent development environments across different programming languages and projects.
+- **Single Source of Truth**: Template file is the only place shell configuration is defined
+- **Trackable**: Git can track template changes easily
+- **Predictable**: Regeneration always produces same output for same inputs
+- **No Conflicts**: No string manipulation or file appending/removing
+- **Clean Uninstall**: Disabling a feature regenerates without it
+
+This module provides essential runtime management capabilities with template-based shell integration for maintaining consistent development environments across different programming languages and projects.
