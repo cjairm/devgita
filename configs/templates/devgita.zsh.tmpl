@@ -179,11 +179,15 @@ tmn() {
 compress() { tar -czf "${1%/}.tar.gz" "${1%/}"; }
 alias decompress="tar -xzf"
 
+{{if .Mise}}
 # Mise
 alias mx="mise x --"
+{{end}}
 
+{{if .Zoxide}}
 # ---- Zoxide (better cd) ----
 alias cd="z"
+{{end}}
 
 # ---- Eza (better ls) ----
 alias ls="eza"
