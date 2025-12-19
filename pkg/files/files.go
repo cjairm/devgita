@@ -201,23 +201,37 @@ func AddLineToFile(line, filePath string) error {
 //
 // Returns an error if template parsing, execution, or file writing fails.
 func GenerateFromTemplate(templatePath, outputPath string, data any) error {
-	logger.L().
-		Debug("Generating file from template", "templatePath", templatePath, "outputPath", outputPath)
 	tmpl, err := template.ParseFiles(templatePath)
 	if err != nil {
 		return fmt.Errorf("failed to parse template %s: %w", templatePath, err)
 	}
-	outputFile, err := os.Create(outputPath)
+	// Write to temporary file first (atomic write pattern)
+	tempFile, err := os.CreateTemp(filepath.Dir(outputPath), "."+filepath.Base(outputPath)+".tmp.*")
 	if err != nil {
-		return fmt.Errorf("failed to create output file %s: %w", outputPath, err)
+		return fmt.Errorf("failed to create temporary file for %s: %w", outputPath, err)
 	}
-	defer outputFile.Close()
-	if err := tmpl.Execute(outputFile, data); err != nil {
+	tempPath := tempFile.Name()
+	defer func() {
+		tempFile.Close()
+		if _, err := os.Stat(tempPath); err == nil {
+			os.Remove(tempPath)
+		}
+	}()
+	if err := tmpl.Execute(tempFile, data); err != nil {
 		return fmt.Errorf("failed to execute template %s: %w", templatePath, err)
 	}
-	if err := os.Chmod(outputPath, FilePermission); err != nil {
-		return fmt.Errorf("failed to set permissions on %s: %w", outputPath, err)
+	if err := tempFile.Close(); err != nil {
+		return fmt.Errorf("failed to close temporary file %s: %w", tempPath, err)
 	}
+	if err := os.Chmod(tempPath, FilePermission); err != nil {
+		return fmt.Errorf("failed to set permissions on temporary file %s: %w", tempPath, err)
+	}
+	// Atomically replace original file (this is the commit point)
+	if err := os.Rename(tempPath, outputPath); err != nil {
+		return fmt.Errorf("failed to replace output file %s: %w", outputPath, err)
+	}
+	logger.L().
+		Debug("Successfully generated file from template", "outputPath", outputPath)
 	return nil
 }
 
