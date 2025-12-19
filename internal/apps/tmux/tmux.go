@@ -47,8 +47,8 @@ func (t *Tmux) SoftInstall() error {
 
 func (t *Tmux) ForceConfigure() error {
 	return files.CopyFile(
-		filepath.Join(paths.TmuxConfigAppDir, ".tmux.conf"),
-		filepath.Join(paths.HomeDir, ".tmux.conf"),
+		filepath.Join(paths.Paths.App.Configs.Tmux, ".tmux.conf"),
+		filepath.Join(paths.Paths.Home.Root, ".tmux.conf"),
 	)
 }
 

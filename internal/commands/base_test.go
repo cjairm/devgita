@@ -199,8 +199,8 @@ func TestIsFontPresent(t *testing.T) {
 		tmpUser := t.TempDir()
 		tmpSystem := t.TempDir()
 
-		paths.UserFontsDir = tmpUser
-		paths.SystemFontsDir = tmpSystem
+		paths.Paths.User.Fonts = tmpUser
+		paths.Paths.System.Fonts = tmpSystem
 
 		createFile(t, tmpSystem, "myfont.ttf")
 
@@ -227,13 +227,13 @@ func TestIsFontPresent(t *testing.T) {
 		tmpSystemDir := t.TempDir()
 
 		// override paths
-		originalUser := paths.UserFontsDir
-		originalSystem := paths.SystemFontsDir
-		paths.UserFontsDir = tmpUserDir
-		paths.SystemFontsDir = tmpSystemDir
+		originalUser := paths.Paths.User.Fonts
+		originalSystem := paths.Paths.System.Fonts
+		paths.Paths.User.Fonts = tmpUserDir
+		paths.Paths.System.Fonts = tmpSystemDir
 		defer func() {
-			paths.UserFontsDir = originalUser
-			paths.SystemFontsDir = originalSystem
+			paths.Paths.User.Fonts = originalUser
+			paths.Paths.System.Fonts = originalSystem
 		}()
 
 		b := commands.NewBaseCommandCustom(FakePlatform{Linux: true})
@@ -250,8 +250,8 @@ func TestIsFontPresent(t *testing.T) {
 		tmpUser := t.TempDir()
 		tmpSystem := t.TempDir()
 
-		paths.UserFontsDir = tmpUser
-		paths.SystemFontsDir = tmpSystem
+		paths.Paths.User.Fonts = tmpUser
+		paths.Paths.System.Fonts = tmpSystem
 
 		createFile(t, tmpUser, "FancyFont.OTF")
 
@@ -311,9 +311,9 @@ func setupMaybeInstallTest(t *testing.T, testConfig *config.GlobalConfig) (clean
 
 	// Set up temporary config - each test gets its own unique directory
 	tempDir := t.TempDir() // This creates a unique temp dir per test
-	configDir := filepath.Join(tempDir, constants.AppName)
+	configDir := filepath.Join(tempDir, constants.App.Name)
 	os.MkdirAll(configDir, 0755)
-	configPath := filepath.Join(configDir, constants.GlobalConfigFile)
+	configPath := filepath.Join(configDir, constants.App.File.GlobalConfig)
 
 	// Marshal and write the test config
 	data, err := yaml.Marshal(testConfig)
@@ -327,11 +327,11 @@ func setupMaybeInstallTest(t *testing.T, testConfig *config.GlobalConfig) (clean
 	}
 
 	// Override global config path
-	originalConfigDir := paths.ConfigDir
-	paths.ConfigDir = tempDir
+	originalConfigDir := paths.Paths.Config.Root
+	paths.Paths.Config.Root = tempDir
 
 	return func() {
-		paths.ConfigDir = originalConfigDir
+		paths.Paths.Config.Root = originalConfigDir
 	}
 }
 
@@ -430,18 +430,18 @@ func TestMaybeInstall_ItemPreExisting_TracksAsAlreadyInstalled(t *testing.T) {
 
 	// Set up temporary config
 	tempDir := t.TempDir()
-	configDir := filepath.Join(tempDir, constants.AppName)
+	configDir := filepath.Join(tempDir, constants.App.Name)
 	os.MkdirAll(configDir, 0755)
-	configPath := filepath.Join(configDir, constants.GlobalConfigFile)
+	configPath := filepath.Join(configDir, constants.App.File.GlobalConfig)
 
 	data, _ := yaml.Marshal(testConfig)
 	os.WriteFile(configPath, data, 0644)
 
 	// Override global config path
-	originalConfigDir := paths.ConfigDir
-	paths.ConfigDir = tempDir
+	originalConfigDir := paths.Paths.Config.Root
+	paths.Paths.Config.Root = tempDir
 	defer func() {
-		paths.ConfigDir = originalConfigDir
+		paths.Paths.Config.Root = originalConfigDir
 	}()
 
 	b := commands.NewBaseCommandCustom(FakePlatform{Mac: true})
@@ -497,18 +497,18 @@ func TestMaybeInstall_DifferentItemTypes(t *testing.T) {
 
 			// Set up temporary config
 			tempDir := t.TempDir()
-			configDir := filepath.Join(tempDir, constants.AppName)
+			configDir := filepath.Join(tempDir, constants.App.Name)
 			os.MkdirAll(configDir, 0755)
-			configPath := filepath.Join(configDir, constants.GlobalConfigFile)
+			configPath := filepath.Join(configDir, constants.App.File.GlobalConfig)
 
 			data, _ := yaml.Marshal(testConfig)
 			os.WriteFile(configPath, data, 0644)
 
 			// Override global config path
-			originalConfigDir := paths.ConfigDir
-			paths.ConfigDir = tempDir
+			originalConfigDir := paths.Paths.Config.Root
+			paths.Paths.Config.Root = tempDir
 			defer func() {
-				paths.ConfigDir = originalConfigDir
+				paths.Paths.Config.Root = originalConfigDir
 			}()
 
 			b := commands.NewBaseCommandCustom(FakePlatform{Mac: true})

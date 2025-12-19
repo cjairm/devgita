@@ -55,10 +55,10 @@ func TestForceConfigure(t *testing.T) {
 	dst := t.TempDir()
 
 	// Override global paths for the duration of the test
-	oldAppDir, oldLocalDir := paths.NeovimConfigAppDir, paths.NvimConfigLocalDir
-	paths.NeovimConfigAppDir, paths.NvimConfigLocalDir = src, dst
+	oldAppDir, oldLocalDir := paths.Paths.App.Configs.Neovim, paths.Paths.Config.Nvim
+	paths.Paths.App.Configs.Neovim, paths.Paths.Config.Nvim = src, dst
 	t.Cleanup(func() {
-		paths.NeovimConfigAppDir, paths.NvimConfigLocalDir = oldAppDir, oldLocalDir
+		paths.Paths.App.Configs.Neovim, paths.Paths.Config.Nvim = oldAppDir, oldLocalDir
 	})
 
 	originalContent := "-- Neovim init.lua\nvim.g.mapleader = ' '"
@@ -104,10 +104,10 @@ func TestSoftConfigure(t *testing.T) {
 	dst := t.TempDir()
 
 	// Override global paths for the duration of the test
-	oldAppDir, oldLocalDir := paths.NeovimConfigAppDir, paths.NvimConfigLocalDir
-	paths.NeovimConfigAppDir, paths.NvimConfigLocalDir = src, dst
+	oldAppDir, oldLocalDir := paths.Paths.App.Configs.Neovim, paths.Paths.Config.Nvim
+	paths.Paths.App.Configs.Neovim, paths.Paths.Config.Nvim = src, dst
 	t.Cleanup(func() {
-		paths.NeovimConfigAppDir, paths.NvimConfigLocalDir = oldAppDir, oldLocalDir
+		paths.Paths.App.Configs.Neovim, paths.Paths.Config.Nvim = oldAppDir, oldLocalDir
 	})
 
 	originalContent := "-- Neovim init.lua\nvim.g.mapleader = ' '"

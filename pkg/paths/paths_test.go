@@ -34,8 +34,8 @@ func TestConfigDir(t *testing.T) {
 
 	t.Run("one subdir", func(t *testing.T) {
 		t.Setenv("XDG_CONFIG_HOME", "")
-		got := paths.GetConfigDir(constants.AppName)
-		want := filepath.Join(home, ".config", constants.AppName)
+		got := paths.GetConfigDir(constants.App.Name)
+		want := filepath.Join(home, ".config", constants.App.Name)
 		if got != want {
 			t.Errorf("expected %q, got %q", want, got)
 		}
@@ -43,8 +43,8 @@ func TestConfigDir(t *testing.T) {
 
 	t.Run("multiple subdirs", func(t *testing.T) {
 		t.Setenv("XDG_CONFIG_HOME", "")
-		got := paths.GetConfigDir(constants.AppName, "nvim")
-		want := filepath.Join(home, ".config", constants.AppName, "nvim")
+		got := paths.GetConfigDir(constants.App.Name, "nvim")
+		want := filepath.Join(home, ".config", constants.App.Name, "nvim")
 		if got != want {
 			t.Errorf("expected %q, got %q", want, got)
 		}
@@ -52,8 +52,8 @@ func TestConfigDir(t *testing.T) {
 
 	t.Run("XDG_CONFIG_HOME override", func(t *testing.T) {
 		t.Setenv("XDG_CONFIG_HOME", "/tmp/xdg-config")
-		got := paths.GetConfigDir(constants.AppName)
-		want := filepath.Join("/tmp/xdg-config", constants.AppName)
+		got := paths.GetConfigDir(constants.App.Name)
+		want := filepath.Join("/tmp/xdg-config", constants.App.Name)
 		if got != want {
 			t.Errorf("expected %q, got %q", want, got)
 		}
@@ -65,8 +65,8 @@ func TestDataDir(t *testing.T) {
 
 	t.Run("default location", func(t *testing.T) {
 		t.Setenv("XDG_DATA_HOME", "")
-		got := paths.GetDataDir(constants.AppName)
-		want := filepath.Join(home, ".local", "share", constants.AppName)
+		got := paths.GetDataDir(constants.App.Name)
+		want := filepath.Join(home, ".local", "share", constants.App.Name)
 		if got != want {
 			t.Errorf("expected %q, got %q", want, got)
 		}
@@ -96,8 +96,8 @@ func TestCacheDir(t *testing.T) {
 
 	t.Run("default location", func(t *testing.T) {
 		t.Setenv("XDG_CACHE_HOME", "")
-		got := paths.GetCacheDir(constants.AppName)
-		want := filepath.Join(home, ".cache", constants.AppName)
+		got := paths.GetCacheDir(constants.App.Name)
+		want := filepath.Join(home, ".cache", constants.App.Name)
 		if got != want {
 			t.Errorf("expected %q, got %q", want, got)
 		}
@@ -105,8 +105,8 @@ func TestCacheDir(t *testing.T) {
 
 	t.Run("multiple subdirs", func(t *testing.T) {
 		t.Setenv("XDG_CACHE_HOME", "")
-		got := paths.GetCacheDir(constants.AppName, "nvim")
-		want := filepath.Join(home, ".cache", constants.AppName, "nvim")
+		got := paths.GetCacheDir(constants.App.Name, "nvim")
+		want := filepath.Join(home, ".cache", constants.App.Name, "nvim")
 		if got != want {
 			t.Errorf("expected %q, got %q", want, got)
 		}
@@ -127,7 +127,7 @@ func TestAppDir(t *testing.T) {
 
 	t.Run("returns app dir", func(t *testing.T) {
 		got := paths.GetAppDir("logs")
-		want := filepath.Join(home, ".local", "share", constants.AppName, "logs")
+		want := filepath.Join(home, ".local", "share", constants.App.Name, "logs")
 		if got != want {
 			t.Errorf("expected %q, got %q", want, got)
 		}
@@ -189,8 +189,8 @@ func TestGetShellConfigFile(t *testing.T) {
 
 	t.Run("returns first matching config file", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		paths.HomeDir = tmpDir
-		paths.ConfigDir = filepath.Join(tmpDir, ".config")
+		t.Setenv("HOME", tmpDir)
+		t.Setenv("XDG_CONFIG_HOME", filepath.Join(tmpDir, ".config"))
 
 		target := filepath.Join(tmpDir, ".bash_profile")
 		createFile(t, target)
@@ -213,8 +213,8 @@ func TestGetShellConfigFile(t *testing.T) {
 			t.Fatalf("failed to create fish config dir: %v", err)
 		}
 
-		paths.HomeDir = tmpDir
-		paths.ConfigDir = filepath.Join(tmpDir, ".config")
+		t.Setenv("HOME", tmpDir)
+		t.Setenv("XDG_CONFIG_HOME", filepath.Join(tmpDir, ".config"))
 
 		target := filepath.Join(fishDir, "config.fish")
 		createFile(t, target)
@@ -232,8 +232,8 @@ func TestGetShellConfigFile(t *testing.T) {
 
 	t.Run("returns default if none exist", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		paths.HomeDir = tmpDir
-		paths.ConfigDir = filepath.Join(tmpDir, ".config")
+		t.Setenv("HOME", tmpDir)
+		t.Setenv("XDG_CONFIG_HOME", filepath.Join(tmpDir, ".config"))
 
 		paths.FileAlreadyExist = func(path string) bool {
 			return false
@@ -248,10 +248,10 @@ func TestGetShellConfigFile(t *testing.T) {
 }
 
 func TestFontsDirs(t *testing.T) {
-	tempHome := t.TempDir()
-	paths.HomeDir = tempHome
-
 	t.Run("user fonts dir - mac", func(t *testing.T) {
+		tempHome := t.TempDir()
+		t.Setenv("HOME", tempHome)
+
 		got := paths.GetUserFontsDir(true, "MyFont.ttf")
 		want := filepath.Join(tempHome, "Library", "Fonts", "MyFont.ttf")
 		if got != want {
@@ -260,7 +260,10 @@ func TestFontsDirs(t *testing.T) {
 	})
 
 	t.Run("user fonts dir - linux", func(t *testing.T) {
+		tempHome := t.TempDir()
+		t.Setenv("HOME", tempHome)
 		t.Setenv("XDG_DATA_HOME", filepath.Join(tempHome, ".local", "share"))
+
 		got := paths.GetUserFontsDir(false, "font.ttf")
 		want := filepath.Join(tempHome, ".local", "share", "fonts", "font.ttf")
 		if got != want {

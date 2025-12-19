@@ -42,11 +42,11 @@ func (f *Fastfetch) SoftInstall() error {
 }
 
 func (f *Fastfetch) ForceConfigure() error {
-	return files.CopyDir(paths.FastFetchConfigAppDir, paths.FastFetchConfigLocalDir)
+	return files.CopyDir(paths.Paths.App.Configs.Fastfetch, paths.Paths.Config.Fastfetch)
 }
 
 func (f *Fastfetch) SoftConfigure() error {
-	fastfetchConfigFile := filepath.Join(paths.FastFetchConfigLocalDir, "config.jsonc")
+	fastfetchConfigFile := filepath.Join(paths.Paths.Config.Fastfetch, "config.jsonc")
 	isFilePresent := files.FileAlreadyExist(fastfetchConfigFile)
 	if isFilePresent {
 		return nil

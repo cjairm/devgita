@@ -133,11 +133,11 @@ func TestForceConfigure(t *testing.T) {
 
 	tempDir := t.TempDir()
 
-	oldTmuxConfigAppDir := paths.TmuxConfigAppDir
-	oldHomeDir := paths.HomeDir
+	oldTmuxConfigAppDir := paths.Paths.App.Configs.Tmux
+	oldHomeDir := paths.Paths.Home.Root
 	defer func() {
-		paths.TmuxConfigAppDir = oldTmuxConfigAppDir
-		paths.HomeDir = oldHomeDir
+		paths.Paths.App.Configs.Tmux = oldTmuxConfigAppDir
+		paths.Paths.Home.Root = oldHomeDir
 	}()
 
 	// Create source directory with tmux config
@@ -154,8 +154,8 @@ func TestForceConfigure(t *testing.T) {
 		t.Fatalf("Failed to create destination directory: %v", err)
 	}
 
-	paths.TmuxConfigAppDir = sourceDir
-	paths.HomeDir = destDir
+	paths.Paths.App.Configs.Tmux = sourceDir
+	paths.Paths.Home.Root = destDir
 
 	// Create source .tmux.conf file
 	sourceConfig := filepath.Join(sourceDir, ".tmux.conf")
@@ -196,11 +196,11 @@ func TestSoftConfigure(t *testing.T) {
 		tempDir := t.TempDir()
 
 		// Override global paths for the duration of the test
-		oldTmuxConfigAppDir := paths.TmuxConfigAppDir
-		oldHomeDir := paths.HomeDir
+		oldTmuxConfigAppDir := paths.Paths.App.Configs.Tmux
+		oldHomeDir := paths.Paths.Home.Root
 		defer func() {
-			paths.TmuxConfigAppDir = oldTmuxConfigAppDir
-			paths.HomeDir = oldHomeDir
+			paths.Paths.App.Configs.Tmux = oldTmuxConfigAppDir
+			paths.Paths.Home.Root = oldHomeDir
 		}()
 
 		// Create source directory with tmux config
@@ -217,8 +217,8 @@ func TestSoftConfigure(t *testing.T) {
 			t.Fatalf("Failed to create destination directory: %v", err)
 		}
 
-		paths.TmuxConfigAppDir = sourceDir
-		paths.HomeDir = destDir
+		paths.Paths.App.Configs.Tmux = sourceDir
+		paths.Paths.Home.Root = destDir
 
 		// Create source .tmux.conf file
 		sourceConfig := filepath.Join(sourceDir, ".tmux.conf")
@@ -294,9 +294,9 @@ func TestSoftConfigure(t *testing.T) {
 		}
 
 		// For this test, we need to set up the paths correctly
-		oldTmuxConfigAppDir := paths.TmuxConfigAppDir
+		oldTmuxConfigAppDir := paths.Paths.App.Configs.Tmux
 		defer func() {
-			paths.TmuxConfigAppDir = oldTmuxConfigAppDir
+			paths.Paths.App.Configs.Tmux = oldTmuxConfigAppDir
 		}()
 
 		// Create source directory (though it shouldn't be used)
@@ -305,7 +305,7 @@ func TestSoftConfigure(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to create source directory: %v", err)
 		}
-		paths.TmuxConfigAppDir = sourceDir
+		paths.Paths.App.Configs.Tmux = sourceDir
 
 		// Create a different source config to prove it's not copied
 		sourceConfig := filepath.Join(sourceDir, ".tmux.conf")

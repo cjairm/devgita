@@ -17,29 +17,29 @@ type Devgita struct {
 	git git.Git
 }
 
-var configDirPath = filepath.Join(paths.ConfigDir, constants.AppName)
-var globalConfigPath = filepath.Join(configDirPath, constants.GlobalConfigFile)
+var configDirPath = filepath.Join(paths.Paths.Config.Root, constants.App.Name)
+var globalConfigPath = filepath.Join(configDirPath, constants.App.File.GlobalConfig)
 
 func New() *Devgita {
 	return &Devgita{git: *git.New()}
 }
 
 func (dg *Devgita) Install() error {
-	if err := os.MkdirAll(paths.AppDir, 0755); err != nil {
+	if err := os.MkdirAll(paths.Paths.App.Root, 0755); err != nil {
 		return err
 	}
-	if err := os.RemoveAll(paths.AppDir); err != nil {
+	if err := os.RemoveAll(paths.Paths.App.Root); err != nil {
 		return err
 	}
-	if err := dg.git.Clone(constants.DevgitaRepositoryUrl, paths.AppDir); err != nil {
+	if err := dg.git.Clone(constants.App.Repository.URL, paths.Paths.App.Root); err != nil {
 		return err
 	}
 	return nil
 }
 
 func (dg *Devgita) SoftInstall() error {
-	if files.DirAlreadyExist(paths.AppDir) && !files.IsDirEmpty(paths.AppDir) {
-		logger.L().Info("Devgita repository already installed at %s", paths.AppDir)
+	if files.DirAlreadyExist(paths.Paths.App.Root) && !files.IsDirEmpty(paths.Paths.App.Root) {
+		logger.L().Info("Devgita repository already installed at %s", paths.Paths.App.Root)
 		return nil
 	}
 	return dg.Install()
@@ -54,16 +54,16 @@ func (dg *Devgita) ForceInstall() error {
 }
 
 func (dg *Devgita) Uninstall() error {
-	if !files.DirAlreadyExist(paths.AppDir) {
-		logger.L().Info("Devgita repository not found at %s, nothing to uninstall", paths.AppDir)
-	} else if files.IsDirEmpty(paths.AppDir) {
+	if !files.DirAlreadyExist(paths.Paths.App.Root) {
+		logger.L().Info("Devgita repository not found at %s, nothing to uninstall", paths.Paths.App.Root)
+	} else if files.IsDirEmpty(paths.Paths.App.Root) {
 		logger.L().
-			Info("Devgita repository directory is empty at %s, removing directory", paths.AppDir)
-		if err := os.Remove(paths.AppDir); err != nil {
+			Info("Devgita repository directory is empty at %s, removing directory", paths.Paths.App.Root)
+		if err := os.Remove(paths.Paths.App.Root); err != nil {
 			return fmt.Errorf("failed to remove empty devgita directory: %w", err)
 		}
 	} else {
-		if err := os.RemoveAll(paths.AppDir); err != nil {
+		if err := os.RemoveAll(paths.Paths.App.Root); err != nil {
 			return fmt.Errorf("failed to uninstall devgita repository: %w", err)
 		}
 	}
@@ -95,7 +95,7 @@ func (dg *Devgita) ForceConfigure() error {
 	if err := globalConfig.Load(); err != nil {
 		return fmt.Errorf("failed to load global config: %w", err)
 	}
-	globalConfig.AppPath = paths.AppDir
+	globalConfig.AppPath = paths.Paths.App.Root
 	globalConfig.ConfigPath = configDirPath
 	if err := globalConfig.Save(); err != nil {
 		return fmt.Errorf("failed to save global config: %w", err)

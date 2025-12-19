@@ -64,11 +64,11 @@ func NewBaseCommandCustom(p CustomizablePlatform) *BaseCommand {
 }
 
 func (b *BaseCommand) Setup(line string) error {
-	return files.AddLineToFile(line, paths.ShellConfigFile)
+	return files.AddLineToFile(line, paths.Files.ShellConfig)
 }
 
 func (b *BaseCommand) MaybeSetup(line, toSearch string) error {
-	isAlreadySetup, err := files.ContentExistsInFile(paths.ShellConfigFile, toSearch)
+	isAlreadySetup, err := files.ContentExistsInFile(paths.Files.ShellConfig, toSearch)
 	if err != nil {
 		return err
 	}
@@ -149,7 +149,7 @@ func (b *BaseCommand) IsFontPresent(fontName string) (bool, error) {
 		}
 	}
 	// Fallback: scan known font directories
-	fontDirs := []string{paths.UserFontsDir, paths.SystemFontsDir}
+	fontDirs := []string{paths.Paths.User.Fonts, paths.Paths.System.Fonts}
 	for _, dir := range fontDirs {
 		files, err := os.ReadDir(dir)
 		if err != nil {
@@ -320,7 +320,7 @@ func (b *BaseCommand) InstallFontFromURL(url, fontFileName string, runCache bool
 	if _, _, err := b.ExecCommand(CommandParams{
 		PreExecMsg: "Installing font...",
 		Command:    "mv",
-		Args:       []string{tmpPath, filepath.Join(paths.UserFontsDir, fontFileName+".ttf")},
+		Args:       []string{tmpPath, filepath.Join(paths.Paths.User.Fonts, fontFileName+".ttf")},
 	}); err != nil {
 		return err
 	}

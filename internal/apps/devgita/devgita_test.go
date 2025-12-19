@@ -25,10 +25,10 @@ func TestSoftInstall_DirectoryDoesNotExist(t *testing.T) {
 	tempDir := t.TempDir()
 	appDir := filepath.Join(tempDir, "devgita")
 
-	oldAppDir := paths.AppDir
-	paths.AppDir = appDir
+	oldAppDir := paths.Paths.App.Root
+	paths.Paths.App.Root = appDir
 	t.Cleanup(func() {
-		paths.AppDir = oldAppDir
+		paths.Paths.App.Root = oldAppDir
 	})
 
 	dg := New()
@@ -49,10 +49,10 @@ func TestSoftInstall_DirectoryExistsWithFiles(t *testing.T) {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 
-	oldAppDir := paths.AppDir
-	paths.AppDir = tempDir
+	oldAppDir := paths.Paths.App.Root
+	paths.Paths.App.Root = tempDir
 	t.Cleanup(func() {
-		paths.AppDir = oldAppDir
+		paths.Paths.App.Root = oldAppDir
 	})
 
 	dg := New()
@@ -81,10 +81,10 @@ func TestUninstall_DirectoryEmpty(t *testing.T) {
 		t.Fatalf("Failed to create empty directory: %v", err)
 	}
 
-	oldAppDir := paths.AppDir
-	paths.AppDir = emptyDir
+	oldAppDir := paths.Paths.App.Root
+	paths.Paths.App.Root = emptyDir
 	t.Cleanup(func() {
-		paths.AppDir = oldAppDir
+		paths.Paths.App.Root = oldAppDir
 	})
 
 	dg := New()
@@ -122,19 +122,19 @@ func TestUninstall_RemovesRepositoryAndConfig(t *testing.T) {
 	}
 
 	// Override global paths and package-level variables
-	oldAppDir := paths.AppDir
-	oldConfigDir := paths.ConfigDir
+	oldAppDir := paths.Paths.App.Root
+	oldConfigDir := paths.Paths.Config.Root
 	oldConfigDirPath := configDirPath
 	oldGlobalConfigPath := globalConfigPath
 
-	paths.AppDir = appDir
-	paths.ConfigDir = configDir
+	paths.Paths.App.Root = appDir
+	paths.Paths.Config.Root = configDir
 	configDirPath = devgitaConfigDir
 	globalConfigPath = testGlobalConfigPath
 
 	t.Cleanup(func() {
-		paths.AppDir = oldAppDir
-		paths.ConfigDir = oldConfigDir
+		paths.Paths.App.Root = oldAppDir
+		paths.Paths.Config.Root = oldConfigDir
 		configDirPath = oldConfigDirPath
 		globalConfigPath = oldGlobalConfigPath
 	})
@@ -167,19 +167,19 @@ func TestUninstall_NoRepositoryNoConfig(t *testing.T) {
 	testGlobalConfigPath := filepath.Join(devgitaConfigDir, "global_config.yaml")
 
 	// Override global paths and package-level variables
-	oldAppDir := paths.AppDir
-	oldConfigDir := paths.ConfigDir
+	oldAppDir := paths.Paths.App.Root
+	oldConfigDir := paths.Paths.Config.Root
 	oldConfigDirPath := configDirPath
 	oldGlobalConfigPath := globalConfigPath
 
-	paths.AppDir = appDir
-	paths.ConfigDir = configDir
+	paths.Paths.App.Root = appDir
+	paths.Paths.Config.Root = configDir
 	configDirPath = devgitaConfigDir
 	globalConfigPath = testGlobalConfigPath
 
 	t.Cleanup(func() {
-		paths.AppDir = oldAppDir
-		paths.ConfigDir = oldConfigDir
+		paths.Paths.App.Root = oldAppDir
+		paths.Paths.Config.Root = oldConfigDir
 		configDirPath = oldConfigDirPath
 		globalConfigPath = oldGlobalConfigPath
 	})
@@ -200,10 +200,10 @@ func TestForceInstall(t *testing.T) {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 
-	oldAppDir := paths.AppDir
-	paths.AppDir = tempDir
+	oldAppDir := paths.Paths.App.Root
+	paths.Paths.App.Root = tempDir
 	t.Cleanup(func() {
-		paths.AppDir = oldAppDir
+		paths.Paths.App.Root = oldAppDir
 	})
 
 	dg := New()
@@ -237,22 +237,22 @@ func TestForceConfigure_CreatesConfig(t *testing.T) {
 	}
 
 	// Override global paths and package-level variables
-	oldConfigDir := paths.ConfigDir
-	oldAppDir := paths.AppDir
-	oldBashConfigAppDir := paths.BashConfigAppDir
+	oldConfigDir := paths.Paths.Config.Root
+	oldAppDir := paths.Paths.App.Root
+	oldBashConfigAppDir := paths.Paths.App.Configs.Bash
 	oldConfigDirPath := configDirPath
 	oldGlobalConfigPath := globalConfigPath
 
-	paths.ConfigDir = configDir
-	paths.AppDir = appDir
-	paths.BashConfigAppDir = bashConfigDir
+	paths.Paths.Config.Root = configDir
+	paths.Paths.App.Root = appDir
+	paths.Paths.App.Configs.Bash = bashConfigDir
 	configDirPath = devgitaConfigDir
 	globalConfigPath = filepath.Join(devgitaConfigDir, "global_config.yaml")
 
 	t.Cleanup(func() {
-		paths.ConfigDir = oldConfigDir
-		paths.AppDir = oldAppDir
-		paths.BashConfigAppDir = oldBashConfigAppDir
+		paths.Paths.Config.Root = oldConfigDir
+		paths.Paths.App.Root = oldAppDir
+		paths.Paths.App.Configs.Bash = oldBashConfigAppDir
 		configDirPath = oldConfigDirPath
 		globalConfigPath = oldGlobalConfigPath
 	})
@@ -318,22 +318,22 @@ func TestForceConfigure_OverwritesExisting(t *testing.T) {
 	}
 
 	// Override global paths and package-level variables
-	oldConfigDir := paths.ConfigDir
-	oldAppDir := paths.AppDir
-	oldBashConfigAppDir := paths.BashConfigAppDir
+	oldConfigDir := paths.Paths.Config.Root
+	oldAppDir := paths.Paths.App.Root
+	oldBashConfigAppDir := paths.Paths.App.Configs.Bash
 	oldConfigDirPath := configDirPath
 	oldGlobalConfigPath := globalConfigPath
 
-	paths.ConfigDir = configDir
-	paths.AppDir = appDir
-	paths.BashConfigAppDir = bashConfigDir
+	paths.Paths.Config.Root = configDir
+	paths.Paths.App.Root = appDir
+	paths.Paths.App.Configs.Bash = bashConfigDir
 	configDirPath = devgitaConfigDir
 	globalConfigPath = configPath
 
 	t.Cleanup(func() {
-		paths.ConfigDir = oldConfigDir
-		paths.AppDir = oldAppDir
-		paths.BashConfigAppDir = oldBashConfigAppDir
+		paths.Paths.Config.Root = oldConfigDir
+		paths.Paths.App.Root = oldAppDir
+		paths.Paths.App.Configs.Bash = oldBashConfigAppDir
 		configDirPath = oldConfigDirPath
 		globalConfigPath = oldGlobalConfigPath
 	})
@@ -392,22 +392,22 @@ func TestSoftConfigure_PreservesExistingConfig(t *testing.T) {
 	}
 
 	// Override global paths and package-level variables
-	oldConfigDir := paths.ConfigDir
-	oldAppDir := paths.AppDir
-	oldBashConfigAppDir := paths.BashConfigAppDir
+	oldConfigDir := paths.Paths.Config.Root
+	oldAppDir := paths.Paths.App.Root
+	oldBashConfigAppDir := paths.Paths.App.Configs.Bash
 	oldConfigDirPath := configDirPath
 	oldGlobalConfigPath := globalConfigPath
 
-	paths.ConfigDir = configDir
-	paths.AppDir = appDir
-	paths.BashConfigAppDir = bashConfigDir
+	paths.Paths.Config.Root = configDir
+	paths.Paths.App.Root = appDir
+	paths.Paths.App.Configs.Bash = bashConfigDir
 	configDirPath = devgitaConfigDir
 	globalConfigPath = configPath
 
 	t.Cleanup(func() {
-		paths.ConfigDir = oldConfigDir
-		paths.AppDir = oldAppDir
-		paths.BashConfigAppDir = oldBashConfigAppDir
+		paths.Paths.Config.Root = oldConfigDir
+		paths.Paths.App.Root = oldAppDir
+		paths.Paths.App.Configs.Bash = oldBashConfigAppDir
 		configDirPath = oldConfigDirPath
 		globalConfigPath = oldGlobalConfigPath
 	})

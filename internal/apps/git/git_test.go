@@ -83,10 +83,10 @@ func TestForceConfigure(t *testing.T) {
 	dst := t.TempDir()
 
 	// Override global paths for the duration of the test
-	oldAppDir, oldLocalDir := paths.GitConfigAppDir, paths.GitConfigLocalDir
-	paths.GitConfigAppDir, paths.GitConfigLocalDir = src, dst
+	oldAppDir, oldLocalDir := paths.Paths.App.Configs.Git, paths.Paths.Config.Git
+	paths.Paths.App.Configs.Git, paths.Paths.Config.Git = src, dst
 	t.Cleanup(func() {
-		paths.GitConfigAppDir, paths.GitConfigLocalDir = oldAppDir, oldLocalDir
+		paths.Paths.App.Configs.Git, paths.Paths.Config.Git = oldAppDir, oldLocalDir
 	})
 
 	originalContent := "[user]\n\tname = Test User"
@@ -141,10 +141,10 @@ func TestSoftConfigure(t *testing.T) {
 	dst := t.TempDir()
 
 	// Override global paths for the duration of the test
-	oldAppDir, oldLocalDir := paths.GitConfigAppDir, paths.GitConfigLocalDir
-	paths.GitConfigAppDir, paths.GitConfigLocalDir = src, dst
+	oldAppDir, oldLocalDir := paths.Paths.App.Configs.Git, paths.Paths.Config.Git
+	paths.Paths.App.Configs.Git, paths.Paths.Config.Git = src, dst
 	t.Cleanup(func() {
-		paths.GitConfigAppDir, paths.GitConfigLocalDir = oldAppDir, oldLocalDir
+		paths.Paths.App.Configs.Git, paths.Paths.Config.Git = oldAppDir, oldLocalDir
 	})
 
 	originalContent := "[user]\n\tname = Test User"

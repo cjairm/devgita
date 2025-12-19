@@ -92,24 +92,24 @@ func TestForceConfigure(t *testing.T) {
 	themesDir := t.TempDir()
 
 	// Override global paths for the duration of the test
-	oldAppDir := paths.AlacrittyConfigAppDir
-	oldLocalDir := paths.AlacrittyConfigLocalDir
-	oldFontsDir := paths.AlacrittyFontsAppDir
-	oldThemesDir := paths.AlacrittyThemesAppDir
-	oldConfigDir := paths.ConfigDir
+	oldAppConfig := paths.Paths.App.Configs.Alacritty
+	oldLocalConfig := paths.Paths.Config.Alacritty
+	oldFontsDir := paths.Paths.App.Fonts.Alacritty
+	oldThemesDir := paths.Paths.App.Themes.Alacritty
+	oldConfigDir := paths.Paths.Config.Root
 
-	paths.AlacrittyConfigAppDir = appDir
-	paths.AlacrittyConfigLocalDir = localDir
-	paths.AlacrittyFontsAppDir = fontsDir
-	paths.AlacrittyThemesAppDir = themesDir
-	paths.ConfigDir = "/test/config"
+	paths.Paths.App.Configs.Alacritty = appDir
+	paths.Paths.Config.Alacritty = localDir
+	paths.Paths.App.Fonts.Alacritty = fontsDir
+	paths.Paths.App.Themes.Alacritty = themesDir
+	paths.Paths.Config.Root = "/test/config"
 
 	t.Cleanup(func() {
-		paths.AlacrittyConfigAppDir = oldAppDir
-		paths.AlacrittyConfigLocalDir = oldLocalDir
-		paths.AlacrittyFontsAppDir = oldFontsDir
-		paths.AlacrittyThemesAppDir = oldThemesDir
-		paths.ConfigDir = oldConfigDir
+		paths.Paths.App.Configs.Alacritty = oldAppConfig
+		paths.Paths.Config.Alacritty = oldLocalConfig
+		paths.Paths.App.Fonts.Alacritty = oldFontsDir
+		paths.Paths.App.Themes.Alacritty = oldThemesDir
+		paths.Paths.Config.Root = oldConfigDir
 	})
 
 	// Create test config files
@@ -162,24 +162,24 @@ func TestSoftConfigure(t *testing.T) {
 	themesDir := t.TempDir()
 
 	// Override global paths for the duration of the test
-	oldAppDir := paths.AlacrittyConfigAppDir
-	oldLocalDir := paths.AlacrittyConfigLocalDir
-	oldFontsDir := paths.AlacrittyFontsAppDir
-	oldThemesDir := paths.AlacrittyThemesAppDir
-	oldConfigDir := paths.ConfigDir
+	oldAppConfig := paths.Paths.App.Configs.Alacritty
+	oldLocalConfig := paths.Paths.Config.Alacritty
+	oldFontsDir := paths.Paths.App.Fonts.Alacritty
+	oldThemesDir := paths.Paths.App.Themes.Alacritty
+	oldConfigDir := paths.Paths.Config.Root
 
-	paths.AlacrittyConfigAppDir = appDir
-	paths.AlacrittyConfigLocalDir = localDir
-	paths.AlacrittyFontsAppDir = fontsDir
-	paths.AlacrittyThemesAppDir = themesDir
-	paths.ConfigDir = "/test/config"
+	paths.Paths.App.Configs.Alacritty = appDir
+	paths.Paths.Config.Alacritty = localDir
+	paths.Paths.App.Fonts.Alacritty = fontsDir
+	paths.Paths.App.Themes.Alacritty = themesDir
+	paths.Paths.Config.Root = "/test/config"
 
 	t.Cleanup(func() {
-		paths.AlacrittyConfigAppDir = oldAppDir
-		paths.AlacrittyConfigLocalDir = oldLocalDir
-		paths.AlacrittyFontsAppDir = oldFontsDir
-		paths.AlacrittyThemesAppDir = oldThemesDir
-		paths.ConfigDir = oldConfigDir
+		paths.Paths.App.Configs.Alacritty = oldAppConfig
+		paths.Paths.Config.Alacritty = oldLocalConfig
+		paths.Paths.App.Fonts.Alacritty = oldFontsDir
+		paths.Paths.App.Themes.Alacritty = oldThemesDir
+		paths.Paths.Config.Root = oldConfigDir
 	})
 
 	// Create test config files

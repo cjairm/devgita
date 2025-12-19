@@ -125,21 +125,21 @@ func (d *DebianCommand) ValidateOSVersion() error {
 	switch name {
 	case "debian":
 		logger.L().
-			Debugw("supported_debian_version", "supported_version", constants.SupportedDebianVersionNumber)
-		if major < constants.SupportedDebianVersionNumber {
+			Debugw("supported_debian_version", "supported_version", constants.SupportedVersion.Debian.Number)
+		if major < constants.SupportedVersion.Debian.Number {
 			err := fmt.Errorf("OS requirement not met\nOS required: Debian %s (%d.0) or higher",
-				constants.SupportedDebianVersionName,
-				constants.SupportedDebianVersionNumber,
+				constants.SupportedVersion.Debian.Name,
+				constants.SupportedVersion.Debian.Number,
 			)
 			return err
 		}
 	case "ubuntu":
 		logger.L().
-			Debugw("supported_ubuntu_version", "supported_version", constants.SupportedUbuntuVersionNumber)
-		if major < constants.SupportedUbuntuVersionNumber {
+			Debugw("supported_ubuntu_version", "supported_version", constants.SupportedVersion.Ubuntu.Number)
+		if major < constants.SupportedVersion.Ubuntu.Number {
 			err := fmt.Errorf("OS requirement not met\nOS required: Ubuntu %s (%d.0) or higher",
-				constants.SupportedUbuntuVersionName,
-				constants.SupportedUbuntuVersionNumber,
+				constants.SupportedVersion.Ubuntu.Name,
+				constants.SupportedVersion.Ubuntu.Number,
 			)
 			return err
 		}
@@ -156,7 +156,7 @@ func (d *DebianCommand) IsPackageInstalled(packageName string) (bool, error) {
 }
 
 func (d *DebianCommand) IsDesktopAppInstalled(appName string) (bool, error) {
-	for _, applicationsDir := range []string{paths.UserApplicationsDir, paths.SystemApplicationsDir} {
+	for _, applicationsDir := range []string{paths.Paths.User.Applications, paths.Paths.System.Applications} {
 		isInstalled, err := d.IsDesktopAppPresent(applicationsDir, appName)
 		if err != nil {
 			return false, err

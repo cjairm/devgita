@@ -51,11 +51,11 @@ func (a *Aerospace) Uninstall() error {
 }
 
 func (a *Aerospace) ForceConfigure() error {
-	return files.CopyDir(paths.AerospaceConfigAppDir, paths.AerospaceConfigLocalDir)
+	return files.CopyDir(paths.Paths.App.Configs.Aerospace, paths.Paths.Config.Aerospace)
 }
 
 func (a *Aerospace) SoftConfigure() error {
-	aerospaceConfigFile := filepath.Join(paths.AerospaceConfigLocalDir, "aerospace.toml")
+	aerospaceConfigFile := filepath.Join(paths.Paths.Config.Aerospace, "aerospace.toml")
 	if isFilePresent := files.FileAlreadyExist(aerospaceConfigFile); isFilePresent {
 		return nil
 	}

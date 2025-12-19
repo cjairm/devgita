@@ -58,9 +58,9 @@ type GlobalConfig struct {
 
 func getGlobalConfigFilePath() string {
 	return filepath.Join(
-		paths.ConfigDir,
-		constants.AppName,
-		constants.GlobalConfigFile,
+		paths.Paths.Config.Root,
+		constants.App.Name,
+		constants.App.File.GlobalConfig,
 	)
 }
 
@@ -96,7 +96,7 @@ func (gc *GlobalConfig) Create() error {
 		return nil
 	}
 	if err := files.CopyFile(
-		filepath.Join(paths.BashConfigAppDir, constants.GlobalConfigFile),
+		filepath.Join(paths.Paths.App.Configs.Bash, constants.App.File.GlobalConfig),
 		globalConfigFilePath,
 	); err != nil {
 		return err
@@ -245,7 +245,7 @@ func (gc *GlobalConfig) IsShellFeatureEnabled(featureName string) bool {
 }
 
 func (gc *GlobalConfig) RegenerateShellConfig() error {
-	templatePath := filepath.Join(paths.TemplatesAppDir, constants.DevgitaShellTemplate)
-	outputPath := filepath.Join(paths.AppDir, fmt.Sprintf("%s.zsh", constants.AppName))
+	templatePath := filepath.Join(paths.Paths.App.Configs.Templates, constants.App.Template.ShellConfig)
+	outputPath := filepath.Join(paths.Paths.App.Root, fmt.Sprintf("%s.zsh", constants.App.Name))
 	return files.GenerateFromTemplate(templatePath, outputPath, gc.Shell)
 }

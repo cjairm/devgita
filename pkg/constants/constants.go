@@ -8,28 +8,84 @@ const (
 	Blue   = "\033[34m" // Informative color
 	Yellow = "\033[33m" // Warning color
 	Bold   = "\033[1m"
+)
 
-	// Supported Mac version
-	SupportedMacOSVersionNumber = 13
-	SupportedMacOSVersionName   = "Ventura"
+type OsVersion struct {
+	Number int
+	Name   string
+}
 
-	// Supported Debian version
-	SupportedDebianVersionNumber = 12
-	SupportedDebianVersionName   = "Bookworm"
+type AppVersion struct {
+	Number string
+}
 
-	// Supported Ubuntu version
-	SupportedUbuntuVersionNumber = 24
-	SupportedUbuntuVersionName   = "Noble Numbat"
+// SupportedVersion contains version requirements for different platforms and applications
+var SupportedVersion = struct {
+	MacOS  OsVersion
+	Debian OsVersion
+	Ubuntu OsVersion
+	Neovim AppVersion
+}{
+	MacOS: OsVersion{
+		Number: 13,
+		Name:   "Ventura",
+	},
+	Debian: OsVersion{
+		Number: 12,
+		Name:   "Bookworm",
+	},
+	Ubuntu: OsVersion{
+		Number: 24,
+		Name:   "Noble Numbat",
+	},
+	Neovim: AppVersion{
+		Number: "0.11.1",
+	},
+}
 
-	// Supported Neovim version
-	NeovimVersion = "0.11.1"
+// App contains application-specific constants
+var App = struct {
+	Name       string
+	Repository struct {
+		Name string
+		URL  string
+	}
+	Dir struct {
+		Configs string
+	}
+	File struct {
+		GlobalConfig string
+	}
+	Template struct {
+		ShellConfig string
+	}
+}{
+	Name: "devgita",
+	Repository: struct {
+		Name string
+		URL  string
+	}{
+		Name: "devgita",
+		URL:  "https://github.com/cjairm/devgita.git",
+	},
+	Dir: struct {
+		Configs string
+	}{
+		Configs: "configs",
+	},
+	File: struct {
+		GlobalConfig string
+	}{
+		GlobalConfig: "global_config.yaml",
+	},
+	Template: struct {
+		ShellConfig string
+	}{
+		ShellConfig: "devgita.zsh.tmpl",
+	},
+}
 
-	// App specific
-	AppName              = "devgita"
-	ConfigAppDirName     = "configs"
-	DevgitaRepositoryUrl = "https://github.com/cjairm/devgita.git"
-	GlobalConfigFile     = "global_config.yaml"
-
+const (
 	// App names
 	Aerospace          = "aerospace"
 	Alacritty          = "alacritty"
@@ -74,9 +130,6 @@ const (
 	Fonts     = "fonts"
 	Themes    = "themes"
 	Templates = "templates"
-
-	// Template files
-	DevgitaShellTemplate = "devgita.zsh.tmpl"
 )
 
 var Devgita = `

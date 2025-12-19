@@ -61,14 +61,14 @@ func TestForceConfigure(t *testing.T) {
 	tempTargetDir := t.TempDir()
 
 	// Override global paths for the duration of the test
-	oldFastFetchConfigAppDir := paths.FastFetchConfigAppDir
-	oldFastFetchConfigLocalDir := paths.FastFetchConfigLocalDir
+	oldFastFetchConfigAppDir := paths.Paths.App.Configs.Fastfetch
+	oldFastFetchConfigLocalDir := paths.Paths.Config.Fastfetch
 	defer func() {
-		paths.FastFetchConfigAppDir = oldFastFetchConfigAppDir
-		paths.FastFetchConfigLocalDir = oldFastFetchConfigLocalDir
+		paths.Paths.App.Configs.Fastfetch = oldFastFetchConfigAppDir
+		paths.Paths.Config.Fastfetch = oldFastFetchConfigLocalDir
 	}()
-	paths.FastFetchConfigAppDir = tempSourceDir
-	paths.FastFetchConfigLocalDir = tempTargetDir
+	paths.Paths.App.Configs.Fastfetch = tempSourceDir
+	paths.Paths.Config.Fastfetch = tempTargetDir
 
 	// Create a test config file in the source directory
 	testConfigContent := `{
@@ -124,14 +124,14 @@ func TestSoftConfigure(t *testing.T) {
 		tempTargetDir := t.TempDir()
 
 		// Override global paths for the duration of the test
-		oldFastFetchConfigAppDir := paths.FastFetchConfigAppDir
-		oldFastFetchConfigLocalDir := paths.FastFetchConfigLocalDir
+		oldFastFetchConfigAppDir := paths.Paths.App.Configs.Fastfetch
+		oldFastFetchConfigLocalDir := paths.Paths.Config.Fastfetch
 		defer func() {
-			paths.FastFetchConfigAppDir = oldFastFetchConfigAppDir
-			paths.FastFetchConfigLocalDir = oldFastFetchConfigLocalDir
+			paths.Paths.App.Configs.Fastfetch = oldFastFetchConfigAppDir
+			paths.Paths.Config.Fastfetch = oldFastFetchConfigLocalDir
 		}()
-		paths.FastFetchConfigAppDir = tempSourceDir
-		paths.FastFetchConfigLocalDir = tempTargetDir
+		paths.Paths.App.Configs.Fastfetch = tempSourceDir
+		paths.Paths.Config.Fastfetch = tempTargetDir
 
 		// Create a test config file in the source directory
 		testConfigContent := `{"display": {"separator": " ~ "}}`
@@ -160,14 +160,14 @@ func TestSoftConfigure(t *testing.T) {
 		tempTargetDir := t.TempDir()
 
 		// Override global paths for the duration of the test
-		oldFastFetchConfigAppDir := paths.FastFetchConfigAppDir
-		oldFastFetchConfigLocalDir := paths.FastFetchConfigLocalDir
+		oldFastFetchConfigAppDir := paths.Paths.App.Configs.Fastfetch
+		oldFastFetchConfigLocalDir := paths.Paths.Config.Fastfetch
 		defer func() {
-			paths.FastFetchConfigAppDir = oldFastFetchConfigAppDir
-			paths.FastFetchConfigLocalDir = oldFastFetchConfigLocalDir
+			paths.Paths.App.Configs.Fastfetch = oldFastFetchConfigAppDir
+			paths.Paths.Config.Fastfetch = oldFastFetchConfigLocalDir
 		}()
-		paths.FastFetchConfigAppDir = tempSourceDir
-		paths.FastFetchConfigLocalDir = tempTargetDir
+		paths.Paths.App.Configs.Fastfetch = tempSourceDir
+		paths.Paths.Config.Fastfetch = tempTargetDir
 
 		// Create existing config file in target directory
 		existingContent := `{"existing": "config"}`

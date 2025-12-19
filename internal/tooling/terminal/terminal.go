@@ -76,12 +76,12 @@ func (t *Terminal) ConfigureZsh() error {
 
 	utils.PrintInfo("Adding config custom files...")
 	isDevgitaConfigFilePresent := files.FileAlreadyExist(
-		filepath.Join(paths.AppDir, "devgita.zsh"),
+		filepath.Join(paths.Paths.App.Root, "devgita.zsh"),
 	)
 	if !isDevgitaConfigFilePresent {
 		err = files.CopyDir(
-			paths.BashConfigAppDir,
-			filepath.Join(paths.ConfigDir, constants.AppName),
+			paths.Paths.App.Configs.Bash,
+			filepath.Join(paths.Paths.Config.Root, constants.App.Name),
 		)
 		if err != nil {
 			return err

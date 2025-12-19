@@ -31,7 +31,7 @@ func (m *MacOSCommand) MaybeInstallDesktopApp(desktopAppName string, alias ...st
 	return m.MaybeInstall(desktopAppName, alias, func(name string) (bool, error) {
 		isInstalled, err := m.IsDesktopAppInstalled(name)
 		if !isInstalled {
-			isInstalled, err = m.IsDesktopAppPresent(paths.UserApplicationsDir, name)
+			isInstalled, err = m.IsDesktopAppPresent(paths.Paths.User.Applications, name)
 		}
 		return isInstalled, err
 	}, m.InstallDesktopApp, nil, "desktop_app")
@@ -149,13 +149,13 @@ func (m *MacOSCommand) ValidateOSVersion() error {
 	}
 	logger.L().Debugw("macOS version", "major_version", major, "minor_version", minor)
 	logger.L().
-		Debugw("supported_macos_version", "supported_version", constants.SupportedMacOSVersionNumber)
-	if major < constants.SupportedMacOSVersionNumber ||
-		(major == constants.SupportedMacOSVersionNumber && minor < 0) {
+		Debugw("supported_macos_version", "supported_version", constants.SupportedVersion.MacOS.Number)
+	if major < constants.SupportedVersion.MacOS.Number ||
+		(major == constants.SupportedVersion.MacOS.Number && minor < 0) {
 		err := fmt.Errorf(
 			"OS requirement not met\nmacOS %s (%d.0) or higher required",
-			constants.SupportedMacOSVersionName,
-			constants.SupportedMacOSVersionNumber,
+			constants.SupportedVersion.MacOS.Name,
+			constants.SupportedVersion.MacOS.Number,
 		)
 		return err
 	}

@@ -86,10 +86,10 @@ func TestForceConfigure(t *testing.T) {
 	dst := t.TempDir()
 
 	// Override global paths for the duration of the test
-	oldAppDir, oldLocalDir := paths.AerospaceConfigAppDir, paths.AerospaceConfigLocalDir
-	paths.AerospaceConfigAppDir, paths.AerospaceConfigLocalDir = src, dst
+	oldAppDir, oldLocalDir := paths.Paths.App.Configs.Aerospace, paths.Paths.Config.Aerospace
+	paths.Paths.App.Configs.Aerospace, paths.Paths.Config.Aerospace = src, dst
 	t.Cleanup(func() {
-		paths.AerospaceConfigAppDir, paths.AerospaceConfigLocalDir = oldAppDir, oldLocalDir
+		paths.Paths.App.Configs.Aerospace, paths.Paths.Config.Aerospace = oldAppDir, oldLocalDir
 	})
 
 	originalContent := "[workspace]\nkey = \"value\""
@@ -144,10 +144,10 @@ func TestSoftConfigure(t *testing.T) {
 	dst := t.TempDir()
 
 	// Override global paths for the duration of the test
-	oldAppDir, oldLocalDir := paths.AerospaceConfigAppDir, paths.AerospaceConfigLocalDir
-	paths.AerospaceConfigAppDir, paths.AerospaceConfigLocalDir = src, dst
+	oldAppDir, oldLocalDir := paths.Paths.App.Configs.Aerospace, paths.Paths.Config.Aerospace
+	paths.Paths.App.Configs.Aerospace, paths.Paths.Config.Aerospace = src, dst
 	t.Cleanup(func() {
-		paths.AerospaceConfigAppDir, paths.AerospaceConfigLocalDir = oldAppDir, oldLocalDir
+		paths.Paths.App.Configs.Aerospace, paths.Paths.Config.Aerospace = oldAppDir, oldLocalDir
 	})
 
 	originalContent := "[workspace]\nkey = \"value\""

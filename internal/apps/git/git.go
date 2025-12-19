@@ -64,15 +64,15 @@ func (g *Git) Uninstall() error {
 }
 
 func (g *Git) ForceConfigure() error {
-	return files.CopyDir(paths.GitConfigAppDir, paths.GitConfigLocalDir)
+	return files.CopyDir(paths.Paths.App.Configs.Git, paths.Paths.Config.Git)
 }
 
 func (g *Git) SoftConfigure() error {
-	configFile := filepath.Join(paths.GitConfigLocalDir, ".gitconfig")
+	configFile := filepath.Join(paths.Paths.Config.Git, ".gitconfig")
 	if files.FileAlreadyExist(configFile) {
 		return nil
 	}
-	return files.CopyDir(paths.GitConfigAppDir, paths.GitConfigLocalDir)
+	return files.CopyDir(paths.Paths.App.Configs.Git, paths.Paths.Config.Git)
 }
 
 func (g *Git) ExecuteCommand(args ...string) error {

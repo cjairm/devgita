@@ -58,11 +58,11 @@ func (n *Neovim) ForceConfigure() error {
 	if err := n.CheckVersion(); err != nil {
 		return fmt.Errorf("failed to check Neovim version: %w", err)
 	}
-	return files.CopyDir(paths.NeovimConfigAppDir, paths.NvimConfigLocalDir)
+	return files.CopyDir(paths.Paths.App.Configs.Neovim, paths.Paths.Config.Nvim)
 }
 
 func (n *Neovim) SoftConfigure() error {
-	isFilePresent := files.FileAlreadyExist(filepath.Join(paths.NvimConfigLocalDir, "init.lua"))
+	isFilePresent := files.FileAlreadyExist(filepath.Join(paths.Paths.Config.Nvim, "init.lua"))
 	if isFilePresent {
 		return nil
 	}
@@ -101,7 +101,7 @@ func (n *Neovim) CheckVersion() error {
 		if strings.HasPrefix(line, "NVIM v") {
 			versionStr := strings.TrimPrefix(line, "NVIM v")
 			versionStr = strings.Fields(versionStr)[0]
-			if isVersionEqualOrHigher(versionStr, constants.NeovimVersion) {
+			if isVersionEqualOrHigher(versionStr, constants.SupportedVersion.Neovim.Number) {
 				return nil
 			}
 		}

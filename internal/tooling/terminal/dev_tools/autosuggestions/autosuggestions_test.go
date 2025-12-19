@@ -75,7 +75,7 @@ func TestForceConfigure(t *testing.T) {
 	}
 
 	// Create global config file
-	globalConfigPath := filepath.Join(configDir, constants.AppName, constants.GlobalConfigFile)
+	globalConfigPath := filepath.Join(configDir, constants.App.Name, constants.App.File.GlobalConfig)
 	if err := os.MkdirAll(filepath.Dir(globalConfigPath), 0755); err != nil {
 		t.Fatalf("Failed to create global config dir: %v", err)
 	}
@@ -113,7 +113,7 @@ shell:
 	}
 
 	// Create simple template
-	templatePath := filepath.Join(templatesDir, constants.DevgitaShellTemplate)
+	templatePath := filepath.Join(templatesDir, constants.App.Template.ShellConfig)
 	templateContent := `# Test template
 {{if .ZshAutosuggestions}}
 source $(brew --prefix)/share/zsh-autosuggestions/zsh-autosuggestions.zsh
@@ -124,18 +124,18 @@ source $(brew --prefix)/share/zsh-autosuggestions/zsh-autosuggestions.zsh
 	}
 
 	// Override paths
-	oldConfigDir := paths.ConfigDir
-	oldAppDir := paths.AppDir
-	oldTemplatesAppDir := paths.TemplatesAppDir
+	oldConfigDir := paths.Paths.Config.Root
+	oldAppDir := paths.Paths.App.Root
+	oldTemplatesAppDir := paths.Paths.App.Configs.Templates
 	t.Cleanup(func() {
-		paths.ConfigDir = oldConfigDir
-		paths.AppDir = oldAppDir
-		paths.TemplatesAppDir = oldTemplatesAppDir
+		paths.Paths.Config.Root = oldConfigDir
+		paths.Paths.App.Root = oldAppDir
+		paths.Paths.App.Configs.Templates = oldTemplatesAppDir
 	})
 
-	paths.ConfigDir = configDir
-	paths.AppDir = tempDir
-	paths.TemplatesAppDir = templatesDir
+	paths.Paths.Config.Root = configDir
+	paths.Paths.App.Root = tempDir
+	paths.Paths.App.Configs.Templates = templatesDir
 
 	mc := commands.NewMockCommand()
 	app := &Autosuggestions{Cmd: mc}
@@ -188,7 +188,7 @@ func TestSoftConfigure(t *testing.T) {
 		}
 
 		// Create global config with feature disabled
-		globalConfigPath := filepath.Join(configDir, constants.AppName, constants.GlobalConfigFile)
+		globalConfigPath := filepath.Join(configDir, constants.App.Name, constants.App.File.GlobalConfig)
 		if err := os.MkdirAll(filepath.Dir(globalConfigPath), 0755); err != nil {
 			t.Fatalf("Failed to create global config dir: %v", err)
 		}
@@ -205,25 +205,25 @@ func TestSoftConfigure(t *testing.T) {
 		}
 
 		// Create template
-		templatePath := filepath.Join(templatesDir, constants.DevgitaShellTemplate)
+		templatePath := filepath.Join(templatesDir, constants.App.Template.ShellConfig)
 		templateContent := `{{if .ZshAutosuggestions}}enabled{{end}}`
 		if err := os.WriteFile(templatePath, []byte(templateContent), 0644); err != nil {
 			t.Fatalf("Failed to create template: %v", err)
 		}
 
 		// Override paths
-		oldConfigDir := paths.ConfigDir
-		oldAppDir := paths.AppDir
-		oldTemplatesAppDir := paths.TemplatesAppDir
+		oldConfigDir := paths.Paths.Config.Root
+		oldAppDir := paths.Paths.App.Root
+		oldTemplatesAppDir := paths.Paths.App.Configs.Templates
 		t.Cleanup(func() {
-			paths.ConfigDir = oldConfigDir
-			paths.AppDir = oldAppDir
-			paths.TemplatesAppDir = oldTemplatesAppDir
+			paths.Paths.Config.Root = oldConfigDir
+			paths.Paths.App.Root = oldAppDir
+			paths.Paths.App.Configs.Templates = oldTemplatesAppDir
 		})
 
-		paths.ConfigDir = configDir
-		paths.AppDir = tempDir
-		paths.TemplatesAppDir = templatesDir
+		paths.Paths.Config.Root = configDir
+		paths.Paths.App.Root = tempDir
+		paths.Paths.App.Configs.Templates = templatesDir
 
 		mc := commands.NewMockCommand()
 		app := &Autosuggestions{Cmd: mc}
@@ -254,7 +254,7 @@ func TestSoftConfigure(t *testing.T) {
 		}
 
 		// Create global config with feature ALREADY enabled
-		globalConfigPath := filepath.Join(configDir, constants.AppName, constants.GlobalConfigFile)
+		globalConfigPath := filepath.Join(configDir, constants.App.Name, constants.App.File.GlobalConfig)
 		if err := os.MkdirAll(filepath.Dir(globalConfigPath), 0755); err != nil {
 			t.Fatalf("Failed to create global config dir: %v", err)
 		}
@@ -271,15 +271,15 @@ func TestSoftConfigure(t *testing.T) {
 		}
 
 		// Override paths
-		oldConfigDir := paths.ConfigDir
-		oldAppDir := paths.AppDir
+		oldConfigDir := paths.Paths.Config.Root
+		oldAppDir := paths.Paths.App.Root
 		t.Cleanup(func() {
-			paths.ConfigDir = oldConfigDir
-			paths.AppDir = oldAppDir
+			paths.Paths.Config.Root = oldConfigDir
+			paths.Paths.App.Root = oldAppDir
 		})
 
-		paths.ConfigDir = configDir
-		paths.AppDir = tempDir
+		paths.Paths.Config.Root = configDir
+		paths.Paths.App.Root = tempDir
 
 		mc := commands.NewMockCommand()
 		app := &Autosuggestions{Cmd: mc}
@@ -310,7 +310,7 @@ func TestUninstall(t *testing.T) {
 	}
 
 	// Create global config with feature enabled
-	globalConfigPath := filepath.Join(configDir, constants.AppName, constants.GlobalConfigFile)
+	globalConfigPath := filepath.Join(configDir, constants.App.Name, constants.App.File.GlobalConfig)
 	if err := os.MkdirAll(filepath.Dir(globalConfigPath), 0755); err != nil {
 		t.Fatalf("Failed to create global config dir: %v", err)
 	}
@@ -327,25 +327,25 @@ func TestUninstall(t *testing.T) {
 	}
 
 	// Create template
-	templatePath := filepath.Join(templatesDir, constants.DevgitaShellTemplate)
+	templatePath := filepath.Join(templatesDir, constants.App.Template.ShellConfig)
 	templateContent := `{{if .ZshAutosuggestions}}enabled{{else}}disabled{{end}}`
 	if err := os.WriteFile(templatePath, []byte(templateContent), 0644); err != nil {
 		t.Fatalf("Failed to create template: %v", err)
 	}
 
 	// Override paths
-	oldConfigDir := paths.ConfigDir
-	oldAppDir := paths.AppDir
-	oldTemplatesAppDir := paths.TemplatesAppDir
+	oldConfigDir := paths.Paths.Config.Root
+	oldAppDir := paths.Paths.App.Root
+	oldTemplatesAppDir := paths.Paths.App.Configs.Templates
 	t.Cleanup(func() {
-		paths.ConfigDir = oldConfigDir
-		paths.AppDir = oldAppDir
-		paths.TemplatesAppDir = oldTemplatesAppDir
+		paths.Paths.Config.Root = oldConfigDir
+		paths.Paths.App.Root = oldAppDir
+		paths.Paths.App.Configs.Templates = oldTemplatesAppDir
 	})
 
-	paths.ConfigDir = configDir
-	paths.AppDir = tempDir
-	paths.TemplatesAppDir = templatesDir
+	paths.Paths.Config.Root = configDir
+	paths.Paths.App.Root = tempDir
+	paths.Paths.App.Configs.Templates = templatesDir
 
 	mc := commands.NewMockCommand()
 	app := &Autosuggestions{Cmd: mc}

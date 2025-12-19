@@ -42,33 +42,33 @@ func (a *Alacritty) ForceInstall() error {
 }
 
 func (a *Alacritty) ForceConfigureApp() error {
-	return files.CopyDir(paths.AlacrittyConfigAppDir, paths.AlacrittyConfigLocalDir)
+	return files.CopyDir(paths.Paths.App.Configs.Alacritty, paths.Paths.Config.Alacritty)
 }
 
 func (a *Alacritty) ForceConfigureFont() error {
 	return files.CopyDir(
-		filepath.Join(paths.AlacrittyFontsAppDir, "default"),
-		paths.AlacrittyConfigLocalDir,
+		filepath.Join(paths.Paths.App.Fonts.Alacritty, "default"),
+		paths.Paths.Config.Alacritty,
 	)
 }
 
 func (a *Alacritty) ForceConfigureTheme() error {
 	return files.CopyDir(
-		filepath.Join(paths.AlacrittyThemesAppDir, "default"),
-		paths.AlacrittyConfigLocalDir,
+		filepath.Join(paths.Paths.App.Themes.Alacritty, "default"),
+		paths.Paths.Config.Alacritty,
 	)
 }
 
 func (a *Alacritty) SoftConfigureApp() error {
-	return maybeConfigure(a.ForceConfigureApp, paths.AlacrittyConfigLocalDir, "alacritty.toml")
+	return maybeConfigure(a.ForceConfigureApp, paths.Paths.Config.Alacritty, "alacritty.toml")
 }
 
 func (a *Alacritty) SoftConfigureFont() error {
-	return maybeConfigure(a.ForceConfigureFont, paths.AlacrittyConfigLocalDir, "font.toml")
+	return maybeConfigure(a.ForceConfigureFont, paths.Paths.Config.Alacritty, "font.toml")
 }
 
 func (a *Alacritty) SoftConfigureTheme() error {
-	return maybeConfigure(a.ForceConfigureTheme, paths.AlacrittyConfigLocalDir, "theme.toml")
+	return maybeConfigure(a.ForceConfigureTheme, paths.Paths.Config.Alacritty, "theme.toml")
 }
 
 func (a *Alacritty) ForceConfigure() error {
@@ -125,8 +125,8 @@ func (a *Alacritty) Update() error {
 }
 
 func (a *Alacritty) UpdateConfigFilesWithCurrentHomeDir() error {
-	alacrittyConfigFile := filepath.Join(paths.AlacrittyConfigLocalDir, "alacritty.toml")
-	return files.UpdateFile(alacrittyConfigFile, "<ALACRITTY-CONFIG-PATH>", paths.ConfigDir)
+	alacrittyConfigFile := filepath.Join(paths.Paths.Config.Alacritty, "alacritty.toml")
+	return files.UpdateFile(alacrittyConfigFile, "<ALACRITTY-CONFIG-PATH>", paths.Paths.Config.Root)
 }
 
 func maybeConfigure(setupFunc func() error, localConfig string, fileSegments ...string) error {
