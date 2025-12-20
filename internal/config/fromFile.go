@@ -96,7 +96,7 @@ func (gc *GlobalConfig) Create() error {
 		return nil
 	}
 	if err := files.CopyFile(
-		filepath.Join(paths.Paths.App.Configs.Bash, constants.App.File.GlobalConfig),
+		filepath.Join(paths.Paths.App.Configs.Templates, constants.App.File.GlobalConfig),
 		globalConfigFilePath,
 	); err != nil {
 		return err
@@ -245,7 +245,10 @@ func (gc *GlobalConfig) IsShellFeatureEnabled(featureName string) bool {
 }
 
 func (gc *GlobalConfig) RegenerateShellConfig() error {
-	templatePath := filepath.Join(paths.Paths.App.Configs.Templates, constants.App.Template.ShellConfig)
+	templatePath := filepath.Join(
+		paths.Paths.App.Configs.Templates,
+		constants.App.Template.ShellConfig,
+	)
 	outputPath := filepath.Join(paths.Paths.App.Root, fmt.Sprintf("%s.zsh", constants.App.Name))
 	return files.GenerateFromTemplate(templatePath, outputPath, gc.Shell)
 }

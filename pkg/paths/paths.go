@@ -19,7 +19,6 @@ var Paths = struct {
 		Configs struct {
 			Aerospace string
 			Alacritty string
-			Bash      string
 			Fastfetch string
 			Fonts     string
 			Git       string
@@ -42,7 +41,7 @@ var Paths = struct {
 		Root      string
 		Aerospace string
 		Alacritty string
-		Bash      string
+		Devgita   string
 		Fastfetch string
 		Fonts     string
 		Git       string
@@ -70,7 +69,6 @@ var Paths = struct {
 		Configs struct {
 			Aerospace string
 			Alacritty string
-			Bash      string
 			Fastfetch string
 			Fonts     string
 			Git       string
@@ -90,7 +88,6 @@ var Paths = struct {
 		Configs: struct {
 			Aerospace string
 			Alacritty string
-			Bash      string
 			Fastfetch string
 			Fonts     string
 			Git       string
@@ -101,7 +98,6 @@ var Paths = struct {
 		}{
 			Aerospace: GetAppDir(constants.App.Dir.Configs, constants.Aerospace),
 			Alacritty: GetAppDir(constants.App.Dir.Configs, constants.Alacritty),
-			Bash:      GetAppDir(constants.App.Dir.Configs, constants.Bash),
 			Fastfetch: GetAppDir(constants.App.Dir.Configs, constants.Fastfetch),
 			Fonts:     GetAppDir(constants.App.Dir.Configs, constants.Fonts),
 			Git:       GetAppDir(constants.App.Dir.Configs, constants.Git),
@@ -130,7 +126,7 @@ var Paths = struct {
 		Root      string
 		Aerospace string
 		Alacritty string
-		Bash      string
+		Devgita   string
 		Fastfetch string
 		Fonts     string
 		Git       string
@@ -141,7 +137,7 @@ var Paths = struct {
 		Root:      GetConfigDir(),
 		Aerospace: GetConfigDir(constants.Aerospace),
 		Alacritty: GetConfigDir(constants.Alacritty),
-		Bash:      GetConfigDir(constants.Bash),
+		Devgita:   GetConfigDir(constants.Devgita),
 		Fastfetch: GetConfigDir(constants.Fastfetch),
 		Fonts:     GetConfigDir(constants.Fonts),
 		Git:       GetConfigDir(constants.Git),

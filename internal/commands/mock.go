@@ -201,7 +201,14 @@ func (m *MockBaseCommand) IsFontPresent(fontName string) (bool, error) {
 }
 
 // MaybeInstall mocks the BaseCommand.MaybeInstall method
-func (m *MockBaseCommand) MaybeInstall(itemName string, alias []string, checkInstalled func(string) (bool, error), installFunc func(string) error, installURLFunc func(string) error, itemType string) error {
+func (m *MockBaseCommand) MaybeInstall(
+	itemName string,
+	alias []string,
+	checkInstalled func(string) (bool, error),
+	installFunc func(string) error,
+	installURLFunc func(string) error,
+	itemType string,
+) error {
 	return m.MaybeInstallError
 }
 
@@ -237,4 +244,74 @@ func (m *MockBaseCommand) GetLastExecCommandCall() *CommandParams {
 // GetExecCommandCallCount returns the number of times ExecCommand was called
 func (m *MockBaseCommand) GetExecCommandCallCount() int {
 	return len(m.ExecCommandCalls)
+}
+
+// MockGit provides a mock implementation for Git operations
+// This allows tests to avoid running actual git commands
+type MockGit struct {
+	// Track Clone calls
+	CloneCalls []struct {
+		URL     string
+		DstPath string
+	}
+	CloneError error
+
+	// Track other Git operations
+	ExecuteCommandCalls [][]string
+	ExecuteCommandError error
+}
+
+// NewMockGit creates a new MockGit with sensible defaults
+func NewMockGit() *MockGit {
+	return &MockGit{
+		CloneCalls:          []struct{ URL, DstPath string }{},
+		CloneError:          nil,
+		ExecuteCommandCalls: [][]string{},
+		ExecuteCommandError: nil,
+	}
+}
+
+// Clone mocks the Git.Clone method
+func (m *MockGit) Clone(url, dstPath string) error {
+	m.CloneCalls = append(m.CloneCalls, struct{ URL, DstPath string }{URL: url, DstPath: dstPath})
+	return m.CloneError
+}
+
+// ExecuteCommand mocks the Git.ExecuteCommand method
+func (m *MockGit) ExecuteCommand(args ...string) error {
+	m.ExecuteCommandCalls = append(m.ExecuteCommandCalls, args)
+	return m.ExecuteCommandError
+}
+
+// Reset clears all tracked state for reuse in multiple tests
+func (m *MockGit) ResetGit() {
+	m.CloneCalls = []struct{ URL, DstPath string }{}
+	m.CloneError = nil
+	m.ExecuteCommandCalls = [][]string{}
+	m.ExecuteCommandError = nil
+}
+
+// SetCloneError configures the error returned by Clone
+func (m *MockGit) SetCloneError(err error) {
+	m.CloneError = err
+}
+
+// SetExecuteCommandError configures the error returned by ExecuteCommand
+func (m *MockGit) SetExecuteCommandError(err error) {
+	m.ExecuteCommandError = err
+}
+
+// GetLastCloneCall returns the most recent Clone call parameters
+// Returns nil URL and path if no calls have been made
+func (m *MockGit) GetLastCloneCall() (url string, dstPath string) {
+	if len(m.CloneCalls) == 0 {
+		return "", ""
+	}
+	lastCall := m.CloneCalls[len(m.CloneCalls)-1]
+	return lastCall.URL, lastCall.DstPath
+}
+
+// GetCloneCallCount returns the number of times Clone was called
+func (m *MockGit) GetCloneCallCount() int {
+	return len(m.CloneCalls)
 }

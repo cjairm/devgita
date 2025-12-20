@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
 	"github.com/cjairm/devgita/internal/apps/fastfetch"
@@ -42,9 +41,7 @@ import (
 	"github.com/cjairm/devgita/internal/tooling/terminal/dev_tools/tldr"
 	"github.com/cjairm/devgita/internal/tooling/terminal/dev_tools/zoxide"
 	"github.com/cjairm/devgita/pkg/constants"
-	"github.com/cjairm/devgita/pkg/files"
 	"github.com/cjairm/devgita/pkg/logger"
-	"github.com/cjairm/devgita/pkg/paths"
 	"github.com/cjairm/devgita/pkg/promptui"
 	"github.com/cjairm/devgita/pkg/utils"
 )
@@ -73,53 +70,6 @@ func (t *Terminal) InstallAll() {
 
 func (t *Terminal) ConfigureZsh() error {
 	var err error
-
-	utils.PrintInfo("Adding config custom files...")
-	isDevgitaConfigFilePresent := files.FileAlreadyExist(
-		filepath.Join(paths.Paths.App.Root, "devgita.zsh"),
-	)
-	if !isDevgitaConfigFilePresent {
-		err = files.CopyDir(
-			paths.Paths.App.Configs.Bash,
-			filepath.Join(paths.Paths.Config.Root, constants.App.Name),
-		)
-		if err != nil {
-			return err
-		}
-	}
-
-	utils.PrintInfo("Installing terminal theme...")
-	p := powerlevel10k.New()
-	err = p.SoftInstall()
-	if err != nil {
-		return err
-	}
-	err = p.SoftConfigure()
-	if err != nil {
-		return err
-	}
-
-	utils.PrintInfo("Installing zsh-autosuggestions...")
-	za := autosuggestions.New()
-	err = za.SoftInstall()
-	if err != nil {
-		return err
-	}
-	err = za.SoftConfigure()
-	if err != nil {
-		return err
-	}
-
-	utils.PrintInfo("Installing zsh-syntax-highlighting...")
-	sh := syntaxhighlighting.New()
-	err = sh.SoftInstall()
-	if err != nil {
-		return err
-	}
-	err = sh.SoftConfigure()
-	if err != nil {
-		return err
-	}
 
 	utils.PrintInfo("Sourcing custom files...")
 	// TODO: Create a fuction that builds these strings. If $HOME exists, use it
@@ -175,21 +125,24 @@ func (t *Terminal) InstallTerminalApps() {
 }
 
 func (t *Terminal) InstallDevTools() {
-	// should install curl, fzf, ripgrep, bat, eza, gh, zoxide, btop, fd-find, tldr
+	// should install bat, btop, curl, eza, fd-find, fzf, gh, powerlevel10k, ripgrep, syntaxhighlighting, tldr, zoxide, zsh-autosuggestions
 	devtools := []struct {
 		name string
 		app  interface{ SoftInstall() error }
 	}{
-		{constants.Curl, curl.New()},
-		{constants.GithubCli, githubcli.New()},
-		{constants.Fzf, fzf.New()},
-		{constants.Ripgrep, ripgrep.New()},
 		{constants.Bat, bat.New()},
-		{constants.Eza, eza.New()},
-		{constants.Zoxide, zoxide.New()},
 		{constants.Btop, btop.New()},
+		{constants.Curl, curl.New()},
+		{constants.Eza, eza.New()},
 		{constants.FdFind, fdfind.New()},
+		{constants.Fzf, fzf.New()},
+		{constants.GithubCli, githubcli.New()},
+		{constants.Powerlevel10k, powerlevel10k.New()},
+		{constants.Ripgrep, ripgrep.New()},
+		{constants.Syntaxhighlighting, syntaxhighlighting.New()},
 		{constants.Tldr, tldr.New()},
+		{constants.Zoxide, zoxide.New()},
+		{constants.ZshAutosuggestions, autosuggestions.New()},
 	}
 	for _, devtool := range devtools {
 		displayMessage(devtool.app.SoftInstall(), devtool.name)

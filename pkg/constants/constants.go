@@ -55,6 +55,7 @@ var App = struct {
 	}
 	File struct {
 		GlobalConfig string
+		ZshConfig    string
 	}
 	Template struct {
 		ShellConfig string
@@ -75,8 +76,10 @@ var App = struct {
 	},
 	File: struct {
 		GlobalConfig string
+		ZshConfig    string
 	}{
 		GlobalConfig: "global_config.yaml",
+		ZshConfig:    ".devgita.zsh",
 	},
 	Template: struct {
 		ShellConfig string
@@ -126,7 +129,6 @@ const (
 	ZshAutosuggestions = "zsh-autosuggestions"
 
 	// Other available folders for installation
-	Bash      = "bash"
 	Fonts     = "fonts"
 	Themes    = "themes"
 	Templates = "templates"
