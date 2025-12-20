@@ -1,10 +1,7 @@
 package terminal
 
 import (
-	"bytes"
 	"fmt"
-	"os/exec"
-	"strings"
 
 	"github.com/cjairm/devgita/internal/apps/fastfetch"
 	"github.com/cjairm/devgita/internal/apps/lazydocker"
@@ -26,6 +23,7 @@ import (
 	"github.com/cjairm/devgita/internal/tooling/terminal/core/readline"
 	"github.com/cjairm/devgita/internal/tooling/terminal/core/unzip"
 	"github.com/cjairm/devgita/internal/tooling/terminal/core/vips"
+	"github.com/cjairm/devgita/internal/tooling/terminal/core/xcode"
 	"github.com/cjairm/devgita/internal/tooling/terminal/core/zlib"
 	"github.com/cjairm/devgita/internal/tooling/terminal/dev_tools/autosuggestions"
 	"github.com/cjairm/devgita/internal/tooling/terminal/dev_tools/bat"
@@ -58,11 +56,12 @@ func New() *Terminal {
 	return &Terminal{Cmd: osCmd, Base: *baseCmd}
 }
 
-func (t *Terminal) InstallAll() {
+func (t *Terminal) InstallAndConfigure() {
 	err := t.DisplayGithubInstructions()
 	displayMessage(err, "instructions", true)
 	if t.Base.Platform.IsMac() {
-		displayMessage(t.InstallXCode(), "xcode")
+		xc := xcode.New()
+		displayMessage(xc.SoftInstall(), "xcode")
 	}
 	t.InstallTerminalApps()
 	t.InstallDevTools()
@@ -191,44 +190,6 @@ func (t *Terminal) DisplayGithubInstructions() error {
 		instructions,
 		false,
 	)
-}
-
-// This dedicated to MacOS
-func (t *Terminal) InstallXCode() error {
-	isInstalled, err := isXcodeInstalled()
-	if err != nil {
-		return err
-	}
-	if isInstalled {
-		return nil
-	}
-	cmd := commands.CommandParams{
-		PreExecMsg:  "Installing Xcode Command Line Tools",
-		PostExecMsg: "",
-		IsSudo:      false,
-		Command:     "xcode-select",
-		Args:        []string{"--install"},
-	}
-	if _, _, err := t.Base.ExecCommand(cmd); err != nil {
-		return fmt.Errorf("failed to install Xcode Command Line Tools: %w", err)
-	}
-	return nil
-}
-
-func isXcodeInstalled() (bool, error) {
-	cmd := exec.Command("xcode-select", "-p")
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	err := cmd.Run()
-	if err != nil {
-		return false, fmt.Errorf("error running xcode-select: %v", err)
-	}
-	// Check if the output contains the expected path for Xcode
-	xcodePath := strings.ToLower(strings.TrimSpace(out.String()))
-	if strings.Contains(xcodePath, "xcode.app") || strings.Contains(xcodePath, "commandlinetools") {
-		return true, nil
-	}
-	return false, nil
 }
 
 func displayMessage(err error, name string, displayOnlyErrors ...bool) {

@@ -102,9 +102,7 @@ func installDevgita() {
 func installTerminalTools(onlySet, skipSet map[string]bool) {
 	if shouldInstall("terminal", onlySet, skipSet) {
 		t := terminal.New()
-		t.InstallAll()
-		err := t.ConfigureZsh()
-		utils.MaybeExitWithError(err)
+		t.InstallAndConfigure()
 	} else {
 		utils.PrintInfo("Skipping terminal tools installation")
 	}
