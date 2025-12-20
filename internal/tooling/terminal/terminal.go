@@ -42,6 +42,7 @@ import (
 	"github.com/cjairm/devgita/internal/tooling/terminal/dev_tools/zoxide"
 	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/logger"
+	"github.com/cjairm/devgita/pkg/paths"
 	"github.com/cjairm/devgita/pkg/promptui"
 	"github.com/cjairm/devgita/pkg/utils"
 )
@@ -66,23 +67,15 @@ func (t *Terminal) InstallAll() {
 	t.InstallTerminalApps()
 	t.InstallDevTools()
 	t.InstallCoreLibs()
-}
 
-func (t *Terminal) ConfigureZsh() error {
-	var err error
-
-	utils.PrintInfo("Sourcing custom files...")
-	// TODO: Create a fuction that builds these strings. If $HOME exists, use it
-	// if not, use the full path
-	err = t.Base.MaybeSetup("source $HOME/.config/devgita/aliases.zsh", "aliases.zsh")
-	if err != nil {
-		return err
+	execCommand := commands.CommandParams{
+		Command: fmt.Sprintf("source %s", paths.Files.ShellConfig),
 	}
-	err = t.Base.MaybeSetup("source $HOME/.config/devgita/init.zsh", "init.zsh")
-	if err != nil {
-		return err
+	if _, _, err := t.Base.ExecCommand(execCommand); err != nil {
+		utils.PrintWarning(fmt.Sprintf(
+			"Failed to source %s: %v",
+			paths.Files.ShellConfig, err))
 	}
-	return t.Base.MaybeSetup("source $HOME/.config/devgita/devgita.zsh", "devgita.zsh")
 }
 
 func (t *Terminal) InstallTerminalApps() {
