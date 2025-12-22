@@ -260,16 +260,19 @@ func TestIsInstalled(t *testing.T) {
 		}
 	})
 
-	t.Run("not installed", func(t *testing.T) {
+	t.Run("not installed - error checking", func(t *testing.T) {
 		mockBase.ResetExecCommand()
 		mockBase.SetExecCommandResult("", "xcode-select: error", fmt.Errorf("command failed"))
 
 		installed, err := app.isInstalled()
-		if err != nil {
-			t.Fatalf("isInstalled should not return error when not installed: %v", err)
+		if err == nil {
+			t.Fatal("Expected isInstalled to return error when xcode-select command fails")
 		}
 		if installed {
 			t.Fatal("Expected isInstalled to return false when command fails")
+		}
+		if !strings.Contains(err.Error(), "error running xcode-select") {
+			t.Fatalf("Expected error to contain 'error running xcode-select', got: %v", err)
 		}
 	})
 }

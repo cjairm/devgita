@@ -127,7 +127,7 @@ func (x *XcodeCommandLineTools) Update() error {
 }
 
 // isInstalled checks if Xcode Command Line Tools are installed.
-// Returns true if installed, false otherwise.
+// Returns error if unable to check installation status (xcode-select not available).
 func (x *XcodeCommandLineTools) isInstalled() (bool, error) {
 	stdout, _, err := x.Base.ExecCommand(cmd.CommandParams{
 		Command: "xcode-select",
@@ -135,7 +135,7 @@ func (x *XcodeCommandLineTools) isInstalled() (bool, error) {
 		IsSudo:  false,
 	})
 	if err != nil {
-		return false, fmt.Errorf("error running xcode-select: %v", err)
+		return false, fmt.Errorf("error running xcode-select: %w", err)
 	}
 	xcodePath := strings.ToLower(strings.TrimSpace(stdout))
 	return strings.Contains(xcodePath, "xcode.app") ||

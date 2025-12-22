@@ -7,160 +7,12 @@ import (
 	"testing"
 
 	"github.com/cjairm/devgita/internal/apps/git"
-	"github.com/cjairm/devgita/internal/commands"
-	"github.com/cjairm/devgita/pkg/logger"
+	"github.com/cjairm/devgita/internal/testutil"
 	"github.com/cjairm/devgita/pkg/paths"
 )
 
 func init() {
-	logger.Init(false)
-}
-
-// testPaths holds the original path values for restoration after tests
-type testPaths struct {
-	appDir             string
-	configDir          string
-	templatesConfigDir string
-	configDirPath      string
-	globalConfigPath   string
-	zshConfigPath      string
-}
-
-// setupTestPaths overrides package-level path variables with test paths
-// Returns a cleanup function to restore original paths
-func setupTestPaths(t *testing.T, tempDir string) func() {
-	t.Helper()
-
-	configDir := filepath.Join(tempDir, "config")
-	devgitaConfigDir := filepath.Join(configDir, "devgita")
-
-	// Save original values
-	original := testPaths{
-		appDir:             paths.Paths.App.Root,
-		configDir:          paths.Paths.Config.Root,
-		templatesConfigDir: paths.Paths.App.Configs.Templates,
-		configDirPath:      configDirPath,
-		globalConfigPath:   globalConfigPath,
-		zshConfigPath:      zshConfigPath,
-	}
-
-	// Override with test values
-	paths.Paths.App.Root = tempDir
-	paths.Paths.Config.Root = configDir
-	configDirPath = devgitaConfigDir
-	globalConfigPath = filepath.Join(devgitaConfigDir, "global_config.yaml")
-	zshConfigPath = filepath.Join(devgitaConfigDir, "devgita.zsh")
-
-	// Return cleanup function
-	return func() {
-		paths.Paths.App.Root = original.appDir
-		paths.Paths.Config.Root = original.configDir
-		paths.Paths.App.Configs.Templates = original.templatesConfigDir
-		configDirPath = original.configDirPath
-		globalConfigPath = original.globalConfigPath
-		zshConfigPath = original.zshConfigPath
-	}
-}
-
-// setupConfigTestPaths is similar to setupTestPaths but includes templates directory
-func setupConfigTestPaths(t *testing.T, tempDir, appDir, templatesDir string) func() {
-	t.Helper()
-
-	configDir := filepath.Join(tempDir, "config")
-	devgitaConfigDir := filepath.Join(configDir, "devgita")
-
-	// Save original values
-	original := testPaths{
-		appDir:             paths.Paths.App.Root,
-		configDir:          paths.Paths.Config.Root,
-		templatesConfigDir: paths.Paths.App.Configs.Templates,
-		configDirPath:      configDirPath,
-		globalConfigPath:   globalConfigPath,
-		zshConfigPath:      zshConfigPath,
-	}
-
-	// Override with test values
-	paths.Paths.App.Root = appDir
-	paths.Paths.Config.Root = configDir
-	paths.Paths.App.Configs.Templates = templatesDir
-	configDirPath = devgitaConfigDir
-	globalConfigPath = filepath.Join(devgitaConfigDir, "global_config.yaml")
-	zshConfigPath = filepath.Join(devgitaConfigDir, "devgita.zsh")
-
-	// Return cleanup function
-	return func() {
-		paths.Paths.App.Root = original.appDir
-		paths.Paths.Config.Root = original.configDir
-		paths.Paths.App.Configs.Templates = original.templatesConfigDir
-		configDirPath = original.configDirPath
-		globalConfigPath = original.globalConfigPath
-		zshConfigPath = original.zshConfigPath
-	}
-}
-
-// createTestDirs creates common test directory structure
-func createTestDirs(
-	t *testing.T,
-	tempDir string,
-) (configDir, appDir, templatesDir, devgitaConfigDir string) {
-	t.Helper()
-
-	configDir = filepath.Join(tempDir, "config")
-	appDir = filepath.Join(tempDir, "app")
-	templatesDir = filepath.Join(tempDir, "templates")
-	devgitaConfigDir = filepath.Join(configDir, "devgita")
-
-	if err := os.MkdirAll(devgitaConfigDir, 0o755); err != nil {
-		t.Fatalf("Failed to create devgita config dir: %v", err)
-	}
-	if err := os.MkdirAll(appDir, 0o755); err != nil {
-		t.Fatalf("Failed to create app dir: %v", err)
-	}
-	if err := os.MkdirAll(templatesDir, 0o755); err != nil {
-		t.Fatalf("Failed to create templates dir: %v", err)
-	}
-
-	return
-}
-
-// createTemplateFiles creates required template files for configuration tests
-func createTemplateFiles(t *testing.T, templatesDir string) {
-	t.Helper()
-
-	// Create global_config.yaml template
-	sourceConfigPath := filepath.Join(templatesDir, "global_config.yaml")
-	sourceContent := "# Global config template\n"
-	if err := os.WriteFile(sourceConfigPath, []byte(sourceContent), 0o644); err != nil {
-		t.Fatalf("Failed to create source config: %v", err)
-	}
-
-	// Create devgita.zsh.tmpl template
-	zshTemplatePath := filepath.Join(templatesDir, "devgita.zsh.tmpl")
-	zshTemplateContent := "# Devgita Shell Configuration\n"
-	if err := os.WriteFile(zshTemplatePath, []byte(zshTemplateContent), 0o644); err != nil {
-		t.Fatalf("Failed to create zsh template: %v", err)
-	}
-}
-
-// createMockDevgita creates a Devgita instance with mock Git and Base for testing
-func createMockDevgita() (*Devgita, *commands.MockBaseCommand) {
-	mockBase := commands.NewMockBaseCommand()
-	mockCmd := commands.NewMockCommand()
-
-	// Create Git with mock base command to prevent real command execution
-	gitInstance := &git.Git{
-		Cmd:  mockCmd,
-		Base: mockBase,
-	}
-
-	// Create a real BaseCommand for the Devgita instance
-	// The actual command execution will be mocked at a different layer
-	baseCmd := commands.NewBaseCommand()
-
-	return &Devgita{
-		Git:  *gitInstance,
-		Base: *baseCmd,
-	}, mockBase
+	testutil.InitLogger()
 }
 
 func TestNew(t *testing.T) {
@@ -180,10 +32,18 @@ func TestSoftInstall_DirectoryDoesNotExist(t *testing.T) {
 		paths.Paths.App.Root = oldAppDir
 	})
 
-	dg, mockBase := createMockDevgita()
+	mockApp := testutil.NewMockApp()
+	gitInstance := &git.Git{
+		Cmd:  mockApp.Cmd,
+		Base: mockApp.Base,
+	}
+	dg := &Devgita{
+		Git:  *gitInstance,
+		Base: mockApp.Base,
+	}
 
 	// Mock successful git clone
-	mockBase.SetExecCommandResult("Cloning into...", "", nil)
+	mockApp.Base.SetExecCommandResult("Cloning into...", "", nil)
 
 	err := dg.SoftInstall()
 	if err != nil {
@@ -191,11 +51,11 @@ func TestSoftInstall_DirectoryDoesNotExist(t *testing.T) {
 	}
 
 	// Verify git clone was called
-	if mockBase.GetExecCommandCallCount() != 1 {
-		t.Fatalf("Expected 1 git command call, got %d", mockBase.GetExecCommandCallCount())
+	if mockApp.Base.GetExecCommandCallCount() != 1 {
+		t.Fatalf("Expected 1 git command call, got %d", mockApp.Base.GetExecCommandCallCount())
 	}
 
-	lastCall := mockBase.GetLastExecCommandCall()
+	lastCall := mockApp.Base.GetLastExecCommandCall()
 	if lastCall == nil {
 		t.Fatal("No git command was executed")
 	}
@@ -223,7 +83,15 @@ func TestSoftInstall_DirectoryExistsWithFiles(t *testing.T) {
 		paths.Paths.App.Root = oldAppDir
 	})
 
-	dg, mockBase := createMockDevgita()
+	mockApp := testutil.NewMockApp()
+	gitInstance := &git.Git{
+		Cmd:  mockApp.Cmd,
+		Base: mockApp.Base,
+	}
+	dg := &Devgita{
+		Git:  *gitInstance,
+		Base: mockApp.Base,
+	}
 
 	err := dg.SoftInstall()
 	if err != nil {
@@ -231,13 +99,14 @@ func TestSoftInstall_DirectoryExistsWithFiles(t *testing.T) {
 	}
 
 	// Verify git clone was NOT called (directory already exists)
-	if mockBase.GetExecCommandCallCount() != 0 {
+	if mockApp.Base.GetExecCommandCallCount() != 0 {
 		t.Fatalf(
 			"Expected 0 git command calls (directory exists), got %d",
-			mockBase.GetExecCommandCallCount(),
+			mockApp.Base.GetExecCommandCallCount(),
 		)
 	}
 
+	// Verify file was preserved
 	if _, err := os.Stat(testFile); os.IsNotExist(err) {
 		t.Fatal("Expected existing file to be preserved")
 	}
@@ -259,10 +128,39 @@ func TestUninstall_DirectoryEmpty(t *testing.T) {
 		t.Fatalf("Failed to create empty directory: %v", err)
 	}
 
-	cleanup := setupTestPaths(t, emptyDir)
-	t.Cleanup(cleanup)
+	// Override paths
+	oldAppDir := paths.Paths.App.Root
+	oldConfigDir := paths.Paths.Config.Root
+	oldConfigDirPath := configDirPath
+	oldGlobalConfigPath := globalConfigPath
+	oldZshConfigPath := zshConfigPath
 
-	dg, _ := createMockDevgita()
+	configDir := filepath.Join(tempDir, "config")
+	devgitaConfigDir := filepath.Join(configDir, "devgita")
+
+	paths.Paths.App.Root = emptyDir
+	paths.Paths.Config.Root = configDir
+	configDirPath = devgitaConfigDir
+	globalConfigPath = filepath.Join(devgitaConfigDir, "global_config.yaml")
+	zshConfigPath = filepath.Join(devgitaConfigDir, "devgita.zsh")
+
+	t.Cleanup(func() {
+		paths.Paths.App.Root = oldAppDir
+		paths.Paths.Config.Root = oldConfigDir
+		configDirPath = oldConfigDirPath
+		globalConfigPath = oldGlobalConfigPath
+		zshConfigPath = oldZshConfigPath
+	})
+
+	mockApp := testutil.NewMockApp()
+	gitInstance := &git.Git{
+		Cmd:  mockApp.Cmd,
+		Base: mockApp.Base,
+	}
+	dg := &Devgita{
+		Git:  *gitInstance,
+		Base: mockApp.Base,
+	}
 
 	err := dg.Uninstall()
 	if err != nil {
@@ -318,7 +216,15 @@ func TestUninstall_RemovesRepositoryAndConfig(t *testing.T) {
 		zshConfigPath = oldZshConfigPath
 	})
 
-	dg, _ := createMockDevgita()
+	mockApp := testutil.NewMockApp()
+	gitInstance := &git.Git{
+		Cmd:  mockApp.Cmd,
+		Base: mockApp.Base,
+	}
+	dg := &Devgita{
+		Git:  *gitInstance,
+		Base: mockApp.Base,
+	}
 
 	err := dg.Uninstall()
 	if err != nil {
@@ -338,10 +244,39 @@ func TestUninstall_NoRepositoryNoConfig(t *testing.T) {
 	tempDir := t.TempDir()
 	appDir := filepath.Join(tempDir, "app")
 
-	cleanup := setupTestPaths(t, appDir)
-	t.Cleanup(cleanup)
+	// Override paths
+	oldAppDir := paths.Paths.App.Root
+	oldConfigDir := paths.Paths.Config.Root
+	oldConfigDirPath := configDirPath
+	oldGlobalConfigPath := globalConfigPath
+	oldZshConfigPath := zshConfigPath
 
-	dg, _ := createMockDevgita()
+	configDir := filepath.Join(tempDir, "config")
+	devgitaConfigDir := filepath.Join(configDir, "devgita")
+
+	paths.Paths.App.Root = appDir
+	paths.Paths.Config.Root = configDir
+	configDirPath = devgitaConfigDir
+	globalConfigPath = filepath.Join(devgitaConfigDir, "global_config.yaml")
+	zshConfigPath = filepath.Join(devgitaConfigDir, "devgita.zsh")
+
+	t.Cleanup(func() {
+		paths.Paths.App.Root = oldAppDir
+		paths.Paths.Config.Root = oldConfigDir
+		configDirPath = oldConfigDirPath
+		globalConfigPath = oldGlobalConfigPath
+		zshConfigPath = oldZshConfigPath
+	})
+
+	mockApp := testutil.NewMockApp()
+	gitInstance := &git.Git{
+		Cmd:  mockApp.Cmd,
+		Base: mockApp.Base,
+	}
+	dg := &Devgita{
+		Git:  *gitInstance,
+		Base: mockApp.Base,
+	}
 
 	err := dg.Uninstall()
 	if err != nil {
@@ -357,13 +292,42 @@ func TestForceInstall(t *testing.T) {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 
-	cleanup := setupTestPaths(t, tempDir)
-	t.Cleanup(cleanup)
+	// Override paths
+	oldAppDir := paths.Paths.App.Root
+	oldConfigDir := paths.Paths.Config.Root
+	oldConfigDirPath := configDirPath
+	oldGlobalConfigPath := globalConfigPath
+	oldZshConfigPath := zshConfigPath
 
-	dg, mockBase := createMockDevgita()
+	configDir := filepath.Join(tempDir, "config")
+	devgitaConfigDir := filepath.Join(configDir, "devgita")
+
+	paths.Paths.App.Root = tempDir
+	paths.Paths.Config.Root = configDir
+	configDirPath = devgitaConfigDir
+	globalConfigPath = filepath.Join(devgitaConfigDir, "global_config.yaml")
+	zshConfigPath = filepath.Join(devgitaConfigDir, "devgita.zsh")
+
+	t.Cleanup(func() {
+		paths.Paths.App.Root = oldAppDir
+		paths.Paths.Config.Root = oldConfigDir
+		configDirPath = oldConfigDirPath
+		globalConfigPath = oldGlobalConfigPath
+		zshConfigPath = oldZshConfigPath
+	})
+
+	mockApp := testutil.NewMockApp()
+	gitInstance := &git.Git{
+		Cmd:  mockApp.Cmd,
+		Base: mockApp.Base,
+	}
+	dg := &Devgita{
+		Git:  *gitInstance,
+		Base: mockApp.Base,
+	}
 
 	// Mock successful git clone
-	mockBase.SetExecCommandResult("Cloning into...", "", nil)
+	mockApp.Base.SetExecCommandResult("Cloning into...", "", nil)
 
 	err := dg.ForceInstall()
 	if err != nil {
@@ -376,21 +340,24 @@ func TestForceInstall(t *testing.T) {
 	}
 
 	// Verify git clone was called
-	if mockBase.GetExecCommandCallCount() != 1 {
-		t.Fatalf("Expected 1 git clone call, got %d", mockBase.GetExecCommandCallCount())
+	if mockApp.Base.GetExecCommandCallCount() != 1 {
+		t.Fatalf("Expected 1 git clone call, got %d", mockApp.Base.GetExecCommandCallCount())
 	}
 }
 
 func TestForceConfigure_CreatesConfig(t *testing.T) {
-	tempDir := t.TempDir()
-	_, appDir, templatesDir, devgitaConfigDir := createTestDirs(t, tempDir)
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
 
-	createTemplateFiles(t, templatesDir)
-
-	cleanup := setupConfigTestPaths(t, tempDir, appDir, templatesDir)
-	t.Cleanup(cleanup)
-
-	dg, _ := createMockDevgita()
+	mockApp := tc.MockApp
+	gitInstance := &git.Git{
+		Cmd:  mockApp.Cmd,
+		Base: mockApp.Base,
+	}
+	dg := &Devgita{
+		Git:  *gitInstance,
+		Base: mockApp.Base,
+	}
 
 	err := dg.ForceConfigure()
 	if err != nil {
@@ -398,13 +365,12 @@ func TestForceConfigure_CreatesConfig(t *testing.T) {
 	}
 
 	// Verify config file was created
-	configPath := filepath.Join(devgitaConfigDir, "global_config.yaml")
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+	if _, err := os.Stat(tc.ConfigPath); os.IsNotExist(err) {
 		t.Fatal("Expected config file to be created")
 	}
 
 	// Verify config content includes AppPath and ConfigPath
-	content, err := os.ReadFile(configPath)
+	content, err := os.ReadFile(tc.ConfigPath)
 	if err != nil {
 		t.Fatalf("Failed to read config file: %v", err)
 	}
@@ -416,51 +382,54 @@ func TestForceConfigure_CreatesConfig(t *testing.T) {
 	if !strings.Contains(contentStr, "config_path:") {
 		t.Fatal("Expected config to contain config_path field")
 	}
-	if !strings.Contains(contentStr, appDir) {
-		t.Fatalf("Expected config to contain AppDir path %q", appDir)
+	if !strings.Contains(contentStr, tc.AppDir) {
+		t.Fatalf("Expected config to contain AppDir path %q", tc.AppDir)
 	}
 
 	// Verify shell config file (devgita.zsh) was created by RegenerateShellConfig
-	// RegenerateShellConfig creates the file at paths.Paths.App.Root/devgita.zsh
-	zshConfigPath := filepath.Join(appDir, "devgita.zsh")
-	if _, err := os.Stat(zshConfigPath); os.IsNotExist(err) {
-		t.Fatalf("Expected shell config file (devgita.zsh) to be created at %s", zshConfigPath)
+	if _, err := os.Stat(tc.ZshConfigPath); os.IsNotExist(err) {
+		t.Fatalf("Expected shell config file (devgita.zsh) to be created at %s", tc.ZshConfigPath)
 	}
 
 	// Verify zsh config content exists
-	zshContent, err := os.ReadFile(zshConfigPath)
+	zshContent, err := os.ReadFile(tc.ZshConfigPath)
 	if err != nil {
 		t.Fatalf("Failed to read zsh config file: %v", err)
 	}
 	if len(zshContent) == 0 {
 		t.Fatal("Expected zsh config file to have content")
 	}
+
+	testutil.VerifyNoRealCommands(t, mockApp.Base)
+	testutil.VerifyNoRealConfigChanges(t)
 }
 
 func TestForceConfigure_OverwritesExisting(t *testing.T) {
-	tempDir := t.TempDir()
-	_, appDir, templatesDir, devgitaConfigDir := createTestDirs(t, tempDir)
-
-	createTemplateFiles(t, templatesDir)
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
 
 	// Create existing config with old values
-	configPath := filepath.Join(devgitaConfigDir, "global_config.yaml")
 	oldContent := "app_path: /old/path\nconfig_path: /old/config\n"
-	if err := os.WriteFile(configPath, []byte(oldContent), 0o644); err != nil {
+	if err := os.WriteFile(tc.ConfigPath, []byte(oldContent), 0o644); err != nil {
 		t.Fatalf("Failed to create existing config: %v", err)
 	}
 
-	cleanup := setupConfigTestPaths(t, tempDir, appDir, templatesDir)
-	t.Cleanup(cleanup)
-
-	dg, _ := createMockDevgita()
+	mockApp := tc.MockApp
+	gitInstance := &git.Git{
+		Cmd:  mockApp.Cmd,
+		Base: mockApp.Base,
+	}
+	dg := &Devgita{
+		Git:  *gitInstance,
+		Base: mockApp.Base,
+	}
 
 	err := dg.ForceConfigure()
 	if err != nil {
 		t.Fatalf("ForceConfigure() failed: %v", err)
 	}
 
-	content, err := os.ReadFile(configPath)
+	content, err := os.ReadFile(tc.ConfigPath)
 	if err != nil {
 		t.Fatalf("Failed to read config file: %v", err)
 	}
@@ -472,41 +441,69 @@ func TestForceConfigure_OverwritesExisting(t *testing.T) {
 	if strings.Contains(contentStr, "/old/config") {
 		t.Fatal("Expected old config_path to be replaced")
 	}
-	if !strings.Contains(contentStr, appDir) {
-		t.Fatalf("Expected config to contain new AppDir path %q", appDir)
+	if !strings.Contains(contentStr, tc.AppDir) {
+		t.Fatalf("Expected config to contain new AppDir path %q", tc.AppDir)
 	}
+
+	testutil.VerifyNoRealCommands(t, mockApp.Base)
+	testutil.VerifyNoRealConfigChanges(t)
 }
 
 func TestSoftConfigure_PreservesExistingConfig(t *testing.T) {
-	tempDir := t.TempDir()
-	_, appDir, templatesDir, devgitaConfigDir := createTestDirs(t, tempDir)
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
 
-	createTemplateFiles(t, templatesDir)
+	// Compute the actual zsh config path used by devgita
+	// devgita uses configDirPath (Config.Root/devgita) not appDir
+	devgitaConfigDir := filepath.Join(tc.ConfigDir, "devgita")
+	actualZshConfigPath := filepath.Join(devgitaConfigDir, "devgita.zsh")
+
+	// Override package-level variables that are computed at init time
+	oldConfigDirPath := configDirPath
+	oldGlobalConfigPath := globalConfigPath
+	oldZshConfigPath := zshConfigPath
+
+	configDirPath = devgitaConfigDir
+	globalConfigPath = tc.ConfigPath
+	zshConfigPath = actualZshConfigPath
+
+	t.Cleanup(func() {
+		configDirPath = oldConfigDirPath
+		globalConfigPath = oldGlobalConfigPath
+		zshConfigPath = oldZshConfigPath
+	})
 
 	// Create existing config with custom values
-	configPath := filepath.Join(devgitaConfigDir, "global_config.yaml")
 	customContent := "app_path: /custom/path\nconfig_path: /custom/config\ncustom_field: custom_value\n"
-	if err := os.WriteFile(configPath, []byte(customContent), 0o644); err != nil {
+	if err := os.WriteFile(tc.ConfigPath, []byte(customContent), 0o644); err != nil {
 		t.Fatalf("Failed to create existing config: %v", err)
 	}
 
 	// Create zsh config file so SoftConfigure checks pass
-	zshPath := filepath.Join(devgitaConfigDir, "devgita.zsh")
-	if err := os.WriteFile(zshPath, []byte("# zsh config"), 0o644); err != nil {
+	// Must create in the same location that devgita.go expects
+	if err := os.MkdirAll(devgitaConfigDir, 0o755); err != nil {
+		t.Fatalf("Failed to create devgita config dir: %v", err)
+	}
+	if err := os.WriteFile(actualZshConfigPath, []byte("# zsh config"), 0o644); err != nil {
 		t.Fatalf("Failed to create zsh config: %v", err)
 	}
 
-	cleanup := setupConfigTestPaths(t, tempDir, appDir, templatesDir)
-	t.Cleanup(cleanup)
-
-	dg, _ := createMockDevgita()
+	mockApp := tc.MockApp
+	gitInstance := &git.Git{
+		Cmd:  mockApp.Cmd,
+		Base: mockApp.Base,
+	}
+	dg := &Devgita{
+		Git:  *gitInstance,
+		Base: mockApp.Base,
+	}
 
 	err := dg.SoftConfigure()
 	if err != nil {
 		t.Fatalf("SoftConfigure() failed: %v", err)
 	}
 
-	content, err := os.ReadFile(configPath)
+	content, err := os.ReadFile(tc.ConfigPath)
 	if err != nil {
 		t.Fatalf("Failed to read config file: %v", err)
 	}
@@ -522,4 +519,7 @@ func TestSoftConfigure_PreservesExistingConfig(t *testing.T) {
 	if !strings.Contains(contentStr, "custom_field: custom_value") {
 		t.Fatal("Expected custom field to be preserved")
 	}
+
+	testutil.VerifyNoRealCommands(t, mockApp.Base)
+	testutil.VerifyNoRealConfigChanges(t)
 }

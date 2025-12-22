@@ -23,22 +23,84 @@ devgita/
 │   │   ├── curl/
 │   │   │   ├── curl.go         # Implementation using BaseCommandExecutor interface
 │   │   │   └── curl_test.go    # Tests using MockBaseCommand
-│   │   ├── git/
-│   │   │   ├── git.go          # Implementation using BaseCommandExecutor interface
-│   │   │   └── git_test.go     # Tests using MockBaseCommand
 │   │   └── ...
-│   └── commands/
-│       ├── base.go             # BaseCommand + BaseCommandExecutor interface
-│       ├── mock.go             # MockCommand + MockBaseCommand
-│       └── ...
+│   ├── commands/
+│   │   ├── base.go             # BaseCommand + BaseCommandExecutor interface
+│   │   └── mock.go             # MockCommand + MockBaseCommand
+│   └── testutil/
+│       └── testutil.go         # Test isolation helpers
 ```
 
 ### Key Components
 
-1. **BaseCommandExecutor interface**: Defines contract for command execution
-2. **MockBaseCommand**: Provides test doubles for command execution
-3. **App modules**: Use interface for dependency injection
-4. **Test files**: Configure mocks and verify behavior
+1. **BaseCommandExecutor interface**: Defines contract for command execution (in `commands/`)
+2. **MockCommand/MockBaseCommand**: Provides test doubles (in `commands/mock.go`)
+3. **testutil package**: Provides test isolation and orchestration (in `internal/testutil/`)
+4. **App modules**: Use interfaces for dependency injection
+5. **Test files**: Configure mocks and verify behavior
+
+---
+
+## 🔒 Test Isolation Principles
+
+**Problem**: Without proper isolation, tests can:
+- Execute real system commands (brew, apt, git, etc.)
+- Modify your actual `.zshrc` file
+- Write to real configuration directories (`~/.config/devgita/`)
+- Create temporary files that get sourced in your shell
+
+**Solution**: Use `testutil` package for complete isolation:
+- Override global paths to temp directories
+- Provide mock instances that track calls without executing real commands
+- Verify tests don't touch real system
+
+---
+
+## 🎯 Three Levels of Test Isolation
+
+### Level 1: Simple Mock (No Configuration)
+
+For apps that don't touch configuration files:
+
+```go
+func TestInstall(t *testing.T) {
+    mockApp := testutil.NewMockApp()
+    app := &MyApp{Cmd: mockApp.Cmd, Base: mockApp.Base}
+    
+    err := app.Install()
+    // ... assertions
+    
+    testutil.VerifyNoRealCommands(t, mockApp.Base)
+}
+```
+
+### Level 2: Isolated Paths (Configuration without Shell)
+
+For apps that write configuration files:
+
+```go
+func TestConfigure(t *testing.T) {
+    cleanup := testutil.SetupIsolatedPaths(t)
+    defer cleanup()
+    
+    appDir, configDir, templatesDir, _ := testutil.SetupTestDirs(t)
+    // ... test logic
+}
+```
+
+### Level 3: Complete Test Environment (Shell Configuration)
+
+For apps that modify shell configuration:
+
+```go
+func TestShellFeature(t *testing.T) {
+    tc := testutil.SetupCompleteTest(t)
+    defer tc.Cleanup()
+    
+    app := &MyApp{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
+    // Everything is ready: paths, templates, config, mocks
+}
+```
 
 ---
 
@@ -46,116 +108,40 @@ devgita/
 
 ### Pattern 1: Dependency Injection via Interface
 
-**Why**: Enables swapping real implementations with test doubles.
-
-**Implementation**:
-
 ```go
 // In internal/commands/base.go
 type BaseCommandExecutor interface {
     ExecCommand(cmd CommandParams) (string, string, error)
-    Setup(line string) error
-    MaybeSetup(line, toSearch string) error
-    IsDesktopAppPresent(dirPath, appName string) (bool, error)
-    IsPackagePresent(cmd any, packageName string) (bool, error)
-    IsFontPresent(fontName string) (bool, error)
-    MaybeInstall(itemName string, alias []string, checkInstalled func(string) (bool, error), 
-                 installFunc func(string) error, installURLFunc func(string) error, 
-                 itemType string) error
-    InstallFontFromURL(url, fontFileName string, runCache bool) error
+    // ... other methods
 }
 
-// BaseCommand automatically satisfies this interface
-type BaseCommand struct {
-    // ... fields
-}
-
-func (base *BaseCommand) ExecCommand(cmd CommandParams) (string, string, error) {
-    // Real implementation
-}
-```
-
-**App Usage**:
-
-```go
 // In internal/apps/curl/curl.go
 type Curl struct {
-    Cmd  cmd.Command              // For package management operations
-    Base cmd.BaseCommandExecutor  // For command execution (interface for testability)
+    Cmd  cmd.Command
+    Base cmd.BaseCommandExecutor  // Interface for testability
 }
 
-func New() *Curl {
-    return &Curl{
-        Cmd:  cmd.NewCommand(),
-        Base: cmd.NewBaseCommand(), // Returns concrete type, satisfies interface
-    }
-}
-```
-
-**Test Usage**:
-
-```go
-// In internal/apps/curl/curl_test.go
+// In tests
 func TestExecuteCommand(t *testing.T) {
-    mc := commands.NewMockCommand()
-    mockBase := commands.NewMockBaseCommand() // Test double
-    app := &Curl{Cmd: mc, Base: mockBase}     // Inject mock
-    
-    // Test proceeds with full control over mock behavior
+    mockBase := commands.NewMockBaseCommand()
+    app := &Curl{Base: mockBase}  // Inject mock
 }
 ```
-
----
 
 ### Pattern 2: Configurable Mock Behavior
 
-**Why**: Tests need to simulate different scenarios (success, failure, edge cases).
-
-**MockBaseCommand Structure**:
-
 ```go
-// In internal/commands/mock.go
-type MockBaseCommand struct {
-    // Call tracking
-    ExecCommandCalls []CommandParams
-    
-    // Configurable return values
-    ExecCommandStdout string
-    ExecCommandStderr string
-    ExecCommandError  error
-    
-    // Return values for other methods
-    IsDesktopAppPresentResult bool
-    IsPackagePresentResult    bool
-    IsFontPresentResult       bool
-    SetupError                error
-    MaybeSetupError           error
-    MaybeInstallError         error
-    InstallFontURLError       error
-}
-```
+// Configure success
+mockBase.SetExecCommandResult("output", "", nil)
 
-**Setting Mock Behavior**:
-
-```go
-// Configure successful execution
-mockBase.SetExecCommandResult("curl 7.64.1", "", nil)
-
-// Configure error scenario
-mockBase.SetExecCommandResult("", "command not found", fmt.Errorf("command not found: curl"))
+// Configure error
+mockBase.SetExecCommandResult("", "error", fmt.Errorf("failed"))
 
 // Configure presence checks
 mockBase.IsPackagePresentResult = true
-mockBase.SetupError = fmt.Errorf("setup failed")
 ```
 
----
-
 ### Pattern 3: Call Verification
-
-**Why**: Verify that app code calls the underlying command layer correctly.
-
-**Mock Helper Methods**:
 
 ```go
 // Get number of calls
@@ -163,306 +149,174 @@ count := mockBase.GetExecCommandCallCount()
 
 // Get last call parameters
 lastCall := mockBase.GetLastExecCommandCall()
-if lastCall != nil {
-    fmt.Printf("Command: %s, Args: %v, IsSudo: %v\n", 
-               lastCall.Command, lastCall.Args, lastCall.IsSudo)
-}
 
 // Reset between test cases
 mockBase.ResetExecCommand()
 ```
 
-**Test Example**:
+---
 
-```go
-t.Run("verify command parameters", func(t *testing.T) {
-    mockBase.SetExecCommandResult("success", "", nil)
-    
-    err := app.ExecuteCommand("-o", "file.txt", "https://example.com")
-    if err != nil {
-        t.Fatalf("ExecuteCommand failed: %v", err)
-    }
-    
-    // Verify call count
-    if mockBase.GetExecCommandCallCount() != 1 {
-        t.Fatalf("Expected 1 call, got %d", mockBase.GetExecCommandCallCount())
-    }
-    
-    // Verify parameters
-    lastCall := mockBase.GetLastExecCommandCall()
-    if lastCall.Command != "curl" {
-        t.Fatalf("Expected command 'curl', got %q", lastCall.Command)
-    }
-    
-    expectedArgs := []string{"-o", "file.txt", "https://example.com"}
-    if !reflect.DeepEqual(lastCall.Args, expectedArgs) {
-        t.Fatalf("Expected args %v, got %v", expectedArgs, lastCall.Args)
-    }
-    
-    if lastCall.IsSudo {
-        t.Fatal("Expected IsSudo to be false")
-    }
-})
-```
+## 📦 testutil Package Reference
+
+### Path Management
+
+- `SetupIsolatedPaths(t)` - Override global paths, returns cleanup function
+- `SetupTestDirs(t)` - Create isolated directory structure
+- `SetupTestEnvironment(t)` - Combines both, recommended for config tests
+- `SetupCompleteTest(t)` - Full setup with templates, config, and mocks
+
+### Template & Config Creation
+
+- `CreateGlobalConfigTemplate(t, templatesDir)` - Create config template
+- `CreateShellConfigTemplate(t, templatesDir, content)` - Create shell template
+- `CreateGlobalConfigFile(t, configDir, content)` - Create actual config file
+
+### Mock Management
+
+- `NewMockApp()` - Creates `MockApp` with both `Cmd` and `Base` mocks
+- `MockApp.Reset()` - Clear all mock state
+
+### Verification Helpers
+
+- `VerifyNoRealCommands(t, mockBase)` - Ensure no real commands executed
+- `VerifyNoRealConfigChanges(t)` - Check paths aren't pointing to real config
+- `AssertFileContains(t, path, expected)` - Verify file content
+- `AssertFileNotContains(t, path, unexpected)` - Verify file doesn't contain content
+- `InitLogger()` - Initialize logger for tests (call in `init()`)
 
 ---
 
-## 🧪 Complete Test Examples
+## 🧪 Test Examples
 
-### Example 1: Testing ExecuteCommand with Success
+### Example 1: Simple Installation Test
 
 ```go
-func TestExecuteCommand_Success(t *testing.T) {
-    // Setup
-    mc := commands.NewMockCommand()
-    mockBase := commands.NewMockBaseCommand()
-    app := &Curl{Cmd: mc, Base: mockBase}
-    
-    // Configure mock behavior
-    mockBase.SetExecCommandResult("curl 7.64.1", "", nil)
-    
-    // Execute
-    err := app.ExecuteCommand("--version")
-    
-    // Verify
-    if err != nil {
-        t.Fatalf("ExecuteCommand failed: %v", err)
-    }
-    
-    // Verify command was called correctly
-    if mockBase.GetExecCommandCallCount() != 1 {
-        t.Fatalf("Expected 1 ExecCommand call, got %d", mockBase.GetExecCommandCallCount())
-    }
-    
-    lastCall := mockBase.GetLastExecCommandCall()
-    if lastCall == nil {
-        t.Fatal("No ExecCommand call recorded")
-    }
-    if lastCall.Command != "curl" {
-        t.Fatalf("Expected command 'curl', got %q", lastCall.Command)
-    }
-    if len(lastCall.Args) != 1 || lastCall.Args[0] != "--version" {
-        t.Fatalf("Expected args ['--version'], got %v", lastCall.Args)
-    }
-    if lastCall.IsSudo {
-        t.Fatal("Expected IsSudo to be false")
-    }
+func init() {
+    testutil.InitLogger()
 }
-```
 
-### Example 2: Testing Error Handling
-
-```go
-func TestExecuteCommand_Error(t *testing.T) {
-    // Setup
-    mc := commands.NewMockCommand()
-    mockBase := commands.NewMockBaseCommand()
-    app := &Curl{Cmd: mc, Base: mockBase}
-    
-    // Configure mock to return error
-    mockBase.SetExecCommandResult("", "command not found", fmt.Errorf("command not found: curl"))
-    
-    // Execute
-    err := app.ExecuteCommand("--invalid-flag")
-    
-    // Verify error is returned
-    if err == nil {
-        t.Fatal("Expected ExecuteCommand to return error")
-    }
-    
-    // Verify error message contains context
-    if !strings.Contains(err.Error(), "failed to run curl command") {
-        t.Fatalf("Expected error to contain 'failed to run curl command', got: %v", err)
-    }
-    
-    // Verify original error is wrapped
-    if !strings.Contains(err.Error(), "command not found: curl") {
-        t.Fatalf("Expected error to contain original error message, got: %v", err)
-    }
-}
-```
-
-### Example 3: Testing Multiple Arguments
-
-```go
-func TestExecuteCommand_MultipleArgs(t *testing.T) {
-    // Setup
-    mc := commands.NewMockCommand()
-    mockBase := commands.NewMockBaseCommand()
-    app := &Curl{Cmd: mc, Base: mockBase}
-    
-    // Configure mock
-    mockBase.SetExecCommandResult("downloaded", "", nil)
-    
-    // Execute with multiple arguments
-    err := app.ExecuteCommand("-o", "file.txt", "https://example.com")
-    if err != nil {
-        t.Fatalf("ExecuteCommand failed: %v", err)
-    }
-    
-    // Verify all arguments are passed correctly
-    lastCall := mockBase.GetLastExecCommandCall()
-    expectedArgs := []string{"-o", "file.txt", "https://example.com"}
-    
-    if len(lastCall.Args) != len(expectedArgs) {
-        t.Fatalf("Expected %d args, got %d", len(expectedArgs), len(lastCall.Args))
-    }
-    
-    for i, arg := range expectedArgs {
-        if lastCall.Args[i] != arg {
-            t.Fatalf("Expected arg[%d] to be %q, got %q", i, arg, lastCall.Args[i])
-        }
-    }
-}
-```
-
-### Example 4: Testing with Subtests
-
-```go
-func TestExecuteCommand(t *testing.T) {
-    mc := commands.NewMockCommand()
-    mockBase := commands.NewMockBaseCommand()
-    app := &Curl{Cmd: mc, Base: mockBase}
-    
-    t.Run("successful execution", func(t *testing.T) {
-        mockBase.SetExecCommandResult("curl 7.64.1", "", nil)
-        err := app.ExecuteCommand("--version")
-        if err != nil {
-            t.Fatalf("ExecuteCommand failed: %v", err)
-        }
-        // Additional assertions...
-    })
-    
-    t.Run("command execution error", func(t *testing.T) {
-        mockBase.ResetExecCommand() // Reset mock state
-        mockBase.SetExecCommandResult("", "error", fmt.Errorf("failed"))
-        err := app.ExecuteCommand("--invalid")
-        if err == nil {
-            t.Fatal("Expected error")
-        }
-        // Additional assertions...
-    })
-    
-    t.Run("multiple arguments", func(t *testing.T) {
-        mockBase.ResetExecCommand() // Reset mock state
-        mockBase.SetExecCommandResult("success", "", nil)
-        err := app.ExecuteCommand("-X", "POST", "-d", "data")
-        if err != nil {
-            t.Fatalf("ExecuteCommand failed: %v", err)
-        }
-        // Additional assertions...
-    })
-}
-```
-
----
-
-## 📦 Testing Different App Methods
-
-### Testing Install Methods
-
-```go
 func TestInstall(t *testing.T) {
-    mc := commands.NewMockCommand()
-    app := &Curl{Cmd: mc}
+    mockApp := testutil.NewMockApp()
+    app := &Curl{Cmd: mockApp.Cmd}
     
     if err := app.Install(); err != nil {
         t.Fatalf("Install error: %v", err)
     }
     
-    // Verify correct package was installed
-    if mc.InstalledPkg != "curl" {
-        t.Fatalf("expected InstallPackage(%s), got %q", "curl", mc.InstalledPkg)
-    }
-}
-
-func TestSoftInstall(t *testing.T) {
-    mc := commands.NewMockCommand()
-    app := &Curl{Cmd: mc}
-    
-    if err := app.SoftInstall(); err != nil {
-        t.Fatalf("SoftInstall error: %v", err)
+    if mockApp.Cmd.InstalledPkg != "curl" {
+        t.Errorf("Expected package curl, got %s", mockApp.Cmd.InstalledPkg)
     }
     
-    // Verify MaybeInstallPackage was called
-    if mc.MaybeInstalled != "curl" {
-        t.Fatalf("expected MaybeInstallPackage(%s), got %q", "curl", mc.MaybeInstalled)
-    }
+    testutil.VerifyNoRealCommands(t, mockApp.Base)
 }
 ```
 
-### Testing Configuration Methods
+### Example 2: Command Execution Test
+
+```go
+func TestExecuteCommand(t *testing.T) {
+    mockApp := testutil.NewMockApp()
+    app := &Curl{Cmd: mockApp.Cmd, Base: mockApp.Base}
+    
+    t.Run("successful execution", func(t *testing.T) {
+        mockApp.Base.SetExecCommandResult("curl 7.64.1", "", nil)
+        
+        err := app.ExecuteCommand("--version")
+        if err != nil {
+            t.Fatalf("ExecuteCommand failed: %v", err)
+        }
+        
+        if mockApp.Base.GetExecCommandCallCount() != 1 {
+            t.Errorf("Expected 1 call, got %d", mockApp.Base.GetExecCommandCallCount())
+        }
+        
+        lastCall := mockApp.Base.GetLastExecCommandCall()
+        if lastCall.Command != "curl" {
+            t.Errorf("Expected curl command, got %s", lastCall.Command)
+        }
+    })
+    
+    t.Run("error handling", func(t *testing.T) {
+        mockApp.Reset()
+        mockApp.Base.SetExecCommandResult("", "error", fmt.Errorf("failed"))
+        
+        err := app.ExecuteCommand("--invalid")
+        if err == nil {
+            t.Fatal("Expected error")
+        }
+    })
+}
+```
+
+### Example 3: Shell Feature Configuration Test
 
 ```go
 func TestForceConfigure(t *testing.T) {
-    // Create temporary directories for testing
-    src := t.TempDir()
-    dst := t.TempDir()
+    tc := testutil.SetupCompleteTest(t)
+    defer tc.Cleanup()
     
-    // Override global paths for test duration
-    oldAppDir, oldLocalDir := paths.GitConfigAppDir, paths.GitConfigLocalDir
-    paths.GitConfigAppDir, paths.GitConfigLocalDir = src, dst
-    t.Cleanup(func() {
-        paths.GitConfigAppDir, paths.GitConfigLocalDir = oldAppDir, oldLocalDir
-    })
+    // Create custom shell template
+    template := `{{if .Mise}}eval "$(mise activate zsh)"{{end}}`
+    testutil.CreateShellConfigTemplate(t, tc.TemplatesDir, template)
     
-    // Create source config file
-    originalContent := "[user]\n\tname = Test User"
-    if err := os.WriteFile(filepath.Join(src, ".gitconfig"), []byte(originalContent), 0o644); err != nil {
-        t.Fatal(err)
-    }
-    
-    // Test ForceConfigure
-    mc := commands.NewMockCommand()
-    app := &Git{Cmd: mc}
+    app := &Mise{Cmd: tc.MockApp.Cmd}
     
     if err := app.ForceConfigure(); err != nil {
-        t.Fatalf("ForceConfigure error: %v", err)
+        t.Fatalf("ForceConfigure failed: %v", err)
     }
     
-    // Verify file was copied
-    check := filepath.Join(dst, ".gitconfig")
-    if _, err := os.Stat(check); err != nil {
-        t.Fatalf("expected copied file at %s: %v", check, err)
+    // Verify shell config was generated
+    content, _ := os.ReadFile(tc.ZshConfigPath)
+    if !strings.Contains(string(content), "mise activate") {
+        t.Error("Shell config missing mise activation")
     }
     
-    // Verify content matches
-    copiedContent, err := os.ReadFile(check)
-    if err != nil {
-        t.Fatalf("failed to read copied file: %v", err)
+    // Verify global config was updated
+    configContent, _ := os.ReadFile(tc.ConfigPath)
+    if !strings.Contains(string(configContent), "mise: true") {
+        t.Error("Expected mise to be enabled in config")
     }
-    if string(copiedContent) != originalContent {
-        t.Fatalf("content mismatch: expected %q, got %q", originalContent, string(copiedContent))
-    }
+    
+    testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
+    testutil.VerifyNoRealConfigChanges(t)
 }
+```
 
-func TestSoftConfigure(t *testing.T) {
-    // Similar setup to ForceConfigure...
+### Example 4: Configuration File Copy Test
+
+```go
+func TestForceConfigure(t *testing.T) {
+    cleanup := testutil.SetupIsolatedPaths(t)
+    defer cleanup()
     
-    // First call should copy config
-    if err := app.SoftConfigure(); err != nil {
-        t.Fatalf("SoftConfigure error: %v", err)
+    appDir, configDir, _, _ := testutil.SetupTestDirs(t)
+    
+    // Create source config
+    gitConfigAppDir := filepath.Join(appDir, "git")
+    os.MkdirAll(gitConfigAppDir, 0755)
+    
+    sourceConfig := filepath.Join(gitConfigAppDir, ".gitconfig")
+    sourceContent := "[user]\n\tname = Test User"
+    os.WriteFile(sourceConfig, []byte(sourceContent), 0644)
+    
+    // Override paths
+    paths.GitConfigAppDir = gitConfigAppDir
+    paths.GitConfigLocalDir = filepath.Join(configDir, "git")
+    
+    // Test
+    app := &Git{Cmd: commands.NewMockCommand()}
+    if err := app.ForceConfigure(); err != nil {
+        t.Fatalf("ForceConfigure failed: %v", err)
     }
     
-    // Modify the copied file
-    modifiedContent := "[user]\n\tname = Modified User"
-    if err := os.WriteFile(check, []byte(modifiedContent), 0o644); err != nil {
-        t.Fatal(err)
+    // Verify
+    dstConfig := filepath.Join(paths.GitConfigLocalDir, ".gitconfig")
+    content, _ := os.ReadFile(dstConfig)
+    if string(content) != sourceContent {
+        t.Errorf("Content mismatch")
     }
     
-    // Second call should NOT overwrite
-    if err := app.SoftConfigure(); err != nil {
-        t.Fatalf("second SoftConfigure error: %v", err)
-    }
-    
-    // Verify file was NOT overwritten
-    finalContent, err := os.ReadFile(check)
-    if err != nil {
-        t.Fatalf("failed to read file: %v", err)
-    }
-    if string(finalContent) != string(modifiedContent) {
-        t.Fatalf("SoftConfigure overwrote existing file")
-    }
+    testutil.VerifyNoRealConfigChanges(t)
 }
 ```
 
@@ -470,52 +324,45 @@ func TestSoftConfigure(t *testing.T) {
 
 ## 🎯 Testing Best Practices
 
-### 1. Initialize Logger in Tests
+### 1. Always Initialize Logger
 
 ```go
 func init() {
-    // Initialize logger for tests (prevents nil pointer errors)
-    logger.Init(false)
+    testutil.InitLogger()
 }
 ```
 
 ### 2. Use Subtests for Related Scenarios
 
 ```go
-func TestExecuteCommand(t *testing.T) {
+func TestFeature(t *testing.T) {
     t.Run("scenario 1", func(t *testing.T) { /* ... */ })
     t.Run("scenario 2", func(t *testing.T) { /* ... */ })
-    t.Run("scenario 3", func(t *testing.T) { /* ... */ })
 }
 ```
 
-Benefits:
-- Run individual scenarios: `go test -run TestExecuteCommand/scenario_1`
-- Better test organization and readability
-- Isolated failures (one subtest failure doesn't prevent others)
+Run specific subtest: `go test -run TestFeature/scenario_1`
 
 ### 3. Reset Mock State Between Subtests
 
 ```go
-t.Run("first test", func(t *testing.T) {
-    mockBase.SetExecCommandResult("output", "", nil)
-    // ... test logic
+t.Run("first", func(t *testing.T) {
+    mockApp.Base.SetExecCommandResult("output1", "", nil)
+    // ... test
 })
 
-t.Run("second test", func(t *testing.T) {
-    mockBase.ResetExecCommand() // Clear previous state
-    mockBase.SetExecCommandResult("different output", "", nil)
-    // ... test logic
+t.Run("second", func(t *testing.T) {
+    mockApp.Reset()  // Clear previous state
+    mockApp.Base.SetExecCommandResult("output2", "", nil)
+    // ... test
 })
 ```
 
-### 4. Use Temporary Directories for File Operations
+### 4. Use Temporary Directories
 
 ```go
 func TestFileOperation(t *testing.T) {
-    tempDir := t.TempDir() // Automatically cleaned up after test
-    
-    testFile := filepath.Join(tempDir, "test.txt")
+    tempDir := t.TempDir()  // Automatically cleaned up
     // ... test logic
 }
 ```
@@ -524,209 +371,23 @@ func TestFileOperation(t *testing.T) {
 
 ```go
 func TestWithPathOverride(t *testing.T) {
-    // Save original values
     oldPath := paths.SomePath
-    
-    // Override for test
     paths.SomePath = "/test/path"
     
-    // Restore after test
     t.Cleanup(func() {
         paths.SomePath = oldPath
     })
-    
-    // ... test logic
 }
 ```
 
-### 6. Skip Tests for Unsupported Operations
+### 6. Verify Error Messages
 
 ```go
-// SKIP: ForceInstall test as per guidelines
-// ForceInstall calls Uninstall (which returns error) before Install
-// Testing this creates false negatives
-// func TestForceInstall(t *testing.T) { ... }
-
-// Instead, test Install and Uninstall independently
-func TestInstall(t *testing.T) { /* ... */ }
-
-func TestUninstall(t *testing.T) {
-    // Verify it returns expected error
-    err := app.Uninstall()
-    if err == nil {
-        t.Fatal("expected error for unsupported operation")
-    }
-    if err.Error() != "curl uninstall not supported through devgita" {
-        t.Fatalf("unexpected error message: %v", err)
-    }
+if err == nil {
+    t.Fatal("Expected error")
 }
-```
-
-### 7. Test Error Messages
-
-```go
-func TestErrorWrapping(t *testing.T) {
-    mockBase.SetExecCommandResult("", "stderr", fmt.Errorf("original error"))
-    
-    err := app.ExecuteCommand("--flag")
-    
-    // Verify error is returned
-    if err == nil {
-        t.Fatal("Expected error")
-    }
-    
-    // Verify error contains context
-    if !strings.Contains(err.Error(), "failed to run curl command") {
-        t.Fatalf("Expected context in error, got: %v", err)
-    }
-    
-    // Verify original error is preserved
-    if !strings.Contains(err.Error(), "original error") {
-        t.Fatalf("Expected original error in wrapped error, got: %v", err)
-    }
-}
-```
-
----
-
-## 🚀 Running Tests
-
-### Run All Tests
-
-```bash
-go test ./...
-```
-
-### Run Tests for Specific Package
-
-```bash
-go test ./internal/apps/curl/
-go test ./internal/apps/git/
-```
-
-### Run Specific Test
-
-```bash
-go test -run TestExecuteCommand ./internal/apps/curl/
-```
-
-### Run Specific Subtest
-
-```bash
-go test -run TestExecuteCommand/successful_execution ./internal/apps/curl/
-```
-
-### Run with Verbose Output
-
-```bash
-go test -v ./internal/apps/curl/
-```
-
-### Run with Coverage
-
-```bash
-go test -cover ./internal/apps/curl/
-go test -coverprofile=coverage.out ./...
-go tool cover -html=coverage.out
-```
-
----
-
-## 📝 Creating Tests for New Apps
-
-### Step 1: Define App Structure with Interface
-
-```go
-// In internal/apps/newapp/newapp.go
-package newapp
-
-import "github.com/cjairm/devgita/internal/commands"
-
-type NewApp struct {
-    Cmd  commands.Command
-    Base commands.BaseCommandExecutor // Use interface for testability
-}
-
-func New() *NewApp {
-    return &NewApp{
-        Cmd:  commands.NewCommand(),
-        Base: commands.NewBaseCommand(), // Concrete type satisfies interface
-    }
-}
-```
-
-### Step 2: Implement ExecuteCommand
-
-```go
-func (app *NewApp) ExecuteCommand(args ...string) error {
-    _, _, err := app.Base.ExecCommand(commands.CommandParams{
-        Command: "newapp",
-        Args:    args,
-        IsSudo:  false,
-    })
-    if err != nil {
-        return fmt.Errorf("failed to run newapp command: %w", err)
-    }
-    return nil
-}
-```
-
-### Step 3: Create Test File
-
-```go
-// In internal/apps/newapp/newapp_test.go
-package newapp
-
-import (
-    "fmt"
-    "strings"
-    "testing"
-    
-    "github.com/cjairm/devgita/internal/commands"
-    "github.com/cjairm/devgita/pkg/logger"
-)
-
-func init() {
-    logger.Init(false)
-}
-
-func TestExecuteCommand(t *testing.T) {
-    mc := commands.NewMockCommand()
-    mockBase := commands.NewMockBaseCommand()
-    app := &NewApp{Cmd: mc, Base: mockBase}
-    
-    t.Run("successful execution", func(t *testing.T) {
-        mockBase.SetExecCommandResult("output", "", nil)
-        
-        err := app.ExecuteCommand("--flag")
-        if err != nil {
-            t.Fatalf("ExecuteCommand failed: %v", err)
-        }
-        
-        // Verify command was called
-        if mockBase.GetExecCommandCallCount() != 1 {
-            t.Fatalf("Expected 1 call, got %d", mockBase.GetExecCommandCallCount())
-        }
-        
-        // Verify parameters
-        lastCall := mockBase.GetLastExecCommandCall()
-        if lastCall.Command != "newapp" {
-            t.Fatalf("Expected command 'newapp', got %q", lastCall.Command)
-        }
-    })
-    
-    t.Run("error handling", func(t *testing.T) {
-        mockBase.ResetExecCommand()
-        mockBase.SetExecCommandResult("", "error", fmt.Errorf("failed"))
-        
-        err := app.ExecuteCommand("--invalid")
-        if err == nil {
-            t.Fatal("Expected error")
-        }
-        if !strings.Contains(err.Error(), "failed to run newapp command") {
-            t.Fatalf("Expected error context, got: %v", err)
-        }
-    })
+if !strings.Contains(err.Error(), "expected context") {
+    t.Fatalf("Expected error context, got: %v", err)
 }
 ```
 
@@ -734,82 +395,113 @@ func TestExecuteCommand(t *testing.T) {
 
 ## ✅ Testing Checklist
 
-When creating tests for a new app module:
-
-- [ ] Initialize logger in `init()` function
-- [ ] Test `Install()` method
-- [ ] Test `SoftInstall()` method
-- [ ] Test `ForceConfigure()` method (if applicable)
-- [ ] Test `SoftConfigure()` method (if applicable)
-- [ ] Test `ExecuteCommand()` with success scenario
-- [ ] Test `ExecuteCommand()` with error handling
-- [ ] Test `ExecuteCommand()` with multiple arguments (if applicable)
-- [ ] Test `Uninstall()` error message (if unsupported)
-- [ ] Use `MockCommand` for package management operations
-- [ ] Use `MockBaseCommand` for command execution
+- [ ] Initialize logger: `testutil.InitLogger()` in `init()`
+- [ ] Use appropriate isolation level (Simple Mock / Isolated Paths / Complete)
+- [ ] Test `Install()`, `SoftInstall()`, `ExecuteCommand()`
+- [ ] Test error handling scenarios
 - [ ] Use subtests for organizing related scenarios
-- [ ] Reset mock state between subtests
-- [ ] Verify call counts and parameters
-- [ ] Test error message wrapping
-- [ ] Use temporary directories for file operations
-- [ ] Add cleanup handlers for path overrides
+- [ ] Reset mock state between subtests: `mockApp.Reset()`
+- [ ] Verify no real commands: `testutil.VerifyNoRealCommands(t, mockApp.Base)`
+- [ ] Verify isolation: `testutil.VerifyNoRealConfigChanges(t)`
+- [ ] Use `t.TempDir()` for temporary files
+- [ ] Add cleanup with `defer` or `t.Cleanup()`
 
 ---
 
-## 🔍 Debugging Test Failures
-
-### Common Issues
-
-**Issue**: `nil pointer dereference` when calling logger methods
-```bash
-Solution: Add logger.Init(false) in init() function
-```
-
-**Issue**: Real commands are executed during tests
-```bash
-Solution: Verify app uses BaseCommandExecutor interface and inject MockBaseCommand
-```
-
-**Issue**: Test fails on second run but passes first time
-```bash
-Solution: Reset mock state between subtests with mockBase.ResetExecCommand()
-```
-
-**Issue**: File operation tests fail with permission errors
-```bash
-Solution: Use t.TempDir() for temporary directories with proper permissions
-```
-
-**Issue**: Path-related tests affect subsequent tests
-```bash
-Solution: Use t.Cleanup() to restore original path values
-```
-
-### Verbose Test Output
+## 🚀 Running Tests
 
 ```bash
-# See detailed test output
+# Run all tests
+go test ./...
+
+# Run specific package
+go test ./internal/apps/curl/
+
+# Run specific test
+go test -run TestExecuteCommand ./internal/apps/curl/
+
+# Run specific subtest
+go test -run TestExecuteCommand/successful_execution ./internal/apps/curl/
+
+# Verbose output
 go test -v ./internal/apps/curl/
 
-# See which tests are being skipped
-go test -v ./internal/apps/curl/ | grep SKIP
+# With coverage
+go test -cover ./internal/apps/curl/
+go test -coverprofile=coverage.out ./...
+go tool cover -html=coverage.out
+```
+
+---
+
+## 🔍 Common Issues & Solutions
+
+| Issue | Solution |
+|-------|----------|
+| `nil pointer dereference` in logger | Add `testutil.InitLogger()` in `init()` |
+| Real commands executed during tests | Use `MockBaseCommand` and verify with `VerifyNoRealCommands()` |
+| Test fails on second run | Reset mock state: `mockApp.Reset()` |
+| Permission errors in file tests | Use `t.TempDir()` |
+| Path-related tests affect others | Use `t.Cleanup()` to restore paths |
+| Tests modify real `.zshrc` | Use `SetupIsolatedPaths()` or `SetupCompleteTest()` |
+
+---
+
+## 📝 Creating Tests for New Apps
+
+1. **Define app structure with interface**
+```go
+type NewApp struct {
+    Cmd  commands.Command
+    Base commands.BaseCommandExecutor  // Interface for testability
+}
+```
+
+2. **Initialize logger in test file**
+```go
+func init() {
+    testutil.InitLogger()
+}
+```
+
+3. **Choose isolation level**
+   - No config files → Use `testutil.NewMockApp()`
+   - Config files → Use `testutil.SetupIsolatedPaths()`
+   - Shell config → Use `testutil.SetupCompleteTest()`
+
+4. **Write tests with subtests**
+```go
+func TestExecuteCommand(t *testing.T) {
+    mockApp := testutil.NewMockApp()
+    app := &NewApp{Cmd: mockApp.Cmd, Base: mockApp.Base}
+    
+    t.Run("success", func(t *testing.T) { /* ... */ })
+    t.Run("error", func(t *testing.T) { mockApp.Reset(); /* ... */ })
+}
+```
+
+5. **Verify isolation**
+```go
+testutil.VerifyNoRealCommands(t, mockApp.Base)
+testutil.VerifyNoRealConfigChanges(t)
 ```
 
 ---
 
 ## 📚 Summary
 
-| Pattern                  | Purpose                                 | Implementation                    |
-| ------------------------ | --------------------------------------- | --------------------------------- |
-| Dependency Injection     | Enable test doubles                     | BaseCommandExecutor interface     |
-| Configurable Mocks       | Simulate different scenarios            | SetExecCommandResult()            |
-| Call Verification        | Verify correct command invocation       | GetLastExecCommandCall()          |
-| State Reset              | Isolate tests from each other           | ResetExecCommand()                |
-| Subtests                 | Organize related test scenarios         | t.Run()                           |
-| Temporary Directories    | Safe file operation testing             | t.TempDir()                       |
-| Path Override + Cleanup  | Test with custom paths safely           | t.Cleanup()                       |
-| Logger Initialization    | Prevent nil pointer errors              | logger.Init(false) in init()      |
-| Error Message Testing    | Verify proper error handling            | strings.Contains()                |
-| Skip Unsupported Methods | Avoid false negatives                   | Comment with rationale            |
+| Component | Location | Purpose |
+|-----------|----------|---------|
+| `MockCommand` | `internal/commands/mock.go` | Mock package management operations |
+| `MockBaseCommand` | `internal/commands/mock.go` | Mock command execution |
+| `MockGit` | `internal/commands/mock.go` | Mock Git operations |
+| `testutil` helpers | `internal/testutil/testutil.go` | Test orchestration & isolation |
+| `MockApp` wrapper | `internal/testutil/testutil.go` | Combines Cmd + Base mocks |
 
-**Key Takeaway**: The devgita testing architecture uses dependency injection via the `BaseCommandExecutor` interface to enable comprehensive unit testing without executing real system commands. Tests are fast, isolated, and provide clear feedback on app behavior.
+**Key Principles**:
+1. **Mocks stay in `commands/`** - They implement domain interfaces
+2. **Orchestration in `testutil/`** - Setup, cleanup, verification helpers
+3. **Complete isolation** - Tests never touch real system files or execute real commands
+4. **Three isolation levels** - Choose based on what your app touches
+
+**Architecture Decision**: Keep mock implementations in `internal/commands/mock.go` because they are domain-specific test doubles. The `testutil` package provides higher-level orchestration and convenience wrappers.

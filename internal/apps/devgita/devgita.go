@@ -16,7 +16,7 @@ import (
 
 type Devgita struct {
 	Git  git.Git
-	Base commands.BaseCommand
+	Base commands.BaseCommandExecutor
 }
 
 var configDirPath = filepath.Join(paths.Paths.Config.Root, constants.App.Name)
@@ -24,7 +24,7 @@ var globalConfigPath = filepath.Join(configDirPath, constants.App.File.GlobalCon
 var zshConfigPath = filepath.Join(configDirPath, constants.App.File.ZshConfig)
 
 func New() *Devgita {
-	return &Devgita{Git: *git.New(), Base: *commands.NewBaseCommand()}
+	return &Devgita{Git: *git.New(), Base: commands.NewBaseCommand()}
 }
 
 func (dg *Devgita) Install() error {

@@ -117,7 +117,8 @@ func (t *Terminal) InstallTerminalApps() {
 }
 
 func (t *Terminal) InstallDevTools() {
-	// should install bat, btop, curl, eza, fd-find, fzf, gh, powerlevel10k, ripgrep, syntaxhighlighting, tldr, zoxide, zsh-autosuggestions
+	// should install bat, btop, curl, eza, fd-find, fzf, gh, powerlevel10k,
+	// ripgrep, syntaxhighlighting, tldr, zoxide, zsh-autosuggestions
 	devtools := []struct {
 		name string
 		app  interface{ SoftInstall() error }
@@ -143,8 +144,7 @@ func (t *Terminal) InstallDevTools() {
 
 func (t *Terminal) InstallCoreLibs() {
 	// installs libs pkg-config, autoconf, bison, openssl, readline, zlib,
-	//               libyaml, ncurses, libffi, gdbm, jemalloc, vips, mupdf,
-	//	         unzip
+	// libyaml, ncurses, libffi, gdbm, jemalloc, vips, mupdf, unzip
 	libs := []struct {
 		name string
 		app  interface{ SoftInstall() error }
