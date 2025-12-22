@@ -9,8 +9,9 @@ import (
 const ConfigKey = "devgita-config-context"
 
 type ContextConfig struct {
-	SelectedLanguages []string
-	SelectedDbs       []string
+	SelectedLanguages   []string
+	SelectedDbs         []string
+	SelectedDesktopApps []string
 }
 
 // Function to store the config in context

@@ -132,6 +132,21 @@ const (
 	Fonts     = "fonts"
 	Themes    = "themes"
 	Templates = "templates"
+
+	// Programming languages (Mise core tools - non-experimental)
+	Bun    = "bun"
+	Deno   = "deno"
+	Elixir = "elixir"
+	Erlang = "erlang"
+	Go     = "go"
+	Java   = "java"
+	Node   = "node"
+	Python = "python"
+	Ruby   = "ruby"
+	Rust   = "rust"
+
+	// Programming languages (native package manager)
+	PHP = "php"
 )
 
 var Devgita = `
