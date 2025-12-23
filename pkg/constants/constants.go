@@ -147,6 +147,13 @@ const (
 
 	// Programming languages (native package manager)
 	PHP = "php"
+
+	// Databases (native package manager)
+	MongoDB    = "mongodb"
+	MySQL      = "mysql"
+	PostgreSQL = "postgresql"
+	Redis      = "redis"
+	SQLite     = "sqlite"
 )
 
 var Devgita = `
