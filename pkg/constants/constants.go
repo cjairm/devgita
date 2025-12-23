@@ -134,7 +134,7 @@ const (
 	Themes    = "themes"
 	Templates = "templates"
 
-	// Programming languages (Mise core tools - non-experimental)
+	// Programming languages (Mise core tools)
 	Bun    = "bun"
 	Deno   = "deno"
 	Elixir = "elixir"

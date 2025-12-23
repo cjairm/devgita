@@ -26,7 +26,6 @@ func (d *Desktop) InstallAndConfigure() error {
 	dkr := docker.New()
 	displayMessage(dkr.Install(), "docker")
 
-	utils.PrintInfo("Installing and setting up alacritty (if no previous configuration)...")
 	err := d.InstallAlacritty()
 	displayMessage(err, "alacritty")
 
@@ -57,10 +56,6 @@ func (d *Desktop) InstallAndConfigure() error {
 	d.DisplayPrivacyInstructions()
 
 	return nil
-}
-
-func (d *Desktop) InstallDocker() error {
-	return d.Cmd.MaybeInstallDesktopApp("docker")
 }
 
 func (d *Desktop) InstallAlacritty() error {

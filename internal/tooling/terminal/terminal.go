@@ -67,10 +67,10 @@ func (t *Terminal) InstallAndConfigure() {
 	t.InstallDevTools()
 	t.InstallCoreLibs()
 
-	execCommand := commands.CommandParams{
-		Command: fmt.Sprintf("source %s", paths.Files.ShellConfig),
-	}
-	if _, _, err := t.Base.ExecCommand(execCommand); err != nil {
+	if _, _, err := t.Base.ExecCommand(commands.CommandParams{
+		Command: "source",
+		Args:    []string{paths.Files.ShellConfig},
+	}); err != nil {
 		utils.PrintWarning(fmt.Sprintf(
 			"Failed to source %s: %v",
 			paths.Files.ShellConfig, err))
