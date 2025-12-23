@@ -3,9 +3,11 @@ package alacritty
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/cjairm/devgita/internal/commands"
+	"github.com/cjairm/devgita/internal/testutil"
 	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/logger"
 	"github.com/cjairm/devgita/pkg/paths"
@@ -85,155 +87,198 @@ func TestSoftInstall(t *testing.T) {
 // }
 
 func TestForceConfigure(t *testing.T) {
-	// Create temp directories for testing
-	appDir := t.TempDir()
-	localDir := t.TempDir()
-	fontsDir := t.TempDir()
-	themesDir := t.TempDir()
+	// Setup isolated test environment with templates and config
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
 
-	// Override global paths for the duration of the test
+	// Create alacritty template
+	tmplDir := filepath.Join(tc.AppDir, "alacritty")
+	if err := os.MkdirAll(tmplDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	tmplContent := `[env]
+TERM = "xterm-256color"
+
+[window]
+opacity = 0.8
+
+{{if eq .Font "default"}}
+[font]
+size = 13
+{{end}}
+
+{{if eq .Theme "default"}}
+[colors.primary]
+background = "0x282828"
+{{end}}
+`
+	tmplPath := filepath.Join(tmplDir, "alacritty.toml.tmpl")
+	if err := os.WriteFile(tmplPath, []byte(tmplContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create starter.sh
+	starterContent := "#!/bin/bash\nzsh"
+	starterPath := filepath.Join(tmplDir, "starter.sh")
+	if err := os.WriteFile(starterPath, []byte(starterContent), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create destination directory
+	destDir := filepath.Join(tc.ConfigDir, "alacritty")
+	if err := os.MkdirAll(destDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Override paths
 	oldAppConfig := paths.Paths.App.Configs.Alacritty
 	oldLocalConfig := paths.Paths.Config.Alacritty
-	oldFontsDir := paths.Paths.App.Fonts.Alacritty
-	oldThemesDir := paths.Paths.App.Themes.Alacritty
-	oldConfigDir := paths.Paths.Config.Root
+	oldConfigRoot := paths.Paths.Config.Root
 
-	paths.Paths.App.Configs.Alacritty = appDir
-	paths.Paths.Config.Alacritty = localDir
-	paths.Paths.App.Fonts.Alacritty = fontsDir
-	paths.Paths.App.Themes.Alacritty = themesDir
-	paths.Paths.Config.Root = "/test/config"
+	paths.Paths.App.Configs.Alacritty = tmplDir
+	paths.Paths.Config.Alacritty = destDir
+	paths.Paths.Config.Root = tc.ConfigDir
 
 	t.Cleanup(func() {
 		paths.Paths.App.Configs.Alacritty = oldAppConfig
 		paths.Paths.Config.Alacritty = oldLocalConfig
-		paths.Paths.App.Fonts.Alacritty = oldFontsDir
-		paths.Paths.App.Themes.Alacritty = oldThemesDir
-		paths.Paths.Config.Root = oldConfigDir
+		paths.Paths.Config.Root = oldConfigRoot
 	})
 
-	// Create test config files
-	configContent := "window:\n  opacity: 0.9\n  option_as_alt: both"
-	if err := os.WriteFile(filepath.Join(appDir, "alacritty.toml"), []byte(configContent), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	app := &Alacritty{Cmd: tc.MockApp.Cmd}
 
-	// Create default font and theme directories with test files
-	defaultFontDir := filepath.Join(fontsDir, "default")
-	defaultThemeDir := filepath.Join(themesDir, "default")
-	if err := os.MkdirAll(defaultFontDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(defaultThemeDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-
-	fontContent := "size = 14\nfamily = \"JetBrains Mono\""
-	themeContent := "background = \"#1e1e1e\"\nforeground = \"#ffffff\""
-	if err := os.WriteFile(filepath.Join(defaultFontDir, "font.toml"), []byte(fontContent), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(defaultThemeDir, "theme.toml"), []byte(themeContent), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	mc := commands.NewMockCommand()
-	app := &Alacritty{Cmd: mc}
-
-	if err := app.ForceConfigure(); err != nil {
+	if err := app.ForceConfigure(ConfigureOptions{}); err != nil {
 		t.Fatalf("ForceConfigure error: %v", err)
 	}
 
-	// Check that config files were copied
-	checkFiles := []string{"alacritty.toml", "font.toml", "theme.toml"}
-	for _, file := range checkFiles {
-		checkPath := filepath.Join(localDir, file)
-		if _, err := os.Stat(checkPath); err != nil {
-			t.Fatalf("expected copied file at %s: %v", checkPath, err)
-		}
+	// Check that config file was generated
+	configPath := filepath.Join(destDir, "alacritty.toml")
+	if _, err := os.Stat(configPath); err != nil {
+		t.Fatalf("expected generated file at %s: %v", configPath, err)
+	}
+
+	// Check that starter.sh was copied
+	starterDest := filepath.Join(destDir, "starter.sh")
+	if _, err := os.Stat(starterDest); err != nil {
+		t.Fatalf("expected copied file at %s: %v", starterDest, err)
+	}
+
+	// Verify generated content contains expected sections
+	content, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("failed to read generated config: %v", err)
+	}
+	configStr := string(content)
+	if !strings.Contains(configStr, "TERM") {
+		t.Error("expected generated config to contain TERM setting")
+	}
+	if !strings.Contains(configStr, "opacity = 0.8") {
+		t.Error("expected generated config to contain opacity setting")
 	}
 }
 
 func TestSoftConfigure(t *testing.T) {
-	// Create temp directories for testing
-	appDir := t.TempDir()
-	localDir := t.TempDir()
-	fontsDir := t.TempDir()
-	themesDir := t.TempDir()
+	// Setup isolated test environment with templates and config
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
 
-	// Override global paths for the duration of the test
+	// Create alacritty template
+	tmplDir := filepath.Join(tc.AppDir, "alacritty")
+	if err := os.MkdirAll(tmplDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	tmplContent := `[env]
+TERM = "xterm-256color"
+
+[window]
+opacity = 0.9
+
+{{if eq .Font "default"}}
+[font]
+size = 14
+{{end}}
+
+{{if eq .Theme "default"}}
+[colors.primary]
+background = "0x1e1e1e"
+{{end}}
+`
+	tmplPath := filepath.Join(tmplDir, "alacritty.toml.tmpl")
+	if err := os.WriteFile(tmplPath, []byte(tmplContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create starter.sh
+	starterContent := "#!/bin/bash\nzsh"
+	starterPath := filepath.Join(tmplDir, "starter.sh")
+	if err := os.WriteFile(starterPath, []byte(starterContent), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create destination directory
+	destDir := filepath.Join(tc.ConfigDir, "alacritty")
+	if err := os.MkdirAll(destDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Override paths
 	oldAppConfig := paths.Paths.App.Configs.Alacritty
 	oldLocalConfig := paths.Paths.Config.Alacritty
-	oldFontsDir := paths.Paths.App.Fonts.Alacritty
-	oldThemesDir := paths.Paths.App.Themes.Alacritty
-	oldConfigDir := paths.Paths.Config.Root
+	oldConfigRoot := paths.Paths.Config.Root
 
-	paths.Paths.App.Configs.Alacritty = appDir
-	paths.Paths.Config.Alacritty = localDir
-	paths.Paths.App.Fonts.Alacritty = fontsDir
-	paths.Paths.App.Themes.Alacritty = themesDir
-	paths.Paths.Config.Root = "/test/config"
+	paths.Paths.App.Configs.Alacritty = tmplDir
+	paths.Paths.Config.Alacritty = destDir
+	paths.Paths.Config.Root = tc.ConfigDir
 
 	t.Cleanup(func() {
 		paths.Paths.App.Configs.Alacritty = oldAppConfig
 		paths.Paths.Config.Alacritty = oldLocalConfig
-		paths.Paths.App.Fonts.Alacritty = oldFontsDir
-		paths.Paths.App.Themes.Alacritty = oldThemesDir
-		paths.Paths.Config.Root = oldConfigDir
+		paths.Paths.Config.Root = oldConfigRoot
 	})
 
-	// Create test config files
-	configContent := "window:\n  opacity: 0.9\n  option_as_alt: both"
-	if err := os.WriteFile(filepath.Join(appDir, "alacritty.toml"), []byte(configContent), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	// Create default font and theme directories with test files
-	defaultFontDir := filepath.Join(fontsDir, "default")
-	defaultThemeDir := filepath.Join(themesDir, "default")
-	if err := os.MkdirAll(defaultFontDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(defaultThemeDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-
-	fontContent := "size = 14\nfamily = \"JetBrains Mono\""
-	themeContent := "background = \"#1e1e1e\"\nforeground = \"#ffffff\""
-	if err := os.WriteFile(filepath.Join(defaultFontDir, "font.toml"), []byte(fontContent), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(defaultThemeDir, "theme.toml"), []byte(themeContent), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	mc := commands.NewMockCommand()
-	app := &Alacritty{Cmd: mc}
+	app := &Alacritty{Cmd: tc.MockApp.Cmd}
 
 	// Test 1: Should configure when no existing config
-	if err := app.SoftConfigure(); err != nil {
+	if err := app.SoftConfigure(ConfigureOptions{}); err != nil {
 		t.Fatalf("SoftConfigure error: %v", err)
 	}
 
-	// Check that config files were copied
-	checkFiles := []string{"alacritty.toml", "font.toml", "theme.toml"}
-	for _, file := range checkFiles {
-		checkPath := filepath.Join(localDir, file)
-		if _, err := os.Stat(checkPath); err != nil {
-			t.Fatalf("expected copied file at %s: %v", checkPath, err)
-		}
+	// Check that config file was generated
+	configPath := filepath.Join(destDir, "alacritty.toml")
+	if _, err := os.Stat(configPath); err != nil {
+		t.Fatalf("expected generated file at %s: %v", configPath, err)
+	}
+
+	// Check that starter.sh was copied
+	starterDest := filepath.Join(destDir, "starter.sh")
+	if _, err := os.Stat(starterDest); err != nil {
+		t.Fatalf("expected copied file at %s: %v", starterDest, err)
+	}
+
+	// Verify generated content
+	content, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("failed to read generated config: %v", err)
+	}
+	configStr := string(content)
+	if !strings.Contains(configStr, "opacity = 0.9") {
+		t.Error("expected generated config to contain opacity setting")
 	}
 
 	// Test 2: Should not overwrite when config already exists
 	// Modify the existing config
-	modifiedContent := "window:\n  opacity: 0.5\n  option_as_alt: none"
-	configPath := filepath.Join(localDir, "alacritty.toml")
-	if err := os.WriteFile(configPath, []byte(modifiedContent), 0o644); err != nil {
+	modifiedContent := `[window]
+opacity = 0.5
+option_as_alt = "none"
+`
+	if err := os.WriteFile(configPath, []byte(modifiedContent), 0644); err != nil {
 		t.Fatal(err)
 	}
 
 	// Run SoftConfigure again
-	if err := app.SoftConfigure(); err != nil {
+	if err := app.SoftConfigure(ConfigureOptions{}); err != nil {
 		t.Fatalf("second SoftConfigure error: %v", err)
 	}
 
@@ -244,7 +289,7 @@ func TestSoftConfigure(t *testing.T) {
 	}
 	if string(finalContent) != modifiedContent {
 		t.Fatalf(
-			"SoftConfigure overwrote existing config: expected %q, got %q",
+			"SoftConfigure should not overwrite existing config: expected %q, got %q",
 			modifiedContent,
 			string(finalContent),
 		)
