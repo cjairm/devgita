@@ -133,7 +133,7 @@ func installDatabases(ctx context.Context, onlySet, skipSet map[string]bool) {
 func installDesktopTools(onlySet, skipSet map[string]bool) {
 	if shouldInstall("desktop", onlySet, skipSet) {
 		desktopTool := desktop.New()
-		desktopTool.InstallAll()
+		desktopTool.InstallAndConfigure()
 	} else {
 		utils.PrintInfo("Skipping desktop applications installation")
 	}

@@ -97,6 +97,7 @@ const (
 	Bat                = "bat"
 	Btop               = "btop"
 	Curl               = "curl"
+	Docker             = "docker"
 	Eza                = "eza"
 	Fastfetch          = "fastfetch"
 	FdFind             = "fd" // Equivalent to "fd-find" in Linux package managers
