@@ -103,6 +103,7 @@ const (
 	FdFind             = "fd" // Equivalent to "fd-find" in Linux package managers
 	Fzf                = "fzf"
 	Gdbm               = "gdbm"
+	Gimp               = "gimp"
 	Git                = "git"
 	GithubCli          = "gh"
 	Jemalloc           = "jemalloc"

@@ -7,6 +7,7 @@ import (
 	"github.com/cjairm/devgita/internal/apps/alacritty"
 	"github.com/cjairm/devgita/internal/apps/docker"
 	"github.com/cjairm/devgita/internal/apps/fonts"
+	"github.com/cjairm/devgita/internal/apps/gimp"
 	cmd "github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/pkg/logger"
 	"github.com/cjairm/devgita/pkg/promptui"
@@ -33,9 +34,8 @@ func (d *Desktop) InstallAndConfigure() error {
 	f := fonts.New()
 	f.SoftInstallAll()
 
-	utils.PrintInfo("Installing gimp (if no previously installed)...")
-	err = d.InstallGimp()
-	displayMessage(err, "gimp")
+	gimp := gimp.New()
+	displayMessage(gimp.Install(), "gimp")
 
 	utils.PrintInfo("Installing brave (if no previously installed)...")
 	err = d.InstallBrave()
@@ -69,10 +69,6 @@ func (d *Desktop) InstallAlacritty() error {
 		return err
 	}
 	return nil
-}
-
-func (d *Desktop) InstallGimp() error {
-	return d.Cmd.MaybeInstallDesktopApp("gimp")
 }
 
 func (d *Desktop) InstallBrave() error {
