@@ -8,6 +8,7 @@ import (
 	"github.com/cjairm/devgita/internal/apps/lazygit"
 	"github.com/cjairm/devgita/internal/apps/mise"
 	"github.com/cjairm/devgita/internal/apps/neovim"
+	"github.com/cjairm/devgita/internal/apps/opencode"
 	"github.com/cjairm/devgita/internal/apps/tmux"
 	"github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/internal/tooling/terminal/core/autoconf"
@@ -114,6 +115,9 @@ func (t *Terminal) InstallTerminalApps() {
 
 	m := mise.New()
 	displayMessage(m.SoftInstall(), constants.Mise)
+
+	o := opencode.New()
+	displayMessage(o.SoftInstall(), constants.OpenCode)
 }
 
 func (t *Terminal) InstallDevTools() {

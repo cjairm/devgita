@@ -23,6 +23,7 @@ var Paths = struct {
 			Fonts     string
 			Git       string
 			Neovim    string
+			OpenCode  string
 			Templates string
 			Themes    string
 			Tmux      string
@@ -46,6 +47,7 @@ var Paths = struct {
 		Fonts     string
 		Git       string
 		Nvim      string
+		OpenCode  string
 		Themes    string
 		Tmux      string
 	}
@@ -73,6 +75,7 @@ var Paths = struct {
 			Fonts     string
 			Git       string
 			Neovim    string
+			OpenCode  string
 			Templates string
 			Themes    string
 			Tmux      string
@@ -92,6 +95,7 @@ var Paths = struct {
 			Fonts     string
 			Git       string
 			Neovim    string
+			OpenCode  string
 			Templates string
 			Themes    string
 			Tmux      string
@@ -102,6 +106,7 @@ var Paths = struct {
 			Fonts:     GetAppDir(constants.App.Dir.Configs, constants.Fonts),
 			Git:       GetAppDir(constants.App.Dir.Configs, constants.Git),
 			Neovim:    GetAppDir(constants.App.Dir.Configs, constants.Neovim),
+			OpenCode:  GetAppDir(constants.App.Dir.Configs, constants.OpenCode),
 			Templates: GetAppDir(constants.App.Dir.Configs, constants.Templates),
 			Themes:    GetAppDir(constants.App.Dir.Configs, constants.Themes),
 			Tmux:      GetAppDir(constants.App.Dir.Configs, constants.Tmux),
@@ -131,6 +136,7 @@ var Paths = struct {
 		Fonts     string
 		Git       string
 		Nvim      string
+		OpenCode  string
 		Themes    string
 		Tmux      string
 	}{
@@ -142,6 +148,7 @@ var Paths = struct {
 		Fonts:     GetConfigDir(constants.Fonts),
 		Git:       GetConfigDir(constants.Git),
 		Nvim:      GetConfigDir(constants.Nvim),
+		OpenCode:  GetConfigDir(constants.OpenCode),
 		Themes:    GetConfigDir(constants.Themes),
 		Tmux:      GetConfigDir(constants.Tmux),
 	},

@@ -47,7 +47,12 @@ func (a *Alacritty) ForceInstall() error {
 	return a.Install()
 }
 
-func (a *Alacritty) ForceConfigure(options ConfigureOptions) error {
+func (a *Alacritty) ForceConfigure(opts ...ConfigureOptions) error {
+	var options ConfigureOptions
+	if len(opts) > 0 {
+		options = opts[0]
+	}
+
 	gc := &config.GlobalConfig{}
 	if err := gc.Load(); err != nil {
 		return fmt.Errorf("failed to load global config: %w", err)
@@ -88,7 +93,12 @@ func (a *Alacritty) ForceConfigure(options ConfigureOptions) error {
 	return nil
 }
 
-func (a *Alacritty) SoftConfigure(options ConfigureOptions) error {
+func (a *Alacritty) SoftConfigure(opts ...ConfigureOptions) error {
+	var options ConfigureOptions
+	if len(opts) > 0 {
+		options = opts[0]
+	}
+
 	gc := &config.GlobalConfig{}
 	if err := gc.Load(); err != nil {
 		return fmt.Errorf("failed to load global config: %w", err)
