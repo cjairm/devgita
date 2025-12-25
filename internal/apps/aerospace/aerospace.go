@@ -15,6 +15,8 @@ import (
 	"path/filepath"
 
 	cmd "github.com/cjairm/devgita/internal/commands"
+	"github.com/cjairm/devgita/internal/config"
+	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/files"
 	"github.com/cjairm/devgita/pkg/paths"
 )
@@ -51,11 +53,26 @@ func (a *Aerospace) Uninstall() error {
 }
 
 func (a *Aerospace) ForceConfigure() error {
-	return files.CopyDir(paths.Paths.App.Configs.Aerospace, paths.Paths.Config.Aerospace)
+	gc := &config.GlobalConfig{}
+	if err := gc.Load(); err != nil {
+		return fmt.Errorf("failed to load global config: %w", err)
+	}
+	err := files.CopyDir(paths.Paths.App.Configs.Aerospace, paths.Paths.Config.Aerospace)
+	if err != nil {
+		return fmt.Errorf("failed to copy aerospace starter script: %w", err)
+	}
+	gc.AddToInstalled(constants.Aerospace, "desktop_app")
+	if err := gc.Save(); err != nil {
+		return fmt.Errorf("failed to save global config: %w", err)
+	}
+	return nil
 }
 
 func (a *Aerospace) SoftConfigure() error {
-	aerospaceConfigFile := filepath.Join(paths.Paths.Config.Aerospace, "aerospace.toml")
+	aerospaceConfigFile := filepath.Join(
+		paths.Paths.Config.Aerospace,
+		fmt.Sprintf("%s.toml", constants.Aerospace),
+	)
 	if isFilePresent := files.FileAlreadyExist(aerospaceConfigFile); isFilePresent {
 		return nil
 	}

@@ -6,13 +6,13 @@ import (
 	"testing"
 
 	"github.com/cjairm/devgita/internal/commands"
-	"github.com/cjairm/devgita/pkg/logger"
+	"github.com/cjairm/devgita/internal/testutil"
 	"github.com/cjairm/devgita/pkg/paths"
 )
 
 func init() {
 	// Initialize logger for tests
-	logger.Init(false)
+	testutil.InitLogger()
 }
 
 func TestNew(t *testing.T) {
@@ -81,9 +81,18 @@ func TestUninstall(t *testing.T) {
 }
 
 func TestForceConfigure(t *testing.T) {
+	// Setup isolated test environment with global config
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
+
 	// Create temp "app config" dir with a fake file as source
-	src := t.TempDir()
-	dst := t.TempDir()
+	src := filepath.Join(tc.AppDir, "aerospace")
+	dst := filepath.Join(tc.ConfigDir, "aerospace")
+
+	// Create source directory
+	if err := os.MkdirAll(src, 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	// Override global paths for the duration of the test
 	oldAppDir, oldLocalDir := paths.Paths.App.Configs.Aerospace, paths.Paths.Config.Aerospace
@@ -140,8 +149,18 @@ func TestForceConfigure(t *testing.T) {
 }
 
 func TestSoftConfigure(t *testing.T) {
-	src := t.TempDir()
-	dst := t.TempDir()
+	// Setup isolated test environment with global config
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
+
+	// Create source and destination directories
+	src := filepath.Join(tc.AppDir, "aerospace")
+	dst := filepath.Join(tc.ConfigDir, "aerospace")
+
+	// Create source directory
+	if err := os.MkdirAll(src, 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	// Override global paths for the duration of the test
 	oldAppDir, oldLocalDir := paths.Paths.App.Configs.Aerospace, paths.Paths.Config.Aerospace
