@@ -5,6 +5,7 @@ import (
 
 	"github.com/cjairm/devgita/internal/apps/aerospace"
 	"github.com/cjairm/devgita/internal/apps/alacritty"
+	"github.com/cjairm/devgita/internal/apps/brave"
 	"github.com/cjairm/devgita/internal/apps/docker"
 	"github.com/cjairm/devgita/internal/apps/fonts"
 	"github.com/cjairm/devgita/internal/apps/gimp"
@@ -25,7 +26,7 @@ func New() *Desktop {
 
 func (d *Desktop) InstallAndConfigure() error {
 	dkr := docker.New()
-	displayMessage(dkr.Install(), "docker")
+	displayMessage(dkr.SoftInstall(), "docker")
 
 	err := d.InstallAlacritty()
 	displayMessage(err, "alacritty")
@@ -35,11 +36,10 @@ func (d *Desktop) InstallAndConfigure() error {
 	f.SoftInstallAll()
 
 	gimp := gimp.New()
-	displayMessage(gimp.Install(), "gimp")
+	displayMessage(gimp.SoftInstall(), "gimp")
 
-	utils.PrintInfo("Installing brave (if no previously installed)...")
-	err = d.InstallBrave()
-	displayMessage(err, "brave")
+	b := brave.New()
+	displayMessage(b.SoftInstall(), "brave")
 
 	utils.PrintInfo("Installing flameshot (if no previously installed)...")
 	err = d.InstallFlameshot()
@@ -69,10 +69,6 @@ func (d *Desktop) InstallAlacritty() error {
 		return err
 	}
 	return nil
-}
-
-func (d *Desktop) InstallBrave() error {
-	return d.Cmd.MaybeInstallDesktopApp("brave-browser", "brave")
 }
 
 func (d *Desktop) InstallFlameshot() error {

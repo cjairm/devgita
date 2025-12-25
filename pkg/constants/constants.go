@@ -95,6 +95,7 @@ const (
 	Autoconf           = "autoconf"
 	Bison              = "bison"
 	Bat                = "bat"
+	Brave              = "brave"
 	Btop               = "btop"
 	Curl               = "curl"
 	Docker             = "docker"
