@@ -7,6 +7,7 @@ import (
 	"github.com/cjairm/devgita/internal/apps/alacritty"
 	"github.com/cjairm/devgita/internal/apps/brave"
 	"github.com/cjairm/devgita/internal/apps/docker"
+	"github.com/cjairm/devgita/internal/apps/flameshot"
 	"github.com/cjairm/devgita/internal/apps/fonts"
 	"github.com/cjairm/devgita/internal/apps/gimp"
 	cmd "github.com/cjairm/devgita/internal/commands"
@@ -41,9 +42,8 @@ func (d *Desktop) InstallAndConfigure() error {
 	b := brave.New()
 	displayMessage(b.SoftInstall(), "brave")
 
-	utils.PrintInfo("Installing flameshot (if no previously installed)...")
-	err = d.InstallFlameshot()
-	displayMessage(err, "flameshot")
+	fs := flameshot.New()
+	displayMessage(fs.SoftInstall(), "flameshot")
 
 	utils.PrintInfo("Installing aerospace (if no previously installed)...")
 	err = d.InstallAerospace()
@@ -69,10 +69,6 @@ func (d *Desktop) InstallAlacritty() error {
 		return err
 	}
 	return nil
-}
-
-func (d *Desktop) InstallFlameshot() error {
-	return d.Cmd.MaybeInstallDesktopApp("flameshot")
 }
 
 func (d *Desktop) InstallAerospace() error {
