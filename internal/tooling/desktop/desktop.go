@@ -19,43 +19,54 @@ import (
 )
 
 type Desktop struct {
-	Cmd cmd.Command
+	Cmd  cmd.Command
+	Base cmd.BaseCommand
 }
 
 func New() *Desktop {
 	osCmd := cmd.NewCommand()
-	return &Desktop{Cmd: osCmd}
+	baseCmd := cmd.NewBaseCommand()
+	return &Desktop{Cmd: osCmd, Base: *baseCmd}
 }
 
 func (d *Desktop) InstallAndConfigure() error {
-	dkr := docker.New()
-	displayMessage(dkr.SoftInstall(), constants.Docker)
-
 	err := d.InstallAlacritty()
 	displayMessage(err, constants.Alacritty)
+
+	err = d.InstallAerospace()
+	displayMessage(err, constants.Aerospace)
 
 	utils.PrintInfo("Installing fonts (if no previously installed)...")
 	f := fonts.New()
 	f.SoftInstallAll()
 
-	gimp := gimp.New()
-	displayMessage(gimp.SoftInstall(), constants.Gimp)
-
-	b := brave.New()
-	displayMessage(b.SoftInstall(), constants.Brave)
-
-	fs := flameshot.New()
-	displayMessage(fs.SoftInstall(), constants.Flameshot)
-
-	err = d.InstallAerospace()
-	displayMessage(err, constants.Aerospace)
-
-	r := raycast.New()
-	displayMessage(r.SoftInstall(), constants.Raycast)
-
-	d.DisplayPrivacyInstructions()
+	if d.Base.Platform.IsMac() {
+		d.DisplayPrivacyInstructions()
+	}
 
 	return nil
+}
+
+func (d *Desktop) InstallDesktopAppsWithoutConfiguration() {
+	// should install docker, gimp, brave, flameshot, raycast
+	desktopApps := []struct {
+		name string
+		app  interface {
+			SoftInstall() error
+		}
+	}{
+		{constants.Docker, docker.New()},
+		{constants.Gimp, gimp.New()},
+		{constants.Brave, brave.New()},
+		{constants.Flameshot, flameshot.New()},
+		{constants.Raycast, raycast.New()},
+	}
+	for _, desktopApp := range desktopApps {
+		if err := desktopApp.app.SoftInstall(); err != nil {
+			displayMessage(err, desktopApp.name)
+			continue
+		}
+	}
 }
 
 func (d *Desktop) InstallAlacritty() error {
