@@ -121,6 +121,7 @@ const (
 	OpenSSL            = "openssl"
 	PkgConfig          = "pkg-config"
 	Powerlevel10k      = "powerlevel10k"
+	Raycast            = "raycast"
 	Readline           = "readline"
 	Ripgrep            = "rg"
 	Syntaxhighlighting = "zsh-syntax-highlighting"

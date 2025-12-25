@@ -10,7 +10,9 @@ import (
 	"github.com/cjairm/devgita/internal/apps/flameshot"
 	"github.com/cjairm/devgita/internal/apps/fonts"
 	"github.com/cjairm/devgita/internal/apps/gimp"
+	"github.com/cjairm/devgita/internal/apps/raycast"
 	cmd "github.com/cjairm/devgita/internal/commands"
+	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/logger"
 	"github.com/cjairm/devgita/pkg/promptui"
 	"github.com/cjairm/devgita/pkg/utils"
@@ -27,31 +29,29 @@ func New() *Desktop {
 
 func (d *Desktop) InstallAndConfigure() error {
 	dkr := docker.New()
-	displayMessage(dkr.SoftInstall(), "docker")
+	displayMessage(dkr.SoftInstall(), constants.Docker)
 
 	err := d.InstallAlacritty()
-	displayMessage(err, "alacritty")
+	displayMessage(err, constants.Alacritty)
 
 	utils.PrintInfo("Installing fonts (if no previously installed)...")
 	f := fonts.New()
 	f.SoftInstallAll()
 
 	gimp := gimp.New()
-	displayMessage(gimp.SoftInstall(), "gimp")
+	displayMessage(gimp.SoftInstall(), constants.Gimp)
 
 	b := brave.New()
-	displayMessage(b.SoftInstall(), "brave")
+	displayMessage(b.SoftInstall(), constants.Brave)
 
 	fs := flameshot.New()
-	displayMessage(fs.SoftInstall(), "flameshot")
+	displayMessage(fs.SoftInstall(), constants.Flameshot)
 
-	utils.PrintInfo("Installing aerospace (if no previously installed)...")
 	err = d.InstallAerospace()
-	displayMessage(err, "aerospace")
+	displayMessage(err, constants.Aerospace)
 
-	utils.PrintInfo("Installing raycast (if no previously installed)...")
-	err = d.InstallRaycast()
-	displayMessage(err, "raycast")
+	r := raycast.New()
+	displayMessage(r.SoftInstall(), constants.Raycast)
 
 	d.DisplayPrivacyInstructions()
 
@@ -82,10 +82,6 @@ func (d *Desktop) InstallAerospace() error {
 		return err
 	}
 	return nil
-}
-
-func (d *Desktop) InstallRaycast() error {
-	return d.Cmd.MaybeInstallDesktopApp("raycast")
 }
 
 func (d *Desktop) DisplayPrivacyInstructions() error {
