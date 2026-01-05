@@ -35,23 +35,11 @@
     "success": { "dark": "gb_green", "light": "gb_green" },
     "info": { "dark": "gb_blue", "light": "gb_blue" },
 
-    "text": {
-      "dark": "gb_fg_dark",
-      "light": "gb_fg_light"
-    },
-    "textMuted": {
-      "dark": "gb_fg_muted_dark",
-      "light": "gb_fg_muted_light"
-    },
+    "text": { "dark": "gb_fg_dark", "light": "gb_fg_light" },
+    "textMuted": { "dark": "gb_fg_muted_dark", "light": "gb_fg_muted_light" },
 
-    "background": {
-      "dark": "none",
-      "light": "none"
-    },
-    "backgroundPanel": {
-      "dark": "none",
-      "light": "none"
-    },
+    "background": { "dark": "none", "light": "none" },
+    "backgroundPanel": { "dark": "none", "light": "none" },
     "backgroundElement": {
       "dark": "gb_bg_element_dark",
       "light": "gb_bg_element_light"
@@ -64,16 +52,25 @@
     "diffAdded": { "dark": "gb_green", "light": "gb_green" },
     "diffRemoved": { "dark": "gb_red", "light": "gb_red" },
     "diffContext": { "dark": "gb_fg_muted_dark", "light": "gb_fg_muted_light" },
-    "diffHunkHeader": { "dark": "gb_fg_muted_dark", "light": "gb_fg_muted_light" },
+    "diffHunkHeader": {
+      "dark": "gb_fg_muted_dark",
+      "light": "gb_fg_muted_light"
+    },
 
     "diffHighlightAdded": { "dark": "gb_green", "light": "gb_green" },
     "diffHighlightRemoved": { "dark": "gb_red", "light": "gb_red" },
 
     "diffAddedBg": { "dark": "#32361a", "light": "#e6e9c1" },
     "diffRemovedBg": { "dark": "#3c1f1e", "light": "#f2d3cf" },
-    "diffContextBg": { "dark": "gb_bg_panel_dark", "light": "gb_bg_panel_light" },
+    "diffContextBg": {
+      "dark": "gb_bg_panel_dark",
+      "light": "gb_bg_panel_light"
+    },
 
-    "diffLineNumber": { "dark": "gb_fg_muted_dark", "light": "gb_fg_muted_light" },
+    "diffLineNumber": {
+      "dark": "gb_fg_muted_dark",
+      "light": "gb_fg_muted_light"
+    },
     "diffAddedLineNumberBg": { "dark": "#32361a", "light": "#e6e9c1" },
     "diffRemovedLineNumberBg": { "dark": "#3c1f1e", "light": "#f2d3cf" },
 
@@ -82,17 +79,26 @@
     "markdownLink": { "dark": "gb_aqua", "light": "gb_aqua" },
     "markdownLinkText": { "dark": "gb_orange", "light": "gb_orange" },
     "markdownCode": { "dark": "gb_green", "light": "gb_green" },
-    "markdownBlockQuote": { "dark": "gb_fg_muted_dark", "light": "gb_fg_muted_light" },
+    "markdownBlockQuote": {
+      "dark": "gb_fg_muted_dark",
+      "light": "gb_fg_muted_light"
+    },
     "markdownEmph": { "dark": "gb_orange", "light": "gb_orange" },
     "markdownStrong": { "dark": "gb_yellow", "light": "gb_yellow" },
-    "markdownHorizontalRule": { "dark": "gb_fg_muted_dark", "light": "gb_fg_muted_light" },
+    "markdownHorizontalRule": {
+      "dark": "gb_fg_muted_dark",
+      "light": "gb_fg_muted_light"
+    },
     "markdownListItem": { "dark": "gb_blue", "light": "gb_blue" },
     "markdownListEnumeration": { "dark": "gb_orange", "light": "gb_orange" },
     "markdownImage": { "dark": "gb_purple", "light": "gb_purple" },
     "markdownImageText": { "dark": "gb_orange", "light": "gb_orange" },
     "markdownCodeBlock": { "dark": "gb_fg_dark", "light": "gb_fg_light" },
 
-    "syntaxComment": { "dark": "gb_fg_muted_dark", "light": "gb_fg_muted_light" },
+    "syntaxComment": {
+      "dark": "gb_fg_muted_dark",
+      "light": "gb_fg_muted_light"
+    },
     "syntaxKeyword": { "dark": "gb_red", "light": "gb_red" },
     "syntaxFunction": { "dark": "gb_green", "light": "gb_green" },
     "syntaxVariable": { "dark": "gb_blue", "light": "gb_blue" },
