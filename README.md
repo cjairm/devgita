@@ -73,6 +73,15 @@ Note. We should optionally be able to pass `--app` or `--package` to only do it 
   - go get github.com/charmbracelet/lipgloss
   - go get github.com/charmbracelet/bubbles/spinner
 - Add new tmux window commands? `dg tmux --new-window="~/my-path/hello-world"` // Will add `tmhello-world`. This will remove the necessity for some custom commands (`tmn`?)
+- AI related:
+  - build or reuse https://github.com/AndyMik90/Auto-Claude ?
+  - templates https://www.aitmpl.com/agents ?
+  - ideas https://huggingface.co/pricing ?
+  - Gemini CLI?
+    - extension: https://developers.googleblog.com/conductor-introducing-context-driven-development-for-gemini-cli/
+  - docs:
+    - https://a2ui.org/
+    - https://genai.owasp.org/resource/cheatsheet-a-practical-guide-for-securely-using-third-party-mcp-servers-1-0/
 
 ---
 
