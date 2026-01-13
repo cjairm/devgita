@@ -53,6 +53,7 @@ Note. We should optionally be able to pass `--app` or `--package` to only do it 
 
 - Postman
 - fc-list ([maybe required](https://github.com/cjairm/devgita/commit/c01797defb5e95a5ccce4206d46f435f9c513215)?)
+- We must add [devpod](https://devpod.sh/) Uses dev containers underneath. Ssh in and run Vim.... to work with AI agent safely
 - install snap? Also maybe required `sudo apt install snapd`
   - `Slack, Spotify, VS Code... etc`
 - Music
