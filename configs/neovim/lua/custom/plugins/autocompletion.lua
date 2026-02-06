@@ -24,11 +24,8 @@ return { -- Autocompletion
 				{
 					"rafamadriz/friendly-snippets",
 					config = function()
-						local luasnip = require("luasnip")
-
 						-- Load friendly snippets
 						require("luasnip.loaders.from_vscode").lazy_load()
-
 						-- Load your custom snippets
 						require("luasnip.loaders.from_lua").load({
 							paths = { vim.fn.stdpath("config") .. "/lua/custom/snippets" },
@@ -39,7 +36,6 @@ return { -- Autocompletion
 			},
 			opts = {},
 		},
-		"folke/lazydev.nvim",
 	},
 	--- @module 'blink.cmp'
 	--- @type blink.cmp.Config
@@ -85,10 +81,7 @@ return { -- Autocompletion
 		},
 
 		sources = {
-			default = { "lsp", "path", "snippets", "lazydev" },
-			providers = {
-				lazydev = { module = "lazydev.integrations.blink", score_offset = 100 },
-			},
+			default = { "lsp", "path", "snippets" },
 		},
 
 		snippets = { preset = "luasnip" },

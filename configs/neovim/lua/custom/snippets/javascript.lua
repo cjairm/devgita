@@ -1,6 +1,5 @@
 local ls = require("luasnip")
 local rep = require("luasnip.extras").rep
-local ts_utils = require("nvim-treesitter.ts_utils")
 
 local s = ls.snippet
 local t = ls.text_node
@@ -12,13 +11,20 @@ local filename = function()
 end
 
 local current_function_name = function()
-	local node = ts_utils.get_node_at_cursor()
+	local ok, node = pcall(vim.treesitter.get_node)
+	if not ok or not node then
+		return "function"
+	end
+
 	while node do
 		if node:type():match("function") then
 			-- Get the text of the function name node
 			local name_node = node:field("name")[1]
 			if name_node then
-				return vim.treesitter.get_node_text(name_node, 0)
+				local ok_text, text = pcall(vim.treesitter.get_node_text, name_node, 0)
+				if ok_text then
+					return text
+				end
 			end
 		end
 		node = node:parent()

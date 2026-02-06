@@ -2,23 +2,16 @@ return { -- Autoformat
 	"stevearc/conform.nvim",
 	event = { "BufWritePre" },
 	cmd = { "ConformInfo" },
-	-- Custom ***
 	keys = {
 		{
-			"<leader>p",
+			"<leader>f",
 			function()
-				require("conform").format({
-					async = true,
-					lsp_format = "fallback",
-					lsp_fallback = true,
-					timeout_ms = 2000,
-				})
+				require("conform").format({ async = true, lsp_format = "fallback" })
 			end,
 			mode = "",
-			desc = "[P](rettier)Format buffer",
+			desc = "[F]ormat buffer",
 		},
 	},
-	-- ***
 	opts = {
 		notify_on_error = false,
 		-- Custom ***

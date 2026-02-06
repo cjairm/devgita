@@ -49,6 +49,19 @@ Neovim's configurations are located under the following paths, depending on your
 | Windows (cmd)| `%localappdata%\nvim\` |
 | Windows (powershell)| `$env:LOCALAPPDATA\nvim\` |
 
+#### Clean steps
+```
+rm -rf ~/.cache/nvim && rm -rf ~/.local/share/nvim
+```
+
+#### Make sure this is installed
+```
+brew install tree-sitter
+brew install tree-sitter-cli
+
+:lua require("nvim-treesitter").install({ "bash", "c", "diff", "cpp", "html", "lua", "luadoc", "markdown", "markdown_inline", "query", "vim", "vimdoc", "typescript", "javascript", "go", "php" }):wait(300000)
+```
+
 #### Recommended Step
 
 [Fork](https://docs.github.com/en/get-started/quickstart/fork-a-repo) this repo

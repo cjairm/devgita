@@ -1,7 +1,7 @@
 -- Custom ***
 -- Blade helper
 vim.filetype.add({
-  pattern = { [".*%.blade%.php"] = "html" }
+	pattern = { [".*%.blade%.php"] = "html" },
 })
 -- when creating a new line, copy the indentation from the line above
 vim.o.autoindent = true
