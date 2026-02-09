@@ -104,5 +104,5 @@ func (m *Mise) UseGlobal(language, version string) error {
 	if version == "" {
 		return fmt.Errorf("`version` is required")
 	}
-	return m.ExecuteCommand("use", "--global", language+"@"+version)
+	return m.ExecuteCommand("use", "--global", fmt.Sprintf("%s@%s", language, version))
 }

@@ -72,7 +72,6 @@ func (ld *LazyDocker) SoftConfigure() error {
 
 func (ld *LazyDocker) ExecuteCommand(args ...string) error {
 	execCommand := cmd.CommandParams{
-		IsSudo:  false,
 		Command: constants.LazyDocker,
 		Args:    args,
 	}

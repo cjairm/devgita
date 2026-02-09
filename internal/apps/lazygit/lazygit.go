@@ -70,7 +70,6 @@ func (lg *LazyGit) SoftConfigure() error {
 
 func (lg *LazyGit) ExecuteCommand(args ...string) error {
 	execCommand := cmd.CommandParams{
-		IsSudo:  false,
 		Command: constants.LazyGit,
 		Args:    args,
 	}

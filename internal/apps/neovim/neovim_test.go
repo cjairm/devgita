@@ -3,7 +3,6 @@ package neovim
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/cjairm/devgita/internal/commands"
@@ -67,22 +66,17 @@ func TestForceConfigure(t *testing.T) {
 	}
 
 	mc := commands.NewMockCommand()
-	app := &Neovim{Cmd: mc}
+	mb := commands.NewMockBaseCommand()
+	// Mock successful version check with version output
+	mb.SetExecCommandResult("NVIM v0.11.1\nBuild type: Release", "", nil)
+	app := &Neovim{Cmd: mc, Base: mb}
 
-	// Test ForceConfigure - may succeed or fail depending on nvim availability
+	// Test ForceConfigure - should succeed with mocked version check
 	err := app.ForceConfigure()
 
 	if err != nil {
-		// If nvim is not available, we expect a version check error
-		if !strings.Contains(err.Error(), "failed to check Neovim version") {
-			t.Fatalf("unexpected error (expected version check error): %v", err)
-		}
-		t.Logf("ForceConfigure failed as expected (no nvim binary): %v", err)
-		return
+		t.Fatalf("ForceConfigure failed: %v", err)
 	}
-
-	// If nvim is available, configuration should succeed and files should be copied
-	t.Logf("ForceConfigure succeeded (nvim binary available)")
 
 	// Verify that the configuration was copied
 	check := filepath.Join(dst, "init.lua")
@@ -116,26 +110,22 @@ func TestSoftConfigure(t *testing.T) {
 	}
 
 	mc := commands.NewMockCommand()
-	app := &Neovim{Cmd: mc}
+	mb := commands.NewMockBaseCommand()
+	// Mock successful version check with version output
+	mb.SetExecCommandResult("NVIM v0.11.1\nBuild type: Release", "", nil)
+	app := &Neovim{Cmd: mc, Base: mb}
 
 	// First call should attempt to configure
 	err := app.SoftConfigure()
 
 	if err != nil {
-		// If nvim is not available, we expect a version check error
-		if !strings.Contains(err.Error(), "failed to check Neovim version") {
-			t.Fatalf("unexpected error (expected version check error): %v", err)
-		}
-		t.Logf("SoftConfigure failed as expected (no nvim binary): %v", err)
-	} else {
-		// If nvim is available, configuration should succeed
-		t.Logf("SoftConfigure succeeded (nvim binary available)")
+		t.Fatalf("SoftConfigure failed: %v", err)
+	}
 
-		// Verify that the configuration was copied
-		check := filepath.Join(dst, "init.lua")
-		if _, err := os.Stat(check); err != nil {
-			t.Fatalf("expected copied file at %s: %v", check, err)
-		}
+	// Verify that the configuration was copied
+	check := filepath.Join(dst, "init.lua")
+	if _, err := os.Stat(check); err != nil {
+		t.Fatalf("expected copied file at %s: %v", check, err)
 	}
 
 	// Create the marker file to simulate existing config (or ensure it exists)

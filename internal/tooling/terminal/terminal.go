@@ -67,7 +67,6 @@ func (t *Terminal) InstallAndConfigure() {
 	t.InstallTerminalApps()
 	t.InstallDevTools()
 	t.InstallCoreLibs()
-
 	if _, _, err := t.Base.ExecCommand(commands.CommandParams{
 		Command: "source",
 		Args:    []string{paths.Files.ShellConfig},
@@ -108,7 +107,6 @@ func (t *Terminal) InstallTerminalApps() {
 			continue
 		}
 	}
-
 	tuis := []struct {
 		name string
 		app  interface{ SoftInstall() error }
@@ -119,17 +117,27 @@ func (t *Terminal) InstallTerminalApps() {
 	for _, tui := range tuis {
 		displayMessage(tui.app.SoftInstall(), tui.name)
 	}
-
 	m := mise.New()
 	displayMessage(m.SoftInstall(), constants.Mise)
-
 	o := opencode.New()
 	displayMessage(o.SoftInstall(), constants.OpenCode)
 }
 
 func (t *Terminal) InstallDevTools() {
-	// should install bat, btop, curl, eza, fd-find, fzf, gh, powerlevel10k,
-	// ripgrep, syntaxhighlighting, tldr, zoxide, zsh-autosuggestions
+	// should install:
+	// - bat
+	// - btop
+	// - curl
+	// - eza
+	// - fd-find
+	// - fzf
+	// - gh
+	// - powerlevel10k,
+	// - ripgrep
+	// - syntaxhighlighting
+	// - tldr
+	// - zoxide
+	// - zsh-autosuggestions
 	devtools := []struct {
 		name string
 		app  interface{ SoftInstall() error }

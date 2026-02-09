@@ -1,5 +1,8 @@
-// Fastfetch module provides installation and configuration management for fastfetch with devgita integration.
-// Fastfetch is a neofetch-like tool for fetching system information and displaying it prettily.
+// Fastfetch is a neofetch-like tool for fetching system information and displaying
+// it in a visually appealing way. It is written mainly in C, with a focus on performance
+// and customizability. Currently, it supports Linux, macOS, Windows 7+, Android,
+// FreeBSD, OpenBSD, NetBSD, DragonFly, Haiku, and illumos (SunOS).
+//
 // Documentation: https://github.com/fastfetch-cli/fastfetch
 
 package fastfetch
@@ -26,7 +29,7 @@ func New() *Fastfetch {
 }
 
 func (f *Fastfetch) Install() error {
-	return f.Cmd.InstallPackage("fastfetch")
+	return f.Cmd.InstallPackage(constants.Fastfetch)
 }
 
 func (f *Fastfetch) ForceInstall() error {
@@ -38,7 +41,7 @@ func (f *Fastfetch) ForceInstall() error {
 }
 
 func (f *Fastfetch) SoftInstall() error {
-	return f.Cmd.MaybeInstallPackage("fastfetch")
+	return f.Cmd.MaybeInstallPackage(constants.Fastfetch)
 }
 
 func (f *Fastfetch) ForceConfigure() error {

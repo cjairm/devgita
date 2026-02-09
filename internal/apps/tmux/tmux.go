@@ -10,7 +10,6 @@ package tmux
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 
 	cmd "github.com/cjairm/devgita/internal/commands"
@@ -18,6 +17,8 @@ import (
 	"github.com/cjairm/devgita/pkg/files"
 	"github.com/cjairm/devgita/pkg/paths"
 )
+
+const configFileName = ".tmux.conf"
 
 type Tmux struct {
 	Cmd  cmd.Command
@@ -47,18 +48,14 @@ func (t *Tmux) SoftInstall() error {
 
 func (t *Tmux) ForceConfigure() error {
 	return files.CopyFile(
-		filepath.Join(paths.Paths.App.Configs.Tmux, ".tmux.conf"),
-		filepath.Join(paths.Paths.Home.Root, ".tmux.conf"),
+		filepath.Join(paths.Paths.App.Configs.Tmux, "tmux.conf"),
+		filepath.Join(paths.Paths.Home.Root, configFileName),
 	)
 }
 
 func (t *Tmux) SoftConfigure() error {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return fmt.Errorf("failed to get user home directory: %w", err)
-	}
-	tmuxConfigFile := filepath.Join(homeDir, ".tmux.conf")
-	isFilePresent := files.FileAlreadyExist(tmuxConfigFile)
+	configFile := filepath.Join(paths.Paths.Home.Root, configFileName)
+	isFilePresent := files.FileAlreadyExist(configFile)
 	if isFilePresent {
 		return nil
 	}
@@ -71,7 +68,6 @@ func (t *Tmux) Uninstall() error {
 
 func (t *Tmux) ExecuteCommand(args ...string) error {
 	execCommand := cmd.CommandParams{
-		IsSudo:  false,
 		Command: constants.Tmux,
 		Args:    args,
 	}

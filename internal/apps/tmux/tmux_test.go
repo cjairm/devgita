@@ -157,8 +157,8 @@ func TestForceConfigure(t *testing.T) {
 	paths.Paths.App.Configs.Tmux = sourceDir
 	paths.Paths.Home.Root = destDir
 
-	// Create source .tmux.conf file
-	sourceConfig := filepath.Join(sourceDir, ".tmux.conf")
+	// Create source tmux.conf file (without leading dot in source)
+	sourceConfig := filepath.Join(sourceDir, "tmux.conf")
 	configContent := "# Test tmux configuration\nset -g default-terminal \"screen-256color\""
 	err = os.WriteFile(sourceConfig, []byte(configContent), 0644)
 	if err != nil {
@@ -220,8 +220,8 @@ func TestSoftConfigure(t *testing.T) {
 		paths.Paths.App.Configs.Tmux = sourceDir
 		paths.Paths.Home.Root = destDir
 
-		// Create source .tmux.conf file
-		sourceConfig := filepath.Join(sourceDir, ".tmux.conf")
+		// Create source tmux.conf file (without leading dot in source)
+		sourceConfig := filepath.Join(sourceDir, "tmux.conf")
 		configContent := "# Test tmux configuration\nset -g default-terminal \"screen-256color\""
 		err = os.WriteFile(sourceConfig, []byte(configContent), 0644)
 		if err != nil {
@@ -307,8 +307,8 @@ func TestSoftConfigure(t *testing.T) {
 		}
 		paths.Paths.App.Configs.Tmux = sourceDir
 
-		// Create a different source config to prove it's not copied
-		sourceConfig := filepath.Join(sourceDir, ".tmux.conf")
+		// Create a different source config to prove it's not copied (without leading dot in source)
+		sourceConfig := filepath.Join(sourceDir, "tmux.conf")
 		sourceContent := "# Different config that should not be copied"
 		err = os.WriteFile(sourceConfig, []byte(sourceContent), 0644)
 		if err != nil {

@@ -3,21 +3,16 @@
 // - Kickstart documentation: https://github.com/nvim-lua/kickstart.nvim?tab=readme-ov-file
 // - Personal configuration: https://github.com/cjairm/devenv/blob/main/nvim/init.lua
 // - Releases: https://github.com/neovim/neovim/releases
-// - Check version before setup
-// - Download app directly instead of using `brew`
+// - Download app directly instead of using `brew`?
 //
-// NOTE: Is it possible to install different themes?
-// If so, see more here: https://linovox.com/the-best-color-schemes-for-neovim-nvim/
+// NOTE: install different themes...?
 // -------------------------
 
 package neovim
 
 import (
 	"bufio"
-	"bytes"
 	"fmt"
-	"os/exec"
-	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -55,15 +50,16 @@ func (n *Neovim) SoftInstall() error {
 }
 
 func (n *Neovim) ForceConfigure() error {
-	if err := n.CheckVersion(); err != nil {
+	if err := n.checkVersion(); err != nil {
 		return fmt.Errorf("failed to check Neovim version: %w", err)
 	}
 	return files.CopyDir(paths.Paths.App.Configs.Neovim, paths.Paths.Config.Nvim)
 }
 
 func (n *Neovim) SoftConfigure() error {
-	isFilePresent := files.FileAlreadyExist(filepath.Join(paths.Paths.Config.Nvim, "init.lua"))
-	if isFilePresent {
+	isDirPresent := files.DirAlreadyExist(paths.Paths.Config.Nvim)
+	isDirEmpty := files.IsDirEmpty(paths.Paths.Config.Nvim)
+	if isDirPresent && !isDirEmpty {
 		return nil
 	}
 	return n.ForceConfigure()
@@ -74,13 +70,10 @@ func (n *Neovim) Uninstall() error {
 }
 
 func (n *Neovim) ExecuteCommand(args ...string) error {
-	execCommand := cmd.CommandParams{
-		IsSudo:  false,
-		Command: constants.Nvim,
-		Args:    args,
-	}
-	if _, _, err := n.Base.ExecCommand(execCommand); err != nil {
-		return fmt.Errorf("failed to execute Neovim command: %w", err)
+	baseCmd := getBaseCmd(args...)
+	_, stderr, err := n.Base.ExecCommand(baseCmd)
+	if err != nil {
+		return fmt.Errorf("failed to check neovim version: %w, stderr: %s", err, stderr)
 	}
 	return nil
 }
@@ -89,24 +82,28 @@ func (n *Neovim) Update() error {
 	return fmt.Errorf("update operation not implemented for Neovim")
 }
 
-func (n *Neovim) CheckVersion() error {
-	cmd := exec.Command(constants.Nvim, "--version")
-	out, err := cmd.Output()
+func (n *Neovim) checkVersion() error {
+	baseCmd := getBaseCmd("--version")
+	stdout, stderr, err := n.Base.ExecCommand(baseCmd)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to check neovim version: %w, stderr: %s", err, stderr)
 	}
-	scanner := bufio.NewScanner(bytes.NewReader(out))
+	scanner := bufio.NewScanner(strings.NewReader(stdout))
 	for scanner.Scan() {
 		line := scanner.Text()
-		if strings.HasPrefix(line, "NVIM v") {
-			versionStr := strings.TrimPrefix(line, "NVIM v")
+		if versionStr, found := strings.CutPrefix(line, "NVIM v"); found {
 			versionStr = strings.Fields(versionStr)[0]
 			if isVersionEqualOrHigher(versionStr, constants.SupportedVersion.Neovim.Number) {
 				return nil
 			}
+			return fmt.Errorf(
+				"neovim version %s is too old, requires %s",
+				versionStr,
+				constants.SupportedVersion.Neovim.Number,
+			)
 		}
 	}
-	return fmt.Errorf("could not parse Neovim version")
+	return fmt.Errorf("could not parse Neovim version from output")
 }
 
 func isVersionEqualOrHigher(currentVersion, requiredVersion string) bool {
@@ -131,22 +128,9 @@ func isVersionEqualOrHigher(currentVersion, requiredVersion string) bool {
 	return true
 }
 
-// Deprecated: Use SoftInstall() instead
-func (n *Neovim) MaybeInstall() error {
-	return n.SoftInstall()
-}
-
-// Deprecated: Use ForceConfigure() instead
-func (n *Neovim) Setup() error {
-	return n.ForceConfigure()
-}
-
-// Deprecated: Use SoftConfigure() instead
-func (n *Neovim) MaybeSetup() error {
-	return n.SoftConfigure()
-}
-
-// Deprecated: Use ExecuteCommand() instead
-func (n *Neovim) Run(args ...string) error {
-	return n.ExecuteCommand(args...)
+func getBaseCmd(args ...string) cmd.CommandParams {
+	return cmd.CommandParams{
+		Command: constants.Nvim,
+		Args:    args,
+	}
 }
