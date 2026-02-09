@@ -102,6 +102,7 @@ const (
 	Eza                = "eza"
 	Fastfetch          = "fastfetch"
 	FdFind             = "fd" // Equivalent to "fd-find" in Linux package managers
+	FontConfig         = "fontconfig"
 	Flameshot          = "flameshot"
 	Fzf                = "fzf"
 	Gdbm               = "gdbm"
@@ -130,6 +131,7 @@ const (
 	Tmux               = "tmux"
 	Unzip              = "unzip"
 	Vips               = "vips"
+	Xcode              = "xcode"
 	Zlib               = "zlib"
 	Zoxide             = "zoxide"
 	ZshAutosuggestions = "zsh-autosuggestions"

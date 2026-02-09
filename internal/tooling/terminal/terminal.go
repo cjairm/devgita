@@ -13,6 +13,7 @@ import (
 	"github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/internal/tooling/terminal/core/autoconf"
 	"github.com/cjairm/devgita/internal/tooling/terminal/core/bison"
+	"github.com/cjairm/devgita/internal/tooling/terminal/core/fontconfig"
 	"github.com/cjairm/devgita/internal/tooling/terminal/core/gdbm"
 	"github.com/cjairm/devgita/internal/tooling/terminal/core/jemalloc"
 	"github.com/cjairm/devgita/internal/tooling/terminal/core/libffi"
@@ -60,10 +61,6 @@ func New() *Terminal {
 func (t *Terminal) InstallAndConfigure() {
 	err := t.DisplayGithubInstructions()
 	displayMessage(err, "instructions", true)
-	if t.Base.Platform.IsMac() {
-		xc := xcode.New()
-		displayMessage(xc.SoftInstall(), "xcode")
-	}
 	t.InstallTerminalApps()
 	t.InstallDevTools()
 	t.InstallCoreLibs()
@@ -162,50 +159,86 @@ func (t *Terminal) InstallDevTools() {
 }
 
 func (t *Terminal) InstallCoreLibs() {
-	// installs libs pkg-config, autoconf, bison, openssl, readline, zlib,
-	// libyaml, ncurses, libffi, gdbm, jemalloc, vips, mupdf, unzip
+	// installs libs:
+	// - autoconf
+	// - bison
+	// - fontconfig
+	// - gdbm
+	// - jemalloc
+	// - libffi
+	// - libyaml
+	// - mupdf
+	// - ncurses
+	// - openssl
+	// - pkg-config
+	// - readline
+	// - unzip
+	// - vips
+	// - xcode (only on mac)
+	// - zlib
 	libs := []struct {
 		name string
 		app  interface{ SoftInstall() error }
 	}{
-		{constants.PkgConfig, pkgconfig.New()},
 		{constants.Autoconf, autoconf.New()},
 		{constants.Bison, bison.New()},
-		{constants.OpenSSL, openssl.New()},
-		{constants.Readline, readline.New()},
-		{constants.Zlib, zlib.New()},
-		{constants.Libyaml, libyaml.New()},
-		{constants.Ncurses, ncurses.New()},
-		{constants.Libffi, libffi.New()},
+		{constants.FontConfig, fontconfig.New()},
 		{constants.Gdbm, gdbm.New()},
 		{constants.Jemalloc, jemalloc.New()},
-		{constants.Vips, vips.New()},
+		{constants.Libffi, libffi.New()},
+		{constants.Libyaml, libyaml.New()},
 		{constants.Mupdf, mupdf.New()},
+		{constants.Ncurses, ncurses.New()},
+		{constants.OpenSSL, openssl.New()},
+		{constants.PkgConfig, pkgconfig.New()},
+		{constants.Readline, readline.New()},
 		{constants.Unzip, unzip.New()},
+		{constants.Vips, vips.New()},
+		{constants.Xcode, xcode.New()},
+		{constants.Zlib, zlib.New()},
 	}
 	for _, lib := range libs {
-		displayMessage(lib.app.SoftInstall(), lib.name)
+		switch lib.name {
+		case constants.Xcode:
+			if t.Base.Platform.IsMac() {
+				displayMessage(lib.app.SoftInstall(), lib.name)
+			}
+			continue
+		default:
+			displayMessage(lib.app.SoftInstall(), lib.name)
+		}
 	}
 }
 
 func (t *Terminal) DisplayGithubInstructions() error {
-	instructions := `
+	var sshAddCmd, copyCmd string
+
+	if t.Base.Platform.IsMac() {
+		sshAddCmd = "ssh-add --apple-use-keychain ~/.ssh/id_ed25519"
+		copyCmd = "pbcopy < ~/.ssh/id_ed25519.pub"
+	} else {
+		sshAddCmd = "ssh-add ~/.ssh/id_ed25519"
+		copyCmd = "cat ~/.ssh/id_ed25519.pub  # Copy the output"
+	}
+
+	instructions := fmt.Sprintf(`
 		1. Generate a new SSH key:
-		   ssh-keygen -t rsa -b 4096
+		   ssh-keygen -t ed25519 -C "me@devita.com"
 		2. Start the SSH agent:
 		   eval "$(ssh-agent -s)"
 		3. Add your SSH key to the agent:
-		   ssh-add -K ~/.ssh/id_rsa
+		   %s
 		4. Copy the SSH key to your clipboard:
-		   pbcopy < ~/.ssh/id_rsa.pub
-		5. Go to github.com and store it.
+		   %s
+		5. Go to GitHub → Settings → SSH and GPG keys → New SSH key and paste it.
 		6. To test it out, run:
 		   ssh -T git@github.com
 
 		See documentation: https://docs.github.com/en/authentication/connecting-to-github-with-ssh/generating-a-new-ssh-key-and-adding-it-to-the-ssh-agent
-	`
+	`, sshAddCmd, copyCmd)
+
 	return promptui.DisplayInstructions(
-		"Before continue, it'd be nice if you get access to your GitHub repositories",
+		"Let's set up GitHub SSH access - essential for working with repositories",
 		instructions,
 		false,
 	)
