@@ -14,6 +14,9 @@ func init() {
 }
 
 func TestNew(t *testing.T) {
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
+
 	d := New()
 	if d == nil {
 		t.Fatal("Expected New() to return non-nil Databases")
@@ -47,6 +50,9 @@ func TestGetDatabaseConfigs(t *testing.T) {
 }
 
 func TestGetSelectionOptions(t *testing.T) {
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
+
 	d := New()
 	databases := d.GetSelectionOptions()
 

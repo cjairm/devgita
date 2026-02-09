@@ -14,6 +14,9 @@ func init() {
 }
 
 func TestNew(t *testing.T) {
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
+
 	dl := New()
 	if dl == nil {
 		t.Fatal("Expected New() to return non-nil DevLanguages")
@@ -63,6 +66,9 @@ func TestGetLanguageConfigs(t *testing.T) {
 }
 
 func TestGetSelectionOptions(t *testing.T) {
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
+
 	dl := New()
 	languages := dl.GetSelectionOptions()
 
@@ -95,6 +101,9 @@ func TestGetSelectionOptions(t *testing.T) {
 }
 
 func TestGetSelectionOptions_DynamicGeneration(t *testing.T) {
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
+
 	// This test verifies that GetSelectionOptions is dynamically generated
 	// from GetLanguageConfigs, ensuring consistency
 	dl := New()
@@ -163,6 +172,9 @@ func TestFormatSpec(t *testing.T) {
 }
 
 func TestGetInstalledLanguages(t *testing.T) {
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
+
 	dl := New()
 
 	// Create test global config
@@ -217,6 +229,9 @@ func TestTrackInstallation(t *testing.T) {
 }
 
 func TestInstallChosen_NoSelections(t *testing.T) {
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
+
 	dl := New()
 
 	// Create context with no selections
