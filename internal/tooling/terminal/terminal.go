@@ -79,7 +79,14 @@ func (t *Terminal) InstallAndConfigure() {
 }
 
 func (t *Terminal) InstallTerminalApps() {
-	// should install lazydocker, lazygit, mise, fastfetch, neovim, tmux
+	// should install:
+	// - fastfetch
+	// - lazydocker
+	// - lazygit
+	// - mise
+	// - neovim
+	// - opencode
+	// - tmux
 	terminalApps := []struct {
 		name string
 		app  interface {
