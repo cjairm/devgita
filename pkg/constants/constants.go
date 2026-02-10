@@ -90,14 +90,16 @@ var App = struct {
 
 const (
 	// App names
-	Aerospace          = "aerospace"
-	Alacritty          = "alacritty"
-	Autoconf           = "autoconf"
-	Bison              = "bison"
-	Bat                = "bat"
-	Brave              = "brave"
-	Btop               = "btop"
-	Curl               = "curl"
+	Aerospace = "aerospace"
+	Alacritty = "alacritty"
+	Autoconf  = "autoconf"
+	Bison     = "bison"
+	Bat       = "bat"
+	Brave     = "brave"
+	Btop      = "btop"
+	Curl      = "curl"
+	// TODO: Rename this to `Devgita` and update current Devgita graphic to match the new name. (This is to avoid confusion between the app and the repository)
+	DevgitaApp         = "devgita"
 	Docker             = "docker"
 	Eza                = "eza"
 	Fastfetch          = "fastfetch"

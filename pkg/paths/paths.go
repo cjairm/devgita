@@ -143,7 +143,7 @@ var Paths = struct {
 		Root:      GetConfigDir(),
 		Aerospace: GetConfigDir(constants.Aerospace),
 		Alacritty: GetConfigDir(constants.Alacritty),
-		Devgita:   GetConfigDir(constants.Devgita),
+		Devgita:   GetConfigDir(constants.DevgitaApp),
 		Fastfetch: GetConfigDir(constants.Fastfetch),
 		Fonts:     GetConfigDir(constants.Fonts),
 		Git:       GetConfigDir(constants.Git),
