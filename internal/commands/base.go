@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/cjairm/devgita/internal/config"
+	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/files"
 	"github.com/cjairm/devgita/pkg/logger"
 	"github.com/cjairm/devgita/pkg/paths"
@@ -35,7 +36,14 @@ type BaseCommandExecutor interface {
 	IsFontPresent(fontName string) (bool, error)
 
 	// Installation helpers
-	MaybeInstall(itemName string, alias []string, checkInstalled func(string) (bool, error), installFunc func(string) error, installURLFunc func(string) error, itemType string) error
+	MaybeInstall(
+		itemName string,
+		alias []string,
+		checkInstalled func(string) (bool, error),
+		installFunc func(string) error,
+		installURLFunc func(string) error,
+		itemType string,
+	) error
 	InstallFontFromURL(url, fontFileName string, runCache bool) error
 }
 
@@ -259,15 +267,23 @@ func (b *BaseCommand) MaybeInstall(
 
 	globalConfig := &config.GlobalConfig{}
 	if err := globalConfig.Load(); err != nil {
-		logger.L().Errorw("Could not load global config", "error", err)
-		return err
+		// HACK: If global config doesn't exist and we're trying to install git,
+		// we can assume it's a fresh install and create the global config
+		if pkgToInstall == constants.Git {
+			globalConfig.Create()
+		} else {
+			logger.L().Errorw("Could not load global config", "error", err)
+			return err
+		}
 	} else {
 		if globalConfig.IsInstalledByDevgita(pkgToInstall, itemType) {
-			logger.L().Debugw("Item already tracked as installed by devgita", "item", pkgToInstall, "type", itemType)
+			logger.L().
+				Debugw("Item already tracked as installed by devgita", "item", pkgToInstall, "type", itemType)
 			return nil
 		}
 		if globalConfig.IsAlreadyInstalled(pkgToInstall, itemType) {
-			logger.L().Debugw("Item is already installed, skipping", "item", pkgToInstall, "type", itemType)
+			logger.L().
+				Debugw("Item is already installed, skipping", "item", pkgToInstall, "type", itemType)
 			return nil
 		}
 	}
@@ -279,7 +295,7 @@ func (b *BaseCommand) MaybeInstall(
 
 	if isInstalled {
 		logger.L().
-			Infow("Item is already installed, marking as such in global config", "item", pkgToInstall, "type", itemType)
+			Debugw("Item is already installed, marking as such in global config", "item", pkgToInstall, "type", itemType)
 		globalConfig.AddToAlreadyInstalled(pkgToInstall, itemType)
 		globalConfig.Save()
 		return nil
@@ -298,7 +314,8 @@ func (b *BaseCommand) MaybeInstall(
 			logger.L().Errorw("Failed to update global config after installation", "error", err)
 		}
 	} else {
-		logger.L().Warnw("Installation failed", "item", pkgToInstall, "type", itemType, "error", installErr)
+		logger.L().
+			Warnw("Installation failed", "item", pkgToInstall, "type", itemType, "error", installErr)
 	}
 
 	return installErr
