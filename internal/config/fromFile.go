@@ -81,7 +81,7 @@ func (gc *GlobalConfig) Save() error {
 }
 
 func (gc *GlobalConfig) Reset() error {
-	logger.L().Info("Resetting global config")
+	logger.L().Debug("Resetting global config")
 	*gc = GlobalConfig{}
 	data, err := yaml.Marshal(gc)
 	if err != nil {
@@ -94,6 +94,15 @@ func (gc *GlobalConfig) Create() error {
 	globalConfigFilePath := getGlobalConfigFilePath()
 	if paths.FileAlreadyExist(globalConfigFilePath) {
 		return nil
+	}
+	appFolder := filepath.Join(
+		paths.Paths.Config.Root,
+		constants.App.Name,
+	)
+	if !files.DirAlreadyExist(appFolder) {
+		if err := os.MkdirAll(appFolder, files.DirPermission); err != nil {
+			return err
+		}
 	}
 	if err := files.CopyFile(
 		filepath.Join(paths.Paths.App.Configs.Templates, constants.App.File.GlobalConfig),

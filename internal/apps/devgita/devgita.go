@@ -60,10 +60,10 @@ func (dg *Devgita) Uninstall() error {
 	// TODO: main .zsh file should be cleaned up, too. (Remove source line)
 	if !files.DirAlreadyExist(paths.Paths.App.Root) {
 		logger.L().
-			Info("Devgita repository not found at %s, nothing to uninstall", paths.Paths.App.Root)
+			Debug("Devgita repository not found at %s, nothing to uninstall", paths.Paths.App.Root)
 	} else if files.IsDirEmpty(paths.Paths.App.Root) {
 		logger.L().
-			Info("Devgita repository directory is empty at %s, removing directory", paths.Paths.App.Root)
+			Debug("Devgita repository directory is empty at %s, removing directory", paths.Paths.App.Root)
 		if err := os.Remove(paths.Paths.App.Root); err != nil {
 			return fmt.Errorf("failed to remove empty devgita directory: %w", err)
 		}
@@ -73,20 +73,20 @@ func (dg *Devgita) Uninstall() error {
 		}
 	}
 	if files.FileAlreadyExist(globalConfigPath) {
-		logger.L().Info("Removing global config file at %s", globalConfigPath)
+		logger.L().Debug("Removing global config file at %s", globalConfigPath)
 		if err := os.Remove(globalConfigPath); err != nil {
 			return fmt.Errorf("failed to remove global config file: %w", err)
 		}
 	} else {
-		logger.L().Info("Global config file not found at %s", globalConfigPath)
+		logger.L().Debug("Global config file not found at %s", globalConfigPath)
 	}
 	if files.FileAlreadyExist(zshConfigPath) {
-		logger.L().Info("Removing zsh config file at %s", zshConfigPath)
+		logger.L().Debug("Removing zsh config file at %s", zshConfigPath)
 		if err := os.Remove(zshConfigPath); err != nil {
 			return fmt.Errorf("failed to remove zsh config file: %w", err)
 		}
 	} else {
-		logger.L().Info("zsh file not found at %s", zshConfigPath)
+		logger.L().Debug("zsh file not found at %s", zshConfigPath)
 	}
 	return nil
 }

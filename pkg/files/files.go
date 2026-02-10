@@ -24,7 +24,7 @@ const (
 // If the destination file exists, it logs an info message and returns nil without copying.
 // Returns an error if the copy operation fails.
 func SoftCopyFile(src, dst string) error {
-	logger.L().Debug("Soft copying file", "src", src, "dst", dst)
+	logger.L().Debugw("Soft copying file", "src", src, "dst", dst)
 	if FileAlreadyExist(dst) {
 		logger.L().Info("File already exists, skipping copy", "dst", dst)
 		return nil
@@ -39,7 +39,7 @@ func SoftCopyFile(src, dst string) error {
 // If the destination directory exists and contains files, it logs an info message and returns nil.
 // Returns an error if the copy operation fails.
 func SoftCopyDir(src, dst string) error {
-	logger.L().Debug("Soft copying directory", "src", src, "dst", dst)
+	logger.L().Debugw("Soft copying directory", "src", src, "dst", dst)
 	if DirAlreadyExist(dst) && !IsDirEmpty(dst) {
 		logger.L().Info("Directory already exists with content, skipping copy", "dst", dst)
 		return nil
@@ -54,7 +54,7 @@ func SoftCopyDir(src, dst string) error {
 // The destination file will have AllPermissions (0777).
 // Returns an error if reading the source or writing the destination fails.
 func CopyFile(src, dst string) error {
-	logger.L().Debug("Copying file", "src", src, "dst", dst)
+	logger.L().Debugw("Copying file", "src", src, "dst", dst)
 	input, err := os.ReadFile(src)
 	if err != nil {
 		return fmt.Errorf("failed to read source file %s: %w", src, err)
@@ -69,7 +69,7 @@ func CopyFile(src, dst string) error {
 // Creates the destination directory structure as needed with AllPermissions (0777).
 // Returns an error if any directory or file operation fails.
 func CopyDir(src, dst string) error {
-	logger.L().Debug("Copying directory", "src", src, "dst", dst)
+	logger.L().Debugw("Copying directory", "src", src, "dst", dst)
 	entries, err := os.ReadDir(src)
 	if err != nil {
 		return fmt.Errorf("failed to read source directory %s: %w", src, err)
@@ -136,7 +136,7 @@ func IsDirEmpty(dirPath string) bool {
 // Returns an error if reading or writing the file fails.
 func UpdateFile(filePath, searchText, replacementText string) error {
 	logger.L().
-		Debug("Updating file", "filePath", filePath, "searchText", searchText, "replacementText", replacementText)
+		Debugw("Updating file", "filePath", filePath, "searchText", searchText, "replacementText", replacementText)
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to read file %s: %w", filePath, err)
@@ -153,7 +153,7 @@ func UpdateFile(filePath, searchText, replacementText string) error {
 // Returns true if the substring is found, false otherwise, along with any read errors.
 func ContentExistsInFile(filePath, substringToFind string) (bool, error) {
 	logger.L().
-		Debug("Checking if content exists in file", "filePath", filePath, "substringToFind", substringToFind)
+		Debugw("Checking if content exists in file", "filePath", filePath, "substringToFind", substringToFind)
 	file, err := os.Open(filePath)
 	if err != nil {
 		return false, fmt.Errorf("failed to open file %s: %w", filePath, err)
@@ -177,7 +177,7 @@ func ContentExistsInFile(filePath, substringToFind string) (bool, error) {
 // The file is created with FilePermission (0644) if it doesn't exist.
 // Returns an error if opening the file or writing fails.
 func AddLineToFile(line, filePath string) error {
-	logger.L().Debug("Adding line to file", "line", line, "filePath", filePath)
+	logger.L().Debugw("Adding line to file", "line", line, "filePath", filePath)
 	file, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, FilePermission)
 	if err != nil {
 		return fmt.Errorf("failed to open file %s for appending: %w", filePath, err)
@@ -231,7 +231,7 @@ func GenerateFromTemplate(templatePath, outputPath string, data any) error {
 		return fmt.Errorf("failed to replace output file %s: %w", outputPath, err)
 	}
 	logger.L().
-		Debug("Successfully generated file from template", "outputPath", outputPath)
+		Debugw("Successfully generated file from template", "outputPath", outputPath)
 	return nil
 }
 
