@@ -208,5 +208,14 @@ return {
 			},
 		})
 		vim.lsp.enable("lua_ls")
+
+		-- Custom ***
+		-- TypeScript/JavaScript - configured separately because Mason uses the name
+		-- "typescript-language-server" (already in ensure_installed) while lspconfig uses "ts_ls"
+		vim.lsp.config("ts_ls", {
+			capabilities = capabilities,
+		})
+		vim.lsp.enable("ts_ls")
+		-- ***
 	end,
 }
