@@ -117,13 +117,29 @@ return {
 		--  So, we create new capabilities with blink.cmp, and then broadcast that to the servers.
 		local capabilities = require("blink.cmp").get_lsp_capabilities()
 
+		-- Custom ***
+		-- Map Mason package names to their corresponding LSP server names
+		-- Use this when they differ
+		local mason_to_lsp_map = {
+			["eslint-lsp"] = "eslint",
+			["typescript-language-server"] = "ts_ls",
+			["lua-language-server"] = "lua_ls",
+		}
+
+		-- Build reverse map (lsp name -> mason name)
+		local lsp_to_mason_map = {}
+		for mason_name, lsp_name in pairs(mason_to_lsp_map) do
+			lsp_to_mason_map[lsp_name] = mason_name
+		end
+		-- ***
+
 		-- Enable the following language servers
 		--  Feel free to add/remove any LSPs that you want here. They will automatically be installed.
 		--  See `:help lsp-config` for information about keys and how to configure
 		local servers = {
 			-- Custom ***
 			clangd = {},
-			["eslint-lsp"] = {
+			eslint = {
 				settings = {
 					eslint = {
 						enable = true,
@@ -142,6 +158,7 @@ return {
 			-- ***
 		}
 
+
 		-- Ensure the servers and tools above are installed
 		--
 		-- To check the current status of installed tools and/or manually install
@@ -149,7 +166,15 @@ return {
 		--    :Mason
 		--
 		-- You can press `g?` for help in this menu.
-		local ensure_installed = vim.tbl_keys(servers or {})
+		-- Custom ***
+		-- Build ensure_installed list using Mason package names
+		local ensure_installed = {}
+		for lsp_name, _ in pairs(servers) do
+			-- If there's a mapping, use the Mason name; otherwise use the LSP name
+			local mason_name = lsp_to_mason_map[lsp_name] or lsp_name
+			table.insert(ensure_installed, mason_name)
+		end
+		-- ***
 		vim.list_extend(ensure_installed, {
 			"lua-language-server", -- Lua Language server
 			"stylua", -- Used to format Lua code
@@ -158,6 +183,7 @@ return {
 			"typescript-language-server", -- TypeScript/JavaScript Language server
 			-- Formatters and linters (not LSP servers)
 			"black",
+			"eslint-lsp",
 			"eslint_d",
 			"flake8",
 			"goimports",
