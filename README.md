@@ -112,3 +112,82 @@ go test <file-path> -cover
 # To test with race detector
 go test <file-path> -race
 ```
+
+## Useful commands
+
+### git
+
+## Steps to Uncommit a PR and Merge Main
+
+**Step 1: Soft reset to before your commit(s)**
+
+```bash
+git reset --soft <commit-hash-before-your-work>
+```
+
+**Step 2: Stash the staged changes**
+
+```bash
+git stash
+```
+
+**Step 3: Merge main**
+
+```bash
+git merge main
+```
+
+**Step 4: If merge has conflicts, resolve them and commit**
+
+```bash
+# Resolve conflicts in files, then:
+git add <conflicted-files>
+git merge --continue
+```
+
+**Step 5: Pop stashed changes back**
+
+```bash
+git stash pop
+```
+
+**Step 6: (Optional) Unstage everything to keep it uncommitted**
+
+```bash
+git restore --staged .
+```
+
+**Alternative single-line workflow (when no conflicts):**
+
+```bash
+git reset --soft <commit-hash> && git stash && git merge main && git stash pop
+```
+
+### kubectl
+
+**GET SECRET ENV VARS (from running pod):**
+
+```bash
+kubectl exec -n <NAMESPACE> <POD-NAME> -- env | sort
+# Note: Only works if pod status is Running, not CrashLoopBackOff
+```
+
+**SECRETS (view secret references and decode them):**
+
+Step 1 - See which secrets are referenced:
+
+```bash
+kubectl get pod <POD-NAME> -o json | jq -r '.spec.containers[0].envFrom'
+```
+
+Step 2 - Decode each secret's values:
+
+```bash
+kubectl get secret <SECRET-NAME> -o json | jq -r '.data | to_entries | .[] | "\(.key)=\(.value | @base64d)"'
+```
+
+**DIRECT ENV VARS (defined in deployment, not from secrets):**
+
+```bash
+kubectl get pod <POD-NAME> -o json | jq '.spec.containers[0].env'
+```
