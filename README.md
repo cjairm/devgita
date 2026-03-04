@@ -117,7 +117,7 @@ go test <file-path> -race
 
 ### git
 
-## Steps to Uncommit a PR and Merge Main
+#### Steps to Uncommit a PR and Merge Main
 
 **Step 1: Soft reset to before your commit(s)**
 
@@ -161,6 +161,64 @@ git restore --staged .
 
 ```bash
 git reset --soft <commit-hash> && git stash && git merge main && git stash pop
+```
+
+#### Steps to create a clean branch
+
+**1. Fetch latest changes**
+
+```bash
+git fetch origin
+```
+
+**2. Create a new clean branch from main**
+
+```bash
+git checkout -b <BRANCH-NAME> origin/main
+```
+
+**3. Cherry-pick specific commits from your old branch**
+
+```bash
+git cherry-pick <COMMIT-HASH-1> <COMMIT-HASH-2> ... <COMMIT-HASH-N>
+```
+
+**4. Push the new branch to origin**
+
+```bash
+git push -u origin <BRANCH-NAME>
+```
+
+#### Steps to create a clean branch with squashed changes
+
+**1. Fetch latest changes**
+
+```bash
+git fetch origin
+```
+
+**2. Create a new clean branch from main**
+
+```bash
+git checkout -b <BRANCH-NAME> origin/main
+```
+
+**3. Squash merge changes from your source branch**
+
+```bash
+git merge --squash origin/<SOURCE-BRANCH>
+```
+
+**4. Commit the squashed changes**
+
+```bash
+git commit -m "Squash merge <SOURCE-BRANCH>"
+```
+
+**5. Push the new branch to origin**
+
+```bash
+git push -u origin <BRANCH-NAME>
 ```
 
 ### kubectl
