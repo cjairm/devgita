@@ -83,6 +83,9 @@ Note. We should optionally be able to pass `--app` or `--package` to only do it 
   - docs:
     - https://a2ui.org/
     - https://genai.owasp.org/resource/cheatsheet-a-practical-guide-for-securely-using-third-party-mcp-servers-1-0/
+  - Super powers for Opencode (?) - https://github.com/obra/superpowers
+  - Something to integrate to Opencode (?) - https://github.com/affaan-m/everything-claude-code
+  - Download, Review, Answer back - with UI to keep track of addressed issues in github
 
 ---
 
