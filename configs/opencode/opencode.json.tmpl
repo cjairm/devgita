@@ -1,4 +1,26 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "theme": "{{ .Theme }}",
+  "formatter": {
+    "prettier": {
+      "command": ["npx", "prettier", "--write", "$FILE"],
+      "extensions": [".js", ".ts", ".jsx", ".tsx"]
+    },
+    "python-format": {
+      "command": ["sh", "-c", "isort \"$FILE\" && black --quiet \"$FILE\""],
+      "extensions": [".py"]
+    },
+    "go-format": {
+      "command": ["sh", "-c", "goimports -w \"$FILE\" && gofumpt -w \"$FILE\""],
+      "extensions": [".go"]
+    },
+    "clang-format": {
+      "command": ["clang-format", "-i", "$FILE"],
+      "extensions": [".c", ".h", ".cpp", ".hpp"]
+    },
+    "stylua": {
+      "command": ["stylua", "$FILE"],
+      "extensions": [".lua"]
+    }
+  }
 }
