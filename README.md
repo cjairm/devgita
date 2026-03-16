@@ -86,6 +86,7 @@ Note. We should optionally be able to pass `--app` or `--package` to only do it 
   - Super powers for Opencode (?) - https://github.com/obra/superpowers
   - Something to integrate to Opencode (?) - https://github.com/affaan-m/everything-claude-code
   - Download, Review, Answer back - with UI to keep track of addressed issues in github
+  - Opencode configuration with nvim - https://github.com/nickjvandyke/opencode.nvim
 
 ---
 
