@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 
-	"github.com/cjairm/devgita/internal/apps/git"
 	"github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/internal/config"
+	"github.com/cjairm/devgita/internal/embedded"
 	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/files"
 	"github.com/cjairm/devgita/pkg/logger"
@@ -15,36 +16,57 @@ import (
 )
 
 type Devgita struct {
-	Git  git.Git
-	Base commands.BaseCommandExecutor
+	Base            commands.BaseCommandExecutor
+	ExtractEmbedded embedded.ExtractFunc
 }
 
-var configDirPath = filepath.Join(paths.Paths.Config.Root, constants.App.Name)
-var globalConfigPath = filepath.Join(configDirPath, constants.App.File.GlobalConfig)
-var zshConfigPath = filepath.Join(configDirPath, constants.App.File.ZshConfig)
+func getConfigDirPath() string {
+	return filepath.Join(paths.Paths.Config.Root, constants.App.Name)
+}
+
+func getGlobalConfigPath() string {
+	return filepath.Join(getConfigDirPath(), constants.App.File.GlobalConfig)
+}
+
+func getZshConfigPath() string {
+	return filepath.Join(getConfigDirPath(), constants.App.File.ZshConfig)
+}
 
 func New() *Devgita {
-	return &Devgita{Git: *git.New(), Base: commands.NewBaseCommand()}
+	return &Devgita{
+		Base:            commands.NewBaseCommand(),
+		ExtractEmbedded: embedded.DefaultExtractor,
+	}
 }
 
 func (dg *Devgita) Install() error {
-	if err := os.MkdirAll(paths.Paths.App.Root, 0755); err != nil {
-		return err
+	// Create configs directory inside app root
+	configsDir := filepath.Join(paths.Paths.App.Root, "configs")
+
+	// Clean up existing configs directory if it exists
+	if files.DirAlreadyExist(configsDir) {
+		if err := os.RemoveAll(configsDir); err != nil {
+			return fmt.Errorf("failed to remove existing configs directory: %w", err)
+		}
 	}
-	if err := os.RemoveAll(paths.Paths.App.Root); err != nil {
-		return err
+
+	// Extract embedded configs to the app directory
+	if err := dg.ExtractEmbedded(configsDir); err != nil {
+		return fmt.Errorf("failed to extract embedded configs: %w", err)
 	}
-	if err := dg.Git.Clone(constants.App.Repository.URL, paths.Paths.App.Root); err != nil {
-		return err
-	}
+
 	return nil
 }
 
 func (dg *Devgita) SoftInstall() error {
-	if files.DirAlreadyExist(paths.Paths.App.Root) && !files.IsDirEmpty(paths.Paths.App.Root) {
-		logger.L().Info("Devgita repository already installed at %s", paths.Paths.App.Root)
+	configsDir := filepath.Join(paths.Paths.App.Root, "configs")
+
+	// Check if configs/ subdirectory exists and is non-empty
+	if files.DirAlreadyExist(configsDir) && !files.IsDirEmpty(configsDir) {
+		logger.L().Infow("Devgita configs already installed", "path", configsDir)
 		return nil
 	}
+
 	return dg.Install()
 }
 
@@ -57,37 +79,55 @@ func (dg *Devgita) ForceInstall() error {
 }
 
 func (dg *Devgita) Uninstall() error {
-	// TODO: main .zsh file should be cleaned up, too. (Remove source line)
-	if !files.DirAlreadyExist(paths.Paths.App.Root) {
-		logger.L().
-			Debug("Devgita repository not found at %s, nothing to uninstall", paths.Paths.App.Root)
-	} else if files.IsDirEmpty(paths.Paths.App.Root) {
-		logger.L().
-			Debug("Devgita repository directory is empty at %s, removing directory", paths.Paths.App.Root)
-		if err := os.Remove(paths.Paths.App.Root); err != nil {
-			return fmt.Errorf("failed to remove empty devgita directory: %w", err)
+	// Clean up extracted configs directory
+	configsDir := filepath.Join(paths.Paths.App.Root, "configs")
+	if files.DirAlreadyExist(configsDir) {
+		logger.L().Debugw("Removing extracted configs directory", "path", configsDir)
+		if err := os.RemoveAll(configsDir); err != nil {
+			return fmt.Errorf("failed to remove configs directory: %w", err)
 		}
 	} else {
-		if err := os.RemoveAll(paths.Paths.App.Root); err != nil {
-			return fmt.Errorf("failed to uninstall devgita repository: %w", err)
+		logger.L().Debugw("Configs directory not found", "path", configsDir)
+	}
+
+	// Remove app root directory if empty
+	if files.DirAlreadyExist(paths.Paths.App.Root) {
+		if files.IsDirEmpty(paths.Paths.App.Root) {
+			logger.L().Debugw("App directory is empty, removing", "path", paths.Paths.App.Root)
+			if err := os.Remove(paths.Paths.App.Root); err != nil {
+				return fmt.Errorf("failed to remove empty app directory: %w", err)
+			}
 		}
 	}
-	if files.FileAlreadyExist(globalConfigPath) {
-		logger.L().Debug("Removing global config file at %s", globalConfigPath)
-		if err := os.Remove(globalConfigPath); err != nil {
+
+	// Remove global config file
+	if files.FileAlreadyExist(getGlobalConfigPath()) {
+		logger.L().Debugw("Removing global config file", "path", getGlobalConfigPath())
+		if err := os.Remove(getGlobalConfigPath()); err != nil {
 			return fmt.Errorf("failed to remove global config file: %w", err)
 		}
 	} else {
-		logger.L().Debug("Global config file not found at %s", globalConfigPath)
+		logger.L().Debugw("Global config file not found", "path", getGlobalConfigPath())
 	}
-	if files.FileAlreadyExist(zshConfigPath) {
-		logger.L().Debug("Removing zsh config file at %s", zshConfigPath)
-		if err := os.Remove(zshConfigPath); err != nil {
+
+	// Remove zsh config file
+	if files.FileAlreadyExist(getZshConfigPath()) {
+		logger.L().Debugw("Removing zsh config file", "path", getZshConfigPath())
+		if err := os.Remove(getZshConfigPath()); err != nil {
 			return fmt.Errorf("failed to remove zsh config file: %w", err)
 		}
 	} else {
-		logger.L().Debug("zsh file not found at %s", zshConfigPath)
+		logger.L().Debugw("zsh file not found", "path", getZshConfigPath())
 	}
+
+	// Remove config directory if empty
+	if files.DirAlreadyExist(getConfigDirPath()) && files.IsDirEmpty(getConfigDirPath()) {
+		logger.L().Debugw("Config directory is empty, removing", "path", getConfigDirPath())
+		if err := os.Remove(getConfigDirPath()); err != nil {
+			return fmt.Errorf("failed to remove empty config directory: %w", err)
+		}
+	}
+
 	return nil
 }
 
@@ -100,7 +140,9 @@ func (dg *Devgita) ForceConfigure() error {
 		return fmt.Errorf("failed to load global config: %w", err)
 	}
 	gc.AppPath = paths.Paths.App.Root
-	gc.ConfigPath = configDirPath
+	gc.ConfigPath = getConfigDirPath()
+	// Set platform flag for shell template conditionals
+	gc.Shell.IsMac = runtime.GOOS == "darwin"
 	if err := gc.Save(); err != nil {
 		return fmt.Errorf("failed to save global config: %w", err)
 	}
@@ -108,16 +150,16 @@ func (dg *Devgita) ForceConfigure() error {
 	if err := gc.RegenerateShellConfig(); err != nil {
 		return fmt.Errorf("failed to create global config file: %w", err)
 	}
-	devgitaConfigLine := fmt.Sprintf("source %s", zshConfigPath)
-	if err := dg.Base.MaybeSetup(devgitaConfigLine, zshConfigPath); err != nil {
+	devgitaConfigLine := fmt.Sprintf("source %s", getZshConfigPath())
+	if err := dg.Base.MaybeSetup(devgitaConfigLine, getZshConfigPath()); err != nil {
 		return err
 	}
 	return nil
 }
 
 func (dg *Devgita) SoftConfigure() error {
-	if files.FileAlreadyExist(globalConfigPath) && files.FileAlreadyExist(zshConfigPath) {
-		logger.L().Info("Global config already exists at %s", globalConfigPath)
+	if files.FileAlreadyExist(getGlobalConfigPath()) && files.FileAlreadyExist(getZshConfigPath()) {
+		logger.L().Info("Global config already exists at %s", getGlobalConfigPath())
 		return nil
 	}
 	return dg.ForceConfigure()

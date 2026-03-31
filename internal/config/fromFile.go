@@ -37,6 +37,7 @@ type AlreadyInstalledConfig struct {
 
 // ShellFeatures tracks which shell enhancements are enabled
 type ShellFeatures struct {
+	IsMac                 bool `yaml:"is_mac"`
 	Mise                  bool `yaml:"mise"`
 	Zoxide                bool `yaml:"zoxide"`
 	ZshAutosuggestions    bool `yaml:"zsh_autosuggestions"`

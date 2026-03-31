@@ -10,7 +10,9 @@ import (
 	"github.com/cjairm/devgita/internal/apps/flameshot"
 	"github.com/cjairm/devgita/internal/apps/fonts"
 	"github.com/cjairm/devgita/internal/apps/gimp"
+	"github.com/cjairm/devgita/internal/apps/i3"
 	"github.com/cjairm/devgita/internal/apps/raycast"
+	"github.com/cjairm/devgita/internal/apps/ulauncher"
 	cmd "github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/logger"
@@ -33,12 +35,22 @@ func (d *Desktop) InstallAndConfigure() error {
 	err := d.InstallAlacritty()
 	displayMessage(err, constants.Alacritty)
 
-	err = d.InstallAerospace()
-	displayMessage(err, constants.Aerospace)
+	// Platform-specific window managers
+	if d.Base.Platform.IsMac() {
+		err = d.InstallAerospace()
+		displayMessage(err, constants.Aerospace)
+	} else {
+		// Debian/Ubuntu: Install i3 tiling window manager
+		err = d.InstallI3()
+		displayMessage(err, constants.I3)
+	}
 
 	utils.PrintInfo("Installing fonts (if no previously installed)...")
 	f := fonts.New()
 	f.SoftInstallAll()
+
+	// Install desktop apps (platform-gated where appropriate)
+	d.InstallDesktopAppsWithoutConfiguration()
 
 	if d.Base.Platform.IsMac() {
 		d.DisplayPrivacyInstructions()
@@ -48,8 +60,8 @@ func (d *Desktop) InstallAndConfigure() error {
 }
 
 func (d *Desktop) InstallDesktopAppsWithoutConfiguration() {
-	// should install docker, gimp, brave, flameshot, raycast
-	desktopApps := []struct {
+	// Cross-platform apps: docker, gimp, brave, flameshot
+	crossPlatformApps := []struct {
 		name string
 		app  interface {
 			SoftInstall() error
@@ -59,12 +71,27 @@ func (d *Desktop) InstallDesktopAppsWithoutConfiguration() {
 		{constants.Gimp, gimp.New()},
 		{constants.Brave, brave.New()},
 		{constants.Flameshot, flameshot.New()},
-		{constants.Raycast, raycast.New()},
 	}
-	for _, desktopApp := range desktopApps {
+
+	for _, desktopApp := range crossPlatformApps {
 		if err := desktopApp.app.SoftInstall(); err != nil {
 			displayMessage(err, desktopApp.name)
 			continue
+		}
+	}
+
+	// Platform-specific launchers
+	if d.Base.Platform.IsMac() {
+		// macOS: Raycast launcher
+		r := raycast.New()
+		if err := r.SoftInstall(); err != nil {
+			displayMessage(err, constants.Raycast)
+		}
+	} else {
+		// Debian/Ubuntu: Ulauncher
+		u := ulauncher.New()
+		if err := u.SoftInstall(); err != nil {
+			displayMessage(err, constants.Ulauncher)
 		}
 	}
 }
@@ -89,6 +116,19 @@ func (d *Desktop) InstallAerospace() error {
 		return err
 	}
 	err = a.SoftConfigure()
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (d *Desktop) InstallI3() error {
+	i := i3.New()
+	err := i.SoftInstall()
+	if err != nil {
+		return err
+	}
+	err = i.SoftConfigure()
 	if err != nil {
 		return err
 	}

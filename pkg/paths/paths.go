@@ -22,6 +22,7 @@ var Paths = struct {
 			Fastfetch string
 			Fonts     string
 			Git       string
+			I3        string
 			Neovim    string
 			OpenCode  string
 			Templates string
@@ -46,6 +47,7 @@ var Paths = struct {
 		Fastfetch string
 		Fonts     string
 		Git       string
+		I3        string
 		Nvim      string
 		OpenCode  string
 		Themes    string
@@ -74,6 +76,7 @@ var Paths = struct {
 			Fastfetch string
 			Fonts     string
 			Git       string
+			I3        string
 			Neovim    string
 			OpenCode  string
 			Templates string
@@ -94,6 +97,7 @@ var Paths = struct {
 			Fastfetch string
 			Fonts     string
 			Git       string
+			I3        string
 			Neovim    string
 			OpenCode  string
 			Templates string
@@ -105,6 +109,7 @@ var Paths = struct {
 			Fastfetch: GetAppDir(constants.App.Dir.Configs, constants.Fastfetch),
 			Fonts:     GetAppDir(constants.App.Dir.Configs, constants.Fonts),
 			Git:       GetAppDir(constants.App.Dir.Configs, constants.Git),
+			I3:        GetAppDir(constants.App.Dir.Configs, constants.I3),
 			Neovim:    GetAppDir(constants.App.Dir.Configs, constants.Neovim),
 			OpenCode:  GetAppDir(constants.App.Dir.Configs, constants.OpenCode),
 			Templates: GetAppDir(constants.App.Dir.Configs, constants.Templates),
@@ -135,6 +140,7 @@ var Paths = struct {
 		Fastfetch string
 		Fonts     string
 		Git       string
+		I3        string
 		Nvim      string
 		OpenCode  string
 		Themes    string
@@ -147,6 +153,7 @@ var Paths = struct {
 		Fastfetch: GetConfigDir(constants.Fastfetch),
 		Fonts:     GetConfigDir(constants.Fonts),
 		Git:       GetConfigDir(constants.Git),
+		I3:        GetConfigDir(constants.I3),
 		Nvim:      GetConfigDir(constants.Nvim),
 		OpenCode:  GetConfigDir(constants.OpenCode),
 		Themes:    GetConfigDir(constants.Themes),

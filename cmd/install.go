@@ -7,7 +7,6 @@ import (
 	"context"
 
 	"github.com/cjairm/devgita/internal/apps/devgita"
-	"github.com/cjairm/devgita/internal/apps/git"
 	"github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/internal/tooling/databases"
 	"github.com/cjairm/devgita/internal/tooling/desktop"
@@ -31,14 +30,14 @@ var installCmd = &cobra.Command{
 
 This command performs the following steps:
   - Validates your OS version
-  - Installs essential dependencies (e.g., git, fc-*)
-  - Clones the devgita repository
+  - Installs the package manager (Homebrew on macOS, apt on Debian/Ubuntu)
+  - Extracts embedded configuration templates
   - Installs terminal tools, programming languages, and databases
   - Optionally installs desktop applications and shell configuration
 
 Supported platforms:
-  - macOS (via Homebrew)
-  - Debian/Ubuntu (via apt)
+  - macOS 13+ (Ventura) via Homebrew
+  - Debian 12+ (Bookworm) / Ubuntu 24+ via apt
 
 Flags:
   --only <...>     Only install specific categories (e.g., terminal, languages, desktop)
@@ -80,10 +79,8 @@ func run(cmd *cobra.Command, args []string) {
 	utils.PrintInfo("Validating version...")
 	utils.MaybeExitWithError(osCmd.ValidateOSVersion())
 
-	utils.PrintInfo("Installing essential tools to begin...")
+	utils.PrintInfo("Installing package manager...")
 	utils.MaybeExitWithError(osCmd.MaybeInstallPackageManager())
-	g := git.New()
-	utils.MaybeExitWithError(g.SoftInstall())
 
 	installDevgita()
 	installTerminalTools(onlySet, skipSet)
