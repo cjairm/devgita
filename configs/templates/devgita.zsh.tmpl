@@ -23,25 +23,43 @@ fi
 # ----------------------------------------------------------------------------
 {{if .ZshAutosuggestions}}
 # Zsh Autosuggestions - Fish-like autosuggestions
+{{if .IsMac}}
 if [[ -f $(brew --prefix)/share/zsh-autosuggestions/zsh-autosuggestions.zsh ]]; then
     source $(brew --prefix)/share/zsh-autosuggestions/zsh-autosuggestions.zsh
 fi
+{{else}}
+if [[ -f /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh ]]; then
+    source /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh
+fi
+{{end}}
 {{end}}
 
 {{if .ZshSyntaxHighlighting}}
 # Zsh Syntax Highlighting - Fish-like syntax highlighting
+{{if .IsMac}}
 if [[ -f $(brew --prefix)/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ]]; then
     source $(brew --prefix)/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
 fi
+{{else}}
+if [[ -f /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ]]; then
+    source /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+fi
+{{end}}
 {{end}}
 
 # Theme
 # ----------------------------------------------------------------------------
 {{if .Powerlevel10k}}
 # Powerlevel10k - Fast and flexible Zsh theme
+{{if .IsMac}}
 if [[ -f $(brew --prefix)/share/powerlevel10k/powerlevel10k.zsh-theme ]]; then
     source $(brew --prefix)/share/powerlevel10k/powerlevel10k.zsh-theme
 fi
+{{else}}
+if [[ -f /usr/share/powerlevel10k/powerlevel10k.zsh-theme ]]; then
+    source /usr/share/powerlevel10k/powerlevel10k.zsh-theme
+fi
+{{end}}
 {{end}}
 
 # ============================================================================

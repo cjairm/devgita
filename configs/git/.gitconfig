@@ -1,0 +1,51 @@
+[user]
+	# Replace with your own name and email
+	name = Your Name
+	email = your.email@example.com
+
+[init]
+	# Use 'main' as the default branch name for new repositories
+	defaultBranch = main
+
+[pull]
+	# Rebase local commits on top of fetched branch when pulling
+	rebase = true
+
+[color]
+	# Enable colored output in terminal
+	ui = auto
+
+[core]
+	# Set default editor (uncomment and modify as needed)
+	# editor = nvim
+	# Normalize line endings to LF
+	autocrlf = input
+
+[alias]
+	# Common git aliases for faster workflow
+	st = status
+	co = checkout
+	br = branch
+	ci = commit
+	unstage = reset HEAD --
+	last = log -1 HEAD
+	lg = log --oneline --decorate --all --graph
+	amend = commit --amend --no-edit
+	
+[push]
+	# Push only the current branch by default
+	default = current
+	# Push tags automatically
+	followTags = true
+
+[fetch]
+	# Remove remote-tracking references that no longer exist on remote
+	prune = true
+
+[diff]
+	# Use more informative diff algorithm
+	algorithm = histogram
+
+[merge]
+	# Include common ancestor in conflict markers
+	conflictstyle = diff3

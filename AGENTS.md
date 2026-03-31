@@ -47,3 +47,10 @@ docs/apps/
 └── ...
 ```
 
+
+## Active Technologies
+- Go 1.21+ (existing project, uses `embed` package from Go 1.16+) + Cobra CLI, gopkg.in/yaml.v3, Go `embed`, Go `text/template` (001-binary-dist-audit)
+- YAML files on disk (`~/.config/devgita/global_config.yaml`), embedded filesystem via `embed.FS` (001-binary-dist-audit)
+
+## Recent Changes
+- 001-binary-dist-audit: Added Go 1.21+ (existing project, uses `embed` package from Go 1.16+) + Cobra CLI, gopkg.in/yaml.v3, Go `embed`, Go `text/template`

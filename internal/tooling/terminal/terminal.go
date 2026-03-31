@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/cjairm/devgita/internal/apps/fastfetch"
+	"github.com/cjairm/devgita/internal/apps/git"
 	"github.com/cjairm/devgita/internal/apps/lazydocker"
 	"github.com/cjairm/devgita/internal/apps/lazygit"
 	"github.com/cjairm/devgita/internal/apps/mise"
@@ -42,7 +43,6 @@ import (
 	"github.com/cjairm/devgita/internal/tooling/terminal/dev_tools/zoxide"
 	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/logger"
-	"github.com/cjairm/devgita/pkg/paths"
 	"github.com/cjairm/devgita/pkg/promptui"
 	"github.com/cjairm/devgita/pkg/utils"
 )
@@ -64,19 +64,12 @@ func (t *Terminal) InstallAndConfigure() {
 	t.InstallTerminalApps()
 	t.InstallDevTools()
 	t.InstallCoreLibs()
-	if _, _, err := t.Base.ExecCommand(commands.CommandParams{
-		Command: "source",
-		Args:    []string{paths.Files.ShellConfig},
-	}); err != nil {
-		utils.PrintWarning(fmt.Sprintf(
-			"Failed to source %s: %v",
-			paths.Files.ShellConfig, err))
-	}
 }
 
 func (t *Terminal) InstallTerminalApps() {
 	// should install:
 	// - fastfetch
+	// - git
 	// - lazydocker
 	// - lazygit
 	// - mise
@@ -91,6 +84,8 @@ func (t *Terminal) InstallTerminalApps() {
 		}
 	}{
 		{constants.Fastfetch, fastfetch.New()},
+		{constants.Git, git.New()},
+		{constants.Mise, mise.New()},
 		{constants.Neovim, neovim.New()},
 		{constants.Tmux, tmux.New()},
 	}
@@ -104,6 +99,15 @@ func (t *Terminal) InstallTerminalApps() {
 			continue
 		}
 	}
+
+	// OpenCode has different SoftConfigure signature (accepts ConfigureOptions)
+	o := opencode.New()
+	if err := o.SoftInstall(); err != nil {
+		displayMessage(err, constants.OpenCode)
+	} else if err := o.SoftConfigure(); err != nil {
+		displayMessage(err, constants.OpenCode, true)
+	}
+
 	tuis := []struct {
 		name string
 		app  interface{ SoftInstall() error }
@@ -114,10 +118,6 @@ func (t *Terminal) InstallTerminalApps() {
 	for _, tui := range tuis {
 		displayMessage(tui.app.SoftInstall(), tui.name)
 	}
-	m := mise.New()
-	displayMessage(m.SoftInstall(), constants.Mise)
-	o := opencode.New()
-	displayMessage(o.SoftInstall(), constants.OpenCode)
 }
 
 func (t *Terminal) InstallDevTools() {
