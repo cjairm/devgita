@@ -77,6 +77,8 @@ dge() {
     # npm dependency management
     "reinstall-libraries"
     "reinstall-library"
+    # github pr management
+    "fetch-pr-comments"
   )
 
   local cmd="$1"
@@ -142,6 +144,61 @@ dge() {
       fi
 
       rm -rf "node_modules/$target" && npm install
+      ;;
+
+    # -------------------------------------
+    # GitHub PR Management
+    # -------------------------------------
+    fetch-pr-comments)
+      local repo="$target"
+      local pr_number="$3"
+      local output_file="${4:-pr_comments.json}"
+
+      [[ -z "$repo" || -z "$pr_number" ]] && echo "Usage: dge fetch-pr-comments <REPO> <PR_NUMBER>" && return 1
+      ! command -v gh &>/dev/null && echo "Error: gh not installed" && return 1
+      ! command -v jq &>/dev/null && echo "Error: jq not installed" && return 1
+
+      local owner="${repo%/*}"
+      local name="${repo#*/}"
+
+      gh api graphql -f query='
+        query($owner: String!, $name: String!, $pr: Int!) {
+          repository(owner: $owner, name: $name) {
+            pullRequest(number: $pr) {
+              reviewThreads(first: 100) {
+                nodes {
+                  isResolved
+                  isOutdated
+                  comments(first: 100) {
+                    nodes {
+                      id
+                      path
+                      line
+                      body
+                      author { login }
+                      createdAt
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ' -f owner="$owner" -f name="$name" -F pr="$pr_number" 2>/dev/null | jq '
+        [
+          .data.repository.pullRequest.reviewThreads.nodes[] 
+          | . as $thread
+          | .comments.nodes[0]
+          | select(.body | test("^https?://[^\\s]+$") | not)
+          | {
+              path,
+              line,
+              body,
+              author: .author.login,
+              is_resolved: $thread.isResolved,
+            }
+        ]
+      ' > "$output_file" && echo "✓ Saved to $output_file"
       ;;
 
   esac
