@@ -159,8 +159,9 @@ case "$CURRENT_SHELL" in
         ;;
 esac
 
-# Add to PATH if not already present
+# Add to PATH and create alias if not already present
 PATH_EXPORT="export PATH=\"\$HOME/.local/bin:\$PATH\""
+ALIAS_EXPORT="alias dg='devgita'"
 
 if [ -f "$SHELL_CONFIG" ]; then
     # Check if PATH entry already exists
@@ -171,14 +172,24 @@ if [ -f "$SHELL_CONFIG" ]; then
         echo "" >> "$SHELL_CONFIG"
         echo "# Added by devgita installer" >> "$SHELL_CONFIG"
         echo "$PATH_EXPORT" >> "$SHELL_CONFIG"
-        print_success "Updated $SHELL_CONFIG"
+        print_success "Updated $SHELL_CONFIG with PATH"
+    fi
+    
+    # Check if alias already exists
+    if grep -qF "alias dg=" "$SHELL_CONFIG" 2>/dev/null; then
+        print_info "Alias 'dg' already configured in $SHELL_CONFIG"
+    else
+        print_info "Adding 'dg' alias in $SHELL_CONFIG"
+        echo "$ALIAS_EXPORT" >> "$SHELL_CONFIG"
+        print_success "Updated $SHELL_CONFIG with alias"
     fi
 else
     # Create shell config if it doesn't exist
     print_info "Creating $SHELL_CONFIG"
     echo "# Added by devgita installer" > "$SHELL_CONFIG"
     echo "$PATH_EXPORT" >> "$SHELL_CONFIG"
-    print_success "Created $SHELL_CONFIG with PATH configuration"
+    echo "$ALIAS_EXPORT" >> "$SHELL_CONFIG"
+    print_success "Created $SHELL_CONFIG with PATH and alias configuration"
 fi
 
 # Verify installation
@@ -194,7 +205,12 @@ if command -v devgita &> /dev/null; then
     echo ""
     print_info "Next steps:"
     echo "  1. Restart your shell or run: source $SHELL_CONFIG"
-    echo "  2. Run: devgita install"
+    echo "  2. Run: dg install"
+    echo ""
+    print_info "Available commands:"
+    echo "  dg install              - Set up your development environment"
+    echo "  dg install --only terminal   - Install only terminal tools"
+    echo "  dg install --skip desktop    - Install everything except desktop apps"
     echo ""
 else
     print_error "Installation verification failed"
