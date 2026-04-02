@@ -110,13 +110,23 @@ func (t *Terminal) InstallTerminalApps() {
 
 	tuis := []struct {
 		name string
-		app  interface{ SoftInstall() error }
+		app  interface {
+			SoftInstall() error
+			SoftConfigure() error
+		}
 	}{
 		{constants.LazyDocker, lazydocker.New()},
 		{constants.LazyGit, lazygit.New()},
 	}
 	for _, tui := range tuis {
-		displayMessage(tui.app.SoftInstall(), tui.name)
+		if err := tui.app.SoftInstall(); err != nil {
+			displayMessage(err, tui.name)
+			continue
+		}
+		if err := tui.app.SoftConfigure(); err != nil {
+			displayMessage(err, tui.name, true)
+			continue
+		}
 	}
 }
 
@@ -137,7 +147,10 @@ func (t *Terminal) InstallDevTools() {
 	// - zsh-autosuggestions
 	devtools := []struct {
 		name string
-		app  interface{ SoftInstall() error }
+		app  interface {
+			SoftInstall() error
+			SoftConfigure() error
+		}
 	}{
 		{constants.Bat, bat.New()},
 		{constants.Btop, btop.New()},
@@ -154,7 +167,14 @@ func (t *Terminal) InstallDevTools() {
 		{constants.ZshAutosuggestions, autosuggestions.New()},
 	}
 	for _, devtool := range devtools {
-		displayMessage(devtool.app.SoftInstall(), devtool.name)
+		if err := devtool.app.SoftInstall(); err != nil {
+			displayMessage(err, devtool.name)
+			continue
+		}
+		if err := devtool.app.SoftConfigure(); err != nil {
+			displayMessage(err, devtool.name, true)
+			continue
+		}
 	}
 }
 
@@ -178,7 +198,10 @@ func (t *Terminal) InstallCoreLibs() {
 	// - zlib
 	libs := []struct {
 		name string
-		app  interface{ SoftInstall() error }
+		app  interface {
+			SoftInstall() error
+			SoftConfigure() error
+		}
 	}{
 		{constants.Autoconf, autoconf.New()},
 		{constants.Bison, bison.New()},
@@ -201,11 +224,25 @@ func (t *Terminal) InstallCoreLibs() {
 		switch lib.name {
 		case constants.Xcode:
 			if t.Base.Platform.IsMac() {
-				displayMessage(lib.app.SoftInstall(), lib.name)
+				if err := lib.app.SoftInstall(); err != nil {
+					displayMessage(err, lib.name)
+					continue
+				}
+				if err := lib.app.SoftConfigure(); err != nil {
+					displayMessage(err, lib.name, true)
+					continue
+				}
 			}
 			continue
 		default:
-			displayMessage(lib.app.SoftInstall(), lib.name)
+			if err := lib.app.SoftInstall(); err != nil {
+				displayMessage(err, lib.name)
+				continue
+			}
+			if err := lib.app.SoftConfigure(); err != nil {
+				displayMessage(err, lib.name, true)
+				continue
+			}
 		}
 	}
 }

@@ -4,17 +4,18 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/cjairm/devgita/internal/apps/tmux"
 	"github.com/cjairm/devgita/internal/commands"
-	"github.com/cjairm/devgita/pkg/logger"
+	"github.com/cjairm/devgita/internal/testutil"
 	"github.com/cjairm/devgita/pkg/paths"
 )
 
 func init() {
 	// Initialize logger for tests
-	logger.Init(false)
+	testutil.InitLogger()
 }
 
 func TestNew(t *testing.T) {
@@ -131,24 +132,18 @@ func TestSoftInstall(t *testing.T) {
 func TestForceConfigure(t *testing.T) {
 	t.Helper()
 
-	tempDir := t.TempDir()
-
-	oldTmuxConfigAppDir := paths.Paths.App.Configs.Tmux
-	oldHomeDir := paths.Paths.Home.Root
-	defer func() {
-		paths.Paths.App.Configs.Tmux = oldTmuxConfigAppDir
-		paths.Paths.Home.Root = oldHomeDir
-	}()
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
 
 	// Create source directory with tmux config
-	sourceDir := filepath.Join(tempDir, "source")
+	sourceDir := filepath.Join(tc.AppDir, "tmux")
 	err := os.MkdirAll(sourceDir, 0755)
 	if err != nil {
 		t.Fatalf("Failed to create source directory: %v", err)
 	}
 
 	// Create destination directory
-	destDir := filepath.Join(tempDir, "dest")
+	destDir := tc.ConfigDir
 	err = os.MkdirAll(destDir, 0755)
 	if err != nil {
 		t.Fatalf("Failed to create destination directory: %v", err)
@@ -186,6 +181,18 @@ func TestForceConfigure(t *testing.T) {
 			string(content),
 		)
 	}
+
+	// Verify shell config was generated
+	shellContent, err := os.ReadFile(tc.ZshConfigPath)
+	if err != nil {
+		t.Fatalf("Failed to read shell config: %v", err)
+	}
+
+	if !strings.Contains(string(shellContent), "# Tmux enabled") {
+		t.Error("Expected shell config to contain Tmux feature")
+	}
+
+	testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
 }
 
 func TestSoftConfigure(t *testing.T) {
@@ -193,29 +200,17 @@ func TestSoftConfigure(t *testing.T) {
 
 	// Test case 1: Configuration doesn't exist - should configure
 	t.Run("ConfigureWhenNotExists", func(t *testing.T) {
-		tempDir := t.TempDir()
-
-		// Override global paths for the duration of the test
-		oldTmuxConfigAppDir := paths.Paths.App.Configs.Tmux
-		oldHomeDir := paths.Paths.Home.Root
-		defer func() {
-			paths.Paths.App.Configs.Tmux = oldTmuxConfigAppDir
-			paths.Paths.Home.Root = oldHomeDir
-		}()
+		tc := testutil.SetupCompleteTest(t)
+		defer tc.Cleanup()
 
 		// Create source directory with tmux config
-		sourceDir := filepath.Join(tempDir, "source")
+		sourceDir := filepath.Join(tc.AppDir, "tmux")
 		err := os.MkdirAll(sourceDir, 0755)
 		if err != nil {
 			t.Fatalf("Failed to create source directory: %v", err)
 		}
 
-		// Create destination directory
-		destDir := filepath.Join(tempDir, "dest")
-		err = os.MkdirAll(destDir, 0755)
-		if err != nil {
-			t.Fatalf("Failed to create destination directory: %v", err)
-		}
+		destDir := tc.ConfigDir
 
 		paths.Paths.App.Configs.Tmux = sourceDir
 		paths.Paths.Home.Root = destDir
@@ -260,47 +255,40 @@ func TestSoftConfigure(t *testing.T) {
 				string(content),
 			)
 		}
+
+		// Verify shell config was generated
+		shellContent, err := os.ReadFile(tc.ZshConfigPath)
+		if err != nil {
+			t.Fatalf("Failed to read shell config: %v", err)
+		}
+
+		if !strings.Contains(string(shellContent), "# Tmux enabled") {
+			t.Error("Expected shell config to contain Tmux feature on first call")
+		}
+
+		testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
 	})
 
-	// Test case 2: Configuration already exists - should skip
+	// Test case 2: Configuration already exists - should skip file copy but enable shell feature
 	t.Run("SkipWhenExists", func(t *testing.T) {
-		tempDir := t.TempDir()
+		tc := testutil.SetupCompleteTest(t)
+		defer tc.Cleanup()
 
 		// Create home directory with existing .tmux.conf
-		homeDir := filepath.Join(tempDir, "home")
-		err := os.MkdirAll(homeDir, 0755)
-		if err != nil {
-			t.Fatalf("Failed to create home directory: %v", err)
-		}
+		homeDir := tc.ConfigDir
+
+		// Set Home path before creating the config file
+		paths.Paths.Home.Root = homeDir
 
 		existingConfig := filepath.Join(homeDir, ".tmux.conf")
 		existingContent := "# Existing tmux configuration\nset -g mouse on"
-		err = os.WriteFile(existingConfig, []byte(existingContent), 0644)
+		err := os.WriteFile(existingConfig, []byte(existingContent), 0644)
 		if err != nil {
 			t.Fatalf("Failed to create existing config: %v", err)
 		}
 
-		// Override UserHomeDir to return our test directory
-		app := tmux.New()
-
-		// We need to test this by temporarily changing the home directory
-		// Since we can't easily mock os.UserHomeDir, we'll test the logic differently
-		// by checking that when a file exists, it's not overwritten
-
-		// Read the content before SoftConfigure
-		contentBefore, err := os.ReadFile(existingConfig)
-		if err != nil {
-			t.Fatalf("Failed to read config before test: %v", err)
-		}
-
-		// For this test, we need to set up the paths correctly
-		oldTmuxConfigAppDir := paths.Paths.App.Configs.Tmux
-		defer func() {
-			paths.Paths.App.Configs.Tmux = oldTmuxConfigAppDir
-		}()
-
-		// Create source directory (though it shouldn't be used)
-		sourceDir := filepath.Join(tempDir, "source")
+		// Create source directory (though it shouldn't be used for file copy)
+		sourceDir := filepath.Join(tc.AppDir, "tmux")
 		err = os.MkdirAll(sourceDir, 0755)
 		if err != nil {
 			t.Fatalf("Failed to create source directory: %v", err)
@@ -326,6 +314,8 @@ func TestSoftConfigure(t *testing.T) {
 		}()
 		os.Setenv("HOME", homeDir)
 
+		app := tmux.New()
+
 		err = app.SoftConfigure()
 		if err != nil {
 			t.Errorf("SoftConfigure returned error: %v", err)
@@ -337,7 +327,7 @@ func TestSoftConfigure(t *testing.T) {
 			t.Fatalf("Failed to read config after test: %v", err)
 		}
 
-		if string(contentAfter) != string(contentBefore) {
+		if string(contentAfter) != existingContent {
 			t.Errorf("Expected config to remain unchanged, but it was modified")
 		}
 
@@ -346,5 +336,17 @@ func TestSoftConfigure(t *testing.T) {
 				"Config was overwritten with source content when it should have been preserved",
 			)
 		}
+
+		// Verify shell config was still generated (feature should be enabled even when file exists)
+		shellContent, err := os.ReadFile(tc.ZshConfigPath)
+		if err != nil {
+			t.Fatalf("Failed to read shell config: %v", err)
+		}
+
+		if !strings.Contains(string(shellContent), "# Tmux enabled") {
+			t.Error("Expected shell config to contain Tmux feature even when config file exists")
+		}
+
+		testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
 	})
 }

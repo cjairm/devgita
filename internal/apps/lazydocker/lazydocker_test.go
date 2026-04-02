@@ -2,17 +2,18 @@ package lazydocker
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 
 	"github.com/cjairm/devgita/internal/commands"
+	"github.com/cjairm/devgita/internal/testutil"
 	"github.com/cjairm/devgita/pkg/constants"
-	"github.com/cjairm/devgita/pkg/logger"
 )
 
 func init() {
 	// Initialize logger for tests
-	logger.Init(false)
+	testutil.InitLogger()
 }
 
 func TestNew(t *testing.T) {
@@ -68,28 +69,61 @@ func TestSoftInstall(t *testing.T) {
 	}
 }
 
-// SKIP: No relevant tests
-// func TestForceConfigure(t *testing.T) {
-// 	mc := commands.NewMockCommand()
-// 	app := &LazyDocker{Cmd: mc}
-//
-// 	// LazyDocker doesn't apply default configuration in devgita
-// 	// ForceConfigure should return nil (no-op)
-// 	if err := app.ForceConfigure(); err != nil {
-// 		t.Fatalf("ForceConfigure error: %v", err)
-// 	}
-// }
-//
-// func TestSoftConfigure(t *testing.T) {
-// 	mc := commands.NewMockCommand()
-// 	app := &LazyDocker{Cmd: mc}
-//
-// 	// LazyDocker doesn't apply default configuration in devgita
-// 	// SoftConfigure should return nil (no-op)
-// 	if err := app.SoftConfigure(); err != nil {
-// 		t.Fatalf("SoftConfigure error: %v", err)
-// 	}
-// }
+func TestForceConfigure(t *testing.T) {
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
+
+	app := &LazyDocker{Cmd: tc.MockApp.Cmd}
+
+	// Test ForceConfigure - should enable shell feature
+	err := app.ForceConfigure()
+	if err != nil {
+		t.Fatalf("ForceConfigure error: %v", err)
+	}
+
+	// Verify shell config was generated
+	content, err := os.ReadFile(tc.ZshConfigPath)
+	if err != nil {
+		t.Fatalf("Failed to read shell config: %v", err)
+	}
+
+	if !strings.Contains(string(content), "# LazyDocker enabled") {
+		t.Error("Expected shell config to contain LazyDocker feature")
+	}
+
+	testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
+}
+
+func TestSoftConfigure(t *testing.T) {
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
+
+	app := &LazyDocker{Cmd: tc.MockApp.Cmd}
+
+	// First call should configure
+	err := app.SoftConfigure()
+	if err != nil {
+		t.Fatalf("SoftConfigure error: %v", err)
+	}
+
+	// Verify shell config was generated
+	content, err := os.ReadFile(tc.ZshConfigPath)
+	if err != nil {
+		t.Fatalf("Failed to read shell config: %v", err)
+	}
+
+	if !strings.Contains(string(content), "# LazyDocker enabled") {
+		t.Error("Expected shell config to contain LazyDocker feature on first call")
+	}
+
+	// Second call should skip (feature already enabled)
+	err = app.SoftConfigure()
+	if err != nil {
+		t.Fatalf("SoftConfigure should not error on second call: %v", err)
+	}
+
+	testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
+}
 
 func TestExecuteCommand(t *testing.T) {
 	mc := commands.NewMockCommand()

@@ -2,15 +2,16 @@ package bat
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 
 	"github.com/cjairm/devgita/internal/commands"
-	"github.com/cjairm/devgita/pkg/logger"
+	"github.com/cjairm/devgita/internal/testutil"
 )
 
 func init() {
-	logger.Init(false)
+	testutil.InitLogger()
 }
 
 func TestNew(t *testing.T) {
@@ -59,29 +60,61 @@ func TestSoftInstall(t *testing.T) {
 	}
 }
 
-// SKIP: ForceConfigure test is not needed now
-// func TestForceConfigure(t *testing.T) {
-// 	mc := commands.NewMockCommand()
-// 	app := &Bat{Cmd: mc}
-//
-// 	// Bat doesn't require separate configuration files for basic usage
-// 	// so ForceConfigure should return nil (no-op)
-// 	if err := app.ForceConfigure(); err != nil {
-// 		t.Fatalf("ForceConfigure error: %v", err)
-// 	}
-// }
+func TestForceConfigure(t *testing.T) {
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
 
-// SKIP: SoftConfigure test is not needed now
-// func TestSoftConfigure(t *testing.T) {
-// 	mc := commands.NewMockCommand()
-// 	app := &Bat{Cmd: mc}
-//
-// 	// Bat doesn't require separate configuration files for basic usage
-// 	// so SoftConfigure should return nil (no-op)
-// 	if err := app.SoftConfigure(); err != nil {
-// 		t.Fatalf("SoftConfigure error: %v", err)
-// 	}
-// }
+	app := &Bat{Cmd: tc.MockApp.Cmd}
+
+	// Test ForceConfigure - should enable shell feature
+	err := app.ForceConfigure()
+	if err != nil {
+		t.Fatalf("ForceConfigure error: %v", err)
+	}
+
+	// Verify shell config was generated
+	content, err := os.ReadFile(tc.ZshConfigPath)
+	if err != nil {
+		t.Fatalf("Failed to read shell config: %v", err)
+	}
+
+	if !strings.Contains(string(content), "# Bat enabled") {
+		t.Error("Expected shell config to contain Bat feature")
+	}
+
+	testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
+}
+
+func TestSoftConfigure(t *testing.T) {
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
+
+	app := &Bat{Cmd: tc.MockApp.Cmd}
+
+	// First call should configure
+	err := app.SoftConfigure()
+	if err != nil {
+		t.Fatalf("SoftConfigure error: %v", err)
+	}
+
+	// Verify shell config was generated
+	content, err := os.ReadFile(tc.ZshConfigPath)
+	if err != nil {
+		t.Fatalf("Failed to read shell config: %v", err)
+	}
+
+	if !strings.Contains(string(content), "# Bat enabled") {
+		t.Error("Expected shell config to contain Bat feature on first call")
+	}
+
+	// Second call should skip (feature already enabled)
+	err = app.SoftConfigure()
+	if err != nil {
+		t.Fatalf("SoftConfigure should not error on second call: %v", err)
+	}
+
+	testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
+}
 
 func TestExecuteCommand(t *testing.T) {
 	mc := commands.NewMockCommand()

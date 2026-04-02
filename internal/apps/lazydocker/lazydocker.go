@@ -20,6 +20,7 @@ import (
 	"fmt"
 
 	cmd "github.com/cjairm/devgita/internal/commands"
+	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/pkg/constants"
 )
 
@@ -57,17 +58,29 @@ func (ld *LazyDocker) Uninstall() error {
 }
 
 func (ld *LazyDocker) ForceConfigure() error {
-	// LazyDocker configuration is optional and user-specific
-	// Configuration file typically located at ~/.config/lazydocker/config.yml
-	// For now, no default configuration is applied
+	gc := &config.GlobalConfig{}
+	if err := gc.Load(); err != nil {
+		return fmt.Errorf("failed to load global config: %w", err)
+	}
+	gc.EnableShellFeature(constants.LazyDocker)
+	if err := gc.RegenerateShellConfig(); err != nil {
+		return fmt.Errorf("failed to generate shell config: %w", err)
+	}
+	if err := gc.Save(); err != nil {
+		return fmt.Errorf("failed to save global config: %w", err)
+	}
 	return nil
 }
 
 func (ld *LazyDocker) SoftConfigure() error {
-	// LazyDocker configuration is optional and user-specific
-	// Configuration file typically located at ~/.config/lazydocker/config.yml
-	// For now, no default configuration is applied
-	return nil
+	gc := &config.GlobalConfig{}
+	if err := gc.Load(); err != nil {
+		return fmt.Errorf("failed to load global config: %w", err)
+	}
+	if gc.IsShellFeatureEnabled(constants.LazyDocker) {
+		return nil
+	}
+	return ld.ForceConfigure()
 }
 
 func (ld *LazyDocker) ExecuteCommand(args ...string) error {

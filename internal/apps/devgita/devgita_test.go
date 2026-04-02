@@ -284,8 +284,26 @@ func TestSoftConfigure_PreservesExistingConfig(t *testing.T) {
 	tc := testutil.SetupCompleteTest(t)
 	defer tc.Cleanup()
 
-	// Create existing config file with custom marker
-	existingContent := "# Custom config marker\napp_path: /custom/path\n"
+	// Create existing config file with custom marker AND extended_capabilities enabled
+	// This is key - if extended_capabilities is false, SoftConfigure will regenerate the config
+	existingContent := `# Custom config marker
+app_path: /custom/path
+config_path: ""
+shell:
+  mise: false
+  zoxide: false
+  zsh_autosuggestions: false
+  zsh_syntax_highlighting: false
+  powerlevel10k: false
+  extended_capabilities: true
+  lazy_git: false
+  lazy_docker: false
+  fzf: false
+  neovim: false
+  tmux: false
+  eza: false
+  bat: false
+`
 	if err := os.WriteFile(tc.ConfigPath, []byte(existingContent), 0644); err != nil {
 		t.Fatalf("Failed to create existing config: %v", err)
 	}

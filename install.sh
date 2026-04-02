@@ -162,6 +162,7 @@ esac
 # Add to PATH and create alias if not already present
 PATH_EXPORT="export PATH=\"\$HOME/.local/bin:\$PATH\""
 ALIAS_EXPORT="alias dg='devgita'"
+SOURCE_CONFIG="source $HOME/.local/share/devgita/devgita.zsh"
 
 if [ -f "$SHELL_CONFIG" ]; then
     # Check if devgita installer block already exists
@@ -173,6 +174,7 @@ if [ -f "$SHELL_CONFIG" ]; then
         echo "# Added by devgita installer" >> "$SHELL_CONFIG"
         echo "$PATH_EXPORT" >> "$SHELL_CONFIG"
         echo "$ALIAS_EXPORT" >> "$SHELL_CONFIG"
+        echo "$SOURCE_CONFIG" >> "$SHELL_CONFIG"
         print_success "Updated $SHELL_CONFIG"
     fi
 else
@@ -181,6 +183,7 @@ else
     echo "# Added by devgita installer" > "$SHELL_CONFIG"
     echo "$PATH_EXPORT" >> "$SHELL_CONFIG"
     echo "$ALIAS_EXPORT" >> "$SHELL_CONFIG"
+    echo "$SOURCE_CONFIG" >> "$SHELL_CONFIG"
     print_success "Created $SHELL_CONFIG with devgita configuration"
 fi
 

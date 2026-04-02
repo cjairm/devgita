@@ -138,6 +138,13 @@ shell:
   zsh_syntax_highlighting: false
   powerlevel10k: false
   extended_capabilities: false
+  lazy_git: false
+  lazy_docker: false
+  fzf: false
+  neovim: false
+  tmux: false
+  eza: false
+  bat: false
 `
 
 	if err := os.WriteFile(templatePath, []byte(templateContent), 0644); err != nil {
@@ -158,6 +165,14 @@ func CreateShellConfigTemplate(t *testing.T, templatesDir string, content string
 {{if .ZshAutosuggestions}}# Autosuggestions enabled{{end}}
 {{if .ZshSyntaxHighlighting}}# Syntax highlighting enabled{{end}}
 {{if .Powerlevel10k}}# Powerlevel10k enabled{{end}}
+{{if .ExtendedCapabilities}}# Extended capabilities enabled{{end}}
+{{if .LazyGit}}# LazyGit enabled{{end}}
+{{if .LazyDocker}}# LazyDocker enabled{{end}}
+{{if .Fzf}}# Fzf enabled{{end}}
+{{if .Neovim}}# Neovim enabled{{end}}
+{{if .Tmux}}# Tmux enabled{{end}}
+{{if .Eza}}# Eza enabled{{end}}
+{{if .Bat}}# Bat enabled{{end}}
 `
 	}
 
@@ -186,6 +201,14 @@ shell:
   zsh_autosuggestions: false
   zsh_syntax_highlighting: false
   powerlevel10k: false
+  extended_capabilities: false
+  lazy_git: false
+  lazy_docker: false
+  fzf: false
+  neovim: false
+  tmux: false
+  eza: false
+  bat: false
 `
 	}
 

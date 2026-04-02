@@ -20,6 +20,7 @@ import (
 	"fmt"
 
 	cmd "github.com/cjairm/devgita/internal/commands"
+	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/pkg/constants"
 )
 
@@ -55,17 +56,29 @@ func (lg *LazyGit) Uninstall() error {
 }
 
 func (lg *LazyGit) ForceConfigure() error {
-	// LazyGit configuration is optional and user-specific
-	// Configuration file typically located at ~/.config/lazygit/config.yml
-	// For now, no default configuration is applied
+	gc := &config.GlobalConfig{}
+	if err := gc.Load(); err != nil {
+		return fmt.Errorf("failed to load global config: %w", err)
+	}
+	gc.EnableShellFeature(constants.LazyGit)
+	if err := gc.RegenerateShellConfig(); err != nil {
+		return fmt.Errorf("failed to generate shell config: %w", err)
+	}
+	if err := gc.Save(); err != nil {
+		return fmt.Errorf("failed to save global config: %w", err)
+	}
 	return nil
 }
 
 func (lg *LazyGit) SoftConfigure() error {
-	// LazyGit configuration is optional and user-specific
-	// Configuration file typically located at ~/.config/lazygit/config.yml
-	// For now, no default configuration is applied
-	return nil
+	gc := &config.GlobalConfig{}
+	if err := gc.Load(); err != nil {
+		return fmt.Errorf("failed to load global config: %w", err)
+	}
+	if gc.IsShellFeatureEnabled(constants.LazyGit) {
+		return nil
+	}
+	return lg.ForceConfigure()
 }
 
 func (lg *LazyGit) ExecuteCommand(args ...string) error {

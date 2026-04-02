@@ -17,6 +17,7 @@ import (
 	"strings"
 
 	cmd "github.com/cjairm/devgita/internal/commands"
+	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/files"
 	"github.com/cjairm/devgita/pkg/paths"
@@ -53,6 +54,13 @@ func (n *Neovim) ForceConfigure() error {
 	if err := n.checkVersion(); err != nil {
 		return fmt.Errorf("failed to check Neovim version: %w", err)
 	}
+	gc := &config.GlobalConfig{}
+	if err := gc.Load(); err != nil {
+		return fmt.Errorf("failed to load global config: %w", err)
+	}
+	if err := enableFeature(gc); err != nil {
+		return fmt.Errorf("failed to enable neovim feature: %w", err)
+	}
 	return files.CopyDir(paths.Paths.App.Configs.Neovim, paths.Paths.Config.Nvim)
 }
 
@@ -60,6 +68,15 @@ func (n *Neovim) SoftConfigure() error {
 	isDirPresent := files.DirAlreadyExist(paths.Paths.Config.Nvim)
 	isDirEmpty := files.IsDirEmpty(paths.Paths.Config.Nvim)
 	if isDirPresent && !isDirEmpty {
+		gc := &config.GlobalConfig{}
+		if err := gc.Load(); err != nil {
+			return fmt.Errorf("failed to load global config: %w", err)
+		}
+		if !gc.IsShellFeatureEnabled(constants.Neovim) {
+			if err := enableFeature(gc); err != nil {
+				return fmt.Errorf("failed to enable neovim feature: %w", err)
+			}
+		}
 		return nil
 	}
 	return n.ForceConfigure()
@@ -104,6 +121,17 @@ func (n *Neovim) checkVersion() error {
 		}
 	}
 	return fmt.Errorf("could not parse Neovim version from output")
+}
+
+func enableFeature(gc *config.GlobalConfig) error {
+	gc.EnableShellFeature(constants.Neovim)
+	if err := gc.RegenerateShellConfig(); err != nil {
+		return fmt.Errorf("failed to generate shell config: %w", err)
+	}
+	if err := gc.Save(); err != nil {
+		return fmt.Errorf("failed to save global config: %w", err)
+	}
+	return nil
 }
 
 func isVersionEqualOrHigher(currentVersion, requiredVersion string) bool {

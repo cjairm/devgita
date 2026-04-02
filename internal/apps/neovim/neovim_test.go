@@ -3,17 +3,18 @@ package neovim
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/cjairm/devgita/internal/commands"
+	"github.com/cjairm/devgita/internal/testutil"
 	"github.com/cjairm/devgita/pkg/constants"
-	"github.com/cjairm/devgita/pkg/logger"
 	"github.com/cjairm/devgita/pkg/paths"
 )
 
 func init() {
 	// Initialize logger for tests
-	logger.Init(false)
+	testutil.InitLogger()
 }
 
 func TestNew(t *testing.T) {
@@ -49,27 +50,29 @@ func TestSoftInstall(t *testing.T) {
 }
 
 func TestForceConfigure(t *testing.T) {
-	// Create temp "app config" dir with a fake file as source
-	src := t.TempDir()
-	dst := t.TempDir()
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
 
-	// Override global paths for the duration of the test
-	oldAppDir, oldLocalDir := paths.Paths.App.Configs.Neovim, paths.Paths.Config.Nvim
-	paths.Paths.App.Configs.Neovim, paths.Paths.Config.Nvim = src, dst
-	t.Cleanup(func() {
-		paths.Paths.App.Configs.Neovim, paths.Paths.Config.Nvim = oldAppDir, oldLocalDir
-	})
+	// Create neovim config source
+	src := filepath.Join(tc.AppDir, "neovim")
+	dst := filepath.Join(tc.ConfigDir, "nvim")
+
+	if err := os.MkdirAll(src, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Override global paths
+	paths.Paths.App.Configs.Neovim = src
+	paths.Paths.Config.Nvim = dst
 
 	originalContent := "-- Neovim init.lua\nvim.g.mapleader = ' '"
 	if err := os.WriteFile(filepath.Join(src, "init.lua"), []byte(originalContent), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
-	mc := commands.NewMockCommand()
-	mb := commands.NewMockBaseCommand()
 	// Mock successful version check with version output
-	mb.SetExecCommandResult("NVIM v0.11.1\nBuild type: Release", "", nil)
-	app := &Neovim{Cmd: mc, Base: mb}
+	tc.MockApp.Base.SetExecCommandResult("NVIM v0.11.1\nBuild type: Release", "", nil)
+	app := &Neovim{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
 
 	// Test ForceConfigure - should succeed with mocked version check
 	err := app.ForceConfigure()
@@ -91,29 +94,47 @@ func TestForceConfigure(t *testing.T) {
 	if string(copiedContent) != originalContent {
 		t.Fatalf("content mismatch: expected %q, got %q", originalContent, string(copiedContent))
 	}
+
+	// Verify shell config was generated
+	shellContent, err := os.ReadFile(tc.ZshConfigPath)
+	if err != nil {
+		t.Fatalf("Failed to read shell config: %v", err)
+	}
+
+	if !strings.Contains(string(shellContent), "# Neovim enabled") {
+		t.Error("Expected shell config to contain Neovim feature")
+	}
+
+	// Verify version check was called once (this is expected)
+	if tc.MockApp.Base.GetExecCommandCallCount() != 1 {
+		t.Errorf("Expected 1 command call (version check), got %d", tc.MockApp.Base.GetExecCommandCallCount())
+	}
 }
 
 func TestSoftConfigure(t *testing.T) {
-	src := t.TempDir()
-	dst := t.TempDir()
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
 
-	// Override global paths for the duration of the test
-	oldAppDir, oldLocalDir := paths.Paths.App.Configs.Neovim, paths.Paths.Config.Nvim
-	paths.Paths.App.Configs.Neovim, paths.Paths.Config.Nvim = src, dst
-	t.Cleanup(func() {
-		paths.Paths.App.Configs.Neovim, paths.Paths.Config.Nvim = oldAppDir, oldLocalDir
-	})
+	// Create neovim config source
+	src := filepath.Join(tc.AppDir, "neovim")
+	dst := filepath.Join(tc.ConfigDir, "nvim")
+
+	if err := os.MkdirAll(src, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Override global paths
+	paths.Paths.App.Configs.Neovim = src
+	paths.Paths.Config.Nvim = dst
 
 	originalContent := "-- Neovim init.lua\nvim.g.mapleader = ' '"
 	if err := os.WriteFile(filepath.Join(src, "init.lua"), []byte(originalContent), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
-	mc := commands.NewMockCommand()
-	mb := commands.NewMockBaseCommand()
 	// Mock successful version check with version output
-	mb.SetExecCommandResult("NVIM v0.11.1\nBuild type: Release", "", nil)
-	app := &Neovim{Cmd: mc, Base: mb}
+	tc.MockApp.Base.SetExecCommandResult("NVIM v0.11.1\nBuild type: Release", "", nil)
+	app := &Neovim{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
 
 	// First call should attempt to configure
 	err := app.SoftConfigure()
@@ -128,6 +149,16 @@ func TestSoftConfigure(t *testing.T) {
 		t.Fatalf("expected copied file at %s: %v", check, err)
 	}
 
+	// Verify shell config was generated
+	shellContent, err := os.ReadFile(tc.ZshConfigPath)
+	if err != nil {
+		t.Fatalf("Failed to read shell config: %v", err)
+	}
+
+	if !strings.Contains(string(shellContent), "# Neovim enabled") {
+		t.Error("Expected shell config to contain Neovim feature on first call")
+	}
+
 	// Create the marker file to simulate existing config (or ensure it exists)
 	if err := os.MkdirAll(dst, 0o755); err != nil {
 		t.Fatal(err)
@@ -138,9 +169,10 @@ func TestSoftConfigure(t *testing.T) {
 	}
 
 	// Second call should skip configuration since init.lua exists
+	// But it should still enable the shell feature if not already enabled
 	err = app.SoftConfigure()
 	if err != nil {
-		t.Fatalf("SoftConfigure should skip when init.lua exists: %v", err)
+		t.Fatalf("SoftConfigure should not error on second call: %v", err)
 	}
 
 	// Verify the existing file wasn't changed
@@ -154,5 +186,10 @@ func TestSoftConfigure(t *testing.T) {
 			markerContent,
 			string(finalContent),
 		)
+	}
+
+	// Verify version check was called once in first SoftConfigure (this is expected)
+	if tc.MockApp.Base.GetExecCommandCallCount() != 1 {
+		t.Errorf("Expected 1 command call (version check), got %d", tc.MockApp.Base.GetExecCommandCallCount())
 	}
 }

@@ -2,16 +2,17 @@ package eza
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 
 	"github.com/cjairm/devgita/internal/commands"
-	"github.com/cjairm/devgita/pkg/logger"
+	"github.com/cjairm/devgita/internal/testutil"
 )
 
 func init() {
 	// Initialize logger for tests
-	logger.Init(false)
+	testutil.InitLogger()
 }
 
 func TestNew(t *testing.T) {
@@ -61,25 +62,59 @@ func TestSoftInstall(t *testing.T) {
 }
 
 func TestForceConfigure(t *testing.T) {
-	mc := commands.NewMockCommand()
-	app := &Eza{Cmd: mc}
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
 
-	// Eza doesn't require separate configuration files
-	// so ForceConfigure should return nil (no-op)
-	if err := app.ForceConfigure(); err != nil {
+	app := &Eza{Cmd: tc.MockApp.Cmd}
+
+	// Test ForceConfigure - should enable shell feature
+	err := app.ForceConfigure()
+	if err != nil {
 		t.Fatalf("ForceConfigure error: %v", err)
 	}
+
+	// Verify shell config was generated
+	content, err := os.ReadFile(tc.ZshConfigPath)
+	if err != nil {
+		t.Fatalf("Failed to read shell config: %v", err)
+	}
+
+	if !strings.Contains(string(content), "# Eza enabled") {
+		t.Error("Expected shell config to contain Eza feature")
+	}
+
+	testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
 }
 
 func TestSoftConfigure(t *testing.T) {
-	mc := commands.NewMockCommand()
-	app := &Eza{Cmd: mc}
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
 
-	// Eza doesn't require separate configuration files
-	// so SoftConfigure should return nil (no-op)
-	if err := app.SoftConfigure(); err != nil {
+	app := &Eza{Cmd: tc.MockApp.Cmd}
+
+	// First call should configure
+	err := app.SoftConfigure()
+	if err != nil {
 		t.Fatalf("SoftConfigure error: %v", err)
 	}
+
+	// Verify shell config was generated
+	content, err := os.ReadFile(tc.ZshConfigPath)
+	if err != nil {
+		t.Fatalf("Failed to read shell config: %v", err)
+	}
+
+	if !strings.Contains(string(content), "# Eza enabled") {
+		t.Error("Expected shell config to contain Eza feature on first call")
+	}
+
+	// Second call should skip (feature already enabled)
+	err = app.SoftConfigure()
+	if err != nil {
+		t.Fatalf("SoftConfigure should not error on second call: %v", err)
+	}
+
+	testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
 }
 
 func TestExecuteCommand(t *testing.T) {

@@ -24,6 +24,7 @@ import (
 	"fmt"
 
 	cmd "github.com/cjairm/devgita/internal/commands"
+	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/pkg/constants"
 )
 
@@ -59,67 +60,29 @@ func (e *Eza) Uninstall() error {
 }
 
 func (e *Eza) ForceConfigure() error {
-	// Eza typically doesn't require separate configuration files
-	// Configuration is usually handled via command-line arguments and aliases
-
-	// TODO: Replace `ls` with this app. Use `text/template`
-	//
-	// Ex, export HOME={{.Home}}
-	//
-	// func main() {
-	// 	tmpl, err := template.ParseFiles("myfile.zsh")
-	// 	if err != nil {
-	// 		panic(err)
-	// 	}
-	//
-	// 	data := map[string]string{
-	// 		"Home": "/User/Somethin/haha",
-	// 	}
-	//
-	// 	outputFile, err := os.Create("myfile.generated.zsh")
-	// 	if err != nil {
-	// 		panic(err)
-	// 	}
-	// 	defer outputFile.Close()
-	//
-	// 	err = tmpl.Execute(outputFile, data)
-	// 	if err != nil {
-	// 		panic(err)
-	// 	}
-	// }
+	gc := &config.GlobalConfig{}
+	if err := gc.Load(); err != nil {
+		return fmt.Errorf("failed to load global config: %w", err)
+	}
+	gc.EnableShellFeature(constants.Eza)
+	if err := gc.RegenerateShellConfig(); err != nil {
+		return fmt.Errorf("failed to generate shell config: %w", err)
+	}
+	if err := gc.Save(); err != nil {
+		return fmt.Errorf("failed to save global config: %w", err)
+	}
 	return nil
 }
 
 func (e *Eza) SoftConfigure() error {
-	// Eza typically doesn't require separate configuration files
-	// Configuration is usually handled via command-line arguments and aliases
-
-	// TODO: Replace `ls` with this app. Use `text/template`
-	//
-	// Ex, export HOME={{.Home}}
-	//
-	// func main() {
-	// 	tmpl, err := template.ParseFiles("myfile.zsh")
-	// 	if err != nil {
-	// 		panic(err)
-	// 	}
-	//
-	// 	data := map[string]string{
-	// 		"Home": "/User/Somethin/haha",
-	// 	}
-	//
-	// 	outputFile, err := os.Create("myfile.generated.zsh")
-	// 	if err != nil {
-	// 		panic(err)
-	// 	}
-	// 	defer outputFile.Close()
-	//
-	// 	err = tmpl.Execute(outputFile, data)
-	// 	if err != nil {
-	// 		panic(err)
-	// 	}
-	// }
-	return nil
+	gc := &config.GlobalConfig{}
+	if err := gc.Load(); err != nil {
+		return fmt.Errorf("failed to load global config: %w", err)
+	}
+	if gc.IsShellFeatureEnabled(constants.Eza) {
+		return nil
+	}
+	return e.ForceConfigure()
 }
 
 func (e *Eza) ExecuteCommand(args ...string) error {

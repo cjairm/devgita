@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 
 	cmd "github.com/cjairm/devgita/internal/commands"
+	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/files"
 	"github.com/cjairm/devgita/pkg/paths"
@@ -47,6 +48,13 @@ func (t *Tmux) SoftInstall() error {
 }
 
 func (t *Tmux) ForceConfigure() error {
+	gc := &config.GlobalConfig{}
+	if err := gc.Load(); err != nil {
+		return fmt.Errorf("failed to load global config: %w", err)
+	}
+	if err := enableFeature(gc); err != nil {
+		return fmt.Errorf("failed to enable tmux feature: %w", err)
+	}
 	return files.CopyFile(
 		filepath.Join(paths.Paths.App.Configs.Tmux, "tmux.conf"),
 		filepath.Join(paths.Paths.Home.Root, configFileName),
@@ -57,6 +65,15 @@ func (t *Tmux) SoftConfigure() error {
 	configFile := filepath.Join(paths.Paths.Home.Root, configFileName)
 	isFilePresent := files.FileAlreadyExist(configFile)
 	if isFilePresent {
+		gc := &config.GlobalConfig{}
+		if err := gc.Load(); err != nil {
+			return fmt.Errorf("failed to load global config: %w", err)
+		}
+		if !gc.IsShellFeatureEnabled(constants.Tmux) {
+			if err := enableFeature(gc); err != nil {
+				return fmt.Errorf("failed to enable tmux feature: %w", err)
+			}
+		}
 		return nil
 	}
 	return t.ForceConfigure()
@@ -79,4 +96,15 @@ func (t *Tmux) ExecuteCommand(args ...string) error {
 
 func (t *Tmux) Update() error {
 	return fmt.Errorf("tmux update is not implemented")
+}
+
+func enableFeature(gc *config.GlobalConfig) error {
+	gc.EnableShellFeature(constants.Tmux)
+	if err := gc.RegenerateShellConfig(); err != nil {
+		return fmt.Errorf("failed to generate shell config: %w", err)
+	}
+	if err := gc.Save(); err != nil {
+		return fmt.Errorf("failed to save global config: %w", err)
+	}
+	return nil
 }

@@ -44,6 +44,13 @@ type ShellFeatures struct {
 	ZshSyntaxHighlighting bool `yaml:"zsh_syntax_highlighting"`
 	Powerlevel10k         bool `yaml:"powerlevel10k"`
 	ExtendedCapabilities  bool `yaml:"extended_capabilities"`
+	LazyGit               bool `yaml:"lazy_git"`
+	LazyDocker            bool `yaml:"lazy_docker"`
+	Fzf                   bool `yaml:"fzf"`
+	Neovim                bool `yaml:"neovim"`
+	Tmux                  bool `yaml:"tmux"`
+	Eza                   bool `yaml:"eza"`
+	Bat                   bool `yaml:"bat"`
 }
 
 type GlobalConfig struct {
@@ -210,6 +217,20 @@ func (gc *GlobalConfig) EnableShellFeature(featureName string) {
 		gc.Shell.Powerlevel10k = true
 	case "extended_capabilities":
 		gc.Shell.ExtendedCapabilities = true
+	case constants.LazyGit:
+		gc.Shell.LazyGit = true
+	case constants.LazyDocker:
+		gc.Shell.LazyDocker = true
+	case constants.Fzf:
+		gc.Shell.Fzf = true
+	case constants.Neovim:
+		gc.Shell.Neovim = true
+	case constants.Tmux:
+		gc.Shell.Tmux = true
+	case constants.Eza:
+		gc.Shell.Eza = true
+	case constants.Bat:
+		gc.Shell.Bat = true
 	}
 }
 
@@ -228,6 +249,20 @@ func (gc *GlobalConfig) DisableShellFeature(featureName string) {
 		gc.Shell.Powerlevel10k = false
 	case "extended_capabilities":
 		gc.Shell.ExtendedCapabilities = false
+	case constants.LazyGit:
+		gc.Shell.LazyGit = false
+	case constants.LazyDocker:
+		gc.Shell.LazyDocker = false
+	case constants.Fzf:
+		gc.Shell.Fzf = false
+	case constants.Neovim:
+		gc.Shell.Neovim = false
+	case constants.Tmux:
+		gc.Shell.Tmux = false
+	case constants.Eza:
+		gc.Shell.Eza = false
+	case constants.Bat:
+		gc.Shell.Bat = false
 	}
 }
 
@@ -246,6 +281,20 @@ func (gc *GlobalConfig) IsShellFeatureEnabled(featureName string) bool {
 		return gc.Shell.Powerlevel10k
 	case "extended_capabilities":
 		return gc.Shell.ExtendedCapabilities
+	case constants.LazyGit:
+		return gc.Shell.LazyGit
+	case constants.LazyDocker:
+		return gc.Shell.LazyDocker
+	case constants.Fzf:
+		return gc.Shell.Fzf
+	case constants.Neovim:
+		return gc.Shell.Neovim
+	case constants.Tmux:
+		return gc.Shell.Tmux
+	case constants.Eza:
+		return gc.Shell.Eza
+	case constants.Bat:
+		return gc.Shell.Bat
 	}
 	return false
 }

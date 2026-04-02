@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	cmd "github.com/cjairm/devgita/internal/commands"
+	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/pkg/constants"
 )
 
@@ -39,17 +40,29 @@ func (f *Fzf) SoftInstall() error {
 }
 
 func (f *Fzf) ForceConfigure() error {
-	// Placeholder: Fzf uses environment variables for configuration
-	// Shell integration is typically added to shell rc files
-	// No traditional config file copying required
+	gc := &config.GlobalConfig{}
+	if err := gc.Load(); err != nil {
+		return fmt.Errorf("failed to load global config: %w", err)
+	}
+	gc.EnableShellFeature(constants.Fzf)
+	if err := gc.RegenerateShellConfig(); err != nil {
+		return fmt.Errorf("failed to generate shell config: %w", err)
+	}
+	if err := gc.Save(); err != nil {
+		return fmt.Errorf("failed to save global config: %w", err)
+	}
 	return nil
 }
 
 func (f *Fzf) SoftConfigure() error {
-	// Placeholder: Check if fzf shell integration is already configured
-	// Typically checked via presence of FZF_* environment variables
-	// or fzf key bindings in shell configuration
-	return nil
+	gc := &config.GlobalConfig{}
+	if err := gc.Load(); err != nil {
+		return fmt.Errorf("failed to load global config: %w", err)
+	}
+	if gc.IsShellFeatureEnabled(constants.Fzf) {
+		return nil
+	}
+	return f.ForceConfigure()
 }
 
 func (f *Fzf) Uninstall() error {

@@ -24,6 +24,7 @@ import (
 	"fmt"
 
 	cmd "github.com/cjairm/devgita/internal/commands"
+	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/pkg/constants"
 )
 
@@ -59,69 +60,29 @@ func (b *Bat) Uninstall() error {
 }
 
 func (b *Bat) ForceConfigure() error {
-	// Bat typically doesn't require separate configuration files for basic usage
-	// Configuration is usually handled via command-line arguments or optional config file
-	// Users can create ~/.config/bat/config if desired for custom settings
-
-	// TODO: Replace `cat` with this app.
-	//
-	// Ex, export HOME={{.Home}}
-	//
-	// func main() {
-	// 	tmpl, err := template.ParseFiles("myfile.zsh")
-	// 	if err != nil {
-	// 		panic(err)
-	// 	}
-	//
-	// 	data := map[string]string{
-	// 		"Home": "/User/Somethin/haha",
-	// 	}
-	//
-	// 	outputFile, err := os.Create("myfile.generated.zsh")
-	// 	if err != nil {
-	// 		panic(err)
-	// 	}
-	// 	defer outputFile.Close()
-	//
-	// 	err = tmpl.Execute(outputFile, data)
-	// 	if err != nil {
-	// 		panic(err)
-	// 	}
-	// }
+	gc := &config.GlobalConfig{}
+	if err := gc.Load(); err != nil {
+		return fmt.Errorf("failed to load global config: %w", err)
+	}
+	gc.EnableShellFeature(constants.Bat)
+	if err := gc.RegenerateShellConfig(); err != nil {
+		return fmt.Errorf("failed to generate shell config: %w", err)
+	}
+	if err := gc.Save(); err != nil {
+		return fmt.Errorf("failed to save global config: %w", err)
+	}
 	return nil
 }
 
 func (b *Bat) SoftConfigure() error {
-	// Bat typically doesn't require separate configuration files for basic usage
-	// Configuration is usually handled via command-line arguments or optional config file
-	// Users can create ~/.config/bat/config if desired for custom settings
-
-	// TODO: Replace `cat` with this app.
-	//
-	// Ex, export HOME={{.Home}}
-	//
-	// func main() {
-	// 	tmpl, err := template.ParseFiles("myfile.zsh")
-	// 	if err != nil {
-	// 		panic(err)
-	// 	}
-	//
-	// 	data := map[string]string{
-	// 		"Home": "/User/Somethin/haha",
-	// 	}
-	//
-	// 	outputFile, err := os.Create("myfile.generated.zsh")
-	// 	if err != nil {
-	// 		panic(err)
-	// 	}
-	// 	defer outputFile.Close()
-	//
-	// 	err = tmpl.Execute(outputFile, data)
-	// 	if err != nil {
-	// 		panic(err)
-	// 	}
-	// }
-	return nil
+	gc := &config.GlobalConfig{}
+	if err := gc.Load(); err != nil {
+		return fmt.Errorf("failed to load global config: %w", err)
+	}
+	if gc.IsShellFeatureEnabled(constants.Bat) {
+		return nil
+	}
+	return b.ForceConfigure()
 }
 
 func (b *Bat) ExecuteCommand(args ...string) error {

@@ -15,6 +15,8 @@ import (
 	"github.com/cjairm/devgita/pkg/paths"
 )
 
+const DevgitaExtended = "extended_capabilities"
+
 type Devgita struct {
 	Base            commands.BaseCommandExecutor
 	ExtractEmbedded embedded.ExtractFunc
@@ -143,6 +145,7 @@ func (dg *Devgita) ForceConfigure() error {
 	gc.ConfigPath = getConfigDirPath()
 	// Set platform flag for shell template conditionals
 	gc.Shell.IsMac = runtime.GOOS == "darwin"
+	gc.EnableShellFeature(DevgitaExtended)
 	if err := gc.Save(); err != nil {
 		return fmt.Errorf("failed to save global config: %w", err)
 	}
@@ -158,9 +161,29 @@ func (dg *Devgita) ForceConfigure() error {
 }
 
 func (dg *Devgita) SoftConfigure() error {
-	if files.FileAlreadyExist(getGlobalConfigPath()) && files.FileAlreadyExist(getZshConfigPath()) {
-		logger.L().Info("Global config already exists at %s", getGlobalConfigPath())
-		return nil
+	if !files.FileAlreadyExist(getGlobalConfigPath()) ||
+		!files.FileAlreadyExist(getZshConfigPath()) {
+		return dg.ForceConfigure()
 	}
-	return dg.ForceConfigure()
+	gc := &config.GlobalConfig{}
+	if err := gc.Load(); err != nil {
+		return fmt.Errorf("failed to load global config: %w", err)
+	}
+	if !gc.IsShellFeatureEnabled(DevgitaExtended) {
+		if err := enableExtendedCapabilities(gc); err != nil {
+			return fmt.Errorf("failed to enable extended capabilities: %w", err)
+		}
+	}
+	return nil
+}
+
+func enableExtendedCapabilities(gc *config.GlobalConfig) error {
+	gc.EnableShellFeature(DevgitaExtended)
+	if err := gc.RegenerateShellConfig(); err != nil {
+		return fmt.Errorf("failed to generate shell config: %w", err)
+	}
+	if err := gc.Save(); err != nil {
+		return fmt.Errorf("failed to save global config: %w", err)
+	}
+	return nil
 }

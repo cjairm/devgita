@@ -65,7 +65,6 @@ fi
 # ============================================================================
 # Devgita Functions & Aliases
 # ============================================================================
-
 {{if .ExtendedCapabilities}}
 # Extended capabilities
 dge() {
@@ -102,6 +101,7 @@ dge() {
     # -------------------------------------
     # Git Branch Management 
     # -------------------------------------
+    {{if .Fzf}}
     delete-branch)
       # Default to "main" if not provided
       target="${target:-main}"
@@ -111,6 +111,7 @@ dge() {
         && git pull origin "$target" \
         && git branch | fzf-tmux -p 50% --reverse | xargs git branch -D
       ;;
+    {{end}}
 
     refresh-branch)
       # Default to "main" if not provided
@@ -205,8 +206,10 @@ dge() {
 }
 {{end}}
 
+{{if .Fzf}}
 # File system
 alias ff="fzf --preview 'bat --style=numbers --color=always {}'"
+{{end}}
 
 # quick edits
 alias edit-zsh="nvim ~/.zshrc"
@@ -220,12 +223,20 @@ alias ...='cd ../..'
 alias ....='cd ../../..'
 
 # Tools
+{{if .LazyGit}}
 alias lzg='lazygit'
+{{end}}
+{{if .LazyDocker}}
 alias lzd='lazydocker'
+{{end}}
 
+{{if .Neovim}}
 # Neovim
 alias n='nvim'
+{{if .Fzf}}
 alias ns="fd --type f --hidden --exclude .git | fzf-tmux -p  --reverse | xargs nvim"
+{{end}}
+{{end}}
 
 # Git
 alias g='git'
@@ -233,6 +244,7 @@ alias gcm='git commit -m'
 alias gcam='git commit -a -m'
 alias gcad='git commit -a --amend'
 
+{{if .Tmux}}
 # Tmux
 alias tml="tmux list-sessions"
 alias tmk="tmux kill-session -t"
@@ -245,6 +257,7 @@ tmn() {
     /usr/local/bin/tmux new-session -d -s "$session_name" -c "$path"
     /usr/local/bin/tmux switch-client -t "$session_name"
 }
+{{end}}
 
 # Compression
 compress() { tar -czf "${1%/}.tar.gz" "${1%/}"; }
@@ -260,15 +273,18 @@ alias mx="mise x --"
 alias cd="z"
 {{end}}
 
+{{if .Eza}}
 # ---- Eza (better ls) ----
 alias ls='eza -lh --group-directories-first --icons'
 alias lsa='ls -a'
 alias lt='eza --tree --level=2 --long --icons --git'
 alias lta='lt -a'
+{{end}}
 
-# ---- Syntax highlighting (better cat) ----
+{{if .Eza}}
+# ---- Bat (better cat) ----
 alias cat="bat"
-
+{{end}}
 # ============================================================================
 # End of Devgita Configuration
 # ============================================================================
