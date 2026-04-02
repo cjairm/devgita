@@ -1,24 +1,37 @@
 .PHONY: all build-darwin-arm64 build-darwin-amd64 build-linux-amd64 clean test
 
+# Version information
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+BUILD_DATE ?= $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+# Linker flags to inject version info
+LDFLAGS := -X 'github.com/cjairm/devgita/cmd.Version=$(VERSION)' \
+           -X 'github.com/cjairm/devgita/cmd.Commit=$(COMMIT)' \
+           -X 'github.com/cjairm/devgita/cmd.BuildDate=$(BUILD_DATE)'
+
 # Build all platform binaries
 all: build-darwin-arm64 build-darwin-amd64 build-linux-amd64
 
 # macOS ARM64 (Apple Silicon - M1, M2, M3 chips)
 build-darwin-arm64:
 	@echo "Building for macOS ARM64 (Apple Silicon)..."
-	GOOS=darwin GOARCH=arm64 go build -o devgita-darwin-arm64 .
+	@echo "Version: $(VERSION), Commit: $(COMMIT), Build Date: $(BUILD_DATE)"
+	GOOS=darwin GOARCH=arm64 go build -ldflags "$(LDFLAGS)" -o devgita-darwin-arm64 .
 	@echo "✓ devgita-darwin-arm64 built successfully"
 
 # macOS AMD64 (Intel chips)
 build-darwin-amd64:
 	@echo "Building for macOS AMD64 (Intel)..."
-	GOOS=darwin GOARCH=amd64 go build -o devgita-darwin-amd64 .
+	@echo "Version: $(VERSION), Commit: $(COMMIT), Build Date: $(BUILD_DATE)"
+	GOOS=darwin GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o devgita-darwin-amd64 .
 	@echo "✓ devgita-darwin-amd64 built successfully"
 
 # Linux AMD64 (Debian/Ubuntu)
 build-linux-amd64:
 	@echo "Building for Linux AMD64..."
-	GOOS=linux GOARCH=amd64 go build -o devgita-linux-amd64 .
+	@echo "Version: $(VERSION), Commit: $(COMMIT), Build Date: $(BUILD_DATE)"
+	GOOS=linux GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o devgita-linux-amd64 .
 	@echo "✓ devgita-linux-amd64 built successfully"
 
 # Clean build artifacts
@@ -43,7 +56,8 @@ lint:
 # Build for current platform only
 build:
 	@echo "Building for current platform..."
-	go build -o devgita .
+	@echo "Version: $(VERSION), Commit: $(COMMIT), Build Date: $(BUILD_DATE)"
+	go build -ldflags "$(LDFLAGS)" -o devgita .
 	@echo "✓ devgita built successfully"
 
 # Help

@@ -41,6 +41,7 @@ Available Commands:
   restore        Restore a previous backup configuration
   validate       Ensure configuration and dependencies are correct
   change         Change font or theme (--theme=..., --font=...)
+  version        Print the version number of devgita
 
 Examples:
   dg install

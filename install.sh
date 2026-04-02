@@ -164,24 +164,16 @@ PATH_EXPORT="export PATH=\"\$HOME/.local/bin:\$PATH\""
 ALIAS_EXPORT="alias dg='devgita'"
 
 if [ -f "$SHELL_CONFIG" ]; then
-    # Check if PATH entry already exists
-    if grep -qF "$INSTALL_DIR" "$SHELL_CONFIG" 2>/dev/null; then
-        print_info "PATH already configured in $SHELL_CONFIG"
+    # Check if devgita installer block already exists
+    if grep -qF "# Added by devgita installer" "$SHELL_CONFIG" 2>/dev/null; then
+        print_info "devgita already configured in $SHELL_CONFIG"
     else
-        print_info "Adding $INSTALL_DIR to PATH in $SHELL_CONFIG"
+        print_info "Adding devgita configuration to $SHELL_CONFIG"
         echo "" >> "$SHELL_CONFIG"
         echo "# Added by devgita installer" >> "$SHELL_CONFIG"
         echo "$PATH_EXPORT" >> "$SHELL_CONFIG"
-        print_success "Updated $SHELL_CONFIG with PATH"
-    fi
-    
-    # Check if alias already exists
-    if grep -qF "alias dg=" "$SHELL_CONFIG" 2>/dev/null; then
-        print_info "Alias 'dg' already configured in $SHELL_CONFIG"
-    else
-        print_info "Adding 'dg' alias in $SHELL_CONFIG"
         echo "$ALIAS_EXPORT" >> "$SHELL_CONFIG"
-        print_success "Updated $SHELL_CONFIG with alias"
+        print_success "Updated $SHELL_CONFIG"
     fi
 else
     # Create shell config if it doesn't exist
@@ -189,7 +181,7 @@ else
     echo "# Added by devgita installer" > "$SHELL_CONFIG"
     echo "$PATH_EXPORT" >> "$SHELL_CONFIG"
     echo "$ALIAS_EXPORT" >> "$SHELL_CONFIG"
-    print_success "Created $SHELL_CONFIG with PATH and alias configuration"
+    print_success "Created $SHELL_CONFIG with devgita configuration"
 fi
 
 # Verify installation
