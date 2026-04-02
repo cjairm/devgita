@@ -206,10 +206,6 @@ dge() {
 {{end}}
 
 # File system
-alias ls='eza -lh --group-directories-first --icons'
-alias lsa='ls -a'
-alias lt='eza --tree --level=2 --long --icons --git'
-alias lta='lt -a'
 alias ff="fzf --preview 'bat --style=numbers --color=always {}'"
 
 # quick edits
@@ -265,7 +261,10 @@ alias cd="z"
 {{end}}
 
 # ---- Eza (better ls) ----
-alias ls="eza"
+alias ls='eza -lh --group-directories-first --icons'
+alias lsa='ls -a'
+alias lt='eza --tree --level=2 --long --icons --git'
+alias lta='lt -a'
 
 # ---- Syntax highlighting (better cat) ----
 alias cat="bat"

@@ -105,12 +105,8 @@ func (gc *GlobalConfig) Create() error {
 			return err
 		}
 	}
-	if err := files.CopyFile(
-		filepath.Join(paths.Paths.App.Configs.Templates, constants.App.File.GlobalConfig),
-		globalConfigFilePath,
-	); err != nil {
-		return err
-	}
+	// Initialize with empty config structure instead of copying template
+	// This avoids dependency on extracted embedded files
 	return gc.Reset()
 }
 
