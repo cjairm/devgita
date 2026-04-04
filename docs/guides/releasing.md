@@ -212,16 +212,16 @@ If you need to create a release manually without the workflow:
 
 ```bash
 # macOS amd64
-GOOS=darwin GOARCH=amd64 go build -o devgita-darwin-amd64 -ldflags="-s -w" main.go
+GOOS=darwin GOARCH=amd64 go build -o devgita-darwin-amd64 -ldflags="-s -w" .
 
 # macOS arm64
-GOOS=darwin GOARCH=arm64 go build -o devgita-darwin-arm64 -ldflags="-s -w" main.go
+GOOS=darwin GOARCH=arm64 go build -o devgita-darwin-arm64 -ldflags="-s -w" .
 
 # Linux amd64
-GOOS=linux GOARCH=amd64 go build -o devgita-linux-amd64 -ldflags="-s -w" main.go
+GOOS=linux GOARCH=amd64 go build -o devgita-linux-amd64 -ldflags="-s -w" .
 
 # Linux arm64
-GOOS=linux GOARCH=arm64 go build -o devgita-linux-arm64 -ldflags="-s -w" main.go
+GOOS=linux GOARCH=arm64 go build -o devgita-linux-arm64 -ldflags="-s -w" .
 
 # Make executable
 chmod +x devgita-*
