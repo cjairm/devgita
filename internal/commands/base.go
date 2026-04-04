@@ -186,14 +186,18 @@ func (b *BaseCommand) ExecCommand(cmd CommandParams) (string, string, error) {
 	}
 
 	command := cmd.Command
+	args := cmd.Args
+
 	if cmd.IsSudo {
-		command = "sudo " + command
+		// Prepend the original command to args, then use sudo as the command
+		args = append([]string{command}, args...)
+		command = "sudo"
 	}
 
 	logger.L().
-		Debugw("Executing command", "command", strings.Join(append([]string{command}, cmd.Args...), " "))
+		Debugw("Executing command", "command", strings.Join(append([]string{command}, args...), " "))
 
-	execCommand := exec.Command(command, cmd.Args...)
+	execCommand := exec.Command(command, args...)
 	execCommand.Stdin = os.Stdin
 
 	stdoutPipe, err := execCommand.StdoutPipe()
