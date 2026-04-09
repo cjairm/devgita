@@ -1,5 +1,5 @@
 ---
-description: Generate PR description and create PR via gh CLI. Falls back to manual if gh unavailable.
+description: Create PR from overall branch context. Generate title/body from analysis. Never modify commits.
 mode: subagent
 temperature: 0.1
 color: accent
@@ -8,117 +8,126 @@ tools:
   edit: false
   bash:
     "which gh": allow
-    "git rev-parse --abbrev-ref HEAD": allow
-    "git fetch origin main": allow
-    "git diff origin/main...HEAD": allow
-    '[ -f .github/PULL_REQUEST_TEMPLATE.md ] && cat .github/PULL_REQUEST_TEMPLATE.md || echo "No template found"': allow
-    "gh pr create*": allow
+    "git status": allow
+    "git branch --show-current": allow
+    "git log main..HEAD --format=*": allow
+    "git log --oneline --graph *": allow
+    "git diff main... --stat": allow
+    "git diff main...": allow
+    "cat .github/PULL_REQUEST_TEMPLATE.md": allow
+    "test -f .github/PULL_REQUEST_TEMPLATE.md": allow
+    "git push -u origin *": allow
+    "gh pr create --title * --body *": allow
+    "git remote get-url origin": allow
 ---
 
-You are a professional software engineer tasked with generating **PR content** and creating the PR.
+# Create Pull Request
 
-## Instructions
+## Execution Steps
 
-1. **Check if gh CLI is available**
+### 1. Gather Context (Token-Efficient)
+
+**Start with commits for understanding:**
+
+```bash
+git status
+git log main..HEAD --format="%s%n%b%n---"
+```
+
+**Get diff context** (commits alone don't show the full picture):
+
+```bash
+git diff main... --stat
+```
+
+**If --stat insufficient for quality understanding**, get full diff:
+
+```bash
+git diff main...
+```
+
+**Critical**: Never compromise understanding. Get full diff when needed for quality.
+
+### 2. Analyze Changes
+
+Review all gathered context (commits + diff) to understand the **overall branch impact**:
+
+- **What changed**: Files, functions, logic modified across all commits
+- **Why it matters**: Business/technical impact of the complete change
+- **How it works**: Implementation approach
+- **What could fail**: Risks and edge cases
+
+### 3. Check PR Template
+
+```bash
+[ -f .github/PULL_REQUEST_TEMPLATE.md ] && cat .github/PULL_REQUEST_TEMPLATE.md || echo "No template"
+```
+
+### 4. Generate PR Content
+
+**If template exists:** Fill all sections completely using context.
+
+**If no template:** Use 5-section format (1-2 sentences each):
+
+1. **Context**: Why this matters (business/tech impact)
+2. **Problem**: What was broken/limiting
+3. **Solution**: What changed and why
+4. **Risk & Mitigation**: What could fail and how mitigated
+5. **Testing**: How validated
+
+**Title format:** Imperative mood + ticket ID (if provided via `$ARGUMENTS`)
+
+- Example: `[JIRA-123] Fix login redirect error`
+- Example: `Add user avatar upload`
+
+**Content enhancements:**
+
+- **UI changes**: Include screenshots/GIFs (mention need, let user provide)
+- **Uncertainty**: Call out areas needing extra review
+- **Labels**: Suggest relevant labels (feature/bugfix/refactor, frontend/backend)
+- **Scope**: Note what's explicitly NOT included if relevant
+
+### 5. Create PR
+
+**Check if gh CLI is available:**
 
 ```bash
 which gh
 ```
 
-If not available, set `GH_AVAILABLE=false`. Otherwise `GH_AVAILABLE=true`.
-
-2. **Check for PR template**
+**If gh available**, push and create PR with your generated content:
 
 ```bash
-[ -f .github/PULL_REQUEST_TEMPLATE.md ] && cat .github/PULL_REQUEST_TEMPLATE.md || echo "No template found"
+git push -u origin $(git branch --show-current)
+gh pr create --title "Your Generated Title" --body "Your Generated Description"
 ```
 
-If template exists, use its structure. Otherwise, use default template below.
-
-3. **Get current branch and diff**
-
-```bash
-git rev-parse --abbrev-ref HEAD
-git fetch origin main
-git diff origin/main...HEAD
-```
-
-4. **Analyze changes**
-
-Classify: feature, bug fix, refactor, chore, docs
-Identify Jira/issue references from branch name or commit messages
-Analyze the full diff to understand scope of changes
-
-5. **Generate PR title**
-
-Imperative style (e.g., "Add feature", not "Added feature")
-Include component prefix if repo convention exists (e.g., "storage/remote:")
-Include Jira/issue ID if available
-Limit 50-70 characters (important for git log readability)
-
-6. **Generate PR description using template structure**
-
-Default template (if no .github/PULL_REQUEST_TEMPLATE.md):
+**If gh NOT available**, output in copy/paste ready Markdown format:
 
 ```markdown
-## What?
+## PR Title
 
-Explicit description of changes. Reference ticket but don't just link it.
+[Your generated title here]
 
-## Why?
+## PR Description
 
-Business/engineering goal. Why this change matters.
+[Your generated description here - formatted with template sections or 5-section format]
 
-## How?
+---
 
-Key implementation decisions and approach. Highlight non-obvious choices.
-
-## Testing?
-
-Test coverage added. How to verify changes work. Any untested edge cases.
-
-## Screenshots (optional)
-
-Include for UI changes or impactful backend results.
-
-## Anything Else?
-
-Technical debt, architecture considerations, future improvements.
+**Instructions:** Copy the above content and create PR manually via GitHub web UI
 ```
 
-7. **Writing guidelines**
+## Rules
 
-Be explicit but concise - balance detail with brevity
-Use complete sentences and active voice
-Focus on "why" not just "what" (code shows what)
-Explain non-obvious decisions and trade-offs
-Avoid: "See #JIRA-123", "See what section", cryptic fragments
-Do: Clear prose that helps reviewer understand intent
+- **PR scope**: Describe the overall branch impact, not individual commits. Commits are granular steps; PR shows the complete picture.
+- **Always generate**: Always create title/body from your analysis. Never use `--fill`.
+- **Never modify commits**: Commits stay as-is. Generate PR content separately.
+- **Template**: Source of truth when it exists.
+- **Quality**: Get whatever context needed (full diff if necessary).
+- **Tokens**: Start cheap (commits, --stat), escalate only when needed.
+- **Focus**: PRs should address single concern. Note if this is part of larger work.
+- **Ticket refs**: Use `$ARGUMENTS` for ticket IDs (e.g., JIRA-123, #456).
 
-8. **Create or display PR**
-
-If `GH_AVAILABLE=true`:
-
-- Create PR using gh CLI with the generated title and body
-- Use heredoc for body to preserve formatting:
-
-```bash
-gh pr create --title "Your PR Title" --body "$(cat <<'EOF'
-....
-EOF
-)"
-```
-
-- After creation, display the PR URL
-
-If `GH_AVAILABLE=false`:
-
-- Output the PR title and body in Markdown format (copy/paste ready)
-- Include clear instructions: "gh CLI not available. Copy the content below and create PR manually."
-
-9. **Context**
-
-$ARGUMENTS may contain branch name, Jira link, or diff summary.
-
-# References
+#### References
 - https://gist.github.com/hcastro/52c5824a747b901c289261518504effb
