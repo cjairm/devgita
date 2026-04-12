@@ -1,5 +1,5 @@
 ---
-description: Create PR using commits or diff analysis. Never modify commits. Use template if exists, otherwise 5-section format.
+description: Create PR from overall branch context. Generate title/body from analysis. Never modify commits.
 mode: subagent
 temperature: 0.1
 color: accent
@@ -17,7 +17,6 @@ tools:
     "cat .github/PULL_REQUEST_TEMPLATE.md": allow
     "test -f .github/PULL_REQUEST_TEMPLATE.md": allow
     "git push -u origin *": allow
-    "gh pr create --fill*": allow
     "gh pr create --title * --body *": allow
     "git remote get-url origin": allow
 ---
@@ -28,14 +27,14 @@ tools:
 
 ### 1. Gather Context (Token-Efficient)
 
-**Start with commits:**
+**Start with commits for understanding:**
 
 ```bash
 git status
 git log main..HEAD --format="%s%n%b%n---"
 ```
 
-**If commits are weak/missing** ("fix", "wip", "update", empty), get diff context:
+**Get diff context** (commits alone don't show the full picture):
 
 ```bash
 git diff main... --stat
@@ -51,13 +50,12 @@ git diff main...
 
 ### 2. Analyze Changes
 
-Review the gathered context to understand:
+Review all gathered context (commits + diff) to understand the **overall branch impact**:
 
-- **What changed**: Files, functions, logic modified
-- **Why it matters**: Business/technical impact
+- **What changed**: Files, functions, logic modified across all commits
+- **Why it matters**: Business/technical impact of the complete change
 - **How it works**: Implementation approach
 - **What could fail**: Risks and edge cases
-- **Commit quality**: Are commits good enough for `--fill`?
 
 ### 3. Check PR Template
 
@@ -97,15 +95,10 @@ Review the gathered context to understand:
 which gh
 ```
 
-**If gh available**, push and create PR based on commit quality:
+**If gh available**, push and create PR with your generated content:
 
 ```bash
 git push -u origin $(git branch --show-current)
-
-# If commits are good (meaningful messages):
-gh pr create --fill
-
-# If commits are weak (you generated title/body from diff):
 gh pr create --title "Your Generated Title" --body "Your Generated Description"
 ```
 
@@ -127,10 +120,9 @@ gh pr create --title "Your Generated Title" --body "Your Generated Description"
 
 ## Rules
 
-- **Commits**:
-  - **Good commits**: Use `--fill` to reuse them
-  - **Weak commits**: Generate title/body from diff, use `--title` and `--body`
-  - Never modify existing commits
+- **PR scope**: Describe the overall branch impact, not individual commits. Commits are granular steps; PR shows the complete picture.
+- **Always generate**: Always create title/body from your analysis. Never use `--fill`.
+- **Never modify commits**: Commits stay as-is. Generate PR content separately.
 - **Template**: Source of truth when it exists.
 - **Quality**: Get whatever context needed (full diff if necessary).
 - **Tokens**: Start cheap (commits, --stat), escalate only when needed.
