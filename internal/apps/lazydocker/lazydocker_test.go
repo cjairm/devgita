@@ -1,6 +1,7 @@
 package lazydocker
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	"github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/internal/testutil"
 	"github.com/cjairm/devgita/pkg/constants"
+	"github.com/cjairm/devgita/pkg/downloader"
 )
 
 func init() {
@@ -32,13 +34,57 @@ var expectedPackageName = fmt.Sprintf(
 
 func TestInstall(t *testing.T) {
 	mc := commands.NewMockCommand()
-	app := &LazyDocker{Cmd: mc}
+	mb := commands.NewMockBaseCommand()
+	mb.IsMacResult = true // simulate macOS so test uses Homebrew path
+	app := &LazyDocker{Cmd: mc, Base: mb}
 
 	if err := app.Install(); err != nil {
 		t.Fatalf("Install error: %v", err)
 	}
 	if mc.InstalledPkg != expectedPackageName {
 		t.Fatalf("expected InstallPackage(%s), got %q", expectedPackageName, mc.InstalledPkg)
+	}
+}
+
+func TestInstallDebian(t *testing.T) {
+	mc := commands.NewMockCommand()
+	mb := commands.NewMockBaseCommand()
+	mb.IsMacResult = false // simulate Debian/Linux
+	// Both ExecCommand calls (tar + install) succeed
+	mb.SetExecCommandResult("", "", nil)
+
+	app := &LazyDocker{
+		Cmd:  mc,
+		Base: mb,
+		fetchVersion: func(owner, repo string) (string, error) {
+			if owner != "jesseduffield" || repo != "lazydocker" {
+				t.Errorf("unexpected version fetch: owner=%s repo=%s", owner, repo)
+			}
+			return "0.23.1", nil
+		},
+		downloadFn: func(_ context.Context, url, _ string, _ downloader.RetryConfig) error {
+			if !strings.Contains(url, "0.23.1") {
+				t.Errorf("download URL does not contain version: %s", url)
+			}
+			return nil
+		},
+	}
+
+	if err := app.Install(); err != nil {
+		t.Fatalf("Install (Debian) error: %v", err)
+	}
+
+	// Expect 2 ExecCommand calls: tar (extract) + sudo install
+	if mb.GetExecCommandCallCount() != 2 {
+		t.Fatalf("expected 2 ExecCommand calls, got %d", mb.GetExecCommandCallCount())
+	}
+	calls := mb.ExecCommandCalls
+	if calls[0].Command != "tar" {
+		t.Errorf("expected first command 'tar', got %q", calls[0].Command)
+	}
+	if calls[1].Command != "install" || !calls[1].IsSudo {
+		t.Errorf("expected second command 'install' with IsSudo=true, got command=%q IsSudo=%v",
+			calls[1].Command, calls[1].IsSudo)
 	}
 }
 
@@ -59,13 +105,58 @@ func TestInstall(t *testing.T) {
 
 func TestSoftInstall(t *testing.T) {
 	mc := commands.NewMockCommand()
-	app := &LazyDocker{Cmd: mc}
+	mb := commands.NewMockBaseCommand()
+	mb.IsMacResult = true // macOS path uses MaybeInstallPackage
+	app := &LazyDocker{Cmd: mc, Base: mb}
 
 	if err := app.SoftInstall(); err != nil {
 		t.Fatalf("SoftInstall error: %v", err)
 	}
 	if mc.MaybeInstalled != expectedPackageName {
 		t.Fatalf("expected MaybeInstallPackage(%s), got %q", expectedPackageName, mc.MaybeInstalled)
+	}
+}
+
+func TestSoftInstallDebian_AlreadyInstalled(t *testing.T) {
+	mc := commands.NewMockCommand()
+	mb := commands.NewMockBaseCommand()
+	mb.IsMacResult = false
+
+	orig := commands.LookPathFn
+	commands.LookPathFn = func(string) (string, error) { return "/usr/local/bin/lazydocker", nil }
+	defer func() { commands.LookPathFn = orig }()
+
+	app := &LazyDocker{Cmd: mc, Base: mb}
+	if err := app.SoftInstall(); err != nil {
+		t.Fatalf("SoftInstall (already installed) error: %v", err)
+	}
+	if mb.GetExecCommandCallCount() != 0 {
+		t.Fatalf("expected 0 ExecCommand calls, got %d", mb.GetExecCommandCallCount())
+	}
+}
+
+func TestSoftInstallDebian_NotInstalled(t *testing.T) {
+	mc := commands.NewMockCommand()
+	mb := commands.NewMockBaseCommand()
+	mb.IsMacResult = false
+	mb.SetExecCommandResult("", "", nil)
+
+	orig := commands.LookPathFn
+	commands.LookPathFn = func(string) (string, error) { return "", fmt.Errorf("not found") }
+	defer func() { commands.LookPathFn = orig }()
+
+	app := &LazyDocker{
+		Cmd:  mc,
+		Base: mb,
+		fetchVersion: func(_, _ string) (string, error) { return "0.23.1", nil },
+		downloadFn:   func(_ context.Context, _, _ string, _ downloader.RetryConfig) error { return nil },
+	}
+
+	if err := app.SoftInstall(); err != nil {
+		t.Fatalf("SoftInstall (not installed) error: %v", err)
+	}
+	if mb.GetExecCommandCallCount() != 2 {
+		t.Fatalf("expected 2 ExecCommand calls, got %d", mb.GetExecCommandCallCount())
 	}
 }
 

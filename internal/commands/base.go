@@ -26,6 +26,9 @@ type BaseCommandExecutor interface {
 	// Command execution
 	ExecCommand(cmd CommandParams) (string, string, error)
 
+	// Platform detection
+	IsMac() bool
+
 	// Shell configuration
 	Setup(line string) error
 	MaybeSetup(line, toSearch string) error
@@ -69,6 +72,11 @@ func NewBaseCommandCustom(p CustomizablePlatform) *BaseCommand {
 	return &BaseCommand{
 		Platform: p,
 	}
+}
+
+// IsMac returns true if the current platform is macOS
+func (b *BaseCommand) IsMac() bool {
+	return b.Platform.IsMac()
 }
 
 func (b *BaseCommand) Setup(line string) error {

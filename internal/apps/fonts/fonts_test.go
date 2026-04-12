@@ -39,7 +39,9 @@ func TestInstallFont(t *testing.T) {
 
 func TestSoftInstallFont(t *testing.T) {
 	mockCmd := cmd.NewMockCommand()
-	fonts := &Fonts{Cmd: mockCmd}
+	mockBase := cmd.NewMockBaseCommand()
+	mockBase.IsMacResult = true // macOS: URL is ignored, use Homebrew package name
+	fonts := &Fonts{Cmd: mockCmd, Base: mockBase}
 
 	fontName := "font-meslo-lg-nerd-font"
 	err := fonts.SoftInstall(fontName)
@@ -64,7 +66,7 @@ func TestAvailable(t *testing.T) {
 		"font-hack-nerd-font",
 		"font-meslo-lg-nerd-font",
 		"font-caskaydia-mono-nerd-font",
-		"font-fira-mono",
+		"font-fira-mono-nerd-font",
 		"font-jetbrains-mono-nerd-font",
 	}
 

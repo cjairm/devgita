@@ -1,6 +1,7 @@
 package neovim
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	"github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/internal/testutil"
 	"github.com/cjairm/devgita/pkg/constants"
+	"github.com/cjairm/devgita/pkg/downloader"
 	"github.com/cjairm/devgita/pkg/paths"
 )
 
@@ -27,7 +29,9 @@ func TestNew(t *testing.T) {
 
 func TestInstall(t *testing.T) {
 	mc := commands.NewMockCommand()
-	app := &Neovim{Cmd: mc}
+	mb := commands.NewMockBaseCommand()
+	mb.IsMacResult = true // simulate macOS so test uses Homebrew path
+	app := &Neovim{Cmd: mc, Base: mb}
 
 	if err := app.Install(); err != nil {
 		t.Fatalf("Install error: %v", err)
@@ -39,13 +43,60 @@ func TestInstall(t *testing.T) {
 
 func TestSoftInstall(t *testing.T) {
 	mc := commands.NewMockCommand()
-	app := &Neovim{Cmd: mc}
+	mb := commands.NewMockBaseCommand()
+	mb.IsMacResult = true // simulate macOS so test uses Homebrew path
+	app := &Neovim{Cmd: mc, Base: mb}
 
 	if err := app.SoftInstall(); err != nil {
 		t.Fatalf("SoftInstall error: %v", err)
 	}
 	if mc.MaybeInstalled != constants.Neovim {
 		t.Fatalf("expected MaybeInstallPackage(%s), got %q", constants.Neovim, mc.MaybeInstalled)
+	}
+}
+
+func TestInstallDebian(t *testing.T) {
+	mc := commands.NewMockCommand()
+	mb := commands.NewMockBaseCommand()
+	mb.IsMacResult = false // simulate Debian/Linux
+	// All ExecCommand calls (tar + install + 2×cp) succeed
+	mb.SetExecCommandResult("", "", nil)
+
+	app := &Neovim{
+		Cmd:  mc,
+		Base: mb,
+		downloadFn: func(_ context.Context, url, _ string, _ downloader.RetryConfig) error {
+			if !strings.Contains(url, constants.SupportedVersion.Neovim.Number) {
+				t.Errorf("download URL does not contain version %s: %s",
+					constants.SupportedVersion.Neovim.Number, url)
+			}
+			return nil
+		},
+	}
+
+	if err := app.Install(); err != nil {
+		t.Fatalf("Install (Debian) error: %v", err)
+	}
+
+	// Expect 4 ExecCommand calls: tar + sudo install + sudo cp lib + sudo cp share
+	if mb.GetExecCommandCallCount() != 4 {
+		t.Fatalf("expected 4 ExecCommand calls, got %d", mb.GetExecCommandCallCount())
+	}
+	calls := mb.ExecCommandCalls
+	if calls[0].Command != "tar" {
+		t.Errorf("expected first command 'tar', got %q", calls[0].Command)
+	}
+	if calls[1].Command != "install" || !calls[1].IsSudo {
+		t.Errorf("expected second command 'install' with IsSudo=true, got command=%q IsSudo=%v",
+			calls[1].Command, calls[1].IsSudo)
+	}
+	if calls[2].Command != "cp" || !calls[2].IsSudo {
+		t.Errorf("expected third command 'cp' with IsSudo=true, got command=%q IsSudo=%v",
+			calls[2].Command, calls[2].IsSudo)
+	}
+	if calls[3].Command != "cp" || !calls[3].IsSudo {
+		t.Errorf("expected fourth command 'cp' with IsSudo=true, got command=%q IsSudo=%v",
+			calls[3].Command, calls[3].IsSudo)
 	}
 }
 

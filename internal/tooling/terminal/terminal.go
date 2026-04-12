@@ -2,6 +2,7 @@ package terminal
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/cjairm/devgita/internal/apps/fastfetch"
 	"github.com/cjairm/devgita/internal/apps/git"
@@ -47,6 +48,42 @@ import (
 	"github.com/cjairm/devgita/pkg/utils"
 )
 
+// InstallationStatus represents the status of a package installation
+type InstallationStatus string
+
+const (
+	StatusSuccess InstallationStatus = "Success"
+	StatusFailed  InstallationStatus = "Failed"
+	StatusSkipped InstallationStatus = "Skipped"
+)
+
+// InstallationResult tracks the outcome of a single package installation attempt
+type InstallationResult struct {
+	PackageName  string             // Name of the package attempted
+	Status       InstallationStatus // Success | Failed | Skipped
+	ErrorMessage string             // Error details if failed (optional)
+	Duration     time.Duration      // Time taken for installation
+	Attempt      int                // Retry attempt number (1-based)
+}
+
+// InstallationSummary aggregates installation results for final report
+type InstallationSummary struct {
+	Installed int                  // Count of successfully installed packages
+	Failed    int                  // Count of failed installations
+	Skipped   int                  // Count of skipped installations (already present)
+	Results   []InstallationResult // Detailed results for each package
+}
+
+// Total returns the total number of packages processed
+func (s *InstallationSummary) Total() int {
+	return s.Installed + s.Failed + s.Skipped
+}
+
+// FormatSummary returns a formatted summary string
+func (s *InstallationSummary) FormatSummary() string {
+	return fmt.Sprintf("Installed: %d, Failed: %d, Skipped: %d", s.Installed, s.Failed, s.Skipped)
+}
+
 type Terminal struct {
 	Cmd  commands.Command
 	Base commands.BaseCommand
@@ -59,14 +96,18 @@ func New() *Terminal {
 }
 
 func (t *Terminal) InstallAndConfigure() {
+	summary := &InstallationSummary{}
+
 	err := t.DisplayGithubInstructions()
 	displayMessage(err, "instructions", true)
-	t.InstallTerminalApps()
-	t.InstallDevTools()
-	t.InstallCoreLibs()
+	t.InstallTerminalApps(summary)
+	t.InstallDevTools(summary)
+	t.InstallCoreLibs(summary)
+
+	utils.PrintInfo(fmt.Sprintf("Installation complete: %s", summary.FormatSummary()))
 }
 
-func (t *Terminal) InstallTerminalApps() {
+func (t *Terminal) InstallTerminalApps(summary *InstallationSummary) {
 	// should install:
 	// - fastfetch
 	// - git
@@ -92,11 +133,12 @@ func (t *Terminal) InstallTerminalApps() {
 	for _, terminalApp := range terminalApps {
 		if err := terminalApp.app.SoftInstall(); err != nil {
 			displayMessage(err, terminalApp.name)
+			trackResult(summary, terminalApp.name, err)
 			continue
 		}
+		trackResult(summary, terminalApp.name, nil)
 		if err := terminalApp.app.SoftConfigure(); err != nil {
 			displayMessage(err, terminalApp.name, true)
-			continue
 		}
 	}
 
@@ -104,8 +146,12 @@ func (t *Terminal) InstallTerminalApps() {
 	o := opencode.New()
 	if err := o.SoftInstall(); err != nil {
 		displayMessage(err, constants.OpenCode)
-	} else if err := o.SoftConfigure(); err != nil {
-		displayMessage(err, constants.OpenCode, true)
+		trackResult(summary, constants.OpenCode, err)
+	} else {
+		trackResult(summary, constants.OpenCode, nil)
+		if err := o.SoftConfigure(); err != nil {
+			displayMessage(err, constants.OpenCode, true)
+		}
 	}
 
 	tuis := []struct {
@@ -121,16 +167,17 @@ func (t *Terminal) InstallTerminalApps() {
 	for _, tui := range tuis {
 		if err := tui.app.SoftInstall(); err != nil {
 			displayMessage(err, tui.name)
+			trackResult(summary, tui.name, err)
 			continue
 		}
+		trackResult(summary, tui.name, nil)
 		if err := tui.app.SoftConfigure(); err != nil {
 			displayMessage(err, tui.name, true)
-			continue
 		}
 	}
 }
 
-func (t *Terminal) InstallDevTools() {
+func (t *Terminal) InstallDevTools(summary *InstallationSummary) {
 	// should install:
 	// - bat
 	// - btop
@@ -139,7 +186,9 @@ func (t *Terminal) InstallDevTools() {
 	// - fd-find
 	// - fzf
 	// - gh
-	// - powerlevel10k,
+	// - powerlevel10k
+	// - plocate (Debian only - replaces locate)
+	// - apache2-utils (Debian only)
 	// - ripgrep
 	// - syntaxhighlighting
 	// - tldr
@@ -169,16 +218,30 @@ func (t *Terminal) InstallDevTools() {
 	for _, devtool := range devtools {
 		if err := devtool.app.SoftInstall(); err != nil {
 			displayMessage(err, devtool.name)
+			trackResult(summary, devtool.name, err)
 			continue
 		}
+		trackResult(summary, devtool.name, nil)
 		if err := devtool.app.SoftConfigure(); err != nil {
 			displayMessage(err, devtool.name, true)
-			continue
+		}
+	}
+
+	// Install Debian-only packages (no dedicated app modules)
+	if !t.Base.Platform.IsMac() {
+		debianOnlyPackages := []string{constants.Plocate, constants.ApacheUtils}
+		for _, pkg := range debianOnlyPackages {
+			if err := t.Cmd.MaybeInstallPackage(pkg); err != nil {
+				displayMessage(err, pkg)
+				trackResult(summary, pkg, err)
+			} else {
+				trackResult(summary, pkg, nil)
+			}
 		}
 	}
 }
 
-func (t *Terminal) InstallCoreLibs() {
+func (t *Terminal) InstallCoreLibs(summary *InstallationSummary) {
 	// installs libs:
 	// - autoconf
 	// - bison
@@ -226,22 +289,24 @@ func (t *Terminal) InstallCoreLibs() {
 			if t.Base.Platform.IsMac() {
 				if err := lib.app.SoftInstall(); err != nil {
 					displayMessage(err, lib.name)
+					trackResult(summary, lib.name, err)
 					continue
 				}
+				trackResult(summary, lib.name, nil)
 				if err := lib.app.SoftConfigure(); err != nil {
 					displayMessage(err, lib.name, true)
-					continue
 				}
 			}
 			continue
 		default:
 			if err := lib.app.SoftInstall(); err != nil {
 				displayMessage(err, lib.name)
+				trackResult(summary, lib.name, err)
 				continue
 			}
+			trackResult(summary, lib.name, nil)
 			if err := lib.app.SoftConfigure(); err != nil {
 				displayMessage(err, lib.name, true)
-				continue
 			}
 		}
 	}
@@ -279,6 +344,23 @@ func (t *Terminal) DisplayGithubInstructions() error {
 		instructions,
 		false,
 	)
+}
+
+// trackResult records an installation result in the summary
+func trackResult(summary *InstallationSummary, name string, err error) {
+	result := InstallationResult{
+		PackageName: name,
+		Attempt:     1,
+	}
+	if err != nil {
+		result.Status = StatusFailed
+		result.ErrorMessage = err.Error()
+		summary.Failed++
+	} else {
+		result.Status = StatusSuccess
+		summary.Installed++
+	}
+	summary.Results = append(summary.Results, result)
 }
 
 func displayMessage(err error, name string, displayOnlyErrors ...bool) {

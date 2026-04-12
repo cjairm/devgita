@@ -134,6 +134,8 @@ const (
 	Tmux               = "tmux"
 	Ulauncher          = "ulauncher"
 	Unzip              = "unzip"
+	ApacheUtils        = "apache2-utils"
+	Plocate            = "plocate"
 	Vips               = "vips"
 	Xcode              = "xcode"
 	Zlib               = "zlib"

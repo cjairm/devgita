@@ -51,6 +51,13 @@ docs/apps/
 ## Active Technologies
 - Go 1.21+ (existing project, uses `embed` package from Go 1.16+) + Cobra CLI, gopkg.in/yaml.v3, Go `embed`, Go `text/template` (001-binary-dist-audit)
 - YAML files on disk (`~/.config/devgita/global_config.yaml`), embedded filesystem via `embed.FS` (001-binary-dist-audit)
+- Go 1.21+ standard library: `net/http`, `context`, `os/exec`, `time`, `encoding/json` (002-debian-package-fixes)
+- YAML files on disk (~/.config/devgita/global_config.yaml), embedded filesystem via embed.FS (002-debian-package-fixes)
+- Strategy pattern for installation methods: AptStrategy, PPAStrategy, GitHubBinaryStrategy, GitCloneStrategy, InstallScriptStrategy, NerdFontStrategy (002-debian-package-fixes)
+- Exponential backoff with jitter for download retries: 3 attempts, 1s/2s/4s delays (002-debian-package-fixes)
+- Platform-specific package name mapping: macOS Homebrew names → Debian apt names (002-debian-package-fixes)
+- `BaseCommandExecutor` interface includes `IsMac() bool` for platform detection in apps (002-debian-package-fixes)
 
 ## Recent Changes
 - 001-binary-dist-audit: Added Go 1.21+ (existing project, uses `embed` package from Go 1.16+) + Cobra CLI, gopkg.in/yaml.v3, Go `embed`, Go `text/template`
+- 002-debian-package-fixes: Added strategy pattern for Debian installations, exponential backoff downloads, platform-specific package name mappings, IsMac() to BaseCommandExecutor interface
