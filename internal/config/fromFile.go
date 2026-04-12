@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"time"
 
 	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/files"
@@ -53,15 +54,25 @@ type ShellFeatures struct {
 	Bat                   bool `yaml:"bat"`
 }
 
+// FailedInstallation tracks packages that failed to install
+type FailedInstallation struct {
+	PackageName  string    `yaml:"package_name"`
+	Category     string    `yaml:"category"` // "package" | "dev_language" | "database"
+	ErrorMessage string    `yaml:"error_message"`
+	FailedAt     time.Time `yaml:"failed_at"`
+	AttemptCount int       `yaml:"attempt_count"`
+}
+
 type GlobalConfig struct {
-	AppPath          string                 `yaml:"app_path"`
-	ConfigPath       string                 `yaml:"config_path"`
-	AlreadyInstalled AlreadyInstalledConfig `yaml:"already_installed"`
-	CurrentFont      string                 `yaml:"current_font"`
-	CurrentTheme     string                 `yaml:"current_theme"`
-	Installed        InstalledConfig        `yaml:"installed"`
-	Shortcuts        map[string]string      `yaml:"shortcuts"`
-	Shell            ShellFeatures          `yaml:"shell"`
+	AppPath             string                 `yaml:"app_path"`
+	ConfigPath          string                 `yaml:"config_path"`
+	AlreadyInstalled    AlreadyInstalledConfig `yaml:"already_installed"`
+	CurrentFont         string                 `yaml:"current_font"`
+	CurrentTheme        string                 `yaml:"current_theme"`
+	Installed           InstalledConfig        `yaml:"installed"`
+	Shortcuts           map[string]string      `yaml:"shortcuts"`
+	Shell               ShellFeatures          `yaml:"shell"`
+	FailedInstallations []FailedInstallation   `yaml:"failed_installations,omitempty"`
 }
 
 func getGlobalConfigFilePath() string {
@@ -192,6 +203,39 @@ func (gc *GlobalConfig) AddToInstalled(itemName, itemType string) {
 
 func (gc *GlobalConfig) AddToAlreadyInstalled(itemName, itemType string) {
 	gc.AddToConfig(itemName, itemType, "already_installed")
+}
+
+// AddToFailed adds a package to the failed installations list
+// It stores the package name, category, error message, timestamp, and attempt count
+func (gc *GlobalConfig) AddToFailed(packageName, category, errorMessage string, attemptCount int) {
+	// Check if package already in failed list, update if exists
+	for i := range gc.FailedInstallations {
+		if gc.FailedInstallations[i].PackageName == packageName {
+			gc.FailedInstallations[i].ErrorMessage = errorMessage
+			gc.FailedInstallations[i].FailedAt = time.Now()
+			gc.FailedInstallations[i].AttemptCount = attemptCount
+			logger.L().Warnw("Updated failed installation",
+				"package", packageName,
+				"category", category,
+				"error", errorMessage,
+			)
+			return
+		}
+	}
+
+	// Add new failed installation
+	gc.FailedInstallations = append(gc.FailedInstallations, FailedInstallation{
+		PackageName:  packageName,
+		Category:     category,
+		ErrorMessage: errorMessage,
+		FailedAt:     time.Now(),
+		AttemptCount: attemptCount,
+	})
+	logger.L().Warnw("Added to failed installations",
+		"package", packageName,
+		"category", category,
+		"error", errorMessage,
+	)
 }
 
 func (gc *GlobalConfig) IsInstalledByDevgita(itemName, itemType string) bool {

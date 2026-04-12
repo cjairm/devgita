@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 
+	"github.com/cjairm/devgita/pkg/apt"
 	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/logger"
 	"github.com/cjairm/devgita/pkg/paths"
@@ -43,12 +45,62 @@ func (d *DebianCommand) MaybeInstallFont(
 		isInstalled, err := d.IsFontPresent(name)
 		return isInstalled, err
 	}, d.InstallPackage, func(name string) error {
+		// Use NerdFontStrategy for tar.xz archives (GitHub Nerd Fonts releases)
+		if url != "" && strings.HasSuffix(url, ".tar.xz") {
+			strategy := &NerdFontStrategy{cmd: d, archiveURL: url}
+			return strategy.Install(name)
+		}
 		return d.InstallFontFromURL(url, name, runCache)
 	}, "font")
 }
 
 func (d *DebianCommand) InstallPackage(packageName string) error {
-	return d.installWithApt(packageName)
+	// Use strategy pattern to select appropriate installation method
+	strategy := d.getInstallationStrategy(packageName)
+	return strategy.Install(packageName)
+}
+
+// getInstallationStrategy selects the appropriate installation strategy based on package name
+func (d *DebianCommand) getInstallationStrategy(packageName string) InstallationStrategy {
+	switch packageName {
+	// PPA installations
+	case constants.Mise:
+		return &PPAStrategy{
+			cmd: d,
+			ppaConfig: apt.PPAConfig{
+				Name:         "mise",
+				KeyURL:       "https://mise.jdx.dev/gpg-key.pub",
+				RepoURL:      "https://mise.jdx.dev/deb",
+				Distribution: "stable",
+				Component:    "main",
+			},
+		}
+	case constants.Fastfetch:
+		return &LaunchpadPPAStrategy{
+			cmd:    d,
+			ppaRef: "ppa:zhangsongcui3371/fastfetch",
+		}
+
+	// Git clone installations
+	case constants.Powerlevel10k:
+		homeDir, _ := os.UserHomeDir()
+		return &GitCloneStrategy{
+			cmd:         d,
+			repoURL:     "https://github.com/romkatv/powerlevel10k.git",
+			installPath: filepath.Join(homeDir, "powerlevel10k"),
+		}
+
+	// Install script installations
+	case constants.OpenCode:
+		return &InstallScriptStrategy{
+			cmd:       d,
+			scriptURL: "https://opencode.ai/install",
+		}
+
+	// Default: use apt strategy (handles library mappings automatically)
+	default:
+		return &AptStrategy{cmd: d}
+	}
 }
 
 func (d *DebianCommand) InstallDesktopApp(packageName string) error {
@@ -184,6 +236,12 @@ func (d *DebianCommand) installWithApt(packageName string) error {
 }
 
 func (d *DebianCommand) installWithSnap(packageName string) error {
+	// Check if snap is available before attempting installation
+	if _, err := exec.LookPath("snap"); err != nil {
+		logger.L().Warnw("Snap not installed, skipping", "package", packageName)
+		return nil
+	}
+
 	logger.L().Debug(fmt.Sprintf("executing: snap install %s", packageName))
 	cmd := CommandParams{
 		PreExecMsg:  fmt.Sprintf("Installing %s via Snap...", strings.ToLower(packageName)),

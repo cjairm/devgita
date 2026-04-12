@@ -56,7 +56,9 @@ if [[ -f $(brew --prefix)/share/powerlevel10k/powerlevel10k.zsh-theme ]]; then
     source $(brew --prefix)/share/powerlevel10k/powerlevel10k.zsh-theme
 fi
 {{else}}
-if [[ -f /usr/share/powerlevel10k/powerlevel10k.zsh-theme ]]; then
+if [[ -f ~/powerlevel10k/powerlevel10k.zsh-theme ]]; then
+    source ~/powerlevel10k/powerlevel10k.zsh-theme
+elif [[ -f /usr/share/powerlevel10k/powerlevel10k.zsh-theme ]]; then
     source /usr/share/powerlevel10k/powerlevel10k.zsh-theme
 fi
 {{end}}
