@@ -5,15 +5,19 @@ import (
 	"fmt"
 
 	cmd "github.com/cjairm/devgita/internal/commands"
+	"github.com/cjairm/devgita/pkg/constants"
+	"github.com/cjairm/devgita/pkg/logger"
 )
 
 type Fonts struct {
-	Cmd cmd.Command
+	Cmd  cmd.Command
+	Base cmd.BaseCommandExecutor
 }
 
 func New() *Fonts {
 	osCmd := cmd.NewCommand()
-	return &Fonts{Cmd: osCmd}
+	baseCmd := cmd.NewBaseCommand()
+	return &Fonts{Cmd: osCmd, Base: baseCmd}
 }
 
 func (f *Fonts) Install(fontName string) error {
@@ -29,7 +33,20 @@ func (f *Fonts) ForceInstall(fontName string) error {
 }
 
 func (f *Fonts) SoftInstall(fontName string) error {
-	return f.Cmd.MaybeInstallFont("", fontName, false)
+	if f.Base.IsMac() {
+		// macOS: Homebrew handles font installation, URL is ignored
+		return f.Cmd.MaybeInstallFont("", fontName, false)
+	}
+
+	// Debian: download tar.xz from GitHub Nerd Fonts releases
+	fc := constants.GetFontConfigByPackageName(fontName)
+	if fc == nil {
+		logger.L().Warnw("No Debian font config found, skipping", "font", fontName)
+		return nil
+	}
+
+	fontURL := constants.GetNerdFontURL(fc.ArchiveName)
+	return f.Cmd.MaybeInstallFont(fontURL, fc.InstallName, true)
 }
 
 func (f *Fonts) ForceConfigure() error {
@@ -53,20 +70,19 @@ func (f *Fonts) Update() error {
 }
 
 func (f *Fonts) Available() []string {
-	return []string{
-		"font-hack-nerd-font",
-		"font-meslo-lg-nerd-font",
-		"font-caskaydia-mono-nerd-font",
-		"font-fira-mono",
-		"font-jetbrains-mono-nerd-font",
+	fontConfigs := constants.GetFontConfigs()
+	names := make([]string, len(fontConfigs))
+	for i, fc := range fontConfigs {
+		names[i] = fc.PackageName
 	}
+	return names
 }
 
 func (f *Fonts) SoftInstallAll() {
 	availableFonts := f.Available()
-	if len(availableFonts) > 0 {
-		for _, font := range availableFonts {
-			f.SoftInstall(font)
+	for _, font := range availableFonts {
+		if err := f.SoftInstall(font); err != nil {
+			logger.L().Warnw("Font installation failed, continuing", "font", font, "error", err)
 		}
 	}
 }

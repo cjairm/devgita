@@ -17,16 +17,30 @@
 package lazygit
 
 import (
+	"context"
 	"fmt"
+	"runtime"
 
 	cmd "github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/pkg/constants"
+	"github.com/cjairm/devgita/pkg/downloader"
+	gh "github.com/cjairm/devgita/pkg/github"
+	"github.com/cjairm/devgita/pkg/logger"
 )
 
 type LazyGit struct {
-	Cmd  cmd.Command
-	Base cmd.BaseCommandExecutor
+	Cmd          cmd.Command
+	Base         cmd.BaseCommandExecutor
+	fetchVersion func(owner, repo string) (string, error)                                      // injectable for tests
+	downloadFn   func(ctx context.Context, url, dest string, cfg downloader.RetryConfig) error // injectable for tests
+}
+
+func (lg *LazyGit) getVersion(owner, repo string) (string, error) {
+	if lg.fetchVersion != nil {
+		return lg.fetchVersion(owner, repo)
+	}
+	return gh.FetchLatestRelease(owner, repo)
 }
 
 func New() *LazyGit {
@@ -36,11 +50,52 @@ func New() *LazyGit {
 }
 
 func (lg *LazyGit) Install() error {
-	return lg.Cmd.InstallPackage(constants.LazyGit)
+	if lg.Base.IsMac() {
+		return lg.Cmd.InstallPackage(constants.LazyGit)
+	}
+	return lg.installDebianLazygit()
 }
 
 func (lg *LazyGit) SoftInstall() error {
-	return lg.Cmd.MaybeInstallPackage(constants.LazyGit)
+	if lg.Base.IsMac() {
+		return lg.Cmd.MaybeInstallPackage(constants.LazyGit)
+	}
+	// On Debian: lazygit is not in apt — skip if already in PATH, otherwise install from GitHub
+	if _, err := cmd.LookPathFn(constants.LazyGit); err == nil {
+		logger.L().Infow("lazygit already installed, skipping")
+		return nil
+	}
+	return lg.installDebianLazygit()
+}
+
+// linuxArch returns the architecture string used in lazygit release artifact names.
+func linuxArch() string {
+	if runtime.GOARCH == "arm64" {
+		return "arm64"
+	}
+	return "x86_64"
+}
+
+// installDebianLazygit fetches the latest lazygit release from GitHub, downloads
+// the Linux tar.gz for the current architecture, and installs the binary to /usr/local/bin
+func (lg *LazyGit) installDebianLazygit() error {
+	version, err := lg.getVersion("jesseduffield", "lazygit")
+	if err != nil {
+		return fmt.Errorf("failed to fetch lazygit version: %w", err)
+	}
+
+	url := fmt.Sprintf(
+		"https://github.com/jesseduffield/lazygit/releases/download/v%s/lazygit_%s_Linux_%s.tar.gz",
+		version, version, linuxArch(),
+	)
+	logger.L().Infow("Downloading lazygit for Debian", "version", version, "url", url)
+
+	if err := cmd.InstallGitHubBinary(lg.Base, constants.LazyGit, url, lg.downloadFn); err != nil {
+		return fmt.Errorf("lazygit installation failed: %w", err)
+	}
+
+	logger.L().Infow("lazygit installed successfully for Debian", "version", version)
+	return nil
 }
 
 func (lg *LazyGit) ForceInstall() error {
@@ -95,3 +150,4 @@ func (lg *LazyGit) ExecuteCommand(args ...string) error {
 func (lg *LazyGit) Update() error {
 	return fmt.Errorf("lazygit update not implemented through devgita")
 }
+

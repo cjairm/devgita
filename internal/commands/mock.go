@@ -144,6 +144,9 @@ type MockBaseCommand struct {
 	IsPackagePresentResult    bool
 	IsFontPresentResult       bool
 
+	// Platform detection mock
+	IsMacResult bool
+
 	// Return values for other methods
 	SetupError          error
 	MaybeSetupError     error
@@ -161,11 +164,17 @@ func NewMockBaseCommand() *MockBaseCommand {
 		IsDesktopAppPresentResult: false,
 		IsPackagePresentResult:    false,
 		IsFontPresentResult:       false,
+		IsMacResult:               false,
 		SetupError:                nil,
 		MaybeSetupError:           nil,
 		MaybeInstallError:         nil,
 		InstallFontURLError:       nil,
 	}
+}
+
+// IsMac mocks the BaseCommand.IsMac method
+func (m *MockBaseCommand) IsMac() bool {
+	return m.IsMacResult
 }
 
 // ExecCommand mocks the BaseCommand.ExecCommand method
