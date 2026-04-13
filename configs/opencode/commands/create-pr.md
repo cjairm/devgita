@@ -67,25 +67,58 @@ Review all gathered context (commits + diff) to understand the **overall branch 
 
 **If template exists:** Fill all sections completely using context.
 
-**If no template:** Use 5-section format (1-2 sentences each):
+**If no template:** Use enhanced 5-section format:
 
-1. **Context**: Why this matters (business/tech impact)
-2. **Problem**: What was broken/limiting
-3. **Solution**: What changed and why
-4. **Risk & Mitigation**: What could fail and how mitigated
-5. **Testing**: How validated
+1. **Summary (First Paragraph)**: 
+   - **What** changed specifically (summarize major changes)
+   - **Why** this change is being made (context, problem being solved)
+   - Keep it short but informative enough to understand the PR without reading code
+
+2. **Problem/Background**: 
+   - What was broken/limiting
+   - Include bug numbers, relevant links, or design doc references
+   - Explain why this matters (business/technical impact)
+
+3. **Solution**: 
+   - What changed and why this approach
+   - Mention key implementation decisions not reflected in code
+   - If there are shortcomings/tradeoffs, acknowledge them
+
+4. **Risk & Mitigation**: 
+   - What could fail and how mitigated
+   - Any dependencies or breaking changes
+   - What's explicitly NOT included (if relevant)
+
+5. **Testing/Validation**: 
+   - How validated
+   - Include benchmark results if performance-related
+   - UI changes: mention screenshots needed (let user provide)
 
 **Title format:** Imperative mood + ticket ID (if provided via `$ARGUMENTS`)
 
-- Example: `[JIRA-123] Fix login redirect error`
-- Example: `Add user avatar upload`
+- **Complete sentence as an order** (imperative)
+- **Short, focused, and standalone** - should be understandable without reading the full description
+- Example: `[JIRA-123] Fix login redirect error on OAuth timeout`
+- Example: `Add user avatar upload with resize and compression`
+- Example: `Remove size limit on RPC server message freelist`
+
+**Avoid vague titles:**
+- ❌ "Fix bug", "Fix build", "Add patch"
+- ❌ "Moving code from A to B", "Phase 1"
+- ✅ "Fix race condition in user session cleanup job"
+- ✅ "Refactor authentication middleware for better testability"
 
 **Content enhancements:**
 
+- **First paragraph**: Should summarize what + why, allowing readers to understand the PR without diving into details
+- **Context is key**: Include decision rationale not visible in code (why this approach vs alternatives)
+- **External links**: Add context inline - links may become inaccessible due to permissions/retention
 - **UI changes**: Include screenshots/GIFs (mention need, let user provide)
 - **Uncertainty**: Call out areas needing extra review
 - **Labels**: Suggest relevant labels (feature/bugfix/refactor, frontend/backend)
 - **Scope**: Note what's explicitly NOT included if relevant
+- **Small PRs deserve attention**: Even small changes need context for future developers
+- **Searchability**: Write descriptions that help future developers find this PR years later
 
 ### 5. Create PR
 
@@ -128,6 +161,13 @@ gh pr create --title "Your Generated Title" --body "Your Generated Description"
 - **Tokens**: Start cheap (commits, --stat), escalate only when needed.
 - **Focus**: PRs should address single concern. Note if this is part of larger work.
 - **Ticket refs**: Use `$ARGUMENTS` for ticket IDs (e.g., JIRA-123, #456).
+- **First line standalone**: Title must be understandable without reading description (for git log/history).
+- **Why over what**: Code shows what changed; description explains why and context.
+- **Future-proof**: Write for developers who will read this years later without your context.
+- **Decision rationale**: Include "why" decisions not evident in code (alternatives considered, tradeoffs made).
+- **Complete sentences**: Use imperative mood for title ("Add feature" not "Adding feature").
+- **Avoid vagueness**: Never use "Fix bug", "Update code", "Phase 1" without specifics.
 
 #### References
+- https://google.github.io/eng-practices/review/developer/
 - https://gist.github.com/hcastro/52c5824a747b901c289261518504effb
