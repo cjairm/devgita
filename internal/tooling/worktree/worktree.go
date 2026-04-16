@@ -80,8 +80,8 @@ func (w *WorktreeManager) Create(name string) error {
 
 	// 5. Create tmux session
 	if err := w.Tmux.CreateSession(sessionName, wtPath); err != nil {
-		// Rollback: remove worktree if session creation fails
-		_ = w.Git.RemoveWorktree(wtPath)
+		// Rollback: remove worktree and delete branch if session creation fails
+		_ = w.Git.RemoveWorktree(wtPath, true, name)
 		return fmt.Errorf("failed to create tmux session: %w", err)
 	}
 
@@ -136,8 +136,8 @@ func (w *WorktreeManager) Remove(name string) error {
 		}
 	}
 
-	// Remove worktree
-	if err := w.Git.RemoveWorktree(wtPath); err != nil {
+	// Remove worktree and delete the associated branch
+	if err := w.Git.RemoveWorktree(wtPath, true, name); err != nil {
 		return fmt.Errorf("failed to remove worktree: %w", err)
 	}
 

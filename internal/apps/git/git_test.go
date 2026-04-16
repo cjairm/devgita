@@ -373,13 +373,18 @@ func TestRemoveWorktree(t *testing.T) {
 	mockBase := commands.NewMockBaseCommand()
 	app := &Git{Cmd: mc, Base: mockBase}
 
-	t.Run("successful removal", func(t *testing.T) {
+	t.Run("successful removal without branch deletion", func(t *testing.T) {
 		mockBase.ResetExecCommand()
 		mockBase.SetExecCommandResult("", "", nil)
 
-		err := app.RemoveWorktree("/path/to/worktree")
+		err := app.RemoveWorktree("/path/to/worktree", false, "")
 		if err != nil {
 			t.Fatalf("RemoveWorktree failed: %v", err)
+		}
+
+		// Should only call worktree remove
+		if mockBase.GetExecCommandCallCount() != 1 {
+			t.Fatalf("Expected 1 call, got %d", mockBase.GetExecCommandCallCount())
 		}
 
 		lastCall := mockBase.GetLastExecCommandCall()
@@ -397,11 +402,26 @@ func TestRemoveWorktree(t *testing.T) {
 		}
 	})
 
+	t.Run("successful removal with branch deletion", func(t *testing.T) {
+		mockBase.ResetExecCommand()
+		mockBase.SetExecCommandResult("", "", nil)
+
+		err := app.RemoveWorktree("/path/to/worktree", true, "feature-branch")
+		if err != nil {
+			t.Fatalf("RemoveWorktree failed: %v", err)
+		}
+
+		// Should call worktree remove + branch delete
+		if mockBase.GetExecCommandCallCount() != 2 {
+			t.Fatalf("Expected 2 calls, got %d", mockBase.GetExecCommandCallCount())
+		}
+	})
+
 	t.Run("removal error", func(t *testing.T) {
 		mockBase.ResetExecCommand()
 		mockBase.SetExecCommandResult("", "fatal: worktree not found", fmt.Errorf("not found"))
 
-		err := app.RemoveWorktree("/nonexistent/path")
+		err := app.RemoveWorktree("/nonexistent/path", false, "")
 		if err == nil {
 			t.Fatal("Expected error but got none")
 		}

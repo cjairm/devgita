@@ -144,8 +144,32 @@ func (g *Git) Update() error {
 	return fmt.Errorf("git update not implemented through devgita")
 }
 
+// BranchExists checks if a branch exists in the repository
+func (g *Git) BranchExists(branch string) (bool, error) {
+	execCommand := cmd.CommandParams{
+		Command: constants.Git,
+		Args:    []string{"branch", "--list", branch},
+	}
+	stdout, _, err := g.Base.ExecCommand(execCommand)
+	if err != nil {
+		return false, err
+	}
+	// If output contains the branch name, it exists
+	return strings.TrimSpace(stdout) != "", nil
+}
+
 // CreateWorktree creates a new worktree with a new branch
 func (g *Git) CreateWorktree(path, branch string) error {
+	// Check if branch already exists
+	branchExists, err := g.BranchExists(branch)
+	if err != nil {
+		return fmt.Errorf("failed to check if branch exists: %w", err)
+	}
+
+	// If branch exists, checkout that branch; otherwise create new branch
+	if branchExists {
+		return g.ExecuteCommand("worktree", "add", path, branch)
+	}
 	return g.ExecuteCommand("worktree", "add", path, "-b", branch)
 }
 
@@ -162,9 +186,23 @@ func (g *Git) ListWorktrees() ([]WorktreeInfo, error) {
 	return parseWorktreeOutput(stdout), nil
 }
 
-// RemoveWorktree removes a worktree
-func (g *Git) RemoveWorktree(path string) error {
-	return g.ExecuteCommand("worktree", "remove", path)
+// RemoveWorktree removes a worktree and optionally its associated branch
+func (g *Git) RemoveWorktree(path string, deleteBranch bool, branchName string) error {
+	// Remove the worktree directory
+	if err := g.ExecuteCommand("worktree", "remove", path); err != nil {
+		return err
+	}
+
+	// Delete the branch if requested
+	if deleteBranch && branchName != "" {
+		// Use force delete (-D) to avoid issues with unmerged changes
+		if err := g.DeleteBranch(branchName, true); err != nil {
+			// Log but don't fail - branch might not exist or might be current branch
+			return fmt.Errorf("removed worktree but failed to delete branch '%s': %w", branchName, err)
+		}
+	}
+
+	return nil
 }
 
 // GetRepoRoot returns the root directory of the current git repository
