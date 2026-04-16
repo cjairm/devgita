@@ -261,3 +261,259 @@ func TestExecuteCommand(t *testing.T) {
 // SKIP: Uninstall test
 
 // SKIP: Updates test
+
+func TestCreateWorktree(t *testing.T) {
+	mc := commands.NewMockCommand()
+	mockBase := commands.NewMockBaseCommand()
+	app := &Git{Cmd: mc, Base: mockBase}
+
+	t.Run("successful creation", func(t *testing.T) {
+		mockBase.ResetExecCommand()
+		mockBase.SetExecCommandResult("", "", nil)
+
+		err := app.CreateWorktree("/path/to/worktree", "feature-branch")
+		if err != nil {
+			t.Fatalf("CreateWorktree failed: %v", err)
+		}
+
+		lastCall := mockBase.GetLastExecCommandCall()
+		if lastCall == nil {
+			t.Fatal("No ExecCommand call recorded")
+		}
+		if lastCall.Command != "git" {
+			t.Fatalf("Expected command 'git', got %q", lastCall.Command)
+		}
+		expectedArgs := []string{"worktree", "add", "/path/to/worktree", "-b", "feature-branch"}
+		if len(lastCall.Args) != len(expectedArgs) {
+			t.Fatalf("Expected %d args, got %d", len(expectedArgs), len(lastCall.Args))
+		}
+		for i, arg := range expectedArgs {
+			if lastCall.Args[i] != arg {
+				t.Fatalf("Expected arg[%d] to be %q, got %q", i, arg, lastCall.Args[i])
+			}
+		}
+	})
+
+	t.Run("creation error", func(t *testing.T) {
+		mockBase.ResetExecCommand()
+		mockBase.SetExecCommandResult("", "fatal: branch already exists", fmt.Errorf("branch exists"))
+
+		err := app.CreateWorktree("/path/to/worktree", "existing-branch")
+		if err == nil {
+			t.Fatal("Expected error but got none")
+		}
+		if !strings.Contains(err.Error(), "failed to run git command") {
+			t.Fatalf("Expected error message to contain 'failed to run git command', got: %v", err)
+		}
+	})
+}
+
+func TestListWorktrees(t *testing.T) {
+	mc := commands.NewMockCommand()
+	mockBase := commands.NewMockBaseCommand()
+	app := &Git{Cmd: mc, Base: mockBase}
+
+	t.Run("successful list", func(t *testing.T) {
+		mockBase.ResetExecCommand()
+		porcelainOutput := `worktree /Users/test/repo
+HEAD abc123def456
+branch refs/heads/main
+
+worktree /Users/test/repo/.worktrees/feature
+HEAD def456abc789
+branch refs/heads/feature
+`
+		mockBase.SetExecCommandResult(porcelainOutput, "", nil)
+
+		worktrees, err := app.ListWorktrees()
+		if err != nil {
+			t.Fatalf("ListWorktrees failed: %v", err)
+		}
+
+		if len(worktrees) != 2 {
+			t.Fatalf("Expected 2 worktrees, got %d", len(worktrees))
+		}
+
+		// Check main worktree
+		if worktrees[0].Path != "/Users/test/repo" {
+			t.Errorf("Expected path '/Users/test/repo', got %q", worktrees[0].Path)
+		}
+		if worktrees[0].Branch != "main" {
+			t.Errorf("Expected branch 'main', got %q", worktrees[0].Branch)
+		}
+		if worktrees[0].Commit != "abc123def456" {
+			t.Errorf("Expected commit 'abc123def456', got %q", worktrees[0].Commit)
+		}
+
+		// Check feature worktree
+		if worktrees[1].Path != "/Users/test/repo/.worktrees/feature" {
+			t.Errorf("Expected path '/Users/test/repo/.worktrees/feature', got %q", worktrees[1].Path)
+		}
+		if worktrees[1].Branch != "feature" {
+			t.Errorf("Expected branch 'feature', got %q", worktrees[1].Branch)
+		}
+	})
+
+	t.Run("list error", func(t *testing.T) {
+		mockBase.ResetExecCommand()
+		mockBase.SetExecCommandResult("", "fatal: not a git repository", fmt.Errorf("not a repo"))
+
+		_, err := app.ListWorktrees()
+		if err == nil {
+			t.Fatal("Expected error but got none")
+		}
+		if !strings.Contains(err.Error(), "failed to list worktrees") {
+			t.Fatalf("Expected error message to contain 'failed to list worktrees', got: %v", err)
+		}
+	})
+}
+
+func TestRemoveWorktree(t *testing.T) {
+	mc := commands.NewMockCommand()
+	mockBase := commands.NewMockBaseCommand()
+	app := &Git{Cmd: mc, Base: mockBase}
+
+	t.Run("successful removal", func(t *testing.T) {
+		mockBase.ResetExecCommand()
+		mockBase.SetExecCommandResult("", "", nil)
+
+		err := app.RemoveWorktree("/path/to/worktree")
+		if err != nil {
+			t.Fatalf("RemoveWorktree failed: %v", err)
+		}
+
+		lastCall := mockBase.GetLastExecCommandCall()
+		if lastCall == nil {
+			t.Fatal("No ExecCommand call recorded")
+		}
+		expectedArgs := []string{"worktree", "remove", "/path/to/worktree"}
+		if len(lastCall.Args) != len(expectedArgs) {
+			t.Fatalf("Expected %d args, got %d", len(expectedArgs), len(lastCall.Args))
+		}
+		for i, arg := range expectedArgs {
+			if lastCall.Args[i] != arg {
+				t.Fatalf("Expected arg[%d] to be %q, got %q", i, arg, lastCall.Args[i])
+			}
+		}
+	})
+
+	t.Run("removal error", func(t *testing.T) {
+		mockBase.ResetExecCommand()
+		mockBase.SetExecCommandResult("", "fatal: worktree not found", fmt.Errorf("not found"))
+
+		err := app.RemoveWorktree("/nonexistent/path")
+		if err == nil {
+			t.Fatal("Expected error but got none")
+		}
+	})
+}
+
+func TestGetRepoRoot(t *testing.T) {
+	mc := commands.NewMockCommand()
+	mockBase := commands.NewMockBaseCommand()
+	app := &Git{Cmd: mc, Base: mockBase}
+
+	t.Run("successful get repo root", func(t *testing.T) {
+		mockBase.ResetExecCommand()
+		mockBase.SetExecCommandResult("/Users/test/my-repo\n", "", nil)
+
+		root, err := app.GetRepoRoot()
+		if err != nil {
+			t.Fatalf("GetRepoRoot failed: %v", err)
+		}
+
+		if root != "/Users/test/my-repo" {
+			t.Errorf("Expected '/Users/test/my-repo', got %q", root)
+		}
+
+		lastCall := mockBase.GetLastExecCommandCall()
+		if lastCall == nil {
+			t.Fatal("No ExecCommand call recorded")
+		}
+		expectedArgs := []string{"rev-parse", "--show-toplevel"}
+		for i, arg := range expectedArgs {
+			if lastCall.Args[i] != arg {
+				t.Fatalf("Expected arg[%d] to be %q, got %q", i, arg, lastCall.Args[i])
+			}
+		}
+	})
+
+	t.Run("not a git repo", func(t *testing.T) {
+		mockBase.ResetExecCommand()
+		mockBase.SetExecCommandResult("", "fatal: not a git repository", fmt.Errorf("not a repo"))
+
+		_, err := app.GetRepoRoot()
+		if err == nil {
+			t.Fatal("Expected error but got none")
+		}
+		if !strings.Contains(err.Error(), "failed to get repo root") {
+			t.Fatalf("Expected error message to contain 'failed to get repo root', got: %v", err)
+		}
+	})
+}
+
+func TestParseWorktreeOutput(t *testing.T) {
+	t.Run("multiple worktrees", func(t *testing.T) {
+		output := `worktree /Users/test/repo
+HEAD abc123
+branch refs/heads/main
+
+worktree /Users/test/repo/.worktrees/feature
+HEAD def456
+branch refs/heads/feature
+`
+		worktrees := parseWorktreeOutput(output)
+
+		if len(worktrees) != 2 {
+			t.Fatalf("Expected 2 worktrees, got %d", len(worktrees))
+		}
+
+		if worktrees[0].Path != "/Users/test/repo" {
+			t.Errorf("Expected path '/Users/test/repo', got %q", worktrees[0].Path)
+		}
+		if worktrees[0].Commit != "abc123" {
+			t.Errorf("Expected commit 'abc123', got %q", worktrees[0].Commit)
+		}
+		if worktrees[0].Branch != "main" {
+			t.Errorf("Expected branch 'main', got %q", worktrees[0].Branch)
+		}
+	})
+
+	t.Run("empty output", func(t *testing.T) {
+		worktrees := parseWorktreeOutput("")
+		if len(worktrees) != 0 {
+			t.Errorf("Expected 0 worktrees for empty output, got %d", len(worktrees))
+		}
+	})
+
+	t.Run("single worktree without trailing newline", func(t *testing.T) {
+		output := `worktree /Users/test/repo
+HEAD abc123
+branch refs/heads/main`
+		worktrees := parseWorktreeOutput(output)
+
+		if len(worktrees) != 1 {
+			t.Fatalf("Expected 1 worktree, got %d", len(worktrees))
+		}
+
+		if worktrees[0].Path != "/Users/test/repo" {
+			t.Errorf("Expected path '/Users/test/repo', got %q", worktrees[0].Path)
+		}
+	})
+
+	t.Run("detached HEAD", func(t *testing.T) {
+		output := `worktree /Users/test/repo
+HEAD abc123
+detached
+`
+		worktrees := parseWorktreeOutput(output)
+
+		if len(worktrees) != 1 {
+			t.Fatalf("Expected 1 worktree, got %d", len(worktrees))
+		}
+
+		if worktrees[0].Branch != "" {
+			t.Errorf("Expected empty branch for detached HEAD, got %q", worktrees[0].Branch)
+		}
+	})
+}

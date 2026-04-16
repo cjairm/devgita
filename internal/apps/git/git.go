@@ -25,12 +25,20 @@ package git
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	cmd "github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/files"
 	"github.com/cjairm/devgita/pkg/paths"
 )
+
+// WorktreeInfo contains information about a git worktree
+type WorktreeInfo struct {
+	Path   string
+	Branch string
+	Commit string
+}
 
 type Git struct {
 	Cmd  cmd.Command
@@ -134,4 +142,76 @@ func (g *Git) Restore(branch, files string) error {
 
 func (g *Git) Update() error {
 	return fmt.Errorf("git update not implemented through devgita")
+}
+
+// CreateWorktree creates a new worktree with a new branch
+func (g *Git) CreateWorktree(path, branch string) error {
+	return g.ExecuteCommand("worktree", "add", path, "-b", branch)
+}
+
+// ListWorktrees returns parsed worktree information
+func (g *Git) ListWorktrees() ([]WorktreeInfo, error) {
+	execCommand := cmd.CommandParams{
+		Command: constants.Git,
+		Args:    []string{"worktree", "list", "--porcelain"},
+	}
+	stdout, _, err := g.Base.ExecCommand(execCommand)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list worktrees: %w", err)
+	}
+	return parseWorktreeOutput(stdout), nil
+}
+
+// RemoveWorktree removes a worktree
+func (g *Git) RemoveWorktree(path string) error {
+	return g.ExecuteCommand("worktree", "remove", path)
+}
+
+// GetRepoRoot returns the root directory of the current git repository
+func (g *Git) GetRepoRoot() (string, error) {
+	execCommand := cmd.CommandParams{
+		Command: constants.Git,
+		Args:    []string{"rev-parse", "--show-toplevel"},
+	}
+	stdout, _, err := g.Base.ExecCommand(execCommand)
+	if err != nil {
+		return "", fmt.Errorf("failed to get repo root: %w", err)
+	}
+	return strings.TrimSpace(stdout), nil
+}
+
+// parseWorktreeOutput parses the porcelain output of git worktree list
+func parseWorktreeOutput(output string) []WorktreeInfo {
+	var worktrees []WorktreeInfo
+	var current WorktreeInfo
+
+	lines := strings.Split(output, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			if current.Path != "" {
+				worktrees = append(worktrees, current)
+				current = WorktreeInfo{}
+			}
+			continue
+		}
+
+		if strings.HasPrefix(line, "worktree ") {
+			current.Path = strings.TrimPrefix(line, "worktree ")
+		} else if strings.HasPrefix(line, "HEAD ") {
+			current.Commit = strings.TrimPrefix(line, "HEAD ")
+		} else if strings.HasPrefix(line, "branch ") {
+			branch := strings.TrimPrefix(line, "branch ")
+			// Remove refs/heads/ prefix if present
+			branch = strings.TrimPrefix(branch, "refs/heads/")
+			current.Branch = branch
+		}
+	}
+
+	// Don't forget the last worktree if output doesn't end with blank line
+	if current.Path != "" {
+		worktrees = append(worktrees, current)
+	}
+
+	return worktrees
 }
