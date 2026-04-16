@@ -12,6 +12,10 @@ permission:
     "git symbolic-ref*": allow
     "git branch*": allow
     "git status*": allow
+    "gh pr view*": allow
+    "gh pr view *": allow
+    "dge fetch-pr-comments *": allow
+    "cat *": allow
     "grep *": allow
     "rg *": allow
     "sed *": allow
@@ -22,6 +26,7 @@ permission:
     "cut *": allow
     "sort *": allow
     "uniq *": allow
+    "jq *": allow
   webfetch: deny
   read: allow
   glob: allow
@@ -42,10 +47,18 @@ Provide constructive, specific feedback that helps authors ship better plans. Ap
 
 ## Process
 
-1. **Read the document**: Use Read tool to view the complete document
-2. **Understand context**: What problem is being solved? What's the scope?
-3. **Systematic review**: Evaluate each dimension methodically
-4. **Provide feedback**: Be specific, direct, and actionable
+1. **Check for existing PR comments (if reviewing a PR)**:
+   - Get PR context: `gh pr view --json number,headRepository`
+   - Download existing comments: `dge fetch-pr-comments OWNER/REPO PR_NUMBER existing_comments.json`
+   - Review existing feedback to avoid duplicating concerns already raised
+   
+2. **Read the document**: Use Read tool to view the complete document
+
+3. **Understand context**: What problem is being solved? What's the scope?
+
+4. **Systematic review**: Evaluate each dimension methodically, avoiding issues already flagged in existing comments
+
+5. **Provide feedback**: Be specific, direct, and actionable - focus on NEW concerns not already documented
 
 ## Review Dimensions
 
@@ -97,15 +110,24 @@ Provide a brief overall assessment (2–4 sentences).
 
 ## Concerns / Gaps
 - List critical issues, risks, or missing pieces
+- **IMPORTANT**: Reference existing comments if similar concerns already raised
+- Use format: `path/to/file.md:line` for specific locations
+- Mark duplicates: `[Already flagged in PR comments]` if concern exists in existing_comments.json
 
 ## Suggestions
-- Provide actionable improvements
+- Provide actionable improvements not already covered in existing feedback
 
 ## Questions for the Author
 - List clarifying or challenging questions
 
 ## Risk Rating
 Rate overall risk (Low / Medium / High) and explain why.
+
+## Existing Feedback Summary (if PR review)
+If existing comments were found:
+- Note: "Reviewed X existing comments from previous reviews"
+- Briefly acknowledge areas already covered to avoid duplication
+- Focus new feedback on uncovered issues
 
 ---
 

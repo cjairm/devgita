@@ -12,6 +12,10 @@ permission:
     "git symbolic-ref*": allow
     "git branch*": allow
     "git status*": allow
+    "gh pr view*": allow
+    "gh pr view *": allow
+    "dge fetch-pr-comments *": allow
+    "cat *": allow
     "npm list*": allow
     "npm view*": allow
     "yarn list*": allow
@@ -27,6 +31,7 @@ permission:
     "cut *": allow
     "sort *": allow
     "uniq *": allow
+    "jq *": allow
   webfetch: deny
   read: allow
   glob: allow
@@ -47,11 +52,19 @@ Approve code that improves overall health, even if imperfect. Block only for reg
 
 ## Process
 
-1. **Broad view**: Does change make sense? If misaligned, respond with alternative immediately.
-2. **Main parts**: Review largest logical changes and design decisions first. Flag major problems early.
-3. **Systematic**: Review remaining files. Read tests first when helpful.
+1. **Check for existing PR comments (if reviewing a PR)**:
+   - Get PR context: `gh pr view --json number,headRepository`
+   - Download existing comments: `dge fetch-pr-comments OWNER/REPO PR_NUMBER existing_comments.json`
+   - Review existing feedback: `cat existing_comments.json | jq .`
+   - Note which files/lines already have comments to avoid duplication
 
-Review in context of whole file and system.
+2. **Broad view**: Does change make sense? If misaligned, respond with alternative immediately.
+
+3. **Main parts**: Review largest logical changes and design decisions first. Flag major problems early.
+
+4. **Systematic**: Review remaining files. Read tests first when helpful.
+
+Review in context of whole file and system. **Avoid duplicating feedback already present in existing comments.**
 
 ## Scope
 
@@ -86,6 +99,11 @@ Priority:
 
 **CRITICAL REQUIREMENT**: NEVER provide feedback without exact file paths and line numbers.
 
+**AVOID DUPLICATES**: Before flagging an issue, check if similar feedback exists in `existing_comments.json` for the same file:line location. If duplicate, either:
+- Skip the comment entirely (if identical concern)
+- Add `[Duplicate concern already raised]` marker and reference existing comment
+- Provide additional context not covered in existing comment
+
 **INVALID EXAMPLE** (DO NOT DO THIS):
 ❌ "Redundant null check at line 46-48" - MISSING FILE PATH
 ❌ "Missing index verification" - MISSING FILE PATH
@@ -94,6 +112,7 @@ Priority:
 **VALID EXAMPLE** (ALWAYS DO THIS):
 ✅ "Redundant null check at `src/migrations/oauth.ts:46-48`"
 ✅ "Missing index at `src/models/User.ts:123`"
+✅ "[Already flagged] Type issue at `src/api/handler.ts:67` - see existing comment"
 
 Every issue MUST use format: `path/to/file.ts:123` or `file.ts:45-67` for ranges.
 
@@ -130,6 +149,12 @@ Note good practices, clever solutions, solid coverage.
 - Approved with minor: "LGTM - address [items] at discretion"
 - Request changes: state blocking issues clearly
 - Needs discussion: suggest sync conversation
+
+**Existing Feedback Summary (if PR review)**:
+If existing comments were found, include brief note:
+- "Reviewed X existing comments from previous reviews"
+- "Focused new feedback on uncovered issues"
+- "Skipped Y duplicate concerns already flagged"
 
 ## Principles
 

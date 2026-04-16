@@ -15,6 +15,7 @@ permission:
     "gh api*": allow
     "gh api *": allow
     "jq *": allow
+    "dge fetch-pr-comments *": allow
 ---
 
 Post review feedback from conversation context to a PR as a **single cohesive review** with inline comments attached.
@@ -45,7 +46,37 @@ Extract:
 - `OWNER`: From headRepository.owner.login
 - `REPO`: From headRepository.name
 
-### 3. Get the PR Diff
+### 3. Download Existing PR Comments (Avoid Duplications)
+
+Before posting new comments, download existing review comments to avoid duplicating feedback:
+
+```bash
+dge fetch-pr-comments "$OWNER/$REPO" $PR_NUM existing_comments.json
+```
+
+This fetches all existing review thread comments and saves them to `existing_comments.json`. The file contains:
+```json
+[
+  {
+    "path": "docs/plan.md",
+    "line": 15,
+    "body": "Comment text...",
+    "author": "username",
+    "is_resolved": false
+  }
+]
+```
+
+**Check for duplicates** by comparing:
+- Same `path` and `line` combination
+- Similar comment `body` content (fuzzy match for substantial overlap)
+
+**Actions:**
+- Skip posting comments that already exist (same location + similar content)
+- Include in review body a note like: "Note: Skipped 2 comments already posted by previous reviews"
+- Only post NEW comments that don't duplicate existing feedback
+
+### 4. Get the PR Diff
 
 To post inline comments, we need to know which lines are in the diff. Get the diff:
 
@@ -60,7 +91,7 @@ Parse this to understand:
 
 **Important**: The `line` parameter in the API refers to the line number in the file, but only lines that are part of the diff can receive comments.
 
-### 4. Parse Review Feedback from Context
+### 5. Parse Review Feedback from Context
 
 Look at the conversation history for review feedback. Extract:
 
@@ -68,22 +99,27 @@ Look at the conversation history for review feedback. Extract:
 - `path/to/file.ext:123` - Issue description
 - Items under "Concerns / Gaps" or "CRITICAL/IMPORTANT/MINOR" sections that reference specific locations
 
+**Cross-check with existing comments** (from step 3):
+- For each inline comment, check if similar feedback already exists at same location
+- Skip duplicate comments
+- Track skipped count for summary
+
 **For general summary**, use:
 - Summary section
 - Strengths section  
 - Overall recommendation/risk rating
 - Questions for author
 
-### 5. Determine Review Event Type
+### 6. Determine Review Event Type
 
 Based on review feedback:
 - **APPROVE**: Low risk, no critical/blocking issues
 - **REQUEST_CHANGES**: High risk, critical issues, or blocking problems
 - **COMMENT**: Medium risk, suggestions but no blockers
 
-### 6. Post Review with Inline Comments (Single API Call)
+### 7. Post Review with Inline Comments (Single API Call)
 
-Use `gh api` to post the review with all inline comments in one atomic request:
+Use `gh api` to post the review with all **NEW** inline comments in one atomic request (excluding duplicates found in step 3):
 
 ```bash
 gh api \
@@ -110,7 +146,8 @@ gh api \
 [Risk rating and reasoning]
 
 ---
-*Review includes X inline comments on specific locations*" \
+*Review includes X inline comments on specific locations*
+*Note: Skipped Y duplicate comments from existing reviews*" \
   --input - <<'EOF'
 {
   "comments": [
@@ -177,15 +214,19 @@ After posting, confirm to user:
 
 **Review Status:** REQUEST_CHANGES
 
-**Inline Comments:** 4 attached to review
+**Inline Comments:** 4 new comments attached to review
 - docs/plan.md:15 - [CRITICAL] Missing rollback strategy
 - docs/plan.md:42 - [IMPORTANT] Unclear success criteria
 - docs/plan.md:78 - [MINOR] Consider adding diagram
 - docs/plan.md:95 - [MINOR] Typo in section header
 
+**Skipped Duplicates:** 2 comments already exist from previous reviews
+- docs/plan.md:30 - Similar feedback already posted
+- docs/plan.md:55 - Already addressed in existing comments
+
 **PR URL:** https://github.com/org/repo/pull/123
 
-All comments posted as a single cohesive review.
+All new comments posted as a single cohesive review.
 ```
 
 ## Mapping Review Output to PR Comments
@@ -200,6 +241,18 @@ All comments posted as a single cohesive review.
 | Risk Rating | Review `body` + determines `event` |
 
 ## Error Handling
+
+### Duplicate Comment Detection
+
+Compare new comments against existing comments from step 3:
+
+1. **Exact match**: Same path, line, and substantially similar body text → Skip
+2. **Location match**: Same path and line, different body → Consider if it adds new value
+3. **Keep statistics**: Track skipped count to report to user
+
+**Similarity threshold**: Consider 70%+ text overlap as duplicate
+
+### Lines Not in Diff
 
 If a line is not in the diff, the entire API call will fail. To handle this:
 
@@ -266,3 +319,36 @@ Medium - rollback gap is significant
 3. **Proper review status** - can set APPROVE/REQUEST_CHANGES with comments
 4. **Better UX** - comments appear as part of a cohesive review in GitHub UI
 5. **Threaded** - all inline comments are grouped under one review
+6. **No duplicates** - existing comments checked before posting to avoid redundancy
+
+## Duplicate Detection Logic
+
+### Fetching Existing Comments
+
+The `dge fetch-pr-comments` command uses GitHub GraphQL API to fetch:
+- All review thread comments (first 100 threads)
+- For each thread: path, line, body, author, resolution status
+- Filters out URL-only comments (auto-generated references)
+
+### Comparison Algorithm
+
+For each new comment candidate:
+
+```bash
+# Pseudocode for duplicate detection
+for new_comment in new_comments:
+  for existing in existing_comments:
+    if new_comment.path == existing.path and new_comment.line == existing.line:
+      similarity = calculate_text_similarity(new_comment.body, existing.body)
+      if similarity > 0.70:  # 70% threshold
+        mark_as_duplicate(new_comment)
+        break
+```
+
+**Text similarity**: Use simple word overlap or Levenshtein distance to compare comment bodies.
+
+### Handling Duplicates
+
+- **Skip**: Don't include in `comments` array for API call
+- **Report**: Include in review body summary
+- **Log**: Show user which comments were skipped and why
