@@ -262,28 +262,28 @@ func TestExecuteCommand(t *testing.T) {
 
 // SKIP: Updates test
 
-func TestCreateWorktree(t *testing.T) {
+func TestRemoteBranchExists(t *testing.T) {
 	mc := commands.NewMockCommand()
 	mockBase := commands.NewMockBaseCommand()
 	app := &Git{Cmd: mc, Base: mockBase}
 
-	t.Run("successful creation", func(t *testing.T) {
+	t.Run("remote branch exists", func(t *testing.T) {
 		mockBase.ResetExecCommand()
-		mockBase.SetExecCommandResult("", "", nil)
+		mockBase.SetExecCommandResult("  origin/feature-A\n", "", nil)
 
-		err := app.CreateWorktree("/path/to/worktree", "feature-branch")
+		exists, err := app.RemoteBranchExists("feature-A")
 		if err != nil {
-			t.Fatalf("CreateWorktree failed: %v", err)
+			t.Fatalf("RemoteBranchExists failed: %v", err)
+		}
+		if !exists {
+			t.Error("Expected remote branch to exist")
 		}
 
 		lastCall := mockBase.GetLastExecCommandCall()
-		if lastCall == nil {
-			t.Fatal("No ExecCommand call recorded")
-		}
 		if lastCall.Command != "git" {
 			t.Fatalf("Expected command 'git', got %q", lastCall.Command)
 		}
-		expectedArgs := []string{"worktree", "add", "/path/to/worktree", "-b", "feature-branch"}
+		expectedArgs := []string{"branch", "-r", "--list", "origin/feature-A"}
 		if len(lastCall.Args) != len(expectedArgs) {
 			t.Fatalf("Expected %d args, got %d", len(expectedArgs), len(lastCall.Args))
 		}
@@ -294,16 +294,78 @@ func TestCreateWorktree(t *testing.T) {
 		}
 	})
 
-	t.Run("creation error", func(t *testing.T) {
+	t.Run("remote branch does not exist", func(t *testing.T) {
 		mockBase.ResetExecCommand()
-		mockBase.SetExecCommandResult("", "fatal: branch already exists", fmt.Errorf("branch exists"))
+		mockBase.SetExecCommandResult("", "", nil)
+
+		exists, err := app.RemoteBranchExists("feature-B")
+		if err != nil {
+			t.Fatalf("RemoteBranchExists failed: %v", err)
+		}
+		if exists {
+			t.Error("Expected remote branch to not exist")
+		}
+	})
+}
+
+func TestCreateWorktree(t *testing.T) {
+	mc := commands.NewMockCommand()
+	mockBase := commands.NewMockBaseCommand()
+	app := &Git{Cmd: mc, Base: mockBase}
+
+	t.Run("new branch creation - neither local nor remote exists", func(t *testing.T) {
+		mockBase.ResetExecCommand()
+		// Mock will return empty strings (branch doesn't exist) for all checks
+		// This simulates: fetch succeeds, local check fails, remote check fails, worktree add succeeds
+		mockBase.SetExecCommandResult("", "", nil)
+
+		err := app.CreateWorktree("/path/to/worktree", "feature-branch")
+		if err != nil {
+			t.Fatalf("CreateWorktree failed: %v", err)
+		}
+
+		// Should have made multiple calls: fetch, local check, remote check, worktree add
+		callCount := mockBase.GetExecCommandCallCount()
+		if callCount < 3 {
+			t.Fatalf("Expected at least 3 command calls, got %d", callCount)
+		}
+
+		// Check the final worktree add command used -b for new branch
+		lastCall := mockBase.GetLastExecCommandCall()
+		if lastCall.Command != "git" {
+			t.Fatalf("Expected command 'git', got %q", lastCall.Command)
+		}
+
+		// Verify it's a worktree add command with -b flag
+		hasWorktreeAdd := false
+		hasNewBranchFlag := false
+		for i, arg := range lastCall.Args {
+			if arg == "worktree" && i+1 < len(lastCall.Args) && lastCall.Args[i+1] == "add" {
+				hasWorktreeAdd = true
+			}
+			if arg == "-b" {
+				hasNewBranchFlag = true
+			}
+		}
+		if !hasWorktreeAdd {
+			t.Fatal("Expected 'git worktree add' command")
+		}
+		if !hasNewBranchFlag {
+			t.Fatal("Expected -b flag for creating new branch")
+		}
+	})
+
+	t.Run("creation error on worktree add", func(t *testing.T) {
+		mockBase.ResetExecCommand()
+		// Simulate worktree add failure
+		mockBase.SetExecCommandResult("", "fatal: worktree exists", fmt.Errorf("worktree exists"))
 
 		err := app.CreateWorktree("/path/to/worktree", "existing-branch")
 		if err == nil {
 			t.Fatal("Expected error but got none")
 		}
-		if !strings.Contains(err.Error(), "failed to run git command") {
-			t.Fatalf("Expected error message to contain 'failed to run git command', got: %v", err)
+		if !strings.Contains(err.Error(), "worktree exists") {
+			t.Errorf("Expected error to contain 'worktree exists', got: %v", err)
 		}
 	})
 }

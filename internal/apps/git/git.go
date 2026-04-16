@@ -158,18 +158,55 @@ func (g *Git) BranchExists(branch string) (bool, error) {
 	return strings.TrimSpace(stdout) != "", nil
 }
 
-// CreateWorktree creates a new worktree with a new branch
-func (g *Git) CreateWorktree(path, branch string) error {
-	// Check if branch already exists
-	branchExists, err := g.BranchExists(branch)
+// RemoteBranchExists checks if a remote branch exists (e.g., origin/feature-A)
+func (g *Git) RemoteBranchExists(branch string) (bool, error) {
+	execCommand := cmd.CommandParams{
+		Command: constants.Git,
+		Args:    []string{"branch", "-r", "--list", fmt.Sprintf("origin/%s", branch)},
+	}
+	stdout, _, err := g.Base.ExecCommand(execCommand)
 	if err != nil {
-		return fmt.Errorf("failed to check if branch exists: %w", err)
+		return false, err
+	}
+	// If output contains the remote branch name, it exists
+	return strings.TrimSpace(stdout) != "", nil
+}
+
+// CreateWorktree creates a new worktree with a branch
+// Handles three cases:
+// 1. Local branch exists: checkout that branch
+// 2. Remote branch exists: create tracking branch (after fetch)
+// 3. Neither exists: create new branch from HEAD
+func (g *Git) CreateWorktree(path, branch string) error {
+	// Fetch latest remote refs to ensure we see recent branches
+	if err := g.FetchOrigin(); err != nil {
+		// Log but don't fail - user might be offline or not have a remote
+		// Continue with local/cached refs
 	}
 
-	// If branch exists, checkout that branch; otherwise create new branch
-	if branchExists {
+	// Check if local branch already exists
+	localExists, err := g.BranchExists(branch)
+	if err != nil {
+		return fmt.Errorf("failed to check if local branch exists: %w", err)
+	}
+
+	// If local branch exists, checkout that branch
+	if localExists {
 		return g.ExecuteCommand("worktree", "add", path, branch)
 	}
+
+	// Check if remote branch exists
+	remoteExists, err := g.RemoteBranchExists(branch)
+	if err != nil {
+		return fmt.Errorf("failed to check if remote branch exists: %w", err)
+	}
+
+	// If remote branch exists, checkout it (creates tracking branch automatically)
+	if remoteExists {
+		return g.ExecuteCommand("worktree", "add", path, branch)
+	}
+
+	// Neither local nor remote exists, create new branch from HEAD
 	return g.ExecuteCommand("worktree", "add", path, "-b", branch)
 }
 
