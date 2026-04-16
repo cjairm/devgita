@@ -98,6 +98,27 @@ func (t *Tmux) Update() error {
 	return fmt.Errorf("tmux update is not implemented")
 }
 
+// CreateSession creates a new detached tmux session in the given directory
+func (t *Tmux) CreateSession(name, workdir string) error {
+	return t.ExecuteCommand("new-session", "-d", "-s", name, "-c", workdir)
+}
+
+// KillSession terminates a tmux session
+func (t *Tmux) KillSession(name string) error {
+	return t.ExecuteCommand("kill-session", "-t", name)
+}
+
+// HasSession checks if a session exists
+func (t *Tmux) HasSession(name string) bool {
+	err := t.ExecuteCommand("has-session", "-t", name)
+	return err == nil
+}
+
+// SendKeys sends keystrokes to a session
+func (t *Tmux) SendKeys(session, keys string) error {
+	return t.ExecuteCommand("send-keys", "-t", session, keys, "Enter")
+}
+
 func enableFeature(gc *config.GlobalConfig) error {
 	gc.EnableShellFeature(constants.Tmux)
 	if err := gc.RegenerateShellConfig(); err != nil {

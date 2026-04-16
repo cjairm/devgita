@@ -350,3 +350,348 @@ func TestSoftConfigure(t *testing.T) {
 		testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
 	})
 }
+
+func TestExecuteCommand(t *testing.T) {
+	t.Helper()
+
+	tests := []struct {
+		name        string
+		args        []string
+		shouldError bool
+		execErr     error
+	}{
+		{
+			name:        "successful execution",
+			args:        []string{"--version"},
+			shouldError: false,
+			execErr:     nil,
+		},
+		{
+			name:        "execution failure",
+			args:        []string{"invalid-command"},
+			shouldError: true,
+			execErr:     errors.New("command failed"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Helper()
+
+			mockCmd := commands.NewMockCommand()
+			mockBase := commands.NewMockBaseCommand()
+
+			if tt.execErr != nil {
+				mockBase.SetExecCommandResult("", "error", tt.execErr)
+			} else {
+				mockBase.SetExecCommandResult("tmux 3.3a", "", nil)
+			}
+
+			app := &tmux.Tmux{
+				Cmd:  mockCmd,
+				Base: mockBase,
+			}
+
+			err := app.ExecuteCommand(tt.args...)
+
+			if tt.shouldError && err == nil {
+				t.Error("Expected error but got none")
+			}
+			if !tt.shouldError && err != nil {
+				t.Errorf("Expected no error but got: %v", err)
+			}
+
+			// Verify the command was called
+			if mockBase.GetExecCommandCallCount() != 1 {
+				t.Errorf("Expected 1 ExecCommand call, got %d", mockBase.GetExecCommandCallCount())
+			}
+
+			lastCall := mockBase.GetLastExecCommandCall()
+			if lastCall == nil {
+				t.Fatal("No ExecCommand call recorded")
+			}
+			if lastCall.Command != "tmux" {
+				t.Errorf("Expected command 'tmux', got %q", lastCall.Command)
+			}
+		})
+	}
+}
+
+func TestCreateSession(t *testing.T) {
+	t.Helper()
+
+	tests := []struct {
+		name        string
+		sessionName string
+		workdir     string
+		shouldError bool
+		execErr     error
+	}{
+		{
+			name:        "successful session creation",
+			sessionName: "my-session",
+			workdir:     "/path/to/project",
+			shouldError: false,
+			execErr:     nil,
+		},
+		{
+			name:        "session creation failure",
+			sessionName: "duplicate-session",
+			workdir:     "/path/to/project",
+			shouldError: true,
+			execErr:     errors.New("duplicate session: duplicate-session"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Helper()
+
+			mockCmd := commands.NewMockCommand()
+			mockBase := commands.NewMockBaseCommand()
+
+			if tt.execErr != nil {
+				mockBase.SetExecCommandResult("", "error", tt.execErr)
+			} else {
+				mockBase.SetExecCommandResult("", "", nil)
+			}
+
+			app := &tmux.Tmux{
+				Cmd:  mockCmd,
+				Base: mockBase,
+			}
+
+			err := app.CreateSession(tt.sessionName, tt.workdir)
+
+			if tt.shouldError && err == nil {
+				t.Error("Expected error but got none")
+			}
+			if !tt.shouldError && err != nil {
+				t.Errorf("Expected no error but got: %v", err)
+			}
+
+			// Verify correct arguments were passed
+			lastCall := mockBase.GetLastExecCommandCall()
+			if lastCall == nil {
+				t.Fatal("No ExecCommand call recorded")
+			}
+
+			expectedArgs := []string{"new-session", "-d", "-s", tt.sessionName, "-c", tt.workdir}
+			if len(lastCall.Args) != len(expectedArgs) {
+				t.Fatalf("Expected %d args, got %d", len(expectedArgs), len(lastCall.Args))
+			}
+			for i, arg := range expectedArgs {
+				if lastCall.Args[i] != arg {
+					t.Errorf("Expected arg[%d] to be %q, got %q", i, arg, lastCall.Args[i])
+				}
+			}
+		})
+	}
+}
+
+func TestKillSession(t *testing.T) {
+	t.Helper()
+
+	tests := []struct {
+		name        string
+		sessionName string
+		shouldError bool
+		execErr     error
+	}{
+		{
+			name:        "successful session kill",
+			sessionName: "my-session",
+			shouldError: false,
+			execErr:     nil,
+		},
+		{
+			name:        "session not found",
+			sessionName: "nonexistent-session",
+			shouldError: true,
+			execErr:     errors.New("session not found: nonexistent-session"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Helper()
+
+			mockCmd := commands.NewMockCommand()
+			mockBase := commands.NewMockBaseCommand()
+
+			if tt.execErr != nil {
+				mockBase.SetExecCommandResult("", "error", tt.execErr)
+			} else {
+				mockBase.SetExecCommandResult("", "", nil)
+			}
+
+			app := &tmux.Tmux{
+				Cmd:  mockCmd,
+				Base: mockBase,
+			}
+
+			err := app.KillSession(tt.sessionName)
+
+			if tt.shouldError && err == nil {
+				t.Error("Expected error but got none")
+			}
+			if !tt.shouldError && err != nil {
+				t.Errorf("Expected no error but got: %v", err)
+			}
+
+			// Verify correct arguments were passed
+			lastCall := mockBase.GetLastExecCommandCall()
+			if lastCall == nil {
+				t.Fatal("No ExecCommand call recorded")
+			}
+
+			expectedArgs := []string{"kill-session", "-t", tt.sessionName}
+			if len(lastCall.Args) != len(expectedArgs) {
+				t.Fatalf("Expected %d args, got %d", len(expectedArgs), len(lastCall.Args))
+			}
+			for i, arg := range expectedArgs {
+				if lastCall.Args[i] != arg {
+					t.Errorf("Expected arg[%d] to be %q, got %q", i, arg, lastCall.Args[i])
+				}
+			}
+		})
+	}
+}
+
+func TestHasSession(t *testing.T) {
+	t.Helper()
+
+	tests := []struct {
+		name        string
+		sessionName string
+		exists      bool
+		execErr     error
+	}{
+		{
+			name:        "session exists",
+			sessionName: "my-session",
+			exists:      true,
+			execErr:     nil,
+		},
+		{
+			name:        "session does not exist",
+			sessionName: "nonexistent-session",
+			exists:      false,
+			execErr:     errors.New("session not found"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Helper()
+
+			mockCmd := commands.NewMockCommand()
+			mockBase := commands.NewMockBaseCommand()
+
+			if tt.execErr != nil {
+				mockBase.SetExecCommandResult("", "error", tt.execErr)
+			} else {
+				mockBase.SetExecCommandResult("", "", nil)
+			}
+
+			app := &tmux.Tmux{
+				Cmd:  mockCmd,
+				Base: mockBase,
+			}
+
+			result := app.HasSession(tt.sessionName)
+
+			if result != tt.exists {
+				t.Errorf("Expected HasSession to return %v, got %v", tt.exists, result)
+			}
+
+			// Verify correct arguments were passed
+			lastCall := mockBase.GetLastExecCommandCall()
+			if lastCall == nil {
+				t.Fatal("No ExecCommand call recorded")
+			}
+
+			expectedArgs := []string{"has-session", "-t", tt.sessionName}
+			if len(lastCall.Args) != len(expectedArgs) {
+				t.Fatalf("Expected %d args, got %d", len(expectedArgs), len(lastCall.Args))
+			}
+			for i, arg := range expectedArgs {
+				if lastCall.Args[i] != arg {
+					t.Errorf("Expected arg[%d] to be %q, got %q", i, arg, lastCall.Args[i])
+				}
+			}
+		})
+	}
+}
+
+func TestSendKeys(t *testing.T) {
+	t.Helper()
+
+	tests := []struct {
+		name        string
+		sessionName string
+		keys        string
+		shouldError bool
+		execErr     error
+	}{
+		{
+			name:        "successful send keys",
+			sessionName: "my-session",
+			keys:        "opencode",
+			shouldError: false,
+			execErr:     nil,
+		},
+		{
+			name:        "send keys failure",
+			sessionName: "nonexistent-session",
+			keys:        "opencode",
+			shouldError: true,
+			execErr:     errors.New("session not found"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Helper()
+
+			mockCmd := commands.NewMockCommand()
+			mockBase := commands.NewMockBaseCommand()
+
+			if tt.execErr != nil {
+				mockBase.SetExecCommandResult("", "error", tt.execErr)
+			} else {
+				mockBase.SetExecCommandResult("", "", nil)
+			}
+
+			app := &tmux.Tmux{
+				Cmd:  mockCmd,
+				Base: mockBase,
+			}
+
+			err := app.SendKeys(tt.sessionName, tt.keys)
+
+			if tt.shouldError && err == nil {
+				t.Error("Expected error but got none")
+			}
+			if !tt.shouldError && err != nil {
+				t.Errorf("Expected no error but got: %v", err)
+			}
+
+			// Verify correct arguments were passed
+			lastCall := mockBase.GetLastExecCommandCall()
+			if lastCall == nil {
+				t.Fatal("No ExecCommand call recorded")
+			}
+
+			expectedArgs := []string{"send-keys", "-t", tt.sessionName, tt.keys, "Enter"}
+			if len(lastCall.Args) != len(expectedArgs) {
+				t.Fatalf("Expected %d args, got %d", len(expectedArgs), len(lastCall.Args))
+			}
+			for i, arg := range expectedArgs {
+				if lastCall.Args[i] != arg {
+					t.Errorf("Expected arg[%d] to be %q, got %q", i, arg, lastCall.Args[i])
+				}
+			}
+		})
+	}
+}
