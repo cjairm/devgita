@@ -72,18 +72,12 @@ func TestForceConfigure(t *testing.T) {
 		Base: mockApp.Base,
 	}
 
-	// TODO: Setup test directories and configuration files
-	// cleanup := testutil.SetupIsolatedPaths(t)
-	// defer cleanup()
-	//
-	// appDir, configDir, _, _ := testutil.SetupTestDirs(t)
-	// Create source config, override paths, test configuration copy
-
+	// Fontconfig uses system defaults, no devgita-managed config needed
 	err := fc.ForceConfigure()
 
-	// Currently returns "not implemented" error
-	if err == nil {
-		t.Error("Expected not implemented error")
+	// Should return nil since fontconfig doesn't need configuration
+	if err != nil {
+		t.Errorf("Expected nil error, got: %v", err)
 	}
 }
 
@@ -96,30 +90,23 @@ func TestSoftConfigure(t *testing.T) {
 	}
 
 	t.Run("not configured", func(t *testing.T) {
-		// TODO: Setup with no existing configuration
-
+		// Fontconfig uses system defaults, no devgita-managed config needed
 		err := fc.SoftConfigure()
 
-		// Currently returns "not implemented" error
-		if err == nil {
-			t.Error("Expected not implemented error")
+		// Should return nil since fontconfig doesn't need configuration
+		if err != nil {
+			t.Errorf("Expected nil error, got: %v", err)
 		}
-
-		// TODO: Verify configuration applied when implemented
 	})
 
 	t.Run("already configured", func(t *testing.T) {
-		// TODO: Setup with existing configuration marker file
-
+		// Fontconfig uses system defaults, no devgita-managed config needed
 		err := fc.SoftConfigure()
 
-		// Currently returns "not implemented" error
-		if err == nil {
-			t.Error("Expected not implemented error")
+		// Should return nil since fontconfig doesn't need configuration
+		if err != nil {
+			t.Errorf("Expected nil error, got: %v", err)
 		}
-
-		// TODO: Verify configuration preserved when implemented
-		// Should return nil without copying when marker exists
 	})
 
 	testutil.VerifyNoRealCommands(t, mockApp.Base)

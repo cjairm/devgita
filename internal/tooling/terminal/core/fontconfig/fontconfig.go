@@ -41,7 +41,9 @@ func (fc *FontConfig) ForceInstall() error {
 }
 
 func (fc *FontConfig) ForceConfigure() error {
-	// TODO: Implement configuration logic
+	// fontconfig doesn't require devgita-managed configuration
+	// It uses system defaults which are appropriate for most use cases
+	// Configuration would involve:
 	// 1. Copy configuration from paths.FontConfigConfigAppDir to paths.FontConfigConfigLocalDir
 	// 2. Update font cache if needed
 	// Example:
@@ -49,22 +51,13 @@ func (fc *FontConfig) ForceConfigure() error {
 	// if err != nil {
 	//     return fmt.Errorf("failed to copy fontconfig configuration: %w", err)
 	// }
-	return fmt.Errorf("not implemented: ForceConfigure")
+	return nil
 }
 
 func (fc *FontConfig) SoftConfigure() error {
-	// TODO: Implement conditional configuration
-	// 1. Check for marker file (e.g., fonts.conf in FontConfigConfigLocalDir)
-	// 2. If exists, return nil (preserve user customizations)
-	// 3. If not exists, call ForceConfigure()
-	// Example:
-	// markerFile := filepath.Join(paths.FontConfigConfigLocalDir, "fonts.conf")
-	// if files.FileAlreadyExist(markerFile) {
-	//     logger.L().Infow("FontConfig already configured, skipping")
-	//     return nil
-	// }
-	// return fc.ForceConfigure()
-	return fmt.Errorf("not implemented: SoftConfigure")
+	// fontconfig doesn't require devgita-managed configuration
+	// It uses system defaults which are appropriate for most use cases
+	return nil
 }
 
 func (fc *FontConfig) Uninstall() error {
