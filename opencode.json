@@ -1,9 +1,4 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "instructions": [
-    "docs/project-overview.md",
-    "docs/apps/**.md",
-    "docs/guides/**.md",
-    "docs/tooling/**.md"
-  ]
+  "instructions": ["docs/project-overview.md"]
 }
