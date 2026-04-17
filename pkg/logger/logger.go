@@ -14,7 +14,10 @@ func Init(verbose bool) {
 	if verbose {
 		zapLogger, err = zap.NewDevelopment()
 	} else {
-		zapLogger, err = zap.NewProduction()
+		// Production logger with ERROR level to suppress INFO/DEBUG logs
+		cfg := zap.NewProductionConfig()
+		cfg.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+		zapLogger, err = cfg.Build()
 	}
 
 	if err != nil {
