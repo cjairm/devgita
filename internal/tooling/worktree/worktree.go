@@ -1,7 +1,9 @@
-// Worktree coordinator manages git worktrees with tmux session integration
+// Worktree coordinator manages git worktrees with tmux window integration
 //
-// Each worktree gets its own tmux session with OpenCode running, enabling
-// parallel AI-assisted development across multiple branches.
+// Each worktree gets its own tmux window with OpenCode running, enabling
+// parallel AI-assisted development across multiple branches within the same session.
+// This follows the "one session per folder" workflow where worktrees are managed
+// as separate windows rather than separate sessions.
 //
 // References:
 // - Git Worktree Documentation: https://git-scm.com/docs/git-worktree
@@ -24,20 +26,20 @@ import (
 const (
 	// worktreeDir is the directory within the repo where worktrees are created
 	worktreeDir = ".worktrees"
-	// sessionPrefix is prepended to worktree names for tmux sessions
-	sessionPrefix = "wt-"
+	// windowPrefix is prepended to worktree names for tmux windows
+	windowPrefix = "wt-"
 )
 
-// WorktreeStatus contains information about a worktree and its associated session
+// WorktreeStatus contains information about a worktree and its associated window
 type WorktreeStatus struct {
-	Name          string
-	Path          string
-	Branch        string
-	TmuxSession   string
-	SessionActive bool
+	Name         string
+	Path         string
+	Branch       string
+	TmuxWindow   string
+	WindowActive bool
 }
 
-// WorktreeManager coordinates git worktrees with tmux sessions
+// WorktreeManager coordinates git worktrees with tmux windows
 type WorktreeManager struct {
 	Git  *git.Git
 	Tmux *tmux.Tmux
@@ -53,7 +55,7 @@ func New() *WorktreeManager {
 	}
 }
 
-// Create creates a new worktree with tmux session and launches OpenCode
+// Create creates a new worktree with tmux window and launches OpenCode
 func (w *WorktreeManager) Create(name string) error {
 	// 1. Validate we're in a git repo
 	repoRoot, err := w.Git.GetRepoRoot()
@@ -67,10 +69,10 @@ func (w *WorktreeManager) Create(name string) error {
 		return fmt.Errorf("worktree '%s' already exists", name)
 	}
 
-	// 3. Check session doesn't exist
-	sessionName := sessionPrefix + name
-	if w.Tmux.HasSession(sessionName) {
-		return fmt.Errorf("tmux session '%s' already exists", sessionName)
+	// 3. Check window doesn't exist
+	windowName := windowPrefix + name
+	if w.Tmux.HasWindow(windowName) {
+		return fmt.Errorf("tmux window '%s' already exists", windowName)
 	}
 
 	// 4. Create worktree
@@ -78,22 +80,22 @@ func (w *WorktreeManager) Create(name string) error {
 		return fmt.Errorf("failed to create worktree: %w", err)
 	}
 
-	// 5. Create tmux session
-	if err := w.Tmux.CreateSession(sessionName, wtPath); err != nil {
-		// Rollback: remove worktree and delete branch if session creation fails
+	// 5. Create tmux window
+	if err := w.Tmux.CreateWindow(windowName, wtPath); err != nil {
+		// Rollback: remove worktree and delete branch if window creation fails
 		_ = w.Git.RemoveWorktree(wtPath, true, name)
-		return fmt.Errorf("failed to create tmux session: %w", err)
+		return fmt.Errorf("failed to create tmux window: %w", err)
 	}
 
-	// 6. Launch OpenCode in session
-	if err := w.Tmux.SendKeys(sessionName, constants.OpenCode); err != nil {
+	// 6. Launch OpenCode in window
+	if err := w.Tmux.SendKeysToWindow(windowName, constants.OpenCode); err != nil {
 		return fmt.Errorf("failed to launch opencode: %w", err)
 	}
 
 	return nil
 }
 
-// List returns all worktrees with their session status
+// List returns all worktrees with their window status
 func (w *WorktreeManager) List() ([]WorktreeStatus, error) {
 	worktrees, err := w.Git.ListWorktrees()
 	if err != nil {
@@ -107,19 +109,19 @@ func (w *WorktreeManager) List() ([]WorktreeStatus, error) {
 			continue
 		}
 		name := filepath.Base(wt.Path)
-		sessionName := sessionPrefix + name
+		windowName := windowPrefix + name
 		statuses = append(statuses, WorktreeStatus{
-			Name:          name,
-			Path:          wt.Path,
-			Branch:        wt.Branch,
-			TmuxSession:   sessionName,
-			SessionActive: w.Tmux.HasSession(sessionName),
+			Name:         name,
+			Path:         wt.Path,
+			Branch:       wt.Branch,
+			TmuxWindow:   windowName,
+			WindowActive: w.Tmux.HasWindow(windowName),
 		})
 	}
 	return statuses, nil
 }
 
-// Remove removes a worktree and its tmux session
+// Remove removes a worktree and its tmux window
 func (w *WorktreeManager) Remove(name string) error {
 	repoRoot, err := w.Git.GetRepoRoot()
 	if err != nil {
@@ -127,12 +129,12 @@ func (w *WorktreeManager) Remove(name string) error {
 	}
 
 	wtPath := filepath.Join(repoRoot, worktreeDir, name)
-	sessionName := sessionPrefix + name
+	windowName := windowPrefix + name
 
-	// Kill tmux session if exists
-	if w.Tmux.HasSession(sessionName) {
-		if err := w.Tmux.KillSession(sessionName); err != nil {
-			return fmt.Errorf("failed to kill tmux session: %w", err)
+	// Kill tmux window if exists
+	if w.Tmux.HasWindow(windowName) {
+		if err := w.Tmux.KillWindow(windowName); err != nil {
+			return fmt.Errorf("failed to kill tmux window: %w", err)
 		}
 	}
 
@@ -144,9 +146,9 @@ func (w *WorktreeManager) Remove(name string) error {
 	return nil
 }
 
-// GetSessionName returns the tmux session name for a given worktree name
-func GetSessionName(name string) string {
-	return sessionPrefix + name
+// GetWindowName returns the tmux window name for a given worktree name
+func GetWindowName(name string) string {
+	return windowPrefix + name
 }
 
 // GetWorktreeDir returns the worktree directory name

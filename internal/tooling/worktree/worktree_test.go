@@ -31,7 +31,7 @@ func TestNew(t *testing.T) {
 	}
 }
 
-func TestGetSessionName(t *testing.T) {
+func TestGetWindowName(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string
@@ -44,7 +44,7 @@ func TestGetSessionName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := GetSessionName(tt.input)
+			result := GetWindowName(tt.input)
 			if result != tt.expected {
 				t.Errorf("Expected %q, got %q", tt.expected, result)
 			}
@@ -85,14 +85,14 @@ func TestCreate(t *testing.T) {
 		// Setup mock responses
 		// GetRepoRoot returns tempDir for git commands
 		mockGitBase.SetExecCommandResult(tempDir+"\n", "", nil)
-		// HasSession should return error (session doesn't exist) - this is what tmux returns
-		// CreateSession, SendKeys will also use this but that's OK since they succeed with nil error
-		// But HasSession specifically checks for error to mean "no session"
-		mockTmuxBase.SetExecCommandResult("", "session not found", os.ErrNotExist)
+		// HasWindow should return error (window doesn't exist) - this is what tmux returns
+		// CreateWindow, SendKeys will also use this but that's OK since they succeed with nil error
+		// But HasWindow specifically checks for error to mean "no window"
+		mockTmuxBase.SetExecCommandResult("", "window not found", os.ErrNotExist)
 
 		err := wm.Create("feature-test")
-		// Note: With single mock result, HasSession returns error (no session exists),
-		// but CreateSession also returns error, so creation "fails"
+		// Note: With single mock result, HasWindow returns error (no window exists),
+		// but CreateWindow also returns error, so creation "fails"
 		// This is a limitation of the mock - we test error paths separately
 		if err == nil {
 			// If it succeeds, verify calls were made
@@ -204,7 +204,7 @@ HEAD def456
 branch refs/heads/feature
 `
 		mockGitBase.SetExecCommandResult(porcelainOutput, "", nil)
-		// HasSession for "wt-feature" - session exists
+		// HasWindow for "wt-feature" - window exists
 		mockTmuxBase.SetExecCommandResult("", "", nil)
 
 		statuses, err := wm.List()
@@ -223,11 +223,11 @@ branch refs/heads/feature
 		if statuses[0].Branch != "feature" {
 			t.Errorf("Expected branch 'feature', got %q", statuses[0].Branch)
 		}
-		if statuses[0].TmuxSession != "wt-feature" {
-			t.Errorf("Expected session 'wt-feature', got %q", statuses[0].TmuxSession)
+		if statuses[0].TmuxWindow != "wt-feature" {
+			t.Errorf("Expected window 'wt-feature', got %q", statuses[0].TmuxWindow)
 		}
-		if !statuses[0].SessionActive {
-			t.Error("Expected session to be active")
+		if !statuses[0].WindowActive {
+			t.Error("Expected window to be active")
 		}
 	})
 
@@ -269,7 +269,7 @@ branch refs/heads/main
 }
 
 func TestRemove(t *testing.T) {
-	t.Run("successful removal with active session", func(t *testing.T) {
+	t.Run("successful removal with active window", func(t *testing.T) {
 		tempDir := t.TempDir()
 
 		mockGitBase := commands.NewMockBaseCommand()
@@ -292,7 +292,7 @@ func TestRemove(t *testing.T) {
 
 		// GetRepoRoot and RemoveWorktree both succeed
 		mockGitBase.SetExecCommandResult(tempDir+"\n", "", nil)
-		// HasSession succeeds (session exists), KillSession succeeds
+		// HasWindow succeeds (window exists), KillWindow succeeds
 		mockTmuxBase.SetExecCommandResult("", "", nil)
 
 		err := wm.Remove("feature-test")
@@ -304,13 +304,13 @@ func TestRemove(t *testing.T) {
 		if mockGitBase.GetExecCommandCallCount() < 1 {
 			t.Error("Expected git commands to be called")
 		}
-		// Verify tmux commands were called (HasSession + KillSession)
+		// Verify tmux commands were called (HasWindow + KillWindow)
 		if mockTmuxBase.GetExecCommandCallCount() < 1 {
 			t.Error("Expected tmux commands to be called")
 		}
 	})
 
-	t.Run("removal without active session", func(t *testing.T) {
+	t.Run("removal without active window", func(t *testing.T) {
 		tempDir := t.TempDir()
 
 		mockGitBase := commands.NewMockBaseCommand()
@@ -335,8 +335,8 @@ func TestRemove(t *testing.T) {
 		mockGitBase.SetExecCommandResult(tempDir+"\n", "", nil)
 		// RemoveWorktree
 		mockGitBase.SetExecCommandResult("", "", nil)
-		// HasSession - session doesn't exist
-		mockTmuxBase.SetExecCommandResult("", "session not found", os.ErrNotExist)
+		// HasWindow - window doesn't exist
+		mockTmuxBase.SetExecCommandResult("", "window not found", os.ErrNotExist)
 
 		err := wm.Remove("feature-test")
 		if err != nil {

@@ -119,6 +119,27 @@ func (t *Tmux) SendKeys(session, keys string) error {
 	return t.ExecuteCommand("send-keys", "-t", session, keys, "Enter")
 }
 
+// CreateWindow creates a new window in the current session
+func (t *Tmux) CreateWindow(name, workdir string) error {
+	return t.ExecuteCommand("new-window", "-n", name, "-c", workdir)
+}
+
+// HasWindow checks if a window exists in the current session
+func (t *Tmux) HasWindow(name string) bool {
+	err := t.ExecuteCommand("select-window", "-t", name)
+	return err == nil
+}
+
+// KillWindow closes a specific window by name
+func (t *Tmux) KillWindow(name string) error {
+	return t.ExecuteCommand("kill-window", "-t", name)
+}
+
+// SendKeysToWindow sends keystrokes to a specific window
+func (t *Tmux) SendKeysToWindow(window, keys string) error {
+	return t.ExecuteCommand("send-keys", "-t", window, keys, "Enter")
+}
+
 func enableFeature(gc *config.GlobalConfig) error {
 	gc.EnableShellFeature(constants.Tmux)
 	if err := gc.RegenerateShellConfig(); err != nil {
