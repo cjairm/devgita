@@ -1,63 +1,90 @@
 # Agent Guidelines for devgita
 
-## Build/Test/Lint Commands
+## Required Workflow
 
-- **Build**: `go build -o devgita main.go`
-- **Test all**: `go test ./...`
-- **Test single**: `go test -run TestName ./pkg/package`
-- **Lint**: `go vet ./...`
-- **Format**: `go fmt ./...`
+**CRITICAL:** Before implementing ANY code changes (bug fixes, features, refactoring), you MUST:
 
-## Code Style Guidelines
+1. **Use the cycle-doc-planner skill** to create a cycle document
+2. **Save the cycle doc** to `docs/plans/cycles/YYYY-MM-DD-<cycle-name>.md`
+3. **Get user approval** before implementing
+4. **Track progress** by checking off steps as completed
 
-- Use standard Go formatting (`go fmt`)
-- Import groups: stdlib, third-party, internal packages
-- Package naming: lowercase, single words (e.g., `commands`, `config`)
-- Function naming: camelCase for private, PascalCase for public
-- Error handling: always check and handle errors explicitly
-- Use `t.Helper()` in test helper functions
-- Test files end with `_test.go` and use package `package_test`
-- Use descriptive variable names (`tempDir` not `tmp`)
-- Comments use `//` format, capitalize first word
-- Cobra commands in `cmd/` package, business logic in `internal/`
-- Configuration structs use YAML tags for serialization
-- Logger initialization with `logger.Init(verbose)` before use
+See: `.opencode/skills/cycle-doc-planner/SKILL.md`
 
-## Testing Guidelines
+## Quick Reference
 
-- Follow testing patterns documented in `docs/guides/testing-patterns.md`
-- Use dependency injection via `BaseCommandExecutor` interface for testability
-- Initialize logger in test `init()` functions with `logger.Init(false)`
-- Use `MockBaseCommand` for testing command execution without running actual commands
-- Reset mock state between subtests with `ResetExecCommand()`
-- Use `t.TempDir()` for temporary directories in file operation tests
-- Organize related test scenarios with subtests using `t.Run()`
-- Verify command parameters with `GetLastExecCommandCall()` and `GetExecCommandCallCount()`
-- Test error wrapping and message context with `strings.Contains()`
-- Skip tests for unsupported methods (e.g., ForceInstall) with rationale comments
+| Task | Command |
+|------|---------|
+| Build | `go build -o devgita main.go` |
+| Test all | `go test ./...` |
+| Test single | `go test -run TestName ./pkg/package` |
+| Lint | `go vet ./...` |
+| Format | `go fmt ./...` |
 
-## Future App Docs Structure
+## Documentation Index
 
+| Topic | Location | Description |
+|-------|----------|-------------|
+| **Project Overview** | `docs/project-overview.md` | Architecture, installation flow, commands |
+| **Testing Patterns** | `docs/guides/testing-patterns.md` | Mocking, dependency injection, test isolation |
+| **Error Handling** | `docs/guides/error-handling.md` | Error patterns, `MaybeExitWithError()` |
+| **CLI Patterns** | `docs/guides/cli-patterns.md` | Cobra usage, flag handling |
+| **Cross-Platform** | `docs/architecture/cross-platform-installation.md` | Strategy pattern, package mappings, Debian strategies |
+| **Languages** | `docs/tooling/languages.md` | Language coordinator (Mise integration) |
+| **Databases** | `docs/tooling/databases.md` | Database coordinator |
+| **Releasing** | `docs/guides/releasing.md` | GitHub releases workflow |
+
+## Code Style (Essential)
+
+- Standard Go formatting (`go fmt`)
+- Import groups: stdlib, third-party, internal
+- Error handling: always check and handle explicitly
+- Logger: `logger.Init(verbose)` before use
+- Tests: `t.Helper()` in helpers, `_test.go` suffix
+
+## Key Architecture Patterns
+
+### Cross-Platform Installation
+See `docs/architecture/cross-platform-installation.md` for full details.
+
+**Package Mappings:** `pkg/constants/package_mappings.go`
+- Translates Homebrew names → apt names (e.g., `gdbm` → `libgdbm-dev`)
+
+**Installation Strategies:** `internal/commands/debian_strategies.go`
+- `AptStrategy` - Standard apt install with name translation
+- `PPAStrategy` - PPA with GPG key configuration
+- `LaunchpadPPAStrategy` - Launchpad PPA via add-apt-repository
+- `InstallScriptStrategy` - curl | sh installations
+- `NerdFontStrategy` - GitHub release font downloads
+- `GitCloneStrategy` - Git repository cloning
+
+### App Interface Pattern
+All apps in `internal/apps/` implement:
+- `Install()` / `SoftInstall()` / `ForceInstall()`
+- `ForceConfigure()` / `SoftConfigure()`
+- `ExecuteCommand(args...)`
+- `Uninstall()` / `Update()`
+
+See individual app docs in `docs/apps/` for specifics.
+
+### Testing Pattern
+```go
+func init() { testutil.InitLogger() }
+
+func TestFeature(t *testing.T) {
+    mockApp := testutil.NewMockApp()
+    app := &MyApp{Cmd: mockApp.Cmd, Base: mockApp.Base}
+    // ... test logic
+    testutil.VerifyNoRealCommands(t, mockApp.Base)
+}
 ```
-docs/apps/
-├── neovim.md       # Your Git integration + config details (create/update when needed)
-├── alacritty.md    # Terminal configuration specifics (create/update when needed)
-├── tmux.md         # Session management setup (create/update when needed)
-└── aerospace.md    # Window manager configuration (create/update when needed)
-└── ...
-```
-
 
 ## Active Technologies
-- Go 1.21+ (existing project, uses `embed` package from Go 1.16+) + Cobra CLI, gopkg.in/yaml.v3, Go `embed`, Go `text/template` (001-binary-dist-audit)
-- YAML files on disk (`~/.config/devgita/global_config.yaml`), embedded filesystem via `embed.FS` (001-binary-dist-audit)
-- Go 1.21+ standard library: `net/http`, `context`, `os/exec`, `time`, `encoding/json` (002-debian-package-fixes)
-- YAML files on disk (~/.config/devgita/global_config.yaml), embedded filesystem via embed.FS (002-debian-package-fixes)
-- Strategy pattern for installation methods: AptStrategy, PPAStrategy, GitHubBinaryStrategy, GitCloneStrategy, InstallScriptStrategy, NerdFontStrategy (002-debian-package-fixes)
-- Exponential backoff with jitter for download retries: 3 attempts, 1s/2s/4s delays (002-debian-package-fixes)
-- Platform-specific package name mapping: macOS Homebrew names → Debian apt names (002-debian-package-fixes)
-- `BaseCommandExecutor` interface includes `IsMac() bool` for platform detection in apps (002-debian-package-fixes)
+- Go 1.21+ with Cobra CLI, gopkg.in/yaml.v3, Go `embed`, Go `text/template`
+- YAML state: `~/.config/devgita/global_config.yaml`
+- Strategy pattern for cross-platform installation
+- `BaseCommandExecutor` interface with `IsMac()` for platform detection
 
 ## Recent Changes
-- 001-binary-dist-audit: Added Go 1.21+ (existing project, uses `embed` package from Go 1.16+) + Cobra CLI, gopkg.in/yaml.v3, Go `embed`, Go `text/template`
-- 002-debian-package-fixes: Added strategy pattern for Debian installations, exponential backoff downloads, platform-specific package name mappings, IsMac() to BaseCommandExecutor interface
+- 001-binary-dist-audit: Go embed, text/template for config generation
+- 002-debian-package-fixes: Strategy pattern, package mappings, exponential backoff downloads
