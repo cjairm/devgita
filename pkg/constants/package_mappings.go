@@ -9,6 +9,10 @@ type PackageMapping struct {
 // PackageMappings maps package constants to their platform-specific names
 // This enables seamless translation from macOS Homebrew names to Debian/Ubuntu apt names
 var PackageMappings = map[string]PackageMapping{
+	FdFind: {
+		MacOS:  "fd",
+		Debian: "fd-find",
+	},
 	Gdbm: {
 		MacOS:  "gdbm",
 		Debian: "libgdbm-dev",

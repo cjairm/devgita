@@ -43,7 +43,7 @@ func (f *FdFind) Install() error {
 }
 
 func (f *FdFind) SoftInstall() error {
-	return f.Cmd.MaybeInstallPackage(constants.FdFind, "fd-find")
+	return f.Cmd.MaybeInstallPackage(constants.FdFind)
 }
 
 func (f *FdFind) ForceInstall() error {
