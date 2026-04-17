@@ -37,7 +37,7 @@ func (a *Aerospace) Install() error {
 }
 
 func (a *Aerospace) SoftInstall() error {
-	return a.Cmd.MaybeInstallDesktopApp("nikitabobko/tap/aerospace")
+	return a.Cmd.MaybeInstallDesktopApp("nikitabobko/tap/aerospace", "AeroSpace")
 }
 
 func (a *Aerospace) ForceInstall() error {
