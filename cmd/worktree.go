@@ -34,9 +34,10 @@ Examples:
 }
 
 var worktreeCreateCmd = &cobra.Command{
-	Use:   "create <name>",
-	Short: "Create a new worktree with tmux window",
-	Long: `Create a new git worktree with an associated tmux window.
+	Use:     "create <name>",
+	Aliases: []string{"c", "new"},
+	Short:   "Create a new worktree with tmux window",
+	Long: `Create a new git worktree with an associated tmux window (aliases: c, new).
 
 This command:
   1. Creates a new git worktree in .worktrees/<name>
