@@ -98,20 +98,31 @@ Shows worktrees in the .worktrees/ directory along with:
 }
 
 var worktreeRemoveCmd = &cobra.Command{
-	Use:   "remove <name>",
-	Short: "Remove a worktree and its tmux window",
-	Long: `Remove a git worktree and kill its associated tmux window.
+	Use:     "remove [name]",
+	Aliases: []string{"rm", "r"},
+	Short:   "Remove a worktree and its tmux window",
+	Long: `Remove a git worktree and kill its associated tmux window (aliases: rm, r).
 
 This command:
   1. Kills the tmux window wt-<name> if it exists
   2. Removes the git worktree from .worktrees/<name>
   3. Deletes the branch (if not merged, use git branch -D manually)
 
+If no name is provided, opens an interactive fzf picker to select a worktree.
+
 Warning: Any uncommitted changes in the worktree will be lost.`,
-	Args: cobra.ExactArgs(1),
+	Args: cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		name := args[0]
 		wm := worktree.New()
+		var name string
+
+		if len(args) == 0 {
+			// Interactive selection - will be implemented in Task 8
+			utils.PrintError("Interactive selection not yet implemented. Please provide a worktree name.")
+			return
+		} else {
+			name = args[0]
+		}
 
 		if err := wm.Remove(name); err != nil {
 			utils.MaybeExitWithError(err)
