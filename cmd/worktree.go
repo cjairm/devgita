@@ -117,9 +117,11 @@ Warning: Any uncommitted changes in the worktree will be lost.`,
 		var name string
 
 		if len(args) == 0 {
-			// Interactive selection - will be implemented in Task 8
-			utils.PrintError("Interactive selection not yet implemented. Please provide a worktree name.")
-			return
+			selected, err := wm.SelectWorktreeInteractively("Select worktree to remove:")
+			if err != nil {
+				utils.MaybeExitWithError(err)
+			}
+			name = selected
 		} else {
 			name = args[0]
 		}
