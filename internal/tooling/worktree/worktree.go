@@ -20,6 +20,7 @@ import (
 	"github.com/cjairm/devgita/internal/apps/git"
 	"github.com/cjairm/devgita/internal/apps/tmux"
 	cmd "github.com/cjairm/devgita/internal/commands"
+	"github.com/cjairm/devgita/internal/tooling/terminal/dev_tools/fzf"
 	"github.com/cjairm/devgita/pkg/constants"
 )
 
@@ -43,6 +44,7 @@ type WorktreeStatus struct {
 type WorktreeManager struct {
 	Git  *git.Git
 	Tmux *tmux.Tmux
+	Fzf  *fzf.Fzf
 	Base cmd.BaseCommandExecutor
 }
 
@@ -51,6 +53,7 @@ func New() *WorktreeManager {
 	return &WorktreeManager{
 		Git:  git.New(),
 		Tmux: tmux.New(),
+		Fzf:  fzf.New(),
 		Base: cmd.NewBaseCommand(),
 	}
 }
@@ -154,4 +157,31 @@ func GetWindowName(name string) string {
 // GetWorktreeDir returns the worktree directory name
 func GetWorktreeDir() string {
 	return worktreeDir
+}
+
+// SelectWorktreeInteractively presents an fzf picker with available worktrees
+// and returns the selected worktree name. Returns error if no worktrees exist
+// or user cancels selection.
+func (w *WorktreeManager) SelectWorktreeInteractively(prompt string) (string, error) {
+	statuses, err := w.List()
+	if err != nil {
+		return "", fmt.Errorf("failed to list worktrees: %w", err)
+	}
+
+	if len(statuses) == 0 {
+		return "", fmt.Errorf("no worktrees available")
+	}
+
+	// Extract worktree names for fzf
+	names := make([]string, len(statuses))
+	for i, s := range statuses {
+		names[i] = s.Name
+	}
+
+	selected, err := w.Fzf.SelectFromList(names, prompt)
+	if err != nil {
+		return "", fmt.Errorf("selection failed: %w", err)
+	}
+
+	return selected, nil
 }

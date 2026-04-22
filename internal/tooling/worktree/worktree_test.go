@@ -9,6 +9,7 @@ import (
 	"github.com/cjairm/devgita/internal/apps/tmux"
 	"github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/internal/testutil"
+	"github.com/cjairm/devgita/internal/tooling/terminal/dev_tools/fzf"
 )
 
 func init() {
@@ -25,6 +26,9 @@ func TestNew(t *testing.T) {
 	}
 	if wm.Tmux == nil {
 		t.Error("Tmux should not be nil")
+	}
+	if wm.Fzf == nil {
+		t.Error("Fzf should not be nil")
 	}
 	if wm.Base == nil {
 		t.Error("Base should not be nil")
@@ -50,6 +54,57 @@ func TestGetWindowName(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSelectWorktreeInteractively(t *testing.T) {
+	t.Run("successful selection", func(t *testing.T) {
+		t.Skip("Skipping: SelectFromList uses exec.Command which requires actual fzf binary and would block in CI")
+		// This test documents the expected behavior but requires integration testing
+		// See the "no worktrees available" test for unit-testable behavior
+	})
+
+	t.Run("no worktrees available", func(t *testing.T) {
+		mockGitBase := commands.NewMockBaseCommand()
+		mockTmuxBase := commands.NewMockBaseCommand()
+		mockFzfBase := commands.NewMockBaseCommand()
+
+		gitApp := &git.Git{
+			Cmd:  commands.NewMockCommand(),
+			Base: mockGitBase,
+		}
+		tmuxApp := &tmux.Tmux{
+			Cmd:  commands.NewMockCommand(),
+			Base: mockTmuxBase,
+		}
+		fzfApp := &fzf.Fzf{
+			Cmd:  commands.NewMockCommand(),
+			Base: mockFzfBase,
+		}
+
+		wm := &WorktreeManager{
+			Git:  gitApp,
+			Tmux: tmuxApp,
+			Fzf:  fzfApp,
+			Base: commands.NewMockBaseCommand(),
+		}
+
+		// ListWorktrees returns only main (no .worktrees/)
+		porcelainOutput := `worktree /Users/test/repo
+HEAD abc123
+branch refs/heads/main
+`
+		mockGitBase.SetExecCommandResult(porcelainOutput, "", nil)
+
+		_, err := wm.SelectWorktreeInteractively("Select worktree:")
+
+		if err == nil {
+			t.Fatal("Expected error for no worktrees")
+		}
+
+		if err.Error() != "no worktrees available" {
+			t.Errorf("Unexpected error: %v", err)
+		}
+	})
 }
 
 func TestGetWorktreeDir(t *testing.T) {
