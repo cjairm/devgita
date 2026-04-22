@@ -140,6 +140,11 @@ func (t *Tmux) SendKeysToWindow(window, keys string) error {
 	return t.ExecuteCommand("send-keys", "-t", window, keys, "Enter")
 }
 
+// SelectWindow switches focus to a specific window by name
+func (t *Tmux) SelectWindow(name string) error {
+	return t.ExecuteCommand("select-window", "-t", name)
+}
+
 func enableFeature(gc *config.GlobalConfig) error {
 	gc.EnableShellFeature(constants.Tmux)
 	if err := gc.RegenerateShellConfig(); err != nil {

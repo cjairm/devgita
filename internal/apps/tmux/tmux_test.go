@@ -695,3 +695,72 @@ func TestSendKeys(t *testing.T) {
 		})
 	}
 }
+
+func TestSelectWindow(t *testing.T) {
+	t.Helper()
+
+	tests := []struct {
+		name        string
+		windowName  string
+		shouldError bool
+		execErr     error
+	}{
+		{
+			name:        "successful window selection",
+			windowName:  "wt-feature",
+			shouldError: false,
+			execErr:     nil,
+		},
+		{
+			name:        "window not found",
+			windowName:  "wt-nonexistent",
+			shouldError: true,
+			execErr:     errors.New("can't find window: wt-nonexistent"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Helper()
+
+			mockCmd := commands.NewMockCommand()
+			mockBase := commands.NewMockBaseCommand()
+
+			if tt.execErr != nil {
+				mockBase.SetExecCommandResult("", "error", tt.execErr)
+			} else {
+				mockBase.SetExecCommandResult("", "", nil)
+			}
+
+			app := &tmux.Tmux{
+				Cmd:  mockCmd,
+				Base: mockBase,
+			}
+
+			err := app.SelectWindow(tt.windowName)
+
+			if tt.shouldError && err == nil {
+				t.Error("Expected error but got none")
+			}
+			if !tt.shouldError && err != nil {
+				t.Errorf("Expected no error but got: %v", err)
+			}
+
+			// Verify correct arguments were passed
+			lastCall := mockBase.GetLastExecCommandCall()
+			if lastCall == nil {
+				t.Fatal("No ExecCommand call recorded")
+			}
+
+			expectedArgs := []string{"select-window", "-t", tt.windowName}
+			if len(lastCall.Args) != len(expectedArgs) {
+				t.Fatalf("Expected %d args, got %d", len(expectedArgs), len(lastCall.Args))
+			}
+			for i, arg := range expectedArgs {
+				if lastCall.Args[i] != arg {
+					t.Errorf("Expected arg[%d] to be %q, got %q", i, arg, lastCall.Args[i])
+				}
+			}
+		})
+	}
+}
