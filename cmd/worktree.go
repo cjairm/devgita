@@ -14,9 +14,10 @@ import (
 )
 
 var worktreeCmd = &cobra.Command{
-	Use:   "worktree",
-	Short: "Manage git worktrees with tmux windows",
-	Long: `Create and manage git worktrees with isolated tmux windows.
+	Use:     "worktree",
+	Aliases: []string{"wt"},
+	Short:   "Manage git worktrees with tmux windows",
+	Long: `Manage git worktrees with tmux windows (alias: wt).
 
 Each worktree gets its own tmux window in the current session with OpenCode running,
 enabling parallel AI-assisted development across multiple branches.
@@ -26,8 +27,10 @@ and tmux windows are prefixed with "wt-" for easy identification.
 
 Examples:
   dg worktree create feature-login    # Create worktree + window
-  dg worktree list                    # List all worktrees
-  dg worktree remove feature-login    # Remove worktree + window`,
+  dg wt c feature-login               # Same, using short form
+  dg wt l                             # List all worktrees
+  dg wt j                             # Jump to worktree (fzf selection)
+  dg wt rm                            # Remove worktree (fzf selection)`,
 }
 
 var worktreeCreateCmd = &cobra.Command{
