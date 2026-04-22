@@ -134,9 +134,50 @@ Warning: Any uncommitted changes in the worktree will be lost.`,
 	},
 }
 
+var worktreeJumpCmd = &cobra.Command{
+	Use:     "jump",
+	Aliases: []string{"j"},
+	Short:   "Jump to a worktree's tmux window",
+	Long: `Jump to a worktree's tmux window using fzf selection (alias: j).
+
+Opens an interactive fzf picker showing all available worktrees.
+After selection, switches the current tmux session to that worktree's window.
+
+Requires:
+  - Running inside a tmux session
+  - fzf installed
+
+Example:
+  dg wt j    # Opens fzf picker, then switches to selected window`,
+	Run: func(cmd *cobra.Command, args []string) {
+		wm := worktree.New()
+
+		selected, err := wm.SelectWorktreeInteractively("Select worktree to jump to:")
+		if err != nil {
+			utils.MaybeExitWithError(err)
+		}
+
+		windowName := worktree.GetWindowName(selected)
+
+		// Check if window exists
+		if !wm.Tmux.HasWindow(windowName) {
+			utils.PrintError(fmt.Sprintf("Window '%s' not found. The worktree exists but has no active window.", windowName))
+			utils.PrintInfo("Use 'dg wt create' to recreate the window, or manually create it.")
+			return
+		}
+
+		if err := wm.Tmux.SelectWindow(windowName); err != nil {
+			utils.MaybeExitWithError(fmt.Errorf("failed to switch to window: %w", err))
+		}
+
+		utils.PrintSuccess(fmt.Sprintf("Switched to window: %s", windowName))
+	},
+}
+
 func init() {
 	rootCmd.AddCommand(worktreeCmd)
 	worktreeCmd.AddCommand(worktreeCreateCmd)
 	worktreeCmd.AddCommand(worktreeListCmd)
 	worktreeCmd.AddCommand(worktreeRemoveCmd)
+	worktreeCmd.AddCommand(worktreeJumpCmd)
 }
