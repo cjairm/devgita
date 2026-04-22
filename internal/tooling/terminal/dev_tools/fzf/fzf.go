@@ -6,6 +6,8 @@ package fzf
 
 import (
 	"fmt"
+	"os/exec"
+	"strings"
 
 	cmd "github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/internal/config"
@@ -83,4 +85,35 @@ func (f *Fzf) ExecuteCommand(args ...string) error {
 
 func (f *Fzf) Update() error {
 	return fmt.Errorf("fzf update not implemented - use system package manager")
+}
+
+// SelectFromList runs fzf with the given items piped to stdin and returns the selected item.
+// The prompt parameter is displayed as the fzf header.
+// Returns an error if the list is empty, fzf is not found, or user cancels (Esc).
+func (f *Fzf) SelectFromList(items []string, prompt string) (string, error) {
+	if len(items) == 0 {
+		return "", fmt.Errorf("no items to select from")
+	}
+
+	// Build input string from items
+	input := strings.Join(items, "\n")
+
+	// Run fzf with prompt header and reverse layout (matches shell patterns)
+	args := []string{"--header", prompt, "--reverse"}
+
+	// Create command with stdin pipe
+	fzfCmd := exec.Command(constants.Fzf, args...)
+	fzfCmd.Stdin = strings.NewReader(input)
+
+	output, err := fzfCmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("fzf selection cancelled or failed: %w", err)
+	}
+
+	selected := strings.TrimSpace(string(output))
+	if selected == "" {
+		return "", fmt.Errorf("no selection made")
+	}
+
+	return selected, nil
 }

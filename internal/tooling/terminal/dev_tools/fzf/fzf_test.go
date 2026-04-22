@@ -219,6 +219,31 @@ func TestExecuteCommand(t *testing.T) {
 	})
 }
 
+func TestSelectFromList(t *testing.T) {
+	t.Run("empty list returns error", func(t *testing.T) {
+		mockBase := commands.NewMockBaseCommand()
+		app := &Fzf{
+			Cmd:  commands.NewMockCommand(),
+			Base: mockBase,
+		}
+
+		items := []string{}
+		_, err := app.SelectFromList(items, "Select:")
+
+		if err == nil {
+			t.Fatal("Expected error for empty list")
+		}
+
+		if err.Error() != "no items to select from" {
+			t.Errorf("Unexpected error: %v", err)
+		}
+	})
+
+	// Note: Testing successful selection and cancellation requires actual fzf execution
+	// since we use exec.Command directly with stdin piping. Those are integration tests.
+	// The empty list test validates the interface and basic error handling.
+}
+
 // SKIP: ForceInstall test
 // ForceInstall calls Uninstall (which returns error) before Install
 // Testing this creates false negatives since Uninstall is intentionally unsupported
