@@ -63,9 +63,10 @@ After creation, switch to the window with:
 }
 
 var worktreeListCmd = &cobra.Command{
-	Use:   "list",
-	Short: "List all worktrees with window status",
-	Long: `List all git worktrees managed by devgita with their tmux window status.
+	Use:     "list",
+	Aliases: []string{"l", "ls"},
+	Short:   "List all worktrees with window status",
+	Long: `List all git worktrees managed by devgita with their tmux window status (aliases: l, ls).
 
 Shows worktrees in the .worktrees/ directory along with:
   - Branch name
