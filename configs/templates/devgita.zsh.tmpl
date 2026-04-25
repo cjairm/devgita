@@ -287,6 +287,14 @@ alias lta='lt -a'
 # ---- Bat (better cat) ----
 alias cat="bat"
 {{end}}
+
+{{if .Opencode}}
+alias oc=opencode
+{{end}}
+
+{{if .Claudecode}}
+alias cc="CLAUDE_CODE_NO_FLICKER=1 claude"
+{{end}}
 # ============================================================================
 # End of Devgita Configuration
 # ============================================================================

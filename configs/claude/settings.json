@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "theme": "custom:default",
+  "deny": [
+    "Bash(curl *)",
+    "Read(./.env)",
+    "Read(./.env.*)",
+    "Read(./secrets/**)"
+  ],
+  "env": {
+    "ENABLE_CLAUDEAI_MCP_SERVERS": "false"
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "~/.claude/statusline.sh",
+    "padding": 2
+  }
+}
