@@ -213,6 +213,7 @@ Space for review feedback when handing off between sessions or models:
 ## Notes for Implementers
 
 - **Cycle document is your spec.** Update it if requirements change, but don't change scope without calling it out.
+- **Commit after each step.** Run `/smart-commit` once a step's verify check passes — keeps history granular and each commit leaves the system working.
 - **Verification must pass before "done."** Automated tests + manual checks + regression check.
 - **If you hit a risk, escalate immediately.** Don't try to handle it silently.
 - **Ask questions early.** Better to clarify now than discover issues at the end.
