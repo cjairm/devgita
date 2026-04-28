@@ -1,0 +1,199 @@
+package claude
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/cjairm/devgita/internal/testutil"
+	"github.com/cjairm/devgita/pkg/constants"
+	"github.com/cjairm/devgita/pkg/paths"
+)
+
+func init() {
+	testutil.InitLogger()
+}
+
+func TestNew(t *testing.T) {
+	app := New()
+	if app == nil {
+		t.Fatal("New() returned nil")
+	}
+	if app.Cmd == nil {
+		t.Error("Expected Cmd to be initialized")
+	}
+	if app.Base == nil {
+		t.Error("Expected Base to be initialized")
+	}
+}
+
+func TestInstall(t *testing.T) {
+	mockApp := testutil.NewMockApp()
+	app := &Claude{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+	if err := app.Install(); err != nil {
+		t.Fatalf("Install error: %v", err)
+	}
+
+	last := mockApp.Base.GetLastExecCommandCall()
+	if last == nil {
+		t.Fatal("Expected ExecCommand to be called")
+	}
+	if last.Command != "sh" {
+		t.Errorf("Expected command 'sh', got %q", last.Command)
+	}
+}
+
+func TestForceInstall(t *testing.T) {
+	mockApp := testutil.NewMockApp()
+	app := &Claude{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+	if err := app.ForceInstall(); err != nil {
+		t.Fatalf("ForceInstall error: %v", err)
+	}
+
+	last := mockApp.Base.GetLastExecCommandCall()
+	if last == nil || last.Command != "sh" {
+		t.Errorf("Expected install script via 'sh', got %v", last)
+	}
+}
+
+func TestUninstall(t *testing.T) {
+	mockApp := testutil.NewMockApp()
+	app := &Claude{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+	err := app.Uninstall()
+	if err == nil {
+		t.Fatal("Expected Uninstall to return error")
+	}
+	if err.Error() == "" {
+		t.Error("Expected non-empty error message")
+	}
+
+	testutil.VerifyNoRealCommands(t, mockApp.Base)
+}
+
+func TestUpdate(t *testing.T) {
+	mockApp := testutil.NewMockApp()
+	app := &Claude{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+	err := app.Update()
+	if err == nil {
+		t.Fatal("Expected Update to return error")
+	}
+
+	testutil.VerifyNoRealCommands(t, mockApp.Base)
+}
+
+func TestForceConfigure(t *testing.T) {
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
+
+	appConfigDir := filepath.Join(tc.AppDir, "configs", "claude")
+	userConfigDir := filepath.Join(tc.ConfigDir, "..", ".claude")
+
+	// Create source structure
+	for _, sub := range []string{"themes"} {
+		if err := os.MkdirAll(filepath.Join(appConfigDir, sub), 0755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(appConfigDir, "settings.json"), []byte(`{"theme":"default"}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(appConfigDir, "statusline.sh"), []byte(`#!/bin/bash`), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(appConfigDir, "themes", "default.json"), []byte(`{}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create shared dirs
+	sharedDir := filepath.Join(tc.AppDir, "configs", "shared")
+	for _, sub := range []string{"skills", "commands", "agents"} {
+		if err := os.MkdirAll(filepath.Join(sharedDir, sub), 0755); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	paths.Paths.App.Configs.Claude = appConfigDir
+	paths.Paths.App.Configs.Shared = sharedDir
+	paths.Paths.Config.Claude = userConfigDir
+
+	app := &Claude{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
+
+	if err := app.ForceConfigure(); err != nil {
+		t.Fatalf("ForceConfigure error: %v", err)
+	}
+
+	// settings.json deployed
+	if _, err := os.Stat(filepath.Join(userConfigDir, "settings.json")); err != nil {
+		t.Errorf("Expected settings.json at %s: %v", userConfigDir, err)
+	}
+
+	// statusline.sh deployed and executable
+	statuslinePath := filepath.Join(userConfigDir, "statusline.sh")
+	info, err := os.Stat(statuslinePath)
+	if err != nil {
+		t.Fatalf("Expected statusline.sh: %v", err)
+	}
+	if info.Mode()&0111 == 0 {
+		t.Error("Expected statusline.sh to be executable")
+	}
+
+	// themes deployed
+	if _, err := os.Stat(filepath.Join(userConfigDir, "themes")); err != nil {
+		t.Errorf("Expected themes dir: %v", err)
+	}
+
+	// shared dirs deployed
+	for _, dir := range []string{"skills", "commands", "agents"} {
+		if _, err := os.Stat(filepath.Join(userConfigDir, dir)); err != nil {
+			t.Errorf("Expected %s dir: %v", dir, err)
+		}
+	}
+
+	testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
+	testutil.VerifyNoRealConfigChanges(t)
+}
+
+func TestSoftConfigure_AlreadyConfigured(t *testing.T) {
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
+
+	userConfigDir := filepath.Join(tc.ConfigDir, "..", ".claude")
+	paths.Paths.Config.Claude = userConfigDir
+
+	// Pre-create marker file so SoftConfigure skips
+	if err := os.MkdirAll(userConfigDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(userConfigDir, "settings.json"), []byte(`{}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	app := &Claude{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
+
+	if err := app.SoftConfigure(); err != nil {
+		t.Fatalf("SoftConfigure error: %v", err)
+	}
+
+	testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
+}
+
+func TestExecuteCommand(t *testing.T) {
+	mockApp := testutil.NewMockApp()
+	app := &Claude{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+	if err := app.ExecuteCommand("--version"); err != nil {
+		t.Fatalf("ExecuteCommand error: %v", err)
+	}
+
+	last := mockApp.Base.GetLastExecCommandCall()
+	if last == nil || last.Command != constants.Claude {
+		t.Errorf("Expected command %q, got %v", constants.Claude, last)
+	}
+	if len(last.Args) == 0 || last.Args[0] != "--version" {
+		t.Errorf("Expected args [--version], got %v", last.Args)
+	}
+}
