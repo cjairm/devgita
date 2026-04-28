@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/cjairm/devgita/internal/apps/claude"
 	"github.com/cjairm/devgita/internal/apps/fastfetch"
 	"github.com/cjairm/devgita/internal/apps/git"
 	"github.com/cjairm/devgita/internal/apps/lazydocker"
@@ -151,6 +152,17 @@ func (t *Terminal) InstallTerminalApps(summary *InstallationSummary) {
 		trackResult(summary, constants.OpenCode, nil)
 		if err := o.SoftConfigure(); err != nil {
 			displayMessage(err, constants.OpenCode, true)
+		}
+	}
+
+	cc := claude.New()
+	if err := cc.SoftInstall(); err != nil {
+		displayMessage(err, constants.Claude)
+		trackResult(summary, constants.Claude, err)
+	} else {
+		trackResult(summary, constants.Claude, nil)
+		if err := cc.SoftConfigure(); err != nil {
+			displayMessage(err, constants.Claude, true)
 		}
 	}
 
