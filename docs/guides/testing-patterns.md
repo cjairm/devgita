@@ -44,12 +44,14 @@ devgita/
 ## 🔒 Test Isolation Principles
 
 **Problem**: Without proper isolation, tests can:
+
 - Execute real system commands (brew, apt, git, etc.)
 - Modify your actual `.zshrc` file
 - Write to real configuration directories (`~/.config/devgita/`)
 - Create temporary files that get sourced in your shell
 
 **Solution**: Use `testutil` package for complete isolation:
+
 - Override global paths to temp directories
 - Provide mock instances that track calls without executing real commands
 - Verify tests don't touch real system
@@ -66,10 +68,10 @@ For apps that don't touch configuration files:
 func TestInstall(t *testing.T) {
     mockApp := testutil.NewMockApp()
     app := &MyApp{Cmd: mockApp.Cmd, Base: mockApp.Base}
-    
+
     err := app.Install()
     // ... assertions
-    
+
     testutil.VerifyNoRealCommands(t, mockApp.Base)
 }
 ```
@@ -82,7 +84,7 @@ For apps that write configuration files:
 func TestConfigure(t *testing.T) {
     cleanup := testutil.SetupIsolatedPaths(t)
     defer cleanup()
-    
+
     appDir, configDir, templatesDir, _ := testutil.SetupTestDirs(t)
     // ... test logic
 }
@@ -96,7 +98,7 @@ For apps that modify shell configuration:
 func TestShellFeature(t *testing.T) {
     tc := testutil.SetupCompleteTest(t)
     defer tc.Cleanup()
-    
+
     app := &MyApp{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
     // Everything is ready: paths, templates, config, mocks
 }
@@ -198,15 +200,15 @@ func init() {
 func TestInstall(t *testing.T) {
     mockApp := testutil.NewMockApp()
     app := &Curl{Cmd: mockApp.Cmd}
-    
+
     if err := app.Install(); err != nil {
         t.Fatalf("Install error: %v", err)
     }
-    
+
     if mockApp.Cmd.InstalledPkg != "curl" {
         t.Errorf("Expected package curl, got %s", mockApp.Cmd.InstalledPkg)
     }
-    
+
     testutil.VerifyNoRealCommands(t, mockApp.Base)
 }
 ```
@@ -217,29 +219,29 @@ func TestInstall(t *testing.T) {
 func TestExecuteCommand(t *testing.T) {
     mockApp := testutil.NewMockApp()
     app := &Curl{Cmd: mockApp.Cmd, Base: mockApp.Base}
-    
+
     t.Run("successful execution", func(t *testing.T) {
         mockApp.Base.SetExecCommandResult("curl 7.64.1", "", nil)
-        
+
         err := app.ExecuteCommand("--version")
         if err != nil {
             t.Fatalf("ExecuteCommand failed: %v", err)
         }
-        
+
         if mockApp.Base.GetExecCommandCallCount() != 1 {
             t.Errorf("Expected 1 call, got %d", mockApp.Base.GetExecCommandCallCount())
         }
-        
+
         lastCall := mockApp.Base.GetLastExecCommandCall()
         if lastCall.Command != "curl" {
             t.Errorf("Expected curl command, got %s", lastCall.Command)
         }
     })
-    
+
     t.Run("error handling", func(t *testing.T) {
         mockApp.Reset()
         mockApp.Base.SetExecCommandResult("", "error", fmt.Errorf("failed"))
-        
+
         err := app.ExecuteCommand("--invalid")
         if err == nil {
             t.Fatal("Expected error")
@@ -254,29 +256,29 @@ func TestExecuteCommand(t *testing.T) {
 func TestForceConfigure(t *testing.T) {
     tc := testutil.SetupCompleteTest(t)
     defer tc.Cleanup()
-    
+
     // Create custom shell template
     template := `{{if .Mise}}eval "$(mise activate zsh)"{{end}}`
     testutil.CreateShellConfigTemplate(t, tc.TemplatesDir, template)
-    
+
     app := &Mise{Cmd: tc.MockApp.Cmd}
-    
+
     if err := app.ForceConfigure(); err != nil {
         t.Fatalf("ForceConfigure failed: %v", err)
     }
-    
+
     // Verify shell config was generated
     content, _ := os.ReadFile(tc.ZshConfigPath)
     if !strings.Contains(string(content), "mise activate") {
         t.Error("Shell config missing mise activation")
     }
-    
+
     // Verify global config was updated
     configContent, _ := os.ReadFile(tc.ConfigPath)
     if !strings.Contains(string(configContent), "mise: true") {
         t.Error("Expected mise to be enabled in config")
     }
-    
+
     testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
     testutil.VerifyNoRealConfigChanges(t)
 }
@@ -288,34 +290,34 @@ func TestForceConfigure(t *testing.T) {
 func TestForceConfigure(t *testing.T) {
     cleanup := testutil.SetupIsolatedPaths(t)
     defer cleanup()
-    
+
     appDir, configDir, _, _ := testutil.SetupTestDirs(t)
-    
+
     // Create source config
     gitConfigAppDir := filepath.Join(appDir, "git")
     os.MkdirAll(gitConfigAppDir, 0755)
-    
+
     sourceConfig := filepath.Join(gitConfigAppDir, ".gitconfig")
     sourceContent := "[user]\n\tname = Test User"
     os.WriteFile(sourceConfig, []byte(sourceContent), 0644)
-    
+
     // Override paths
     paths.GitConfigAppDir = gitConfigAppDir
     paths.GitConfigLocalDir = filepath.Join(configDir, "git")
-    
+
     // Test
     app := &Git{Cmd: commands.NewMockCommand()}
     if err := app.ForceConfigure(); err != nil {
         t.Fatalf("ForceConfigure failed: %v", err)
     }
-    
+
     // Verify
     dstConfig := filepath.Join(paths.GitConfigLocalDir, ".gitconfig")
     content, _ := os.ReadFile(dstConfig)
     if string(content) != sourceContent {
         t.Errorf("Content mismatch")
     }
-    
+
     testutil.VerifyNoRealConfigChanges(t)
 }
 ```
@@ -373,7 +375,7 @@ func TestFileOperation(t *testing.T) {
 func TestWithPathOverride(t *testing.T) {
     oldPath := paths.SomePath
     paths.SomePath = "/test/path"
-    
+
     t.Cleanup(func() {
         paths.SomePath = oldPath
     })
@@ -436,20 +438,21 @@ go tool cover -html=coverage.out
 
 ## 🔍 Common Issues & Solutions
 
-| Issue | Solution |
-|-------|----------|
-| `nil pointer dereference` in logger | Add `testutil.InitLogger()` in `init()` |
+| Issue                               | Solution                                                       |
+| ----------------------------------- | -------------------------------------------------------------- |
+| `nil pointer dereference` in logger | Add `testutil.InitLogger()` in `init()`                        |
 | Real commands executed during tests | Use `MockBaseCommand` and verify with `VerifyNoRealCommands()` |
-| Test fails on second run | Reset mock state: `mockApp.Reset()` |
-| Permission errors in file tests | Use `t.TempDir()` |
-| Path-related tests affect others | Use `t.Cleanup()` to restore paths |
-| Tests modify real `.zshrc` | Use `SetupIsolatedPaths()` or `SetupCompleteTest()` |
+| Test fails on second run            | Reset mock state: `mockApp.Reset()`                            |
+| Permission errors in file tests     | Use `t.TempDir()`                                              |
+| Path-related tests affect others    | Use `t.Cleanup()` to restore paths                             |
+| Tests modify real `.zshrc`          | Use `SetupIsolatedPaths()` or `SetupCompleteTest()`            |
 
 ---
 
 ## 📝 Creating Tests for New Apps
 
 1. **Define app structure with interface**
+
 ```go
 type NewApp struct {
     Cmd  commands.Command
@@ -458,6 +461,7 @@ type NewApp struct {
 ```
 
 2. **Initialize logger in test file**
+
 ```go
 func init() {
     testutil.InitLogger()
@@ -470,17 +474,19 @@ func init() {
    - Shell config → Use `testutil.SetupCompleteTest()`
 
 4. **Write tests with subtests**
+
 ```go
 func TestExecuteCommand(t *testing.T) {
     mockApp := testutil.NewMockApp()
     app := &NewApp{Cmd: mockApp.Cmd, Base: mockApp.Base}
-    
+
     t.Run("success", func(t *testing.T) { /* ... */ })
     t.Run("error", func(t *testing.T) { mockApp.Reset(); /* ... */ })
 }
 ```
 
 5. **Verify isolation**
+
 ```go
 testutil.VerifyNoRealCommands(t, mockApp.Base)
 testutil.VerifyNoRealConfigChanges(t)
@@ -490,15 +496,16 @@ testutil.VerifyNoRealConfigChanges(t)
 
 ## 📚 Summary
 
-| Component | Location | Purpose |
-|-----------|----------|---------|
-| `MockCommand` | `internal/commands/mock.go` | Mock package management operations |
-| `MockBaseCommand` | `internal/commands/mock.go` | Mock command execution |
-| `MockGit` | `internal/commands/mock.go` | Mock Git operations |
-| `testutil` helpers | `internal/testutil/testutil.go` | Test orchestration & isolation |
-| `MockApp` wrapper | `internal/testutil/testutil.go` | Combines Cmd + Base mocks |
+| Component          | Location                        | Purpose                            |
+| ------------------ | ------------------------------- | ---------------------------------- |
+| `MockCommand`      | `internal/commands/mock.go`     | Mock package management operations |
+| `MockBaseCommand`  | `internal/commands/mock.go`     | Mock command execution             |
+| `MockGit`          | `internal/commands/mock.go`     | Mock Git operations                |
+| `testutil` helpers | `internal/testutil/testutil.go` | Test orchestration & isolation     |
+| `MockApp` wrapper  | `internal/testutil/testutil.go` | Combines Cmd + Base mocks          |
 
 **Key Principles**:
+
 1. **Mocks stay in `commands/`** - They implement domain interfaces
 2. **Orchestration in `testutil/`** - Setup, cleanup, verification helpers
 3. **Complete isolation** - Tests never touch real system files or execute real commands

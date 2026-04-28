@@ -10,12 +10,12 @@ Devgita uses a **strategy pattern** combined with **package name mappings** to p
 
 ### Key Components
 
-| Component | Location | Purpose |
-|-----------|----------|---------|
-| Package Mappings | `pkg/constants/package_mappings.go` | Translate Homebrew names to apt names |
-| Installation Strategies | `internal/commands/debian_strategies.go` | Different installation methods for Debian |
-| Command Interfaces | `internal/commands/base.go` | Platform-agnostic installation contracts |
-| Platform Detection | `internal/commands/factory.go` | Detect OS and return appropriate command implementation |
+| Component               | Location                                 | Purpose                                                 |
+| ----------------------- | ---------------------------------------- | ------------------------------------------------------- |
+| Package Mappings        | `pkg/constants/package_mappings.go`      | Translate Homebrew names to apt names                   |
+| Installation Strategies | `internal/commands/debian_strategies.go` | Different installation methods for Debian               |
+| Command Interfaces      | `internal/commands/base.go`              | Platform-agnostic installation contracts                |
+| Platform Detection      | `internal/commands/factory.go`           | Detect OS and return appropriate command implementation |
 
 ---
 
@@ -25,12 +25,12 @@ Devgita uses a **strategy pattern** combined with **package name mappings** to p
 
 macOS Homebrew and Debian apt often use different names for the same package:
 
-| Package | Homebrew (macOS) | apt (Debian/Ubuntu) |
-|---------|------------------|---------------------|
-| gdbm | `gdbm` | `libgdbm-dev` |
-| jemalloc | `jemalloc` | `libjemalloc2` |
-| ncurses | `ncurses` | `libncurses5-dev` |
-| zlib | `zlib` | `zlib1g-dev` |
+| Package  | Homebrew (macOS) | apt (Debian/Ubuntu) |
+| -------- | ---------------- | ------------------- |
+| gdbm     | `gdbm`           | `libgdbm-dev`       |
+| jemalloc | `jemalloc`       | `libjemalloc2`      |
+| ncurses  | `ncurses`        | `libncurses5-dev`   |
+| zlib     | `zlib`           | `zlib1g-dev`        |
 
 ### Solution
 
@@ -67,6 +67,7 @@ func GetDebianPackageName(packageConstant string) string {
 ### When to Add Mappings
 
 Add a new mapping when:
+
 1. A library/tool has different package names across platforms
 2. The Homebrew name doesn't work with apt
 3. Debian requires a `-dev` suffix for development headers
@@ -123,6 +124,7 @@ type PPAStrategy struct {
 ```
 
 **PPAConfig structure:**
+
 ```go
 type PPAConfig struct {
     Name        string   // Repository identifier (e.g., "eza")
@@ -151,6 +153,7 @@ type LaunchpadPPAStrategy struct {
 ```
 
 **Key behavior:**
+
 1. Ensures `software-properties-common` is installed
 2. Runs `add-apt-repository -y ppa:owner/name`
 3. Updates apt cache
@@ -193,6 +196,7 @@ type NerdFontStrategy struct {
 ```
 
 **Key behavior:**
+
 1. Downloads tar.xz from GitHub releases
 2. Extracts to `~/.local/share/fonts/`
 3. Runs `fc-cache -fv` to register fonts
@@ -216,6 +220,7 @@ type GitCloneStrategy struct {
 ```
 
 **Key behavior:**
+
 - Uses `git clone --depth 1` for shallow clone
 - Skips if path already exists
 - Returns error if clone fails
@@ -238,6 +243,7 @@ func InstallGitHubBinary(
 ```
 
 **Key behavior:**
+
 1. Downloads tar.gz from GitHub
 2. Extracts the binary
 3. Installs to `/usr/local/bin/` with sudo
@@ -299,6 +305,7 @@ type BaseCommandExecutor interface {
 ```
 
 **Usage in apps:**
+
 ```go
 func (app *MyApp) Install() error {
     if app.Base.IsMac() {
@@ -335,15 +342,15 @@ var PackageMappings = map[string]PackageMapping{
 
 ### Step 3: Choose installation strategy
 
-| If package is... | Use strategy |
-|------------------|--------------|
-| In default apt repos | `AptStrategy` (automatic via MaybeInstallPackage) |
-| In a Launchpad PPA | `LaunchpadPPAStrategy` |
-| In a custom PPA with GPG | `PPAStrategy` |
-| Installed via script | `InstallScriptStrategy` |
-| A Nerd Font | `NerdFontStrategy` |
-| A git repository | `GitCloneStrategy` |
-| A GitHub release binary | `InstallGitHubBinary` helper |
+| If package is...         | Use strategy                                      |
+| ------------------------ | ------------------------------------------------- |
+| In default apt repos     | `AptStrategy` (automatic via MaybeInstallPackage) |
+| In a Launchpad PPA       | `LaunchpadPPAStrategy`                            |
+| In a custom PPA with GPG | `PPAStrategy`                                     |
+| Installed via script     | `InstallScriptStrategy`                           |
+| A Nerd Font              | `NerdFontStrategy`                                |
+| A git repository         | `GitCloneStrategy`                                |
+| A GitHub release binary  | `InstallGitHubBinary` helper                      |
 
 ### Step 4: Implement in DebianCommand
 
@@ -353,7 +360,7 @@ For non-apt packages, add strategy selection in `internal/commands/debian.go`:
 func (d *DebianCommand) MaybeInstallPackage(packageName string, aliases ...string) error {
     // Check if installed first
     // ...
-    
+
     // Select strategy based on package
     switch packageName {
     case constants.MyPackage:
@@ -402,9 +409,9 @@ Each strategy should be testable with mocked dependencies:
 func TestAptStrategy_Install(t *testing.T) {
     mockCmd := NewMockDebianCommand()
     strategy := &AptStrategy{cmd: mockCmd}
-    
+
     err := strategy.Install("gdbm")
-    
+
     // Verify translated name was used
     assert.Equal(t, "libgdbm-dev", mockCmd.LastInstalledPackage)
 }
@@ -418,5 +425,5 @@ See `docs/guides/testing-patterns.md` for comprehensive testing documentation.
 
 - **Testing Patterns:** `docs/guides/testing-patterns.md`
 - **Error Handling:** `docs/guides/error-handling.md`
-- **Project Overview:** `docs/project-overview.md`
+- **Product Spec:** `docs/spec.md`
 - **Individual App Docs:** `docs/apps/` directory

@@ -22,6 +22,7 @@ These are independent, simple fixes that can be batched into one cycle.
 ## 2. Engineer Context
 
 ### Relevant Files
+
 - `internal/tooling/terminal/dev_tools/fdfind/fdfind.go` - fd-find app module
 - `internal/tooling/terminal/core/fontconfig/fontconfig.go` - fontconfig app module
 - `internal/apps/aerospace/aerospace.go` - Aerospace app module
@@ -29,12 +30,14 @@ These are independent, simple fixes that can be batched into one cycle.
 - `pkg/constants/constants.go` - Package name constants (FdFind = "fd")
 
 ### Key Patterns
+
 - `MaybeInstallPackage(constant, optionalAlias)` - Second param is used as the actual install name
 - `MaybeInstallDesktopApp(caskName, optionalAlias)` - Second param is used for filesystem presence check
 - `SoftConfigure()` should return `nil` for apps that don't need configuration
 - `zap.NewProductionConfig()` allows customizing log level
 
 ### Test Commands
+
 ```bash
 go test ./internal/tooling/terminal/dev_tools/fdfind/...
 go test ./internal/tooling/terminal/core/fontconfig/...
@@ -54,12 +57,14 @@ Fix four installation bugs so `dg install` completes without errors, warnings, o
 ## 4. Scope Boundary
 
 ### In Scope
+
 - [x] Fix fd-find package name alias issue
 - [x] Fix fontconfig SoftConfigure to return nil
 - [x] Fix Aerospace detection to use correct app name for filesystem check
 - [x] Fix logger to only show ERROR level in production mode
 
 ### Explicitly Out of Scope
+
 - Debian package name mappings - separate concern
 - Adding new tests - existing tests cover these scenarios
 
@@ -71,12 +76,12 @@ Fix four installation bugs so `dg install` completes without errors, warnings, o
 
 ### File Changes
 
-| Action | File Path | Description |
-|--------|-----------|-------------|
-| Modify | `internal/tooling/terminal/dev_tools/fdfind/fdfind.go:46` | Remove unnecessary "fd-find" alias parameter |
-| Modify | `internal/tooling/terminal/core/fontconfig/fontconfig.go:55-67` | Change SoftConfigure to return nil |
-| Modify | `internal/apps/aerospace/aerospace.go:40` | Add "AeroSpace" alias for filesystem detection |
-| Modify | `pkg/logger/logger.go:21-26` | Configure production logger for ERROR level only |
+| Action | File Path                                                       | Description                                      |
+| ------ | --------------------------------------------------------------- | ------------------------------------------------ |
+| Modify | `internal/tooling/terminal/dev_tools/fdfind/fdfind.go:46`       | Remove unnecessary "fd-find" alias parameter     |
+| Modify | `internal/tooling/terminal/core/fontconfig/fontconfig.go:55-67` | Change SoftConfigure to return nil               |
+| Modify | `internal/apps/aerospace/aerospace.go:40`                       | Add "AeroSpace" alias for filesystem detection   |
+| Modify | `pkg/logger/logger.go:21-26`                                    | Configure production logger for ERROR level only |
 
 ### Step-by-Step
 
@@ -85,6 +90,7 @@ Fix four installation bugs so `dg install` completes without errors, warnings, o
 **File:** `internal/tooling/terminal/dev_tools/fdfind/fdfind.go:46`
 
 **Change:**
+
 ```go
 // Before:
 return f.Cmd.MaybeInstallPackage(constants.FdFind, "fd-find")
@@ -100,6 +106,7 @@ return f.Cmd.MaybeInstallPackage(constants.FdFind)
 **File:** `internal/tooling/terminal/core/fontconfig/fontconfig.go:55-67`
 
 **Change:**
+
 ```go
 // Before:
 func (fc *FontConfig) SoftConfigure() error {
@@ -121,6 +128,7 @@ func (fc *FontConfig) SoftConfigure() error {
 **File:** `internal/apps/aerospace/aerospace.go:40`
 
 **Change:**
+
 ```go
 // Before:
 func (a *Aerospace) SoftInstall() error {
@@ -140,6 +148,7 @@ func (a *Aerospace) SoftInstall() error {
 **File:** `pkg/logger/logger.go:21-26`
 
 **Change:**
+
 ```go
 // Before:
 func Init(verbose bool) {
@@ -184,6 +193,7 @@ go vet ./...
 ## 6. Verification Plan
 
 ### Automated Verification
+
 ```bash
 # Must all pass
 go build -o devgita main.go
@@ -194,28 +204,33 @@ go vet ./...
 ### Manual Verification
 
 #### Bug 1 (fd-find):
+
 1. Run `./devgita install --only terminal` on macOS
 2. Observe no warning about "fd-find" package name
 3. Verify `fd --version` works after installation
 
 #### Bug 2 (fontconfig):
+
 1. Run `./devgita install --only terminal`
 2. Observe no "not implemented: SoftConfigure" error
 3. Installation should proceed past fontconfig without error
 
 #### Bug 3 (Aerospace):
+
 1. Ensure `AeroSpace.app` is already in `/Applications/`
 2. Run `./devgita install --only desktop`
 3. Observe no "Error: It seems there is already an App at '/Applications/AeroSpace.app'" error
 4. Aerospace should be detected as already installed and skipped
 
 #### Bug 4 (logger):
+
 1. Run `./devgita install` WITHOUT `--verbose`
 2. Observe NO debug/info log lines (only errors if any)
 3. Run `./devgita install --verbose`
 4. Observe debug/info logs appear (development mode)
 
 ### Regression Check
+
 - fontconfig should still install correctly (package installation unchanged)
 - fd should still install correctly (just removed unnecessary alias)
 - Aerospace should still install correctly on fresh systems (Install() unchanged)
@@ -225,13 +240,14 @@ go vet ./...
 
 ## 7. Risks & Trade-offs
 
-| Risk | Likelihood | Mitigation |
-|------|------------|------------|
-| Logger change hides useful warnings | Low | Users can use --verbose; errors still shown |
-| fontconfig might need config later | Low | Can add config support in future cycle if needed |
-| Aerospace alias might not match in future versions | Very Low | App name is stable; update alias if it changes |
+| Risk                                               | Likelihood | Mitigation                                       |
+| -------------------------------------------------- | ---------- | ------------------------------------------------ |
+| Logger change hides useful warnings                | Low        | Users can use --verbose; errors still shown      |
+| fontconfig might need config later                 | Low        | Can add config support in future cycle if needed |
+| Aerospace alias might not match in future versions | Very Low   | App name is stable; update alias if it changes   |
 
 ### Trade-offs Made
+
 - Chose ERROR-only for production logger (vs WARN) for cleaner output
 - fontconfig returns nil without any logging (vs logging "no config needed")
 - Aerospace uses hardcoded "AeroSpace" alias (vs dynamic cask-to-app name mapping)

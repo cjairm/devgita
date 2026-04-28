@@ -31,6 +31,7 @@ Devgita follows [Semantic Versioning](https://semver.org/):
   - **PATCH**: Backward-compatible bug fixes
 
 **Examples**:
+
 - `v0.1.0` - Initial release
 - `v0.1.1` - Bug fix release
 - `v0.2.0` - New features added
@@ -68,6 +69,7 @@ Once you push the tag, GitHub Actions automatically:
    - Tag reference
 
 **Monitor progress**:
+
 - Visit: https://github.com/cjairm/devgita/actions
 - Look for the "Release" workflow
 - Typical build time: 2-3 minutes
@@ -82,6 +84,7 @@ After the workflow completes:
    - Confirm all four binaries are attached
 
 2. **Test the installation script**:
+
    ```bash
    curl -fsSL https://raw.githubusercontent.com/cjairm/devgita/main/install.sh | bash
    ```
@@ -94,6 +97,7 @@ After the workflow completes:
 ### 6. Update Documentation (Optional)
 
 Consider updating:
+
 - `README.md` with new features or changes
 - `CHANGELOG.md` with detailed release notes
 - Any relevant documentation in `docs/`
@@ -110,7 +114,7 @@ Consider updating:
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
 ```
 
 The workflow triggers automatically when you push any tag starting with `v`.
@@ -118,6 +122,7 @@ The workflow triggers automatically when you push any tag starting with `v`.
 ### Build Process
 
 The workflow:
+
 1. Checks out the code
 2. Sets up Go 1.21
 3. Builds binaries for all platforms using cross-compilation
@@ -126,11 +131,13 @@ The workflow:
 ### Binary Naming Convention
 
 Binaries follow this pattern:
+
 ```
 devgita-{OS}-{ARCH}
 ```
 
 **Examples**:
+
 - `devgita-darwin-amd64`
 - `devgita-linux-arm64`
 
@@ -151,11 +158,12 @@ If the GitHub Actions workflow fails:
    - **Permission errors**: Verify repository has proper permissions
 
 3. **Re-trigger workflow**:
+
    ```bash
    # Delete the tag locally and remotely
    git tag -d v0.2.0
    git push origin :refs/tags/v0.2.0
-   
+
    # Fix the issue and recreate the tag
    git tag v0.2.0
    git push origin v0.2.0
