@@ -52,6 +52,8 @@ type ShellFeatures struct {
 	Tmux                  bool `yaml:"tmux"`
 	Eza                   bool `yaml:"eza"`
 	Bat                   bool `yaml:"bat"`
+	Opencode              bool `yaml:"opencode"`
+	Claude                bool `yaml:"claude"`
 }
 
 // FailedInstallation tracks packages that failed to install
@@ -275,6 +277,10 @@ func (gc *GlobalConfig) EnableShellFeature(featureName string) {
 		gc.Shell.Eza = true
 	case constants.Bat:
 		gc.Shell.Bat = true
+	case constants.OpenCode:
+		gc.Shell.Opencode = true
+	case constants.Claude:
+		gc.Shell.Claude = true
 	}
 }
 
@@ -307,6 +313,10 @@ func (gc *GlobalConfig) DisableShellFeature(featureName string) {
 		gc.Shell.Eza = false
 	case constants.Bat:
 		gc.Shell.Bat = false
+	case constants.OpenCode:
+		gc.Shell.Opencode = false
+	case constants.Claude:
+		gc.Shell.Claude = false
 	}
 }
 
@@ -339,6 +349,10 @@ func (gc *GlobalConfig) IsShellFeatureEnabled(featureName string) bool {
 		return gc.Shell.Eza
 	case constants.Bat:
 		return gc.Shell.Bat
+	case constants.OpenCode:
+		return gc.Shell.Opencode
+	case constants.Claude:
+		return gc.Shell.Claude
 	}
 	return false
 }

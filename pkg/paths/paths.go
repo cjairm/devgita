@@ -19,12 +19,14 @@ var Paths = struct {
 		Configs struct {
 			Aerospace string
 			Alacritty string
+			Claude    string
 			Fastfetch string
 			Fonts     string
 			Git       string
 			I3        string
 			Neovim    string
 			OpenCode  string
+			Shared    string
 			Templates string
 			Themes    string
 			Tmux      string
@@ -43,6 +45,7 @@ var Paths = struct {
 		Root      string
 		Aerospace string
 		Alacritty string
+		Claude    string
 		Devgita   string
 		Fastfetch string
 		Fonts     string
@@ -73,12 +76,14 @@ var Paths = struct {
 		Configs struct {
 			Aerospace string
 			Alacritty string
+			Claude    string
 			Fastfetch string
 			Fonts     string
 			Git       string
 			I3        string
 			Neovim    string
 			OpenCode  string
+			Shared    string
 			Templates string
 			Themes    string
 			Tmux      string
@@ -94,24 +99,28 @@ var Paths = struct {
 		Configs: struct {
 			Aerospace string
 			Alacritty string
+			Claude    string
 			Fastfetch string
 			Fonts     string
 			Git       string
 			I3        string
 			Neovim    string
 			OpenCode  string
+			Shared    string
 			Templates string
 			Themes    string
 			Tmux      string
 		}{
 			Aerospace: GetAppDir(constants.App.Dir.Configs, constants.Aerospace),
 			Alacritty: GetAppDir(constants.App.Dir.Configs, constants.Alacritty),
+			Claude:    GetAppDir(constants.App.Dir.Configs, constants.Claude),
 			Fastfetch: GetAppDir(constants.App.Dir.Configs, constants.Fastfetch),
 			Fonts:     GetAppDir(constants.App.Dir.Configs, constants.Fonts),
 			Git:       GetAppDir(constants.App.Dir.Configs, constants.Git),
 			I3:        GetAppDir(constants.App.Dir.Configs, constants.I3),
 			Neovim:    GetAppDir(constants.App.Dir.Configs, constants.Neovim),
 			OpenCode:  GetAppDir(constants.App.Dir.Configs, constants.OpenCode),
+			Shared:    GetAppDir(constants.App.Dir.Configs, constants.Shared),
 			Templates: GetAppDir(constants.App.Dir.Configs, constants.Templates),
 			Themes:    GetAppDir(constants.App.Dir.Configs, constants.Themes),
 			Tmux:      GetAppDir(constants.App.Dir.Configs, constants.Tmux),
@@ -136,6 +145,7 @@ var Paths = struct {
 		Root      string
 		Aerospace string
 		Alacritty string
+		Claude    string
 		Devgita   string
 		Fastfetch string
 		Fonts     string
@@ -149,6 +159,7 @@ var Paths = struct {
 		Root:      GetConfigDir(),
 		Aerospace: GetConfigDir(constants.Aerospace),
 		Alacritty: GetConfigDir(constants.Alacritty),
+		Claude:    GetHomeDir(".claude"),
 		Devgita:   GetConfigDir(constants.DevgitaApp),
 		Fastfetch: GetConfigDir(constants.Fastfetch),
 		Fonts:     GetConfigDir(constants.Fonts),
