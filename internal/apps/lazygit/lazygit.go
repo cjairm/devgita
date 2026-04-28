@@ -150,4 +150,3 @@ func (lg *LazyGit) ExecuteCommand(args ...string) error {
 func (lg *LazyGit) Update() error {
 	return fmt.Errorf("lazygit update not implemented through devgita")
 }
-

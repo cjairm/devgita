@@ -146,8 +146,8 @@ func TestSoftInstallDebian_NotInstalled(t *testing.T) {
 	defer func() { commands.LookPathFn = orig }()
 
 	app := &LazyDocker{
-		Cmd:  mc,
-		Base: mb,
+		Cmd:          mc,
+		Base:         mb,
 		fetchVersion: func(_, _ string) (string, error) { return "0.23.1", nil },
 		downloadFn:   func(_ context.Context, _, _ string, _ downloader.RetryConfig) error { return nil },
 	}

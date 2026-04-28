@@ -59,7 +59,6 @@ func InstallGitHubBinary(
 	return nil
 }
 
-
 // InstallationStrategy defines the contract for different package installation methods
 type InstallationStrategy interface {
 	// Install installs the package using the strategy's specific method

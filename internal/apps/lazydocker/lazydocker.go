@@ -152,4 +152,3 @@ func (ld *LazyDocker) ExecuteCommand(args ...string) error {
 func (ld *LazyDocker) Update() error {
 	return fmt.Errorf("lazydocker update not implemented through devgita")
 }
-
