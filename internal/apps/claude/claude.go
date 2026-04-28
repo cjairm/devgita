@@ -52,9 +52,6 @@ func (c *Claude) Uninstall() error {
 }
 
 func (c *Claude) ForceConfigure() error {
-	if err := os.RemoveAll(paths.Paths.Config.Claude); err != nil {
-		return err
-	}
 	if err := os.MkdirAll(paths.Paths.Config.Claude, 0755); err != nil {
 		return err
 	}
