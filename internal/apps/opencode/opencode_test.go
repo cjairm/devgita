@@ -17,6 +17,19 @@ func init() {
 	testutil.InitLogger()
 }
 
+// setupSharedDir creates an empty shared config dir (skills/commands/agents) and
+// overrides paths.Paths.App.Configs.Shared so ForceConfigure can copy from it.
+func setupSharedDir(t *testing.T, baseDir string) {
+	t.Helper()
+	sharedDir := filepath.Join(baseDir, "configs", "shared")
+	for _, sub := range []string{"skills", "commands", "agents"} {
+		if err := os.MkdirAll(filepath.Join(sharedDir, sub), 0755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	paths.Paths.App.Configs.Shared = sharedDir
+}
+
 func TestNew(t *testing.T) {
 	app := New()
 
@@ -167,6 +180,7 @@ func TestForceConfigure(t *testing.T) {
 		}
 
 		// Override paths
+		setupSharedDir(t, tc.AppDir)
 		paths.Paths.App.Configs.OpenCode = appConfigDir
 		paths.Paths.Config.OpenCode = userConfigDir
 
@@ -244,6 +258,7 @@ func TestForceConfigure(t *testing.T) {
 		}
 
 		// Override paths
+		setupSharedDir(t, tc.AppDir)
 		paths.Paths.App.Configs.OpenCode = appConfigDir
 		paths.Paths.Config.OpenCode = userConfigDir
 
@@ -312,6 +327,7 @@ func TestForceConfigure(t *testing.T) {
 		}
 
 		// Override paths
+		setupSharedDir(t, tc.AppDir)
 		paths.Paths.App.Configs.OpenCode = appConfigDir
 		paths.Paths.Config.OpenCode = userConfigDir
 
@@ -361,6 +377,7 @@ func TestForceConfigure(t *testing.T) {
 		}
 
 		// Override paths
+		setupSharedDir(t, tc.AppDir)
 		paths.Paths.App.Configs.OpenCode = appConfigDir
 		paths.Paths.Config.OpenCode = userConfigDir
 
@@ -449,6 +466,7 @@ func TestSoftConfigure(t *testing.T) {
 		}
 
 		// Override paths
+		setupSharedDir(t, tc.AppDir)
 		paths.Paths.App.Configs.OpenCode = appConfigDir
 		paths.Paths.Config.OpenCode = userConfigDir
 

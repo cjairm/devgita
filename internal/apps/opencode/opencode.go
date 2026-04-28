@@ -105,9 +105,20 @@ func (o *OpenCode) ForceConfigure(opts ...ConfigureOptions) error {
 	}); err != nil {
 		return fmt.Errorf("failed to generate opencode configuration: %w", err)
 	}
+	for _, dir := range []string{"skills", "commands", "agents"} {
+		src := filepath.Join(paths.Paths.App.Configs.Shared, dir)
+		dst := filepath.Join(paths.Paths.Config.OpenCode, dir)
+		if err := files.CopyDir(src, dst); err != nil {
+			return fmt.Errorf("failed to copy opencode %s: %w", dir, err)
+		}
+	}
 	gc.AddToInstalled(constants.OpenCode, "package")
+	gc.Shell.Opencode = true
 	if err := gc.Save(); err != nil {
 		return fmt.Errorf("failed to save global config: %w", err)
+	}
+	if err := gc.RegenerateShellConfig(); err != nil {
+		return fmt.Errorf("failed to regenerate shell config: %w", err)
 	}
 	return nil
 }
