@@ -108,6 +108,22 @@ func TestShellFeature(t *testing.T) {
 
 ## ⚙️ Core Testing Patterns
 
+### Pattern 0: Mandatory mock pattern
+
+**Never** call `commands.NewMockCommand()` directly in app test files. Always use `testutil.NewMockApp()`:
+
+```go
+// WRONG — do not use in app tests
+mc := commands.NewMockCommand()
+app := &MyApp{Cmd: mc}
+
+// CORRECT — always use this
+mockApp := testutil.NewMockApp()
+app := &MyApp{Cmd: mockApp.Cmd, Base: mockApp.Base}
+```
+
+The only place `commands.NewMockCommand()` is used directly is inside `testutil/testutil.go` itself, where `NewMockApp` is defined.
+
 ### Pattern 1: Dependency Injection via Interface
 
 ```go
@@ -125,8 +141,8 @@ type Curl struct {
 
 // In tests
 func TestExecuteCommand(t *testing.T) {
-    mockBase := commands.NewMockBaseCommand()
-    app := &Curl{Base: mockBase}  // Inject mock
+    mockApp := testutil.NewMockApp()
+    app := &Curl{Base: mockApp.Base}  // Inject mock
 }
 ```
 
@@ -382,16 +398,57 @@ func TestWithPathOverride(t *testing.T) {
 }
 ```
 
-### 6. Verify Error Messages
+### 6. Asserting unsupported operations with `errors.Is`
+
+Use `errors.Is` — never string-match — when asserting that an operation is unsupported:
 
 ```go
-if err == nil {
-    t.Fatal("Expected error")
-}
-if !strings.Contains(err.Error(), "expected context") {
-    t.Fatalf("Expected error context, got: %v", err)
+import "github.com/cjairm/devgita/internal/apps"
+
+func TestUninstall(t *testing.T) {
+    mockApp := testutil.NewMockApp()
+    app := &MyApp{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+    err := app.Uninstall()
+    if err == nil {
+        t.Fatal("expected Uninstall to return error")
+    }
+    if !errors.Is(err, apps.ErrUninstallNotSupported) {
+        t.Errorf("expected ErrUninstallNotSupported, got: %v", err)
+    }
+
+    testutil.VerifyNoRealCommands(t, mockApp.Base)
 }
 ```
+
+Available sentinels (from `internal/apps/errors.go`):
+
+- `apps.ErrUninstallNotSupported`
+- `apps.ErrUpdateNotSupported`
+- `apps.ErrConfigureNotSupported`
+- `apps.ErrExecuteNotSupported`
+
+### 7. Testing `ForceInstall`
+
+`ForceInstall` must succeed when uninstall is not supported. Test it the same way you test `Install`:
+
+```go
+func TestForceInstall(t *testing.T) {
+    mockApp := testutil.NewMockApp()
+    app := &MyApp{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+    if err := app.ForceInstall(); err != nil {
+        t.Fatalf("ForceInstall() should succeed even when uninstall is not supported: %v", err)
+    }
+    if mockApp.Cmd.InstalledPkg != constants.MyApp {
+        t.Errorf("expected Install to be called, got %q", mockApp.Cmd.InstalledPkg)
+    }
+
+    testutil.VerifyNoRealCommands(t, mockApp.Base)
+}
+```
+
+This test is only meaningful because `baseapp.Reinstall` skips a "not supported" uninstall error. Before this pattern existed, `TestForceInstall` was commented out in several test files because `ForceInstall` always failed.
 
 ---
 

@@ -73,6 +73,23 @@ Technical deep dive into cross-platform installation:
 
 ---
 
+### [App Interface](app-interface.md) — The `App` contract every app must satisfy
+
+The formal interface all apps implement:
+
+- `App` interface and method semantics
+- `AppKind` enum and when to use each kind
+- Sentinel errors (`ErrUninstallNotSupported`, etc.) and `errors.Is` usage
+- `baseapp.Reinstall` for the correct `ForceInstall` pattern
+- Two constructor patterns (with/without `Base`)
+- The `FontInstaller` outlier for parameterized font methods
+
+**When to read:** Before implementing a new app installer or modifying existing install/configure logic.
+
+**Referenced by:** CLAUDE.md section 6 (app interface pattern)
+
+---
+
 ### [Releasing](releasing.md) — Version management and GitHub Actions
 
 Complete release workflow:
@@ -98,9 +115,10 @@ Complete release workflow:
 
 ### I'm adding a new app/tool installer
 
-1. Read [Cross-Platform Installation](cross-platform-installation.md) — strategy pattern
-2. Check [CLAUDE.md](../../CLAUDE.md) section 6 — testing requirement (always use mocks)
-3. Implement using patterns from [Testing Patterns](testing-patterns.md)
+1. Read [App Interface](app-interface.md) — the contract every app must satisfy
+2. Read [Cross-Platform Installation](cross-platform-installation.md) — strategy pattern
+3. Check [CLAUDE.md](../../CLAUDE.md) section 6 — testing requirement (always use mocks)
+4. Implement using patterns from [Testing Patterns](testing-patterns.md)
 
 ### I'm fixing error handling
 

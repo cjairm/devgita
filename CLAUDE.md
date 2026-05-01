@@ -137,14 +137,26 @@ Accidental real command execution is a common mistake. It can:
 
 ### App interface pattern
 
-All apps in `internal/apps/` implement:
+All apps in `internal/apps/` implement the `App` interface defined in `internal/apps/contract.go`. The full contract, sentinel errors, `AppKind` enum, `baseapp.Reinstall`, and constructor patterns are documented in **[docs/guides/app-interface.md](docs/guides/app-interface.md)**.
 
-- `Install()` / `SoftInstall()` / `ForceInstall()` — installation modes
-- `ForceConfigure()` / `SoftConfigure()` — configuration updates
-- `ExecuteCommand(args...)` — run app-specific commands
-- `Uninstall()` / `Update()` — lifecycle methods (may stub for now)
+Quick reference:
 
-See `docs/apps/` for individual app documentation.
+- Every app adds `var _ apps.App = (*X)(nil)` for compile-time enforcement
+- `ForceInstall` must use `baseapp.Reinstall(a.Install, a.Uninstall)` — never call `Uninstall` directly without handling `ErrUninstallNotSupported`
+- Unsupported ops return sentinel errors (`apps.ErrUninstallNotSupported`, `apps.ErrUpdateNotSupported`, …) — **never free-form strings**
+- `Fonts` satisfies `FontInstaller`, not `App` — see the guide for details
+
+```go
+// Minimal new app pattern
+var _ apps.App = (*MyApp)(nil)
+
+func (a *MyApp) Name() string       { return constants.MyApp }
+func (a *MyApp) Kind() apps.AppKind { return apps.KindTerminal }
+
+func (a *MyApp) ForceInstall() error { return baseapp.Reinstall(a.Install, a.Uninstall) }
+func (a *MyApp) Uninstall() error    { return fmt.Errorf("%w for myapp", apps.ErrUninstallNotSupported) }
+func (a *MyApp) Update() error       { return fmt.Errorf("%w for myapp", apps.ErrUpdateNotSupported) }
+```
 
 ---
 
