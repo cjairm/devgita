@@ -2,12 +2,13 @@ package neovim
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/cjairm/devgita/internal/commands"
+	"github.com/cjairm/devgita/internal/apps"
 	"github.com/cjairm/devgita/internal/testutil"
 	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/downloader"
@@ -27,44 +28,55 @@ func TestNew(t *testing.T) {
 	}
 }
 
+func TestNameAndKind(t *testing.T) {
+	a := &Neovim{}
+	if a.Name() != constants.Neovim {
+		t.Errorf("expected Name() %q, got %q", constants.Neovim, a.Name())
+	}
+	if a.Kind() != apps.KindTerminal {
+		t.Errorf("expected Kind() KindTerminal, got %v", a.Kind())
+	}
+}
+
 func TestInstall(t *testing.T) {
-	mc := commands.NewMockCommand()
-	mb := commands.NewMockBaseCommand()
-	mb.IsMacResult = true // simulate macOS so test uses Homebrew path
-	app := &Neovim{Cmd: mc, Base: mb}
+	mockApp := testutil.NewMockApp()
+	mockApp.Base.IsMacResult = true // simulate macOS so test uses Homebrew path
+	app := &Neovim{Cmd: mockApp.Cmd, Base: mockApp.Base}
 
 	if err := app.Install(); err != nil {
 		t.Fatalf("Install error: %v", err)
 	}
-	if mc.InstalledPkg != constants.Neovim {
-		t.Fatalf("expected InstallPackage(%s), got %q", constants.Neovim, mc.InstalledPkg)
+	if mockApp.Cmd.InstalledPkg != constants.Neovim {
+		t.Fatalf("expected InstallPackage(%s), got %q", constants.Neovim, mockApp.Cmd.InstalledPkg)
 	}
+
+	testutil.VerifyNoRealCommands(t, mockApp.Base)
 }
 
 func TestSoftInstall(t *testing.T) {
-	mc := commands.NewMockCommand()
-	mb := commands.NewMockBaseCommand()
-	mb.IsMacResult = true // simulate macOS so test uses Homebrew path
-	app := &Neovim{Cmd: mc, Base: mb}
+	mockApp := testutil.NewMockApp()
+	mockApp.Base.IsMacResult = true // simulate macOS so test uses Homebrew path
+	app := &Neovim{Cmd: mockApp.Cmd, Base: mockApp.Base}
 
 	if err := app.SoftInstall(); err != nil {
 		t.Fatalf("SoftInstall error: %v", err)
 	}
-	if mc.MaybeInstalled != constants.Neovim {
-		t.Fatalf("expected MaybeInstallPackage(%s), got %q", constants.Neovim, mc.MaybeInstalled)
+	if mockApp.Cmd.MaybeInstalled != constants.Neovim {
+		t.Fatalf("expected MaybeInstallPackage(%s), got %q", constants.Neovim, mockApp.Cmd.MaybeInstalled)
 	}
+
+	testutil.VerifyNoRealCommands(t, mockApp.Base)
 }
 
 func TestInstallDebian(t *testing.T) {
-	mc := commands.NewMockCommand()
-	mb := commands.NewMockBaseCommand()
-	mb.IsMacResult = false // simulate Debian/Linux
+	mockApp := testutil.NewMockApp()
+	mockApp.Base.IsMacResult = false // simulate Debian/Linux
 	// All ExecCommand calls (tar + install + 2×cp) succeed
-	mb.SetExecCommandResult("", "", nil)
+	mockApp.Base.SetExecCommandResult("", "", nil)
 
 	app := &Neovim{
-		Cmd:  mc,
-		Base: mb,
+		Cmd:  mockApp.Cmd,
+		Base: mockApp.Base,
 		downloadFn: func(_ context.Context, url, _ string, _ downloader.RetryConfig) error {
 			if !strings.Contains(url, constants.SupportedVersion.Neovim.Number) {
 				t.Errorf("download URL does not contain version %s: %s",
@@ -79,10 +91,10 @@ func TestInstallDebian(t *testing.T) {
 	}
 
 	// Expect 4 ExecCommand calls: tar + sudo install + sudo cp lib + sudo cp share
-	if mb.GetExecCommandCallCount() != 4 {
-		t.Fatalf("expected 4 ExecCommand calls, got %d", mb.GetExecCommandCallCount())
+	if mockApp.Base.GetExecCommandCallCount() != 4 {
+		t.Fatalf("expected 4 ExecCommand calls, got %d", mockApp.Base.GetExecCommandCallCount())
 	}
-	calls := mb.ExecCommandCalls
+	calls := mockApp.Base.ExecCommandCalls
 	if calls[0].Command != "tar" {
 		t.Errorf("expected first command 'tar', got %q", calls[0].Command)
 	}
@@ -98,6 +110,51 @@ func TestInstallDebian(t *testing.T) {
 		t.Errorf("expected fourth command 'cp' with IsSudo=true, got command=%q IsSudo=%v",
 			calls[3].Command, calls[3].IsSudo)
 	}
+}
+
+func TestForceInstall(t *testing.T) {
+	mockApp := testutil.NewMockApp()
+	mockApp.Base.IsMacResult = true // simulate macOS
+	app := &Neovim{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+	if err := app.ForceInstall(); err != nil {
+		t.Fatalf("ForceInstall() should succeed even when uninstall is not supported: %v", err)
+	}
+	if mockApp.Cmd.InstalledPkg != constants.Neovim {
+		t.Errorf("expected Install to be called, got %q", mockApp.Cmd.InstalledPkg)
+	}
+
+	testutil.VerifyNoRealCommands(t, mockApp.Base)
+}
+
+func TestUninstall(t *testing.T) {
+	mockApp := testutil.NewMockApp()
+	app := &Neovim{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+	err := app.Uninstall()
+	if err == nil {
+		t.Fatal("expected Uninstall to return error for unsupported operation")
+	}
+	if !errors.Is(err, apps.ErrUninstallNotSupported) {
+		t.Errorf("expected ErrUninstallNotSupported, got: %v", err)
+	}
+
+	testutil.VerifyNoRealCommands(t, mockApp.Base)
+}
+
+func TestUpdate(t *testing.T) {
+	mockApp := testutil.NewMockApp()
+	app := &Neovim{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+	err := app.Update()
+	if err == nil {
+		t.Fatal("expected Update to return error")
+	}
+	if !errors.Is(err, apps.ErrUpdateNotSupported) {
+		t.Errorf("expected ErrUpdateNotSupported, got: %v", err)
+	}
+
+	testutil.VerifyNoRealCommands(t, mockApp.Base)
 }
 
 func TestForceConfigure(t *testing.T) {

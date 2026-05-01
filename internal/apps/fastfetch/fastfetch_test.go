@@ -1,18 +1,20 @@
 package fastfetch
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/cjairm/devgita/internal/commands"
-	"github.com/cjairm/devgita/pkg/logger"
+	"github.com/cjairm/devgita/internal/apps"
+	"github.com/cjairm/devgita/internal/testutil"
+	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/paths"
 )
 
 func init() {
 	// Initialize logger for tests
-	logger.Init(false)
+	testutil.InitLogger()
 }
 
 func TestNew(t *testing.T) {
@@ -23,36 +25,94 @@ func TestNew(t *testing.T) {
 	}
 }
 
+func TestNameAndKind(t *testing.T) {
+	a := &Fastfetch{}
+	if a.Name() != constants.Fastfetch {
+		t.Errorf("expected Name() %q, got %q", constants.Fastfetch, a.Name())
+	}
+	if a.Kind() != apps.KindTerminal {
+		t.Errorf("expected Kind() KindTerminal, got %v", a.Kind())
+	}
+}
+
 func TestInstall(t *testing.T) {
-	mc := commands.NewMockCommand()
-	app := &Fastfetch{Cmd: mc}
+	mockApp := testutil.NewMockApp()
+	app := &Fastfetch{Cmd: mockApp.Cmd}
 
 	if err := app.Install(); err != nil {
 		t.Fatalf("Install error: %v", err)
 	}
-	if mc.InstalledPkg != "fastfetch" {
+	if mockApp.Cmd.InstalledPkg != "fastfetch" {
 		t.Fatalf(
 			"expected InstallPackage(%s), got %q",
 			"fastfetch",
-			mc.InstalledPkg,
+			mockApp.Cmd.InstalledPkg,
 		)
 	}
+
+	testutil.VerifyNoRealCommands(t, mockApp.Base)
+}
+
+func TestForceInstall(t *testing.T) {
+	mockApp := testutil.NewMockApp()
+	app := &Fastfetch{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+	if err := app.ForceInstall(); err != nil {
+		t.Fatalf("ForceInstall() should succeed even when uninstall is not supported: %v", err)
+	}
+	if mockApp.Cmd.InstalledPkg != constants.Fastfetch {
+		t.Errorf("expected Install to be called, got %q", mockApp.Cmd.InstalledPkg)
+	}
+
+	testutil.VerifyNoRealCommands(t, mockApp.Base)
 }
 
 func TestSoftInstall(t *testing.T) {
-	mc := commands.NewMockCommand()
-	app := &Fastfetch{Cmd: mc}
+	mockApp := testutil.NewMockApp()
+	app := &Fastfetch{Cmd: mockApp.Cmd}
 
 	if err := app.SoftInstall(); err != nil {
 		t.Fatalf("SoftInstall error: %v", err)
 	}
-	if mc.MaybeInstalled != "fastfetch" {
+	if mockApp.Cmd.MaybeInstalled != "fastfetch" {
 		t.Fatalf(
 			"expected MaybeInstallPackage(%s), got %q",
 			"fastfetch",
-			mc.MaybeInstalled,
+			mockApp.Cmd.MaybeInstalled,
 		)
 	}
+
+	testutil.VerifyNoRealCommands(t, mockApp.Base)
+}
+
+func TestUninstall(t *testing.T) {
+	mockApp := testutil.NewMockApp()
+	app := &Fastfetch{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+	err := app.Uninstall()
+	if err == nil {
+		t.Fatal("expected Uninstall to return error for unsupported operation")
+	}
+	if !errors.Is(err, apps.ErrUninstallNotSupported) {
+		t.Errorf("expected ErrUninstallNotSupported, got: %v", err)
+	}
+
+	testutil.VerifyNoRealCommands(t, mockApp.Base)
+}
+
+func TestUpdate(t *testing.T) {
+	mockApp := testutil.NewMockApp()
+	app := &Fastfetch{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+	err := app.Update()
+	if err == nil {
+		t.Fatal("expected Update to return error")
+	}
+	if !errors.Is(err, apps.ErrUpdateNotSupported) {
+		t.Errorf("expected ErrUpdateNotSupported, got: %v", err)
+	}
+
+	testutil.VerifyNoRealCommands(t, mockApp.Base)
 }
 
 func TestForceConfigure(t *testing.T) {
@@ -89,8 +149,8 @@ func TestForceConfigure(t *testing.T) {
 		t.Fatalf("Failed to create test config file: %v", err)
 	}
 
-	mc := commands.NewMockCommand()
-	app := &Fastfetch{Cmd: mc}
+	mockApp := testutil.NewMockApp()
+	app := &Fastfetch{Cmd: mockApp.Cmd}
 
 	if err := app.ForceConfigure(); err != nil {
 		t.Fatalf("ForceConfigure error: %v", err)
@@ -115,6 +175,8 @@ func TestForceConfigure(t *testing.T) {
 			string(copiedContent),
 		)
 	}
+
+	testutil.VerifyNoRealCommands(t, mockApp.Base)
 }
 
 func TestSoftConfigure(t *testing.T) {
@@ -140,8 +202,8 @@ func TestSoftConfigure(t *testing.T) {
 			t.Fatalf("Failed to create test config file: %v", err)
 		}
 
-		mc := commands.NewMockCommand()
-		app := &Fastfetch{Cmd: mc}
+		mockApp := testutil.NewMockApp()
+		app := &Fastfetch{Cmd: mockApp.Cmd}
 
 		if err := app.SoftConfigure(); err != nil {
 			t.Fatalf("SoftConfigure error: %v", err)
@@ -152,6 +214,8 @@ func TestSoftConfigure(t *testing.T) {
 		if _, err := os.Stat(targetConfigFile); os.IsNotExist(err) {
 			t.Fatalf("Expected config file to be copied to target directory, but it doesn't exist")
 		}
+
+		testutil.VerifyNoRealCommands(t, mockApp.Base)
 	})
 
 	// Test case 2: Configuration already exists - should skip
@@ -183,8 +247,8 @@ func TestSoftConfigure(t *testing.T) {
 			t.Fatalf("Failed to create source config file: %v", err)
 		}
 
-		mc := commands.NewMockCommand()
-		app := &Fastfetch{Cmd: mc}
+		mockApp := testutil.NewMockApp()
+		app := &Fastfetch{Cmd: mockApp.Cmd}
 
 		if err := app.SoftConfigure(); err != nil {
 			t.Fatalf("SoftConfigure error: %v", err)
@@ -203,6 +267,8 @@ func TestSoftConfigure(t *testing.T) {
 				string(content),
 			)
 		}
+
+		testutil.VerifyNoRealCommands(t, mockApp.Base)
 	})
 }
 

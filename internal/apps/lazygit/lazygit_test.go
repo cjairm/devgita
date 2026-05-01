@@ -2,13 +2,16 @@ package lazygit
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
 	"testing"
 
+	"github.com/cjairm/devgita/internal/apps"
 	"github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/internal/testutil"
+	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/downloader"
 )
 
@@ -25,30 +28,40 @@ func TestNew(t *testing.T) {
 	}
 }
 
+func TestNameAndKind(t *testing.T) {
+	a := &LazyGit{}
+	if a.Name() != constants.LazyGit {
+		t.Errorf("expected Name() %q, got %q", constants.LazyGit, a.Name())
+	}
+	if a.Kind() != apps.KindTerminal {
+		t.Errorf("expected Kind() KindTerminal, got %v", a.Kind())
+	}
+}
+
 func TestInstall(t *testing.T) {
-	mc := commands.NewMockCommand()
-	mb := commands.NewMockBaseCommand()
-	mb.IsMacResult = true // simulate macOS so test uses Homebrew path
-	app := &LazyGit{Cmd: mc, Base: mb}
+	mockApp := testutil.NewMockApp()
+	mockApp.Base.IsMacResult = true // simulate macOS so test uses Homebrew path
+	app := &LazyGit{Cmd: mockApp.Cmd, Base: mockApp.Base}
 
 	if err := app.Install(); err != nil {
 		t.Fatalf("Install error: %v", err)
 	}
-	if mc.InstalledPkg != "lazygit" {
-		t.Fatalf("expected InstallPackage(%s), got %q", "lazygit", mc.InstalledPkg)
+	if mockApp.Cmd.InstalledPkg != "lazygit" {
+		t.Fatalf("expected InstallPackage(%s), got %q", "lazygit", mockApp.Cmd.InstalledPkg)
 	}
+
+	testutil.VerifyNoRealCommands(t, mockApp.Base)
 }
 
 func TestInstallDebian(t *testing.T) {
-	mc := commands.NewMockCommand()
-	mb := commands.NewMockBaseCommand()
-	mb.IsMacResult = false // simulate Debian/Linux
+	mockApp := testutil.NewMockApp()
+	mockApp.Base.IsMacResult = false // simulate Debian/Linux
 	// Both ExecCommand calls (tar + install) succeed
-	mb.SetExecCommandResult("", "", nil)
+	mockApp.Base.SetExecCommandResult("", "", nil)
 
 	app := &LazyGit{
-		Cmd:  mc,
-		Base: mb,
+		Cmd:  mockApp.Cmd,
+		Base: mockApp.Base,
 		fetchVersion: func(owner, repo string) (string, error) {
 			if owner != "jesseduffield" || repo != "lazygit" {
 				t.Errorf("unexpected version fetch: owner=%s repo=%s", owner, repo)
@@ -68,10 +81,10 @@ func TestInstallDebian(t *testing.T) {
 	}
 
 	// Expect 2 ExecCommand calls: tar (extract) + sudo install
-	if mb.GetExecCommandCallCount() != 2 {
-		t.Fatalf("expected 2 ExecCommand calls, got %d", mb.GetExecCommandCallCount())
+	if mockApp.Base.GetExecCommandCallCount() != 2 {
+		t.Fatalf("expected 2 ExecCommand calls, got %d", mockApp.Base.GetExecCommandCallCount())
 	}
-	calls := mb.ExecCommandCalls
+	calls := mockApp.Base.ExecCommandCalls
 	if calls[0].Command != "tar" {
 		t.Errorf("expected first command 'tar', got %q", calls[0].Command)
 	}
@@ -81,67 +94,68 @@ func TestInstallDebian(t *testing.T) {
 	}
 }
 
-// SKIP: ForceInstall test as per guidelines
-// ForceInstall calls Uninstall (which returns error) before Install
-// Testing this creates false negatives
-// func TestForceInstall(t *testing.T) {
-// 	mc := commands.NewMockCommand()
-// 	app := &LazyGit{Cmd: mc}
-//
-// 	if err := app.ForceInstall(); err != nil {
-// 		t.Fatalf("ForceInstall error: %v", err)
-// 	}
-// 	if mc.InstalledPkg != "lazygit" {
-// 		t.Fatalf("expected InstallPackage(%s), got %q", "lazygit", mc.InstalledPkg)
-// 	}
-// }
+func TestForceInstall(t *testing.T) {
+	mockApp := testutil.NewMockApp()
+	mockApp.Base.IsMacResult = true // simulate macOS
+	app := &LazyGit{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+	if err := app.ForceInstall(); err != nil {
+		t.Fatalf("ForceInstall() should succeed even when uninstall is not supported: %v", err)
+	}
+	if mockApp.Cmd.InstalledPkg != constants.LazyGit {
+		t.Errorf("expected Install to be called, got %q", mockApp.Cmd.InstalledPkg)
+	}
+
+	testutil.VerifyNoRealCommands(t, mockApp.Base)
+}
 
 func TestSoftInstall(t *testing.T) {
-	mc := commands.NewMockCommand()
-	mb := commands.NewMockBaseCommand()
-	mb.IsMacResult = true // macOS path uses MaybeInstallPackage
-	app := &LazyGit{Cmd: mc, Base: mb}
+	mockApp := testutil.NewMockApp()
+	mockApp.Base.IsMacResult = true // macOS path uses MaybeInstallPackage
+	app := &LazyGit{Cmd: mockApp.Cmd, Base: mockApp.Base}
 
 	if err := app.SoftInstall(); err != nil {
 		t.Fatalf("SoftInstall error: %v", err)
 	}
-	if mc.MaybeInstalled != "lazygit" {
-		t.Fatalf("expected MaybeInstallPackage(%s), got %q", "lazygit", mc.MaybeInstalled)
+	if mockApp.Cmd.MaybeInstalled != "lazygit" {
+		t.Fatalf("expected MaybeInstallPackage(%s), got %q", "lazygit", mockApp.Cmd.MaybeInstalled)
 	}
+
+	testutil.VerifyNoRealCommands(t, mockApp.Base)
 }
 
 func TestSoftInstallDebian_AlreadyInstalled(t *testing.T) {
-	mc := commands.NewMockCommand()
-	mb := commands.NewMockBaseCommand()
-	mb.IsMacResult = false
+	mockApp := testutil.NewMockApp()
+	mockApp.Base.IsMacResult = false
 
 	orig := commands.LookPathFn
 	commands.LookPathFn = func(string) (string, error) { return "/usr/local/bin/lazygit", nil }
 	defer func() { commands.LookPathFn = orig }()
 
-	app := &LazyGit{Cmd: mc, Base: mb}
+	app := &LazyGit{Cmd: mockApp.Cmd, Base: mockApp.Base}
 	if err := app.SoftInstall(); err != nil {
 		t.Fatalf("SoftInstall (already installed) error: %v", err)
 	}
 	// No install commands should have run
-	if mb.GetExecCommandCallCount() != 0 {
-		t.Fatalf("expected 0 ExecCommand calls, got %d", mb.GetExecCommandCallCount())
+	if mockApp.Base.GetExecCommandCallCount() != 0 {
+		t.Fatalf("expected 0 ExecCommand calls, got %d", mockApp.Base.GetExecCommandCallCount())
 	}
+
+	testutil.VerifyNoRealCommands(t, mockApp.Base)
 }
 
 func TestSoftInstallDebian_NotInstalled(t *testing.T) {
-	mc := commands.NewMockCommand()
-	mb := commands.NewMockBaseCommand()
-	mb.IsMacResult = false
-	mb.SetExecCommandResult("", "", nil)
+	mockApp := testutil.NewMockApp()
+	mockApp.Base.IsMacResult = false
+	mockApp.Base.SetExecCommandResult("", "", nil)
 
 	orig := commands.LookPathFn
 	commands.LookPathFn = func(string) (string, error) { return "", fmt.Errorf("not found") }
 	defer func() { commands.LookPathFn = orig }()
 
 	app := &LazyGit{
-		Cmd:          mc,
-		Base:         mb,
+		Cmd:          mockApp.Cmd,
+		Base:         mockApp.Base,
 		fetchVersion: func(_, _ string) (string, error) { return "0.44.1", nil },
 		downloadFn:   func(_ context.Context, _, _ string, _ downloader.RetryConfig) error { return nil },
 	}
@@ -150,9 +164,39 @@ func TestSoftInstallDebian_NotInstalled(t *testing.T) {
 		t.Fatalf("SoftInstall (not installed) error: %v", err)
 	}
 	// Should have run tar + sudo install
-	if mb.GetExecCommandCallCount() != 2 {
-		t.Fatalf("expected 2 ExecCommand calls, got %d", mb.GetExecCommandCallCount())
+	if mockApp.Base.GetExecCommandCallCount() != 2 {
+		t.Fatalf("expected 2 ExecCommand calls, got %d", mockApp.Base.GetExecCommandCallCount())
 	}
+}
+
+func TestUninstall(t *testing.T) {
+	mockApp := testutil.NewMockApp()
+	app := &LazyGit{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+	err := app.Uninstall()
+	if err == nil {
+		t.Fatal("expected Uninstall to return error for unsupported operation")
+	}
+	if !errors.Is(err, apps.ErrUninstallNotSupported) {
+		t.Errorf("expected ErrUninstallNotSupported, got: %v", err)
+	}
+
+	testutil.VerifyNoRealCommands(t, mockApp.Base)
+}
+
+func TestUpdate(t *testing.T) {
+	mockApp := testutil.NewMockApp()
+	app := &LazyGit{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+	err := app.Update()
+	if err == nil {
+		t.Fatal("expected Update to return error")
+	}
+	if !errors.Is(err, apps.ErrUpdateNotSupported) {
+		t.Errorf("expected ErrUpdateNotSupported, got: %v", err)
+	}
+
+	testutil.VerifyNoRealCommands(t, mockApp.Base)
 }
 
 func TestForceConfigure(t *testing.T) {
@@ -212,13 +256,12 @@ func TestSoftConfigure(t *testing.T) {
 }
 
 func TestExecuteCommand(t *testing.T) {
-	mc := commands.NewMockCommand()
-	mockBase := commands.NewMockBaseCommand()
-	app := &LazyGit{Cmd: mc, Base: mockBase}
+	mockApp := testutil.NewMockApp()
+	app := &LazyGit{Cmd: mockApp.Cmd, Base: mockApp.Base}
 
 	// Test 1: Successful execution
 	t.Run("successful execution", func(t *testing.T) {
-		mockBase.SetExecCommandResult("lazygit version 0.40.0", "", nil)
+		mockApp.Base.SetExecCommandResult("lazygit version 0.40.0", "", nil)
 
 		err := app.ExecuteCommand("--version")
 		if err != nil {
@@ -226,12 +269,12 @@ func TestExecuteCommand(t *testing.T) {
 		}
 
 		// Verify ExecCommand was called once
-		if mockBase.GetExecCommandCallCount() != 1 {
-			t.Fatalf("Expected 1 ExecCommand call, got %d", mockBase.GetExecCommandCallCount())
+		if mockApp.Base.GetExecCommandCallCount() != 1 {
+			t.Fatalf("Expected 1 ExecCommand call, got %d", mockApp.Base.GetExecCommandCallCount())
 		}
 
 		// Verify command parameters
-		lastCall := mockBase.GetLastExecCommandCall()
+		lastCall := mockApp.Base.GetLastExecCommandCall()
 		if lastCall == nil {
 			t.Fatal("No ExecCommand call recorded")
 		}
@@ -248,8 +291,8 @@ func TestExecuteCommand(t *testing.T) {
 
 	// Test 2: Error handling
 	t.Run("command execution error", func(t *testing.T) {
-		mockBase.ResetExecCommand()
-		mockBase.SetExecCommandResult(
+		mockApp.Base.ResetExecCommand()
+		mockApp.Base.SetExecCommandResult(
 			"",
 			"command not found",
 			fmt.Errorf("command not found: lazygit"),
@@ -271,45 +314,17 @@ func TestExecuteCommand(t *testing.T) {
 
 	// Test 3: No arguments (launch TUI)
 	t.Run("launch without arguments", func(t *testing.T) {
-		mockBase.ResetExecCommand()
-		mockBase.SetExecCommandResult("TUI launched", "", nil)
+		mockApp.Base.ResetExecCommand()
+		mockApp.Base.SetExecCommandResult("TUI launched", "", nil)
 
 		err := app.ExecuteCommand()
 		if err != nil {
 			t.Fatalf("ExecuteCommand failed: %v", err)
 		}
 
-		lastCall := mockBase.GetLastExecCommandCall()
+		lastCall := mockApp.Base.GetLastExecCommandCall()
 		if len(lastCall.Args) != 0 {
 			t.Fatalf("Expected no args, got %v", lastCall.Args)
 		}
 	})
 }
-
-// SKIP: Uninstall test as per guidelines
-// func TestUninstall(t *testing.T) {
-// 	mc := commands.NewMockCommand()
-// 	app := &LazyGit{Cmd: mc}
-//
-// 	err := app.Uninstall()
-// 	if err == nil {
-// 		t.Fatal("expected Uninstall to return error for unsupported operation")
-// 	}
-// 	if err.Error() != "lazygit uninstall not supported through devgita" {
-// 		t.Fatalf("unexpected error message: %v", err)
-// 	}
-// }
-
-// SKIP: Update test as per guidelines
-// func TestUpdate(t *testing.T) {
-// 	mc := commands.NewMockCommand()
-// 	app := &LazyGit{Cmd: mc}
-//
-// 	err := app.Update()
-// 	if err == nil {
-// 		t.Fatal("expected Update to return error for unsupported operation")
-// 	}
-// 	if err.Error() != "lazygit update not implemented through devgita" {
-// 		t.Fatalf("unexpected error message: %v", err)
-// 	}
-// }

@@ -7,9 +7,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/cjairm/devgita/internal/apps"
 	"github.com/cjairm/devgita/internal/apps/tmux"
-	"github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/internal/testutil"
+	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/paths"
 )
 
@@ -24,6 +25,16 @@ func TestNew(t *testing.T) {
 	app := tmux.New()
 	if app == nil {
 		t.Error("Expected New() to return a non-nil Tmux instance")
+	}
+}
+
+func TestNameAndKind(t *testing.T) {
+	app := &tmux.Tmux{}
+	if app.Name() != constants.Tmux {
+		t.Errorf("expected Name() %q, got %q", constants.Tmux, app.Name())
+	}
+	if app.Kind() != apps.KindTerminal {
+		t.Errorf("expected Kind() KindTerminal, got %v", app.Kind())
 	}
 }
 
@@ -51,11 +62,11 @@ func TestInstall(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Helper()
 
-			mockCmd := commands.NewMockCommand()
-			mockCmd.InstallError = tt.installErr
+			mockApp := testutil.NewMockApp()
+			mockApp.Cmd.InstallError = tt.installErr
 
 			app := &tmux.Tmux{
-				Cmd: mockCmd,
+				Cmd: mockApp.Cmd,
 			}
 
 			err := app.Install()
@@ -68,14 +79,32 @@ func TestInstall(t *testing.T) {
 			}
 
 			// Verify the correct package was passed
-			if mockCmd.InstalledPkg != "tmux" {
+			if mockApp.Cmd.InstalledPkg != "tmux" {
 				t.Errorf(
 					"Expected package 'tmux', got '%s'",
-					mockCmd.InstalledPkg,
+					mockApp.Cmd.InstalledPkg,
 				)
 			}
+
+			testutil.VerifyNoRealCommands(t, mockApp.Base)
 		})
 	}
+}
+
+func TestForceInstall(t *testing.T) {
+	t.Helper()
+
+	mockApp := testutil.NewMockApp()
+	app := &tmux.Tmux{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+	if err := app.ForceInstall(); err != nil {
+		t.Fatalf("ForceInstall() should succeed even when uninstall is not supported: %v", err)
+	}
+	if mockApp.Cmd.InstalledPkg != constants.Tmux {
+		t.Errorf("expected Install to be called, got %q", mockApp.Cmd.InstalledPkg)
+	}
+
+	testutil.VerifyNoRealCommands(t, mockApp.Base)
 }
 
 func TestSoftInstall(t *testing.T) {
@@ -102,11 +131,11 @@ func TestSoftInstall(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Helper()
 
-			mockCmd := commands.NewMockCommand()
-			mockCmd.MaybeInstallError = tt.installErr
+			mockApp := testutil.NewMockApp()
+			mockApp.Cmd.MaybeInstallError = tt.installErr
 
 			app := &tmux.Tmux{
-				Cmd: mockCmd,
+				Cmd: mockApp.Cmd,
 			}
 
 			err := app.SoftInstall()
@@ -119,14 +148,50 @@ func TestSoftInstall(t *testing.T) {
 			}
 
 			// Verify the correct package was passed
-			if mockCmd.MaybeInstalled != "tmux" {
+			if mockApp.Cmd.MaybeInstalled != "tmux" {
 				t.Errorf(
 					"Expected package 'tmux', got '%s'",
-					mockCmd.MaybeInstalled,
+					mockApp.Cmd.MaybeInstalled,
 				)
 			}
+
+			testutil.VerifyNoRealCommands(t, mockApp.Base)
 		})
 	}
+}
+
+func TestUninstall(t *testing.T) {
+	t.Helper()
+
+	mockApp := testutil.NewMockApp()
+	app := &tmux.Tmux{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+	err := app.Uninstall()
+	if err == nil {
+		t.Fatal("expected Uninstall to return error for unsupported operation")
+	}
+	if !errors.Is(err, apps.ErrUninstallNotSupported) {
+		t.Errorf("expected ErrUninstallNotSupported, got: %v", err)
+	}
+
+	testutil.VerifyNoRealCommands(t, mockApp.Base)
+}
+
+func TestUpdate(t *testing.T) {
+	t.Helper()
+
+	mockApp := testutil.NewMockApp()
+	app := &tmux.Tmux{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+	err := app.Update()
+	if err == nil {
+		t.Fatal("expected Update to return error")
+	}
+	if !errors.Is(err, apps.ErrUpdateNotSupported) {
+		t.Errorf("expected ErrUpdateNotSupported, got: %v", err)
+	}
+
+	testutil.VerifyNoRealCommands(t, mockApp.Base)
 }
 
 func TestForceConfigure(t *testing.T) {
@@ -378,18 +443,17 @@ func TestExecuteCommand(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Helper()
 
-			mockCmd := commands.NewMockCommand()
-			mockBase := commands.NewMockBaseCommand()
+			mockApp := testutil.NewMockApp()
 
 			if tt.execErr != nil {
-				mockBase.SetExecCommandResult("", "error", tt.execErr)
+				mockApp.Base.SetExecCommandResult("", "error", tt.execErr)
 			} else {
-				mockBase.SetExecCommandResult("tmux 3.3a", "", nil)
+				mockApp.Base.SetExecCommandResult("tmux 3.3a", "", nil)
 			}
 
 			app := &tmux.Tmux{
-				Cmd:  mockCmd,
-				Base: mockBase,
+				Cmd:  mockApp.Cmd,
+				Base: mockApp.Base,
 			}
 
 			err := app.ExecuteCommand(tt.args...)
@@ -402,11 +466,11 @@ func TestExecuteCommand(t *testing.T) {
 			}
 
 			// Verify the command was called
-			if mockBase.GetExecCommandCallCount() != 1 {
-				t.Errorf("Expected 1 ExecCommand call, got %d", mockBase.GetExecCommandCallCount())
+			if mockApp.Base.GetExecCommandCallCount() != 1 {
+				t.Errorf("Expected 1 ExecCommand call, got %d", mockApp.Base.GetExecCommandCallCount())
 			}
 
-			lastCall := mockBase.GetLastExecCommandCall()
+			lastCall := mockApp.Base.GetLastExecCommandCall()
 			if lastCall == nil {
 				t.Fatal("No ExecCommand call recorded")
 			}
@@ -447,18 +511,17 @@ func TestCreateSession(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Helper()
 
-			mockCmd := commands.NewMockCommand()
-			mockBase := commands.NewMockBaseCommand()
+			mockApp := testutil.NewMockApp()
 
 			if tt.execErr != nil {
-				mockBase.SetExecCommandResult("", "error", tt.execErr)
+				mockApp.Base.SetExecCommandResult("", "error", tt.execErr)
 			} else {
-				mockBase.SetExecCommandResult("", "", nil)
+				mockApp.Base.SetExecCommandResult("", "", nil)
 			}
 
 			app := &tmux.Tmux{
-				Cmd:  mockCmd,
-				Base: mockBase,
+				Cmd:  mockApp.Cmd,
+				Base: mockApp.Base,
 			}
 
 			err := app.CreateSession(tt.sessionName, tt.workdir)
@@ -471,7 +534,7 @@ func TestCreateSession(t *testing.T) {
 			}
 
 			// Verify correct arguments were passed
-			lastCall := mockBase.GetLastExecCommandCall()
+			lastCall := mockApp.Base.GetLastExecCommandCall()
 			if lastCall == nil {
 				t.Fatal("No ExecCommand call recorded")
 			}
@@ -516,18 +579,17 @@ func TestKillSession(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Helper()
 
-			mockCmd := commands.NewMockCommand()
-			mockBase := commands.NewMockBaseCommand()
+			mockApp := testutil.NewMockApp()
 
 			if tt.execErr != nil {
-				mockBase.SetExecCommandResult("", "error", tt.execErr)
+				mockApp.Base.SetExecCommandResult("", "error", tt.execErr)
 			} else {
-				mockBase.SetExecCommandResult("", "", nil)
+				mockApp.Base.SetExecCommandResult("", "", nil)
 			}
 
 			app := &tmux.Tmux{
-				Cmd:  mockCmd,
-				Base: mockBase,
+				Cmd:  mockApp.Cmd,
+				Base: mockApp.Base,
 			}
 
 			err := app.KillSession(tt.sessionName)
@@ -540,7 +602,7 @@ func TestKillSession(t *testing.T) {
 			}
 
 			// Verify correct arguments were passed
-			lastCall := mockBase.GetLastExecCommandCall()
+			lastCall := mockApp.Base.GetLastExecCommandCall()
 			if lastCall == nil {
 				t.Fatal("No ExecCommand call recorded")
 			}
@@ -585,18 +647,17 @@ func TestHasSession(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Helper()
 
-			mockCmd := commands.NewMockCommand()
-			mockBase := commands.NewMockBaseCommand()
+			mockApp := testutil.NewMockApp()
 
 			if tt.execErr != nil {
-				mockBase.SetExecCommandResult("", "error", tt.execErr)
+				mockApp.Base.SetExecCommandResult("", "error", tt.execErr)
 			} else {
-				mockBase.SetExecCommandResult("", "", nil)
+				mockApp.Base.SetExecCommandResult("", "", nil)
 			}
 
 			app := &tmux.Tmux{
-				Cmd:  mockCmd,
-				Base: mockBase,
+				Cmd:  mockApp.Cmd,
+				Base: mockApp.Base,
 			}
 
 			result := app.HasSession(tt.sessionName)
@@ -606,7 +667,7 @@ func TestHasSession(t *testing.T) {
 			}
 
 			// Verify correct arguments were passed
-			lastCall := mockBase.GetLastExecCommandCall()
+			lastCall := mockApp.Base.GetLastExecCommandCall()
 			if lastCall == nil {
 				t.Fatal("No ExecCommand call recorded")
 			}
@@ -654,18 +715,17 @@ func TestSendKeys(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Helper()
 
-			mockCmd := commands.NewMockCommand()
-			mockBase := commands.NewMockBaseCommand()
+			mockApp := testutil.NewMockApp()
 
 			if tt.execErr != nil {
-				mockBase.SetExecCommandResult("", "error", tt.execErr)
+				mockApp.Base.SetExecCommandResult("", "error", tt.execErr)
 			} else {
-				mockBase.SetExecCommandResult("", "", nil)
+				mockApp.Base.SetExecCommandResult("", "", nil)
 			}
 
 			app := &tmux.Tmux{
-				Cmd:  mockCmd,
-				Base: mockBase,
+				Cmd:  mockApp.Cmd,
+				Base: mockApp.Base,
 			}
 
 			err := app.SendKeys(tt.sessionName, tt.keys)
@@ -678,7 +738,7 @@ func TestSendKeys(t *testing.T) {
 			}
 
 			// Verify correct arguments were passed
-			lastCall := mockBase.GetLastExecCommandCall()
+			lastCall := mockApp.Base.GetLastExecCommandCall()
 			if lastCall == nil {
 				t.Fatal("No ExecCommand call recorded")
 			}
@@ -723,18 +783,17 @@ func TestSelectWindow(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Helper()
 
-			mockCmd := commands.NewMockCommand()
-			mockBase := commands.NewMockBaseCommand()
+			mockApp := testutil.NewMockApp()
 
 			if tt.execErr != nil {
-				mockBase.SetExecCommandResult("", "error", tt.execErr)
+				mockApp.Base.SetExecCommandResult("", "error", tt.execErr)
 			} else {
-				mockBase.SetExecCommandResult("", "", nil)
+				mockApp.Base.SetExecCommandResult("", "", nil)
 			}
 
 			app := &tmux.Tmux{
-				Cmd:  mockCmd,
-				Base: mockBase,
+				Cmd:  mockApp.Cmd,
+				Base: mockApp.Base,
 			}
 
 			err := app.SelectWindow(tt.windowName)
@@ -747,7 +806,7 @@ func TestSelectWindow(t *testing.T) {
 			}
 
 			// Verify correct arguments were passed
-			lastCall := mockBase.GetLastExecCommandCall()
+			lastCall := mockApp.Base.GetLastExecCommandCall()
 			if lastCall == nil {
 				t.Fatal("No ExecCommand call recorded")
 			}

@@ -1,20 +1,21 @@
 package mise
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/cjairm/devgita/internal/commands"
+	"github.com/cjairm/devgita/internal/apps"
+	"github.com/cjairm/devgita/internal/testutil"
 	"github.com/cjairm/devgita/pkg/constants"
-	"github.com/cjairm/devgita/pkg/logger"
 	"github.com/cjairm/devgita/pkg/paths"
 )
 
 func init() {
 	// Initialize logger for tests
-	logger.Init(false)
+	testutil.InitLogger()
 }
 
 func TestNew(t *testing.T) {
@@ -25,32 +26,74 @@ func TestNew(t *testing.T) {
 	}
 }
 
+func TestNameAndKind(t *testing.T) {
+	a := &Mise{}
+	if a.Name() != constants.Mise {
+		t.Errorf("expected Name() %q, got %q", constants.Mise, a.Name())
+	}
+	if a.Kind() != apps.KindTerminal {
+		t.Errorf("expected Kind() KindTerminal, got %v", a.Kind())
+	}
+}
+
 func TestInstall(t *testing.T) {
-	mc := commands.NewMockCommand()
-	app := &Mise{Cmd: mc}
+	mockApp := testutil.NewMockApp()
+	app := &Mise{Cmd: mockApp.Cmd}
 
 	if err := app.Install(); err != nil {
 		t.Fatalf("Install error: %v", err)
 	}
-	if mc.InstalledPkg != constants.Mise {
-		t.Fatalf("expected InstallPackage(%s), got %q", constants.Mise, mc.InstalledPkg)
+	if mockApp.Cmd.InstalledPkg != constants.Mise {
+		t.Fatalf("expected InstallPackage(%s), got %q", constants.Mise, mockApp.Cmd.InstalledPkg)
 	}
+
+	testutil.VerifyNoRealCommands(t, mockApp.Base)
 }
 
-// SKIP: ForceInstall test as per guidelines
-// ForceInstall calls Uninstall (which now modifies config) before Install
-// Testing this creates complex state management in tests
+func TestForceInstall(t *testing.T) {
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
+
+	mockApp := testutil.NewMockApp()
+	app := &Mise{Cmd: mockApp.Cmd}
+
+	if err := app.ForceInstall(); err != nil {
+		t.Fatalf("ForceInstall() should succeed: %v", err)
+	}
+	if mockApp.Cmd.InstalledPkg != constants.Mise {
+		t.Errorf("expected Install to be called, got %q", mockApp.Cmd.InstalledPkg)
+	}
+
+	testutil.VerifyNoRealCommands(t, mockApp.Base)
+}
 
 func TestSoftInstall(t *testing.T) {
-	mc := commands.NewMockCommand()
-	app := &Mise{Cmd: mc}
+	mockApp := testutil.NewMockApp()
+	app := &Mise{Cmd: mockApp.Cmd}
 
 	if err := app.SoftInstall(); err != nil {
 		t.Fatalf("SoftInstall error: %v", err)
 	}
-	if mc.MaybeInstalled != constants.Mise {
-		t.Fatalf("expected MaybeInstallPackage(%s), got %q", constants.Mise, mc.MaybeInstalled)
+	if mockApp.Cmd.MaybeInstalled != constants.Mise {
+		t.Fatalf("expected MaybeInstallPackage(%s), got %q", constants.Mise, mockApp.Cmd.MaybeInstalled)
 	}
+
+	testutil.VerifyNoRealCommands(t, mockApp.Base)
+}
+
+func TestUpdate(t *testing.T) {
+	mockApp := testutil.NewMockApp()
+	app := &Mise{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+	err := app.Update()
+	if err == nil {
+		t.Fatal("expected Update to return error")
+	}
+	if !errors.Is(err, apps.ErrUpdateNotSupported) {
+		t.Errorf("expected ErrUpdateNotSupported, got: %v", err)
+	}
+
+	testutil.VerifyNoRealCommands(t, mockApp.Base)
 }
 
 func TestForceConfigure(t *testing.T) {
@@ -131,8 +174,8 @@ fi
 	paths.Paths.App.Root = tempDir
 	paths.Paths.App.Configs.Templates = templatesDir
 
-	mc := commands.NewMockCommand()
-	app := &Mise{Cmd: mc}
+	mockApp := testutil.NewMockApp()
+	app := &Mise{Cmd: mockApp.Cmd}
 
 	if err := app.ForceConfigure(); err != nil {
 		t.Fatalf("ForceConfigure error: %v", err)
@@ -165,6 +208,8 @@ fi
 			string(updatedConfig),
 		)
 	}
+
+	testutil.VerifyNoRealCommands(t, mockApp.Base)
 }
 
 func TestSoftConfigure(t *testing.T) {
@@ -219,8 +264,8 @@ func TestSoftConfigure(t *testing.T) {
 		paths.Paths.App.Root = tempDir
 		paths.Paths.App.Configs.Templates = templatesDir
 
-		mc := commands.NewMockCommand()
-		app := &Mise{Cmd: mc}
+		mockApp := testutil.NewMockApp()
+		app := &Mise{Cmd: mockApp.Cmd}
 
 		if err := app.SoftConfigure(); err != nil {
 			t.Fatalf("SoftConfigure error: %v", err)
@@ -236,6 +281,8 @@ func TestSoftConfigure(t *testing.T) {
 		if !strings.Contains(string(content), "mise-enabled") {
 			t.Fatal("Expected template to be rendered with feature enabled")
 		}
+
+		testutil.VerifyNoRealCommands(t, mockApp.Base)
 	})
 
 	t.Run("SkipWhenAlreadyEnabled", func(t *testing.T) {
@@ -275,8 +322,8 @@ func TestSoftConfigure(t *testing.T) {
 		paths.Paths.Config.Root = configDir
 		paths.Paths.App.Root = tempDir
 
-		mc := commands.NewMockCommand()
-		app := &Mise{Cmd: mc}
+		mockApp := testutil.NewMockApp()
+		app := &Mise{Cmd: mockApp.Cmd}
 
 		if err := app.SoftConfigure(); err != nil {
 			t.Fatalf("SoftConfigure error: %v", err)
@@ -287,6 +334,8 @@ func TestSoftConfigure(t *testing.T) {
 		if _, err := os.Stat(outputPath); err == nil {
 			t.Fatal("Expected no file to be generated when feature already enabled")
 		}
+
+		testutil.VerifyNoRealCommands(t, mockApp.Base)
 	})
 }
 
@@ -341,8 +390,8 @@ func TestUninstall(t *testing.T) {
 	paths.Paths.App.Root = tempDir
 	paths.Paths.App.Configs.Templates = templatesDir
 
-	mc := commands.NewMockCommand()
-	app := &Mise{Cmd: mc}
+	mockApp := testutil.NewMockApp()
+	app := &Mise{Cmd: mockApp.Cmd}
 
 	if err := app.Uninstall(); err != nil {
 		t.Fatalf("Uninstall error: %v", err)
@@ -369,15 +418,16 @@ func TestUninstall(t *testing.T) {
 	if !strings.Contains(string(content), "disabled") {
 		t.Fatalf("Expected template to show disabled state. Content: %s", string(content))
 	}
+
+	testutil.VerifyNoRealCommands(t, mockApp.Base)
 }
 
 func TestExecuteCommand(t *testing.T) {
-	mc := commands.NewMockCommand()
-	mockBase := commands.NewMockBaseCommand()
-	app := &Mise{Cmd: mc, Base: mockBase}
+	mockApp := testutil.NewMockApp()
+	app := &Mise{Cmd: mockApp.Cmd, Base: mockApp.Base}
 
 	t.Run("successful execution", func(t *testing.T) {
-		mockBase.SetExecCommandResult("mise 2024.1.0", "", nil)
+		mockApp.Base.SetExecCommandResult("mise 2024.1.0", "", nil)
 
 		err := app.ExecuteCommand("--version")
 		if err != nil {
@@ -385,12 +435,12 @@ func TestExecuteCommand(t *testing.T) {
 		}
 
 		// Verify command was called
-		if mockBase.GetExecCommandCallCount() != 1 {
-			t.Fatalf("Expected 1 call, got %d", mockBase.GetExecCommandCallCount())
+		if mockApp.Base.GetExecCommandCallCount() != 1 {
+			t.Fatalf("Expected 1 call, got %d", mockApp.Base.GetExecCommandCallCount())
 		}
 
 		// Verify parameters
-		lastCall := mockBase.GetLastExecCommandCall()
+		lastCall := mockApp.Base.GetLastExecCommandCall()
 		if lastCall.Command != constants.Mise {
 			t.Fatalf("Expected command '%s', got %q", constants.Mise, lastCall.Command)
 		}
@@ -400,15 +450,15 @@ func TestExecuteCommand(t *testing.T) {
 	})
 
 	t.Run("multiple arguments", func(t *testing.T) {
-		mockBase.ResetExecCommand()
-		mockBase.SetExecCommandResult("", "", nil)
+		mockApp.Base.ResetExecCommand()
+		mockApp.Base.SetExecCommandResult("", "", nil)
 
 		err := app.ExecuteCommand("install", "node@20")
 		if err != nil {
 			t.Fatalf("ExecuteCommand failed: %v", err)
 		}
 
-		lastCall := mockBase.GetLastExecCommandCall()
+		lastCall := mockApp.Base.GetLastExecCommandCall()
 		if len(lastCall.Args) != 2 {
 			t.Fatalf("Expected 2 args, got %d", len(lastCall.Args))
 		}
@@ -419,19 +469,18 @@ func TestExecuteCommand(t *testing.T) {
 }
 
 func TestUseGlobal(t *testing.T) {
-	mc := commands.NewMockCommand()
-	mockBase := commands.NewMockBaseCommand()
-	app := &Mise{Cmd: mc, Base: mockBase}
+	mockApp := testutil.NewMockApp()
+	app := &Mise{Cmd: mockApp.Cmd, Base: mockApp.Base}
 
 	t.Run("successful use global", func(t *testing.T) {
-		mockBase.SetExecCommandResult("", "", nil)
+		mockApp.Base.SetExecCommandResult("", "", nil)
 
 		err := app.UseGlobal("node", "20")
 		if err != nil {
 			t.Fatalf("UseGlobal failed: %v", err)
 		}
 
-		lastCall := mockBase.GetLastExecCommandCall()
+		lastCall := mockApp.Base.GetLastExecCommandCall()
 		expectedArgs := []string{"use", "--global", "node@20"}
 		if len(lastCall.Args) != len(expectedArgs) {
 			t.Fatalf("Expected %d args, got %d", len(expectedArgs), len(lastCall.Args))
@@ -444,7 +493,7 @@ func TestUseGlobal(t *testing.T) {
 	})
 
 	t.Run("missing language parameter", func(t *testing.T) {
-		mockBase.ResetExecCommand()
+		mockApp.Base.ResetExecCommand()
 		err := app.UseGlobal("", "20")
 		if err == nil {
 			t.Fatal("Expected error for missing language")
