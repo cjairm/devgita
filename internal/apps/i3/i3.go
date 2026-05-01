@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/cjairm/devgita/internal/apps"
+	"github.com/cjairm/devgita/internal/apps/baseapp"
 	"github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/files"
@@ -11,9 +13,14 @@ import (
 	"github.com/cjairm/devgita/pkg/paths"
 )
 
+var _ apps.App = (*I3)(nil)
+
 type I3 struct {
 	Cmd commands.Command
 }
+
+func (i *I3) Name() string       { return constants.I3 }
+func (i *I3) Kind() apps.AppKind { return apps.KindDesktop }
 
 func New() *I3 {
 	return &I3{Cmd: commands.NewCommand()}
@@ -28,14 +35,11 @@ func (i *I3) SoftInstall() error {
 }
 
 func (i *I3) ForceInstall() error {
-	if err := i.Uninstall(); err != nil {
-		return fmt.Errorf("failed to uninstall i3 before force install: %w", err)
-	}
-	return i.Install()
+	return baseapp.Reinstall(i.Install, i.Uninstall)
 }
 
 func (i *I3) Uninstall() error {
-	return fmt.Errorf("i3 uninstall not supported - manage via system package manager")
+	return fmt.Errorf("%w for i3 — manage via system package manager", apps.ErrUninstallNotSupported)
 }
 
 func (i *I3) ForceConfigure() error {
@@ -64,5 +68,5 @@ func (i *I3) ExecuteCommand(args ...string) error {
 }
 
 func (i *I3) Update() error {
-	return fmt.Errorf("i3 update not implemented - use system package manager")
+	return fmt.Errorf("%w for i3 — use system package manager", apps.ErrUpdateNotSupported)
 }

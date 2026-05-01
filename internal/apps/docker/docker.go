@@ -8,14 +8,21 @@ package docker
 import (
 	"fmt"
 
+	"github.com/cjairm/devgita/internal/apps"
+	"github.com/cjairm/devgita/internal/apps/baseapp"
 	cmd "github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/pkg/constants"
 )
+
+var _ apps.App = (*Docker)(nil)
 
 type Docker struct {
 	Cmd  cmd.Command
 	Base cmd.BaseCommandExecutor
 }
+
+func (d *Docker) Name() string       { return constants.Docker }
+func (d *Docker) Kind() apps.AppKind { return apps.KindDesktop }
 
 func New() *Docker {
 	osCmd := cmd.NewCommand()
@@ -32,11 +39,7 @@ func (d *Docker) SoftInstall() error {
 }
 
 func (d *Docker) ForceInstall() error {
-	err := d.Uninstall()
-	if err != nil {
-		return fmt.Errorf("failed to uninstall docker: %w", err)
-	}
-	return d.Install()
+	return baseapp.Reinstall(d.Install, d.Uninstall)
 }
 
 func (d *Docker) ForceConfigure() error {
@@ -81,7 +84,7 @@ func (d *Docker) Uninstall() error {
 	// - Move to Trash: Drag Docker.app to the Trash or right-click and select "Move to Trash."
 
 	// brew uninstall --cask docker && sudo rm -f /usr/local/bin/docker && sudo rm -f /usr/local/bin/docker-compose && sudo rm -f /usr/local/bin/docker-credential-desktop && sudo rm -f /usr/local/bin/docker-credential-ecr-login && sudo rm -f /usr/local/bin/docker-credential-osxkeychain && sudo rm -rf ~/Library/Containers/com.docker.docker && sudo rm -rf ~/Library/Application\ Support/Docker\ Desktop && sudo rm -rf ~/.docker && sudo rm -f /usr/local/bin/hub-tool && sudo rm -f /usr/local/bin/kubectl.docker && sudo rm -f /usr/local/etc/bash_completion.d/docker && sudo rm -f /usr/local/share/zsh/site-functions/_docker && sudo rm -f /usr/local/share/fish/vendor_completions.d/docker.fish
-	return fmt.Errorf("uninstall not implemented for docker - requires manual cleanup")
+	return fmt.Errorf("%w for docker — requires manual cleanup", apps.ErrUninstallNotSupported)
 }
 
 func (d *Docker) ExecuteCommand(args ...string) error {
@@ -97,5 +100,5 @@ func (d *Docker) ExecuteCommand(args ...string) error {
 }
 
 func (d *Docker) Update() error {
-	return fmt.Errorf("update not implemented for docker")
+	return fmt.Errorf("%w for docker", apps.ErrUpdateNotSupported)
 }

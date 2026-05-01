@@ -11,13 +11,20 @@ package gimp
 import (
 	"fmt"
 
+	"github.com/cjairm/devgita/internal/apps"
+	"github.com/cjairm/devgita/internal/apps/baseapp"
 	cmd "github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/pkg/constants"
 )
 
+var _ apps.App = (*Gimp)(nil)
+
 type Gimp struct {
 	Cmd cmd.Command
 }
+
+func (g *Gimp) Name() string       { return constants.Gimp }
+func (g *Gimp) Kind() apps.AppKind { return apps.KindDesktop }
 
 func New() *Gimp {
 	return &Gimp{Cmd: cmd.NewCommand()}
@@ -32,11 +39,7 @@ func (g *Gimp) SoftInstall() error {
 }
 
 func (g *Gimp) ForceInstall() error {
-	err := g.Uninstall()
-	if err != nil {
-		return fmt.Errorf("failed to uninstall GIMP: %w", err)
-	}
-	return g.Install()
+	return baseapp.Reinstall(g.Install, g.Uninstall)
 }
 
 func (g *Gimp) ForceConfigure() error {
@@ -50,7 +53,7 @@ func (g *Gimp) SoftConfigure() error {
 }
 
 func (g *Gimp) Uninstall() error {
-	return fmt.Errorf("uninstall not supported for GIMP")
+	return fmt.Errorf("%w for gimp", apps.ErrUninstallNotSupported)
 }
 
 func (g *Gimp) ExecuteCommand(args ...string) error {
@@ -59,5 +62,5 @@ func (g *Gimp) ExecuteCommand(args ...string) error {
 }
 
 func (g *Gimp) Update() error {
-	return fmt.Errorf("update not implemented for GIMP")
+	return fmt.Errorf("%w for gimp", apps.ErrUpdateNotSupported)
 }

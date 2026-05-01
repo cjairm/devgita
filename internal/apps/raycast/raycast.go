@@ -8,13 +8,20 @@ package raycast
 import (
 	"fmt"
 
+	"github.com/cjairm/devgita/internal/apps"
+	"github.com/cjairm/devgita/internal/apps/baseapp"
 	cmd "github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/pkg/constants"
 )
 
+var _ apps.App = (*Raycast)(nil)
+
 type Raycast struct {
 	Cmd cmd.Command
 }
+
+func (r *Raycast) Name() string       { return constants.Raycast }
+func (r *Raycast) Kind() apps.AppKind { return apps.KindDesktop }
 
 func New() *Raycast {
 	return &Raycast{Cmd: cmd.NewCommand()}
@@ -25,13 +32,7 @@ func (r *Raycast) Install() error {
 }
 
 func (r *Raycast) ForceInstall() error {
-	if err := r.Uninstall(); err != nil {
-		return fmt.Errorf("raycast.ForceInstall: uninstall failed: %w", err)
-	}
-	if err := r.Install(); err != nil {
-		return fmt.Errorf("raycast.ForceInstall: install failed: %w", err)
-	}
-	return nil
+	return baseapp.Reinstall(r.Install, r.Uninstall)
 }
 
 func (r *Raycast) SoftInstall() error {
@@ -49,7 +50,7 @@ func (r *Raycast) SoftConfigure() error {
 }
 
 func (r *Raycast) Uninstall() error {
-	return fmt.Errorf("uninstall not supported for Raycast")
+	return fmt.Errorf("%w for raycast", apps.ErrUninstallNotSupported)
 }
 
 func (r *Raycast) ExecuteCommand(args ...string) error {
@@ -58,5 +59,5 @@ func (r *Raycast) ExecuteCommand(args ...string) error {
 }
 
 func (r *Raycast) Update() error {
-	return fmt.Errorf("update not supported for Raycast")
+	return fmt.Errorf("%w for raycast", apps.ErrUpdateNotSupported)
 }

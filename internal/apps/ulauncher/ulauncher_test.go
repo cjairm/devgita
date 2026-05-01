@@ -1,9 +1,10 @@
 package ulauncher
 
 import (
-	"strings"
+	"errors"
 	"testing"
 
+	"github.com/cjairm/devgita/internal/apps"
 	"github.com/cjairm/devgita/internal/testutil"
 	"github.com/cjairm/devgita/pkg/constants"
 )
@@ -19,6 +20,16 @@ func TestNew(t *testing.T) {
 	}
 	if u.Cmd == nil {
 		t.Fatal("Cmd is nil")
+	}
+}
+
+func TestNameAndKind(t *testing.T) {
+	u := &Ulauncher{}
+	if u.Name() != constants.Ulauncher {
+		t.Errorf("expected Name() %q, got %q", constants.Ulauncher, u.Name())
+	}
+	if u.Kind() != apps.KindDesktop {
+		t.Errorf("expected Kind() KindDesktop, got %v", u.Kind())
 	}
 }
 
@@ -58,14 +69,11 @@ func TestForceInstall(t *testing.T) {
 	mockApp := testutil.NewMockApp()
 	u := &Ulauncher{Cmd: mockApp.Cmd}
 
-	err := u.ForceInstall()
-	// Should fail because Uninstall is not supported
-	if err == nil {
-		t.Fatal("Expected ForceInstall to fail due to unsupported Uninstall")
+	if err := u.ForceInstall(); err != nil {
+		t.Fatalf("ForceInstall() should succeed even when uninstall is not supported: %v", err)
 	}
-
-	if !strings.Contains(err.Error(), "uninstall not supported") {
-		t.Errorf("Expected error about uninstall not supported, got: %v", err)
+	if mockApp.Cmd.InstalledDesktopApp != constants.Ulauncher {
+		t.Errorf("expected Install to be called, got %q", mockApp.Cmd.InstalledDesktopApp)
 	}
 
 	testutil.VerifyNoRealCommands(t, mockApp.Base)
@@ -79,9 +87,8 @@ func TestUninstall(t *testing.T) {
 	if err == nil {
 		t.Fatal("Expected Uninstall to return error")
 	}
-
-	if !strings.Contains(err.Error(), "not supported") {
-		t.Errorf("Expected error about not supported, got: %v", err)
+	if !errors.Is(err, apps.ErrUninstallNotSupported) {
+		t.Errorf("expected ErrUninstallNotSupported, got: %v", err)
 	}
 
 	testutil.VerifyNoRealCommands(t, mockApp.Base)
@@ -131,9 +138,8 @@ func TestUpdate(t *testing.T) {
 	if err == nil {
 		t.Fatal("Expected Update to return error")
 	}
-
-	if !strings.Contains(err.Error(), "not implemented") {
-		t.Errorf("Expected error about not implemented, got: %v", err)
+	if !errors.Is(err, apps.ErrUpdateNotSupported) {
+		t.Errorf("expected ErrUpdateNotSupported, got: %v", err)
 	}
 
 	testutil.VerifyNoRealCommands(t, mockApp.Base)

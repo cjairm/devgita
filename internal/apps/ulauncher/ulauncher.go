@@ -3,13 +3,20 @@ package ulauncher
 import (
 	"fmt"
 
+	"github.com/cjairm/devgita/internal/apps"
+	"github.com/cjairm/devgita/internal/apps/baseapp"
 	"github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/pkg/constants"
 )
 
+var _ apps.App = (*Ulauncher)(nil)
+
 type Ulauncher struct {
 	Cmd commands.Command
 }
+
+func (u *Ulauncher) Name() string       { return constants.Ulauncher }
+func (u *Ulauncher) Kind() apps.AppKind { return apps.KindDesktop }
 
 func New() *Ulauncher {
 	return &Ulauncher{Cmd: commands.NewCommand()}
@@ -24,14 +31,11 @@ func (u *Ulauncher) SoftInstall() error {
 }
 
 func (u *Ulauncher) ForceInstall() error {
-	if err := u.Uninstall(); err != nil {
-		return fmt.Errorf("failed to uninstall ulauncher before force install: %w", err)
-	}
-	return u.Install()
+	return baseapp.Reinstall(u.Install, u.Uninstall)
 }
 
 func (u *Ulauncher) Uninstall() error {
-	return fmt.Errorf("ulauncher uninstall not supported - manage via system package manager")
+	return fmt.Errorf("%w for ulauncher — manage via system package manager", apps.ErrUninstallNotSupported)
 }
 
 func (u *Ulauncher) ForceConfigure() error {
@@ -53,5 +57,5 @@ func (u *Ulauncher) ExecuteCommand(args ...string) error {
 }
 
 func (u *Ulauncher) Update() error {
-	return fmt.Errorf("ulauncher update not implemented - use system package manager")
+	return fmt.Errorf("%w for ulauncher — use system package manager", apps.ErrUpdateNotSupported)
 }

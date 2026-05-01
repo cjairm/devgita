@@ -8,13 +8,20 @@ package flameshot
 import (
 	"fmt"
 
+	"github.com/cjairm/devgita/internal/apps"
+	"github.com/cjairm/devgita/internal/apps/baseapp"
 	cmd "github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/pkg/constants"
 )
 
+var _ apps.App = (*Flameshot)(nil)
+
 type Flameshot struct {
 	Cmd cmd.Command
 }
+
+func (f *Flameshot) Name() string       { return constants.Flameshot }
+func (f *Flameshot) Kind() apps.AppKind { return apps.KindDesktop }
 
 func New() *Flameshot {
 	return &Flameshot{Cmd: cmd.NewCommand()}
@@ -25,13 +32,7 @@ func (f *Flameshot) Install() error {
 }
 
 func (f *Flameshot) ForceInstall() error {
-	if err := f.Uninstall(); err != nil {
-		return fmt.Errorf("flameshot.ForceInstall: uninstall failed: %w", err)
-	}
-	if err := f.Install(); err != nil {
-		return fmt.Errorf("flameshot.ForceInstall: install failed: %w", err)
-	}
-	return nil
+	return baseapp.Reinstall(f.Install, f.Uninstall)
 }
 
 func (f *Flameshot) SoftInstall() error {
@@ -49,7 +50,7 @@ func (f *Flameshot) SoftConfigure() error {
 }
 
 func (f *Flameshot) Uninstall() error {
-	return fmt.Errorf("uninstall not supported for Flameshot")
+	return fmt.Errorf("%w for flameshot", apps.ErrUninstallNotSupported)
 }
 
 func (f *Flameshot) ExecuteCommand(args ...string) error {
@@ -58,5 +59,5 @@ func (f *Flameshot) ExecuteCommand(args ...string) error {
 }
 
 func (f *Flameshot) Update() error {
-	return fmt.Errorf("update not supported for Flameshot")
+	return fmt.Errorf("%w for flameshot", apps.ErrUpdateNotSupported)
 }

@@ -1,10 +1,12 @@
 package raycast
 
 import (
-	"strings"
+	"errors"
 	"testing"
 
+	"github.com/cjairm/devgita/internal/apps"
 	"github.com/cjairm/devgita/internal/testutil"
+	"github.com/cjairm/devgita/pkg/constants"
 )
 
 func init() {
@@ -18,6 +20,16 @@ func TestNew(t *testing.T) {
 	}
 	if r.Cmd == nil {
 		t.Fatal("New() returned Raycast with nil Cmd")
+	}
+}
+
+func TestNameAndKind(t *testing.T) {
+	r := &Raycast{}
+	if r.Name() != constants.Raycast {
+		t.Errorf("expected Name() %q, got %q", constants.Raycast, r.Name())
+	}
+	if r.Kind() != apps.KindDesktop {
+		t.Errorf("expected Kind() KindDesktop, got %v", r.Kind())
 	}
 }
 
@@ -71,18 +83,14 @@ func TestSoftInstall(t *testing.T) {
 }
 
 func TestForceInstall(t *testing.T) {
-	t.Skip("ForceInstall not supported - Uninstall() returns error")
-
 	mockApp := testutil.NewMockApp()
 	r := &Raycast{Cmd: mockApp.Cmd}
 
-	err := r.ForceInstall()
-	if err == nil {
-		t.Fatal("ForceInstall() should return error because Uninstall() is not supported")
+	if err := r.ForceInstall(); err != nil {
+		t.Fatalf("ForceInstall() should succeed even when uninstall is not supported: %v", err)
 	}
-
-	if !strings.Contains(err.Error(), "uninstall failed") {
-		t.Errorf("Expected error to mention 'uninstall failed', got: %v", err)
+	if mockApp.Cmd.InstalledDesktopApp != constants.Raycast {
+		t.Errorf("expected Install to be called, got %q", mockApp.Cmd.InstalledDesktopApp)
 	}
 
 	testutil.VerifyNoRealCommands(t, mockApp.Base)
@@ -113,8 +121,6 @@ func TestSoftConfigure(t *testing.T) {
 }
 
 func TestUninstall(t *testing.T) {
-	t.Skip("Uninstall not supported for desktop applications")
-
 	mockApp := testutil.NewMockApp()
 	r := &Raycast{Cmd: mockApp.Cmd}
 
@@ -122,9 +128,8 @@ func TestUninstall(t *testing.T) {
 	if err == nil {
 		t.Fatal("Uninstall() should return error")
 	}
-
-	if !strings.Contains(err.Error(), "not supported") {
-		t.Errorf("Expected error to mention 'not supported', got: %v", err)
+	if !errors.Is(err, apps.ErrUninstallNotSupported) {
+		t.Errorf("expected ErrUninstallNotSupported, got: %v", err)
 	}
 
 	testutil.VerifyNoRealCommands(t, mockApp.Base)
@@ -143,8 +148,6 @@ func TestExecuteCommand(t *testing.T) {
 }
 
 func TestUpdate(t *testing.T) {
-	t.Skip("Update not supported for desktop applications")
-
 	mockApp := testutil.NewMockApp()
 	r := &Raycast{Cmd: mockApp.Cmd}
 
@@ -152,9 +155,8 @@ func TestUpdate(t *testing.T) {
 	if err == nil {
 		t.Fatal("Update() should return error")
 	}
-
-	if !strings.Contains(err.Error(), "not supported") {
-		t.Errorf("Expected error to mention 'not supported', got: %v", err)
+	if !errors.Is(err, apps.ErrUpdateNotSupported) {
+		t.Errorf("expected ErrUpdateNotSupported, got: %v", err)
 	}
 
 	testutil.VerifyNoRealCommands(t, mockApp.Base)

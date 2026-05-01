@@ -8,13 +8,20 @@ package brave
 import (
 	"fmt"
 
+	"github.com/cjairm/devgita/internal/apps"
+	"github.com/cjairm/devgita/internal/apps/baseapp"
 	cmd "github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/pkg/constants"
 )
 
+var _ apps.App = (*Brave)(nil)
+
 type Brave struct {
 	Cmd cmd.Command
 }
+
+func (b *Brave) Name() string       { return constants.Brave }
+func (b *Brave) Kind() apps.AppKind { return apps.KindDesktop }
 
 func New() *Brave {
 	return &Brave{Cmd: cmd.NewCommand()}
@@ -25,13 +32,7 @@ func (b *Brave) Install() error {
 }
 
 func (b *Brave) ForceInstall() error {
-	if err := b.Uninstall(); err != nil {
-		return fmt.Errorf("brave.ForceInstall: uninstall failed: %w", err)
-	}
-	if err := b.Install(); err != nil {
-		return fmt.Errorf("brave.ForceInstall: install failed: %w", err)
-	}
-	return nil
+	return baseapp.Reinstall(b.Install, b.Uninstall)
 }
 
 func (b *Brave) SoftInstall() error {
@@ -52,7 +53,7 @@ func (b *Brave) SoftConfigure() error {
 }
 
 func (b *Brave) Uninstall() error {
-	return fmt.Errorf("uninstall not supported for Brave")
+	return fmt.Errorf("%w for brave", apps.ErrUninstallNotSupported)
 }
 
 func (b *Brave) ExecuteCommand(args ...string) error {
@@ -61,5 +62,5 @@ func (b *Brave) ExecuteCommand(args ...string) error {
 }
 
 func (b *Brave) Update() error {
-	return fmt.Errorf("update not supported for Brave")
+	return fmt.Errorf("%w for brave", apps.ErrUpdateNotSupported)
 }
