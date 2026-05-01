@@ -14,6 +14,8 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/cjairm/devgita/internal/apps"
+	"github.com/cjairm/devgita/internal/apps/baseapp"
 	cmd "github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/pkg/constants"
@@ -21,10 +23,15 @@ import (
 	"github.com/cjairm/devgita/pkg/paths"
 )
 
+var _ apps.App = (*Aerospace)(nil)
+
 type Aerospace struct {
 	Cmd  cmd.Command
 	Base cmd.BaseCommandExecutor
 }
+
+func (a *Aerospace) Name() string       { return constants.Aerospace }
+func (a *Aerospace) Kind() apps.AppKind { return apps.KindDesktop }
 
 func New() *Aerospace {
 	osCmd := cmd.NewCommand()
@@ -41,15 +48,11 @@ func (a *Aerospace) SoftInstall() error {
 }
 
 func (a *Aerospace) ForceInstall() error {
-	err := a.Uninstall()
-	if err != nil {
-		return fmt.Errorf("failed to uninstall aerospace: %w", err)
-	}
-	return a.Install()
+	return baseapp.Reinstall(a.Install, a.Uninstall)
 }
 
 func (a *Aerospace) Uninstall() error {
-	return fmt.Errorf("aerospace uninstall not supported through devgita")
+	return fmt.Errorf("%w for aerospace", apps.ErrUninstallNotSupported)
 }
 
 func (a *Aerospace) ForceConfigure() error {
@@ -79,11 +82,11 @@ func (a *Aerospace) SoftConfigure() error {
 	return a.ForceConfigure()
 }
 
-func (a *Aerospace) ExecuteCommand() error {
-	// No aerospace commands in terminal
+func (a *Aerospace) ExecuteCommand(args ...string) error {
+	// Aerospace is a tiling window manager; no terminal commands managed by devgita
 	return nil
 }
 
 func (a *Aerospace) Update() error {
-	return fmt.Errorf("aerospace update not implemented through devgita")
+	return fmt.Errorf("%w for aerospace", apps.ErrUpdateNotSupported)
 }

@@ -1,97 +1,115 @@
 package alacritty
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/cjairm/devgita/internal/commands"
+	"github.com/cjairm/devgita/internal/apps"
 	"github.com/cjairm/devgita/internal/testutil"
 	"github.com/cjairm/devgita/pkg/constants"
-	"github.com/cjairm/devgita/pkg/logger"
 	"github.com/cjairm/devgita/pkg/paths"
 )
 
 func init() {
-	// Initialize logger for tests
-	logger.Init(false)
+	testutil.InitLogger()
 }
 
 func TestNew(t *testing.T) {
 	app := New()
-
 	if app == nil {
 		t.Fatal("New() returned nil")
 	}
 }
 
+func TestNameAndKind(t *testing.T) {
+	a := &Alacritty{}
+	if a.Name() != constants.Alacritty {
+		t.Errorf("expected Name() %q, got %q", constants.Alacritty, a.Name())
+	}
+	if a.Kind() != apps.KindTerminal {
+		t.Errorf("expected Kind() KindTerminal, got %v", a.Kind())
+	}
+}
+
 func TestInstall(t *testing.T) {
-	mc := commands.NewMockCommand()
-	app := &Alacritty{Cmd: mc}
+	mockApp := testutil.NewMockApp()
+	app := &Alacritty{Cmd: mockApp.Cmd}
 
 	if err := app.Install(); err != nil {
 		t.Fatalf("Install error: %v", err)
 	}
-	if mc.InstalledDesktopApp != constants.Alacritty {
-		t.Fatalf(
-			"expected InstallDesktopApp(%s), got %q",
-			constants.Alacritty,
-			mc.InstalledDesktopApp,
-		)
+	if mockApp.Cmd.InstalledDesktopApp != constants.Alacritty {
+		t.Fatalf("expected InstallDesktopApp(%s), got %q", constants.Alacritty, mockApp.Cmd.InstalledDesktopApp)
 	}
+
+	testutil.VerifyNoRealCommands(t, mockApp.Base)
 }
 
-// SKIP: ForceInstall test as per guidelines
-// func TestForceInstall(t *testing.T) {
-// 	mc := commands.NewMockCommand()
-// 	app := &Alacritty{Cmd: mc}
-//
-// 	if err := app.ForceInstall(); err != nil {
-// 		t.Fatalf("ForceInstall error: %v", err)
-// 	}
-// 	// ForceInstall should call Install() which uses InstallDesktopApp
-// 	if mc.InstalledDesktopApp != constants.Alacritty {
-// 		t.Fatalf("expected InstallDesktopApp(%s), got %q", constants.Alacritty, mc.InstalledDesktopApp)
-// 	}
-// }
+func TestForceInstall(t *testing.T) {
+	mockApp := testutil.NewMockApp()
+	app := &Alacritty{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+	if err := app.ForceInstall(); err != nil {
+		t.Fatalf("ForceInstall() should succeed even when uninstall is not supported: %v", err)
+	}
+	if mockApp.Cmd.InstalledDesktopApp != constants.Alacritty {
+		t.Errorf("expected Install to be called, got %q", mockApp.Cmd.InstalledDesktopApp)
+	}
+
+	testutil.VerifyNoRealCommands(t, mockApp.Base)
+}
 
 func TestSoftInstall(t *testing.T) {
-	mc := commands.NewMockCommand()
-	app := &Alacritty{Cmd: mc}
+	mockApp := testutil.NewMockApp()
+	app := &Alacritty{Cmd: mockApp.Cmd}
 
 	if err := app.SoftInstall(); err != nil {
 		t.Fatalf("SoftInstall error: %v", err)
 	}
-	if mc.MaybeInstalledDesktop != constants.Alacritty {
-		t.Fatalf(
-			"expected MaybeInstallDesktopApp(%s), got %q",
-			constants.Alacritty,
-			mc.MaybeInstalledDesktop,
-		)
+	if mockApp.Cmd.MaybeInstalledDesktop != constants.Alacritty {
+		t.Fatalf("expected MaybeInstallDesktopApp(%s), got %q", constants.Alacritty, mockApp.Cmd.MaybeInstalledDesktop)
 	}
+
+	testutil.VerifyNoRealCommands(t, mockApp.Base)
 }
 
-// SKIP: Uninstall test as per guidelines
-// func TestUninstall(t *testing.T) {
-// 	mc := commands.NewMockCommand()
-// 	app := &Alacritty{Cmd: mc}
-//
-// 	err := app.Uninstall()
-// 	if err == nil {
-// 		t.Fatal("expected Uninstall to return error for unsupported operation")
-// 	}
-// 	if err.Error() != "uninstall not implemented for alacritty" {
-// 		t.Fatalf("unexpected error message: %v", err)
-// 	}
-// }
+func TestUninstall(t *testing.T) {
+	mockApp := testutil.NewMockApp()
+	app := &Alacritty{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+	err := app.Uninstall()
+	if err == nil {
+		t.Fatal("expected Uninstall to return error for unsupported operation")
+	}
+	if !errors.Is(err, apps.ErrUninstallNotSupported) {
+		t.Errorf("expected ErrUninstallNotSupported, got: %v", err)
+	}
+
+	testutil.VerifyNoRealCommands(t, mockApp.Base)
+}
+
+func TestUpdate(t *testing.T) {
+	mockApp := testutil.NewMockApp()
+	app := &Alacritty{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+	err := app.Update()
+	if err == nil {
+		t.Fatal("expected Update to return error")
+	}
+	if !errors.Is(err, apps.ErrUpdateNotSupported) {
+		t.Errorf("expected ErrUpdateNotSupported, got: %v", err)
+	}
+
+	testutil.VerifyNoRealCommands(t, mockApp.Base)
+}
 
 func TestForceConfigure(t *testing.T) {
-	// Setup isolated test environment with templates and config
 	tc := testutil.SetupCompleteTest(t)
 	defer tc.Cleanup()
 
-	// Create alacritty template
 	tmplDir := filepath.Join(tc.AppDir, "alacritty")
 	if err := os.MkdirAll(tmplDir, 0755); err != nil {
 		t.Fatal(err)
@@ -118,20 +136,17 @@ background = "0x282828"
 		t.Fatal(err)
 	}
 
-	// Create starter.sh
 	starterContent := "#!/bin/bash\nzsh"
 	starterPath := filepath.Join(tmplDir, "starter.sh")
 	if err := os.WriteFile(starterPath, []byte(starterContent), 0755); err != nil {
 		t.Fatal(err)
 	}
 
-	// Create destination directory
 	destDir := filepath.Join(tc.ConfigDir, "alacritty")
 	if err := os.MkdirAll(destDir, 0755); err != nil {
 		t.Fatal(err)
 	}
 
-	// Override paths
 	oldAppConfig := paths.Paths.App.Configs.Alacritty
 	oldLocalConfig := paths.Paths.Config.Alacritty
 	oldConfigRoot := paths.Paths.Config.Root
@@ -148,23 +163,20 @@ background = "0x282828"
 
 	app := &Alacritty{Cmd: tc.MockApp.Cmd}
 
-	if err := app.ForceConfigure(ConfigureOptions{}); err != nil {
+	if err := app.ForceConfigure(); err != nil {
 		t.Fatalf("ForceConfigure error: %v", err)
 	}
 
-	// Check that config file was generated
 	configPath := filepath.Join(destDir, "alacritty.toml")
 	if _, err := os.Stat(configPath); err != nil {
 		t.Fatalf("expected generated file at %s: %v", configPath, err)
 	}
 
-	// Check that starter.sh was copied
 	starterDest := filepath.Join(destDir, "starter.sh")
 	if _, err := os.Stat(starterDest); err != nil {
 		t.Fatalf("expected copied file at %s: %v", starterDest, err)
 	}
 
-	// Verify generated content contains expected sections
 	content, err := os.ReadFile(configPath)
 	if err != nil {
 		t.Fatalf("failed to read generated config: %v", err)
@@ -176,14 +188,14 @@ background = "0x282828"
 	if !strings.Contains(configStr, "opacity = 0.8") {
 		t.Error("expected generated config to contain opacity setting")
 	}
+
+	testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
 }
 
 func TestSoftConfigure(t *testing.T) {
-	// Setup isolated test environment with templates and config
 	tc := testutil.SetupCompleteTest(t)
 	defer tc.Cleanup()
 
-	// Create alacritty template
 	tmplDir := filepath.Join(tc.AppDir, "alacritty")
 	if err := os.MkdirAll(tmplDir, 0755); err != nil {
 		t.Fatal(err)
@@ -210,20 +222,17 @@ background = "0x1e1e1e"
 		t.Fatal(err)
 	}
 
-	// Create starter.sh
 	starterContent := "#!/bin/bash\nzsh"
 	starterPath := filepath.Join(tmplDir, "starter.sh")
 	if err := os.WriteFile(starterPath, []byte(starterContent), 0755); err != nil {
 		t.Fatal(err)
 	}
 
-	// Create destination directory
 	destDir := filepath.Join(tc.ConfigDir, "alacritty")
 	if err := os.MkdirAll(destDir, 0755); err != nil {
 		t.Fatal(err)
 	}
 
-	// Override paths
 	oldAppConfig := paths.Paths.App.Configs.Alacritty
 	oldLocalConfig := paths.Paths.Config.Alacritty
 	oldConfigRoot := paths.Paths.Config.Root
@@ -240,24 +249,20 @@ background = "0x1e1e1e"
 
 	app := &Alacritty{Cmd: tc.MockApp.Cmd}
 
-	// Test 1: Should configure when no existing config
-	if err := app.SoftConfigure(ConfigureOptions{}); err != nil {
+	if err := app.SoftConfigure(); err != nil {
 		t.Fatalf("SoftConfigure error: %v", err)
 	}
 
-	// Check that config file was generated
 	configPath := filepath.Join(destDir, "alacritty.toml")
 	if _, err := os.Stat(configPath); err != nil {
 		t.Fatalf("expected generated file at %s: %v", configPath, err)
 	}
 
-	// Check that starter.sh was copied
 	starterDest := filepath.Join(destDir, "starter.sh")
 	if _, err := os.Stat(starterDest); err != nil {
 		t.Fatalf("expected copied file at %s: %v", starterDest, err)
 	}
 
-	// Verify generated content
 	content, err := os.ReadFile(configPath)
 	if err != nil {
 		t.Fatalf("failed to read generated config: %v", err)
@@ -267,31 +272,22 @@ background = "0x1e1e1e"
 		t.Error("expected generated config to contain opacity setting")
 	}
 
-	// Test 2: Should not overwrite when config already exists
-	// Modify the existing config
-	modifiedContent := `[window]
-opacity = 0.5
-option_as_alt = "none"
-`
+	modifiedContent := "[window]\nopacity = 0.5\noption_as_alt = \"none\"\n"
 	if err := os.WriteFile(configPath, []byte(modifiedContent), 0644); err != nil {
 		t.Fatal(err)
 	}
 
-	// Run SoftConfigure again
-	if err := app.SoftConfigure(ConfigureOptions{}); err != nil {
+	if err := app.SoftConfigure(); err != nil {
 		t.Fatalf("second SoftConfigure error: %v", err)
 	}
 
-	// Check that the file was not overwritten
 	finalContent, err := os.ReadFile(configPath)
 	if err != nil {
 		t.Fatalf("failed to read config file: %v", err)
 	}
 	if string(finalContent) != modifiedContent {
-		t.Fatalf(
-			"SoftConfigure should not overwrite existing config: expected %q, got %q",
-			modifiedContent,
-			string(finalContent),
-		)
+		t.Fatalf("SoftConfigure should not overwrite existing config: expected %q, got %q", modifiedContent, string(finalContent))
 	}
+
+	testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
 }

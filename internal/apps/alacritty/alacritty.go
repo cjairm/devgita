@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/cjairm/devgita/internal/apps"
+	"github.com/cjairm/devgita/internal/apps/baseapp"
 	cmd "github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/pkg/constants"
@@ -15,15 +17,15 @@ import (
 	"github.com/cjairm/devgita/pkg/paths"
 )
 
+var _ apps.App = (*Alacritty)(nil)
+
 type Alacritty struct {
 	Cmd  cmd.Command
 	Base cmd.BaseCommandExecutor
 }
 
-type ConfigureOptions struct {
-	Font  string
-	Theme string
-}
+func (a *Alacritty) Name() string       { return constants.Alacritty }
+func (a *Alacritty) Kind() apps.AppKind { return apps.KindTerminal }
 
 func New() *Alacritty {
 	osCmd := cmd.NewCommand()
@@ -40,31 +42,16 @@ func (a *Alacritty) SoftInstall() error {
 }
 
 func (a *Alacritty) ForceInstall() error {
-	err := a.Uninstall()
-	if err != nil {
-		return fmt.Errorf("failed to uninstall alacritty: %w", err)
-	}
-	return a.Install()
+	return baseapp.Reinstall(a.Install, a.Uninstall)
 }
 
-func (a *Alacritty) ForceConfigure(opts ...ConfigureOptions) error {
-	var options ConfigureOptions
-	if len(opts) > 0 {
-		options = opts[0]
-	}
-
+func (a *Alacritty) ForceConfigure() error {
 	gc := &config.GlobalConfig{}
 	if err := gc.Load(); err != nil {
 		return fmt.Errorf("failed to load global config: %w", err)
 	}
 	font := "default"
-	if options.Font != "" {
-		font = options.Font
-	}
 	theme := "default"
-	if options.Theme != "" {
-		theme = options.Theme
-	}
 	configFilePath := filepath.Join(
 		paths.Paths.Config.Alacritty,
 		fmt.Sprintf("%s.toml", constants.Alacritty),
@@ -93,12 +80,7 @@ func (a *Alacritty) ForceConfigure(opts ...ConfigureOptions) error {
 	return nil
 }
 
-func (a *Alacritty) SoftConfigure(opts ...ConfigureOptions) error {
-	var options ConfigureOptions
-	if len(opts) > 0 {
-		options = opts[0]
-	}
-
+func (a *Alacritty) SoftConfigure() error {
 	gc := &config.GlobalConfig{}
 	if err := gc.Load(); err != nil {
 		return fmt.Errorf("failed to load global config: %w", err)
@@ -107,14 +89,14 @@ func (a *Alacritty) SoftConfigure(opts ...ConfigureOptions) error {
 		gc.IsInstalledByDevgita(constants.Alacritty, "desktop_app") {
 		return nil
 	}
-	if err := a.ForceConfigure(options); err != nil {
+	if err := a.ForceConfigure(); err != nil {
 		return fmt.Errorf("failed to configure alacritty: %w", err)
 	}
 	return nil
 }
 
 func (a *Alacritty) Uninstall() error {
-	return fmt.Errorf("uninstall not implemented for alacritty")
+	return fmt.Errorf("%w for alacritty", apps.ErrUninstallNotSupported)
 }
 
 func (a *Alacritty) ExecuteCommand(args ...string) error {
@@ -123,5 +105,5 @@ func (a *Alacritty) ExecuteCommand(args ...string) error {
 }
 
 func (a *Alacritty) Update() error {
-	return fmt.Errorf("update not implemented for alacritty")
+	return fmt.Errorf("%w for alacritty", apps.ErrUpdateNotSupported)
 }

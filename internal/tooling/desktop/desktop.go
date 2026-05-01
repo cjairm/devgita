@@ -102,7 +102,7 @@ func (d *Desktop) InstallAlacritty() error {
 	if err != nil {
 		return err
 	}
-	err = a.SoftConfigure(alacritty.ConfigureOptions{})
+	err = a.SoftConfigure()
 	if err != nil {
 		return err
 	}
