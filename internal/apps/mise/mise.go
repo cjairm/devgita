@@ -10,15 +10,22 @@ package mise
 import (
 	"fmt"
 
+	"github.com/cjairm/devgita/internal/apps"
+	"github.com/cjairm/devgita/internal/apps/baseapp"
 	cmd "github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/pkg/constants"
 )
 
+var _ apps.App = (*Mise)(nil)
+
 type Mise struct {
 	Cmd  cmd.Command
 	Base cmd.BaseCommandExecutor
 }
+
+func (m *Mise) Name() string       { return constants.Mise }
+func (m *Mise) Kind() apps.AppKind { return apps.KindTerminal }
 
 func New() *Mise {
 	osCmd := cmd.NewCommand()
@@ -31,11 +38,7 @@ func (m *Mise) Install() error {
 }
 
 func (m *Mise) ForceInstall() error {
-	err := m.Uninstall()
-	if err != nil {
-		return fmt.Errorf("failed to uninstall mise before force install: %w", err)
-	}
-	return m.Install()
+	return baseapp.Reinstall(m.Install, m.Uninstall)
 }
 
 func (m *Mise) SoftInstall() error {
@@ -94,7 +97,7 @@ func (m *Mise) ExecuteCommand(args ...string) error {
 }
 
 func (m *Mise) Update() error {
-	return fmt.Errorf("update not implemented for mise")
+	return fmt.Errorf("%w for mise", apps.ErrUpdateNotSupported)
 }
 
 func (m *Mise) UseGlobal(language, version string) error {

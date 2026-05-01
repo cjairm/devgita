@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"runtime"
 
+	"github.com/cjairm/devgita/internal/apps"
+	"github.com/cjairm/devgita/internal/apps/baseapp"
 	cmd "github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/pkg/constants"
@@ -29,12 +31,17 @@ import (
 	"github.com/cjairm/devgita/pkg/logger"
 )
 
+var _ apps.App = (*LazyGit)(nil)
+
 type LazyGit struct {
 	Cmd          cmd.Command
 	Base         cmd.BaseCommandExecutor
 	fetchVersion func(owner, repo string) (string, error)                                      // injectable for tests
 	downloadFn   func(ctx context.Context, url, dest string, cfg downloader.RetryConfig) error // injectable for tests
 }
+
+func (lg *LazyGit) Name() string       { return constants.LazyGit }
+func (lg *LazyGit) Kind() apps.AppKind { return apps.KindTerminal }
 
 func (lg *LazyGit) getVersion(owner, repo string) (string, error) {
 	if lg.fetchVersion != nil {
@@ -99,15 +106,11 @@ func (lg *LazyGit) installDebianLazygit() error {
 }
 
 func (lg *LazyGit) ForceInstall() error {
-	err := lg.Uninstall()
-	if err != nil {
-		return fmt.Errorf("failed to uninstall lazygit: %w", err)
-	}
-	return lg.Install()
+	return baseapp.Reinstall(lg.Install, lg.Uninstall)
 }
 
 func (lg *LazyGit) Uninstall() error {
-	return fmt.Errorf("lazygit uninstall not supported through devgita")
+	return fmt.Errorf("%w for lazygit", apps.ErrUninstallNotSupported)
 }
 
 func (lg *LazyGit) ForceConfigure() error {
@@ -148,5 +151,5 @@ func (lg *LazyGit) ExecuteCommand(args ...string) error {
 }
 
 func (lg *LazyGit) Update() error {
-	return fmt.Errorf("lazygit update not implemented through devgita")
+	return fmt.Errorf("%w for lazygit", apps.ErrUpdateNotSupported)
 }

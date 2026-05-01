@@ -11,16 +11,23 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/cjairm/devgita/internal/apps"
+	"github.com/cjairm/devgita/internal/apps/baseapp"
 	cmd "github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/files"
 	"github.com/cjairm/devgita/pkg/paths"
 )
 
+var _ apps.App = (*Fastfetch)(nil)
+
 type Fastfetch struct {
 	Cmd  cmd.Command
 	Base cmd.BaseCommandExecutor
 }
+
+func (f *Fastfetch) Name() string       { return constants.Fastfetch }
+func (f *Fastfetch) Kind() apps.AppKind { return apps.KindTerminal }
 
 func New() *Fastfetch {
 	osCmd := cmd.NewCommand()
@@ -33,11 +40,7 @@ func (f *Fastfetch) Install() error {
 }
 
 func (f *Fastfetch) ForceInstall() error {
-	err := f.Uninstall()
-	if err != nil {
-		return fmt.Errorf("failed to uninstall fastfetch: %w", err)
-	}
-	return f.Install()
+	return baseapp.Reinstall(f.Install, f.Uninstall)
 }
 
 func (f *Fastfetch) SoftInstall() error {
@@ -58,7 +61,7 @@ func (f *Fastfetch) SoftConfigure() error {
 }
 
 func (f *Fastfetch) Uninstall() error {
-	return fmt.Errorf("uninstall not implemented for fastfetch")
+	return fmt.Errorf("%w for fastfetch", apps.ErrUninstallNotSupported)
 }
 
 func (f *Fastfetch) ExecuteCommand(args ...string) error {
@@ -74,5 +77,5 @@ func (f *Fastfetch) ExecuteCommand(args ...string) error {
 }
 
 func (f *Fastfetch) Update() error {
-	return fmt.Errorf("update not implemented for fastfetch")
+	return fmt.Errorf("%w for fastfetch", apps.ErrUpdateNotSupported)
 }

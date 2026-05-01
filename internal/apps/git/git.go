@@ -27,11 +27,15 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/cjairm/devgita/internal/apps"
+	"github.com/cjairm/devgita/internal/apps/baseapp"
 	cmd "github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/files"
 	"github.com/cjairm/devgita/pkg/paths"
 )
+
+var _ apps.App = (*Git)(nil)
 
 // WorktreeInfo contains information about a git worktree
 type WorktreeInfo struct {
@@ -44,6 +48,9 @@ type Git struct {
 	Cmd  cmd.Command
 	Base cmd.BaseCommandExecutor
 }
+
+func (g *Git) Name() string       { return constants.Git }
+func (g *Git) Kind() apps.AppKind { return apps.KindTerminal }
 
 func New() *Git {
 	osCmd := cmd.NewCommand()
@@ -60,15 +67,11 @@ func (g *Git) SoftInstall() error {
 }
 
 func (g *Git) ForceInstall() error {
-	err := g.Uninstall()
-	if err != nil {
-		return fmt.Errorf("failed to uninstall git: %w", err)
-	}
-	return g.Install()
+	return baseapp.Reinstall(g.Install, g.Uninstall)
 }
 
 func (g *Git) Uninstall() error {
-	return fmt.Errorf("git uninstall not supported through devgita")
+	return fmt.Errorf("%w for git", apps.ErrUninstallNotSupported)
 }
 
 func (g *Git) ForceConfigure() error {
@@ -141,7 +144,7 @@ func (g *Git) Restore(branch, files string) error {
 }
 
 func (g *Git) Update() error {
-	return fmt.Errorf("git update not implemented through devgita")
+	return fmt.Errorf("%w for git", apps.ErrUpdateNotSupported)
 }
 
 // BranchExists checks if a branch exists in the repository

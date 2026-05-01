@@ -12,6 +12,8 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/cjairm/devgita/internal/apps"
+	"github.com/cjairm/devgita/internal/apps/baseapp"
 	cmd "github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/pkg/constants"
@@ -19,12 +21,17 @@ import (
 	"github.com/cjairm/devgita/pkg/paths"
 )
 
+var _ apps.App = (*Tmux)(nil)
+
 const configFileName = ".tmux.conf"
 
 type Tmux struct {
 	Cmd  cmd.Command
 	Base cmd.BaseCommandExecutor
 }
+
+func (t *Tmux) Name() string       { return constants.Tmux }
+func (t *Tmux) Kind() apps.AppKind { return apps.KindTerminal }
 
 func New() *Tmux {
 	osCmd := cmd.NewCommand()
@@ -37,10 +44,7 @@ func (t *Tmux) Install() error {
 }
 
 func (t *Tmux) ForceInstall() error {
-	if err := t.Uninstall(); err != nil {
-		return fmt.Errorf("failed to uninstall tmux before force install: %w", err)
-	}
-	return t.Install()
+	return baseapp.Reinstall(t.Install, t.Uninstall)
 }
 
 func (t *Tmux) SoftInstall() error {
@@ -80,7 +84,7 @@ func (t *Tmux) SoftConfigure() error {
 }
 
 func (t *Tmux) Uninstall() error {
-	return fmt.Errorf("tmux uninstall is not supported")
+	return fmt.Errorf("%w for tmux", apps.ErrUninstallNotSupported)
 }
 
 func (t *Tmux) ExecuteCommand(args ...string) error {
@@ -95,7 +99,7 @@ func (t *Tmux) ExecuteCommand(args ...string) error {
 }
 
 func (t *Tmux) Update() error {
-	return fmt.Errorf("tmux update is not implemented")
+	return fmt.Errorf("%w for tmux", apps.ErrUpdateNotSupported)
 }
 
 // CreateSession creates a new detached tmux session in the given directory

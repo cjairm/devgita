@@ -20,6 +20,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/cjairm/devgita/internal/apps"
+	"github.com/cjairm/devgita/internal/apps/baseapp"
 	cmd "github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/pkg/constants"
@@ -29,11 +31,16 @@ import (
 	"github.com/cjairm/devgita/pkg/paths"
 )
 
+var _ apps.App = (*Neovim)(nil)
+
 type Neovim struct {
 	Cmd        cmd.Command
 	Base       cmd.BaseCommandExecutor
 	downloadFn func(ctx context.Context, url, dest string, cfg downloader.RetryConfig) error // injectable for tests
 }
+
+func (n *Neovim) Name() string       { return constants.Neovim }
+func (n *Neovim) Kind() apps.AppKind { return apps.KindTerminal }
 
 func (n *Neovim) doDownload(ctx context.Context, url, dest string, cfg downloader.RetryConfig) error {
 	if n.downloadFn != nil {
@@ -56,11 +63,7 @@ func (n *Neovim) Install() error {
 }
 
 func (n *Neovim) ForceInstall() error {
-	err := n.Uninstall()
-	if err != nil {
-		return fmt.Errorf("failed to uninstall Neovim before force install: %w", err)
-	}
-	return n.Install()
+	return baseapp.Reinstall(n.Install, n.Uninstall)
 }
 
 func (n *Neovim) SoftInstall() error {
@@ -185,7 +188,7 @@ func (n *Neovim) SoftConfigure() error {
 }
 
 func (n *Neovim) Uninstall() error {
-	return fmt.Errorf("uninstall operation not supported for Neovim")
+	return fmt.Errorf("%w for neovim", apps.ErrUninstallNotSupported)
 }
 
 func (n *Neovim) ExecuteCommand(args ...string) error {
@@ -198,7 +201,7 @@ func (n *Neovim) ExecuteCommand(args ...string) error {
 }
 
 func (n *Neovim) Update() error {
-	return fmt.Errorf("update operation not implemented for Neovim")
+	return fmt.Errorf("%w for neovim", apps.ErrUpdateNotSupported)
 }
 
 func (n *Neovim) checkVersion() error {

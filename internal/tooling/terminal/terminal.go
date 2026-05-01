@@ -143,7 +143,6 @@ func (t *Terminal) InstallTerminalApps(summary *InstallationSummary) {
 		}
 	}
 
-	// OpenCode has different SoftConfigure signature (accepts ConfigureOptions)
 	o := opencode.New()
 	if err := o.SoftInstall(); err != nil {
 		displayMessage(err, constants.OpenCode)

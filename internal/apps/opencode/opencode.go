@@ -14,12 +14,16 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/cjairm/devgita/internal/apps"
+	"github.com/cjairm/devgita/internal/apps/baseapp"
 	cmd "github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/files"
 	"github.com/cjairm/devgita/pkg/paths"
 )
+
+var _ apps.App = (*OpenCode)(nil)
 
 const DEFAULT_THEME_NAME = "default"
 
@@ -28,9 +32,8 @@ type OpenCode struct {
 	Base cmd.BaseCommandExecutor
 }
 
-type ConfigureOptions struct {
-	Theme string
-}
+func (o *OpenCode) Name() string       { return constants.OpenCode }
+func (o *OpenCode) Kind() apps.AppKind { return apps.KindTerminal }
 
 func New() *OpenCode {
 	osCmd := cmd.NewCommand()
@@ -43,11 +46,7 @@ func (o *OpenCode) Install() error {
 }
 
 func (o *OpenCode) ForceInstall() error {
-	err := o.Uninstall()
-	if err != nil {
-		return fmt.Errorf("failed to uninstall opencode: %w", err)
-	}
-	return o.Install()
+	return baseapp.Reinstall(o.Install, o.Uninstall)
 }
 
 func (o *OpenCode) SoftInstall() error {
@@ -55,15 +54,10 @@ func (o *OpenCode) SoftInstall() error {
 }
 
 func (o *OpenCode) Uninstall() error {
-	return fmt.Errorf("opencode uninstall not supported through devgita")
+	return fmt.Errorf("%w for opencode", apps.ErrUninstallNotSupported)
 }
 
-func (o *OpenCode) ForceConfigure(opts ...ConfigureOptions) error {
-	var options ConfigureOptions
-	if len(opts) > 0 {
-		options = opts[0]
-	}
-
+func (o *OpenCode) ForceConfigure() error {
 	if err := os.RemoveAll(paths.Paths.Config.OpenCode); err != nil {
 		return err
 	}
@@ -77,9 +71,6 @@ func (o *OpenCode) ForceConfigure(opts ...ConfigureOptions) error {
 		return fmt.Errorf("failed to load global config: %w", err)
 	}
 	theme := DEFAULT_THEME_NAME
-	if options.Theme != "" {
-		theme = options.Theme
-	}
 	configFilePath := filepath.Join(
 		paths.Paths.Config.OpenCode,
 		fmt.Sprintf("%s.json", constants.OpenCode),
@@ -123,12 +114,7 @@ func (o *OpenCode) ForceConfigure(opts ...ConfigureOptions) error {
 	return nil
 }
 
-func (o *OpenCode) SoftConfigure(opts ...ConfigureOptions) error {
-	var options ConfigureOptions
-	if len(opts) > 0 {
-		options = opts[0]
-	}
-
+func (o *OpenCode) SoftConfigure() error {
 	gc := &config.GlobalConfig{}
 	if err := gc.Load(); err != nil {
 		return fmt.Errorf("failed to load global config: %w", err)
@@ -144,7 +130,7 @@ func (o *OpenCode) SoftConfigure(opts ...ConfigureOptions) error {
 	if files.FileAlreadyExist(markerFile) {
 		return nil
 	}
-	return o.ForceConfigure(options)
+	return o.ForceConfigure()
 }
 
 func (o *OpenCode) ExecuteCommand(args ...string) error {
@@ -160,5 +146,5 @@ func (o *OpenCode) ExecuteCommand(args ...string) error {
 }
 
 func (o *OpenCode) Update() error {
-	return fmt.Errorf("opencode update not implemented - use system package manager")
+	return fmt.Errorf("%w for opencode", apps.ErrUpdateNotSupported)
 }
