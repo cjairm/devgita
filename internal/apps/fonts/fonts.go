@@ -4,15 +4,21 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/cjairm/devgita/internal/apps"
 	cmd "github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/logger"
 )
 
+var _ apps.FontInstaller = (*Fonts)(nil)
+
 type Fonts struct {
 	Cmd  cmd.Command
 	Base cmd.BaseCommandExecutor
 }
+
+func (f *Fonts) Name() string       { return constants.Fonts }
+func (f *Fonts) Kind() apps.AppKind { return apps.KindFont }
 
 func New() *Fonts {
 	osCmd := cmd.NewCommand()
@@ -20,28 +26,25 @@ func New() *Fonts {
 	return &Fonts{Cmd: osCmd, Base: baseCmd}
 }
 
-func (f *Fonts) Install(fontName string) error {
-	return f.Cmd.InstallDesktopApp(fontName)
+func (f *Fonts) InstallFont(name string) error {
+	return f.Cmd.InstallDesktopApp(name)
 }
 
-func (f *Fonts) ForceInstall(fontName string) error {
-	err := f.Uninstall(fontName)
-	if err != nil {
-		return fmt.Errorf("failed to uninstall fonts: %w", err)
+func (f *Fonts) ForceInstallFont(name string) error {
+	if err := f.UninstallFont(name); err != nil && !errors.Is(err, apps.ErrUninstallNotSupported) {
+		return fmt.Errorf("failed to uninstall font %s: %w", name, err)
 	}
-	return f.Install(fontName)
+	return f.InstallFont(name)
 }
 
-func (f *Fonts) SoftInstall(fontName string) error {
+func (f *Fonts) SoftInstallFont(name string) error {
 	if f.Base.IsMac() {
-		// macOS: Homebrew handles font installation, URL is ignored
-		return f.Cmd.MaybeInstallFont("", fontName, false)
+		return f.Cmd.MaybeInstallFont("", name, false)
 	}
 
-	// Debian: download tar.xz from GitHub Nerd Fonts releases
-	fc := constants.GetFontConfigByPackageName(fontName)
+	fc := constants.GetFontConfigByPackageName(name)
 	if fc == nil {
-		logger.L().Warnw("No Debian font config found, skipping", "font", fontName)
+		logger.L().Warnw("No Debian font config found, skipping", "font", name)
 		return nil
 	}
 
@@ -49,24 +52,8 @@ func (f *Fonts) SoftInstall(fontName string) error {
 	return f.Cmd.MaybeInstallFont(fontURL, fc.InstallName, true)
 }
 
-func (f *Fonts) ForceConfigure() error {
-	return nil
-}
-
-func (f *Fonts) SoftConfigure() error {
-	return nil
-}
-
-func (f *Fonts) Uninstall(_fontName string) error {
-	return errors.New("font uninstallation is not supported")
-}
-
-func (f *Fonts) ExecuteCommand(args ...string) error {
-	return nil
-}
-
-func (f *Fonts) Update() error {
-	return errors.New("font updates are not implemented - use system package manager")
+func (f *Fonts) UninstallFont(_ string) error {
+	return fmt.Errorf("%w for fonts", apps.ErrUninstallNotSupported)
 }
 
 func (f *Fonts) Available() []string {
@@ -81,8 +68,9 @@ func (f *Fonts) Available() []string {
 func (f *Fonts) SoftInstallAll() {
 	availableFonts := f.Available()
 	for _, font := range availableFonts {
-		if err := f.SoftInstall(font); err != nil {
+		if err := f.SoftInstallFont(font); err != nil {
 			logger.L().Warnw("Font installation failed, continuing", "font", font, "error", err)
 		}
 	}
 }
+

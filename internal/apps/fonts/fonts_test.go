@@ -1,67 +1,107 @@
 package fonts
 
 import (
+	"errors"
 	"testing"
 
-	cmd "github.com/cjairm/devgita/internal/commands"
-	"github.com/cjairm/devgita/pkg/logger"
+	"github.com/cjairm/devgita/internal/apps"
+	"github.com/cjairm/devgita/internal/testutil"
+	"github.com/cjairm/devgita/pkg/constants"
 )
 
 func init() {
-	// Initialize logger for tests
-	logger.Init(false)
+	testutil.InitLogger()
 }
 
 func TestNew(t *testing.T) {
-	fonts := New()
-	if fonts == nil {
+	f := New()
+	if f == nil {
 		t.Fatal("New() returned nil")
 	}
-	if fonts.Cmd == nil {
+	if f.Cmd == nil {
 		t.Fatal("New() did not initialize command")
 	}
 }
 
+func TestNameAndKind(t *testing.T) {
+	f := &Fonts{}
+	if f.Name() != constants.Fonts {
+		t.Errorf("expected Name() %q, got %q", constants.Fonts, f.Name())
+	}
+	if f.Kind() != apps.KindFont {
+		t.Errorf("expected Kind() KindFont, got %v", f.Kind())
+	}
+}
+
 func TestInstallFont(t *testing.T) {
-	mockCmd := cmd.NewMockCommand()
-	fonts := &Fonts{Cmd: mockCmd}
+	mockApp := testutil.NewMockApp()
+	f := &Fonts{Cmd: mockApp.Cmd}
 
 	fontName := "font-hack-nerd-font"
-	err := fonts.Install(fontName)
-	if err != nil {
+	if err := f.InstallFont(fontName); err != nil {
 		t.Fatalf("InstallFont() failed: %v", err)
 	}
-
-	if mockCmd.InstalledDesktopApp != fontName {
-		t.Errorf("Expected font %s, got %s", fontName, mockCmd.InstalledDesktopApp)
+	if mockApp.Cmd.InstalledDesktopApp != fontName {
+		t.Errorf("Expected font %s, got %s", fontName, mockApp.Cmd.InstalledDesktopApp)
 	}
+
+	testutil.VerifyNoRealCommands(t, mockApp.Base)
+}
+
+func TestForceInstallFont(t *testing.T) {
+	mockApp := testutil.NewMockApp()
+	f := &Fonts{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+	fontName := "font-hack-nerd-font"
+	if err := f.ForceInstallFont(fontName); err != nil {
+		t.Fatalf("ForceInstallFont() should succeed even when uninstall is not supported: %v", err)
+	}
+	if mockApp.Cmd.InstalledDesktopApp != fontName {
+		t.Errorf("Expected Install to be called for %s, got %s", fontName, mockApp.Cmd.InstalledDesktopApp)
+	}
+
+	testutil.VerifyNoRealCommands(t, mockApp.Base)
 }
 
 func TestSoftInstallFont(t *testing.T) {
-	mockCmd := cmd.NewMockCommand()
-	mockBase := cmd.NewMockBaseCommand()
-	mockBase.IsMacResult = true // macOS: URL is ignored, use Homebrew package name
-	fonts := &Fonts{Cmd: mockCmd, Base: mockBase}
+	mockApp := testutil.NewMockApp()
+	mockApp.Base.IsMacResult = true
+	f := &Fonts{Cmd: mockApp.Cmd, Base: mockApp.Base}
 
 	fontName := "font-meslo-lg-nerd-font"
-	err := fonts.SoftInstall(fontName)
-	if err != nil {
+	if err := f.SoftInstallFont(fontName); err != nil {
 		t.Fatalf("SoftInstallFont() failed: %v", err)
 	}
+	if mockApp.Cmd.FontName != fontName {
+		t.Errorf("Expected font %s, got %s", fontName, mockApp.Cmd.FontName)
+	}
+	if mockApp.Cmd.FontURL != "" {
+		t.Errorf("Expected empty URL, got %s", mockApp.Cmd.FontURL)
+	}
 
-	if mockCmd.FontName != fontName {
-		t.Errorf("Expected font %s, got %s", fontName, mockCmd.FontName)
+	testutil.VerifyNoRealCommands(t, mockApp.Base)
+}
+
+func TestUninstallFont(t *testing.T) {
+	mockApp := testutil.NewMockApp()
+	f := &Fonts{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+	err := f.UninstallFont("font-hack-nerd-font")
+	if err == nil {
+		t.Fatal("expected UninstallFont to return error for unsupported operation")
 	}
-	if mockCmd.FontURL != "" {
-		t.Errorf("Expected empty URL, got %s", mockCmd.FontURL)
+	if !errors.Is(err, apps.ErrUninstallNotSupported) {
+		t.Errorf("expected ErrUninstallNotSupported, got: %v", err)
 	}
+
+	testutil.VerifyNoRealCommands(t, mockApp.Base)
 }
 
 func TestAvailable(t *testing.T) {
-	mockCmd := cmd.NewMockCommand()
-	fonts := &Fonts{Cmd: mockCmd}
+	mockApp := testutil.NewMockApp()
+	f := &Fonts{Cmd: mockApp.Cmd}
 
-	available := fonts.Available()
+	available := f.Available()
 	expectedFonts := []string{
 		"font-hack-nerd-font",
 		"font-meslo-lg-nerd-font",
@@ -73,7 +113,6 @@ func TestAvailable(t *testing.T) {
 	if len(available) != len(expectedFonts) {
 		t.Fatalf("Expected %d fonts, got %d", len(expectedFonts), len(available))
 	}
-
 	for i, expected := range expectedFonts {
 		if available[i] != expected {
 			t.Errorf("Expected font %s at index %d, got %s", expected, i, available[i])

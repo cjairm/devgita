@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"runtime"
 
+	"github.com/cjairm/devgita/internal/apps"
+	"github.com/cjairm/devgita/internal/apps/baseapp"
 	"github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/internal/embedded"
@@ -15,12 +17,17 @@ import (
 	"github.com/cjairm/devgita/pkg/paths"
 )
 
+var _ apps.App = (*Devgita)(nil)
+
 const DevgitaExtended = "extended_capabilities"
 
 type Devgita struct {
 	Base            commands.BaseCommandExecutor
 	ExtractEmbedded embedded.ExtractFunc
 }
+
+func (dg *Devgita) Name() string       { return constants.DevgitaApp }
+func (dg *Devgita) Kind() apps.AppKind { return apps.KindMeta }
 
 func getConfigDirPath() string {
 	return filepath.Join(paths.Paths.Config.Root, constants.App.Name)
@@ -73,11 +80,7 @@ func (dg *Devgita) SoftInstall() error {
 }
 
 func (dg *Devgita) ForceInstall() error {
-	err := dg.Uninstall()
-	if err != nil {
-		return fmt.Errorf("failed to uninstall devgita: %w", err)
-	}
-	return dg.Install()
+	return baseapp.Reinstall(dg.Install, dg.Uninstall)
 }
 
 func (dg *Devgita) Uninstall() error {
@@ -175,6 +178,14 @@ func (dg *Devgita) SoftConfigure() error {
 		}
 	}
 	return nil
+}
+
+func (dg *Devgita) ExecuteCommand(_ ...string) error {
+	return fmt.Errorf("%w for devgita", apps.ErrExecuteNotSupported)
+}
+
+func (dg *Devgita) Update() error {
+	return fmt.Errorf("%w for devgita", apps.ErrUpdateNotSupported)
 }
 
 func enableExtendedCapabilities(gc *config.GlobalConfig) error {

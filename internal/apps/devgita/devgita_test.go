@@ -6,8 +6,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/cjairm/devgita/internal/apps"
 	"github.com/cjairm/devgita/internal/embedded"
 	"github.com/cjairm/devgita/internal/testutil"
+	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/paths"
 )
 
@@ -60,6 +62,16 @@ func TestNew(t *testing.T) {
 	}
 	if dg.ExtractEmbedded == nil {
 		t.Fatal("ExtractEmbedded function is nil")
+	}
+}
+
+func TestNameAndKind(t *testing.T) {
+	dg := &Devgita{}
+	if dg.Name() != constants.DevgitaApp {
+		t.Errorf("expected Name() %q, got %q", constants.DevgitaApp, dg.Name())
+	}
+	if dg.Kind() != apps.KindMeta {
+		t.Errorf("expected Kind() KindMeta, got %v", dg.Kind())
 	}
 }
 
