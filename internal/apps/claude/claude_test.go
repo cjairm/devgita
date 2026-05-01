@@ -1,10 +1,12 @@
 package claude
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/cjairm/devgita/internal/apps"
 	"github.com/cjairm/devgita/internal/testutil"
 	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/paths"
@@ -24,6 +26,16 @@ func TestNew(t *testing.T) {
 	}
 	if app.Base == nil {
 		t.Error("Expected Base to be initialized")
+	}
+}
+
+func TestNameAndKind(t *testing.T) {
+	app := &Claude{}
+	if app.Name() != constants.Claude {
+		t.Errorf("expected Name() %q, got %q", constants.Claude, app.Name())
+	}
+	if app.Kind() != apps.KindTerminal {
+		t.Errorf("expected Kind() KindTerminal, got %v", app.Kind())
 	}
 }
 
@@ -66,8 +78,8 @@ func TestUninstall(t *testing.T) {
 	if err == nil {
 		t.Fatal("Expected Uninstall to return error")
 	}
-	if err.Error() == "" {
-		t.Error("Expected non-empty error message")
+	if !errors.Is(err, apps.ErrUninstallNotSupported) {
+		t.Errorf("expected ErrUninstallNotSupported, got: %v", err)
 	}
 
 	testutil.VerifyNoRealCommands(t, mockApp.Base)
@@ -80,6 +92,9 @@ func TestUpdate(t *testing.T) {
 	err := app.Update()
 	if err == nil {
 		t.Fatal("Expected Update to return error")
+	}
+	if !errors.Is(err, apps.ErrUpdateNotSupported) {
+		t.Errorf("expected ErrUpdateNotSupported, got: %v", err)
 	}
 
 	testutil.VerifyNoRealCommands(t, mockApp.Base)

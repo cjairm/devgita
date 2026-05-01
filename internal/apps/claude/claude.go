@@ -6,6 +6,8 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	"github.com/cjairm/devgita/internal/apps"
+	"github.com/cjairm/devgita/internal/apps/baseapp"
 	cmd "github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/pkg/constants"
@@ -13,10 +15,15 @@ import (
 	"github.com/cjairm/devgita/pkg/paths"
 )
 
+var _ apps.App = (*Claude)(nil)
+
 type Claude struct {
 	Cmd  cmd.Command
 	Base cmd.BaseCommandExecutor
 }
+
+func (c *Claude) Name() string       { return constants.Claude }
+func (c *Claude) Kind() apps.AppKind { return apps.KindTerminal }
 
 func New() *Claude {
 	osCmd := cmd.NewCommand()
@@ -37,7 +44,7 @@ func (c *Claude) Install() error {
 }
 
 func (c *Claude) ForceInstall() error {
-	return c.Install()
+	return baseapp.Reinstall(c.Install, c.Uninstall)
 }
 
 func (c *Claude) SoftInstall() error {
@@ -48,7 +55,7 @@ func (c *Claude) SoftInstall() error {
 }
 
 func (c *Claude) Uninstall() error {
-	return fmt.Errorf("claude uninstall not supported through devgita — run: npm uninstall -g @anthropic-ai/claude-code")
+	return fmt.Errorf("%w — run: npm uninstall -g @anthropic-ai/claude-code", apps.ErrUninstallNotSupported)
 }
 
 func (c *Claude) ForceConfigure() error {
@@ -137,5 +144,5 @@ func (c *Claude) ExecuteCommand(args ...string) error {
 }
 
 func (c *Claude) Update() error {
-	return fmt.Errorf("claude update not supported through devgita — re-run: curl -fsSL https://claude.ai/install.sh | bash")
+	return fmt.Errorf("%w — re-run: curl -fsSL https://claude.ai/install.sh | bash", apps.ErrUpdateNotSupported)
 }
