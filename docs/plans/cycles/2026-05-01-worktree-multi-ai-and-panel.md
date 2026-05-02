@@ -2,7 +2,7 @@
 
 **Date:** 2026-05-01
 **Estimated Duration:** ~10–12 hours (3 phases, independently shippable)
-**Status:** Draft
+**Status:** DONE
 
 ---
 
