@@ -581,3 +581,89 @@ detached
 		}
 	})
 }
+
+func TestIsWorktreeDirty(t *testing.T) {
+	mockApp := testutil.NewMockApp()
+	app := &Git{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+	t.Run("clean worktree", func(t *testing.T) {
+		mockApp.Base.ResetExecCommand()
+		mockApp.Base.SetExecCommandResult("", "", nil)
+
+		dirty, err := app.IsWorktreeDirty("/path/to/worktree")
+		if err != nil {
+			t.Fatalf("IsWorktreeDirty failed: %v", err)
+		}
+		if dirty {
+			t.Error("Expected clean worktree")
+		}
+
+		lastCall := mockApp.Base.GetLastExecCommandCall()
+		if lastCall == nil {
+			t.Fatal("No ExecCommand call recorded")
+		}
+		expectedArgs := []string{"-C", "/path/to/worktree", "status", "--porcelain"}
+		if len(lastCall.Args) != len(expectedArgs) {
+			t.Fatalf("Expected %d args, got %d", len(expectedArgs), len(lastCall.Args))
+		}
+		for i, arg := range expectedArgs {
+			if lastCall.Args[i] != arg {
+				t.Fatalf("Expected arg[%d] to be %q, got %q", i, arg, lastCall.Args[i])
+			}
+		}
+	})
+
+	t.Run("dirty worktree", func(t *testing.T) {
+		mockApp.Base.ResetExecCommand()
+		mockApp.Base.SetExecCommandResult("M file.go\n", "", nil)
+
+		dirty, err := app.IsWorktreeDirty("/path/to/worktree")
+		if err != nil {
+			t.Fatalf("IsWorktreeDirty failed: %v", err)
+		}
+		if !dirty {
+			t.Error("Expected dirty worktree")
+		}
+	})
+}
+
+func TestPruneWorktrees(t *testing.T) {
+	mockApp := testutil.NewMockApp()
+	app := &Git{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+	t.Run("successful prune", func(t *testing.T) {
+		mockApp.Base.ResetExecCommand()
+		mockApp.Base.SetExecCommandResult("", "", nil)
+
+		if err := app.PruneWorktrees(); err != nil {
+			t.Fatalf("PruneWorktrees failed: %v", err)
+		}
+
+		lastCall := mockApp.Base.GetLastExecCommandCall()
+		if lastCall == nil {
+			t.Fatal("No ExecCommand call recorded")
+		}
+		expectedArgs := []string{"worktree", "prune"}
+		if len(lastCall.Args) != len(expectedArgs) {
+			t.Fatalf("Expected %d args, got %d", len(expectedArgs), len(lastCall.Args))
+		}
+		for i, arg := range expectedArgs {
+			if lastCall.Args[i] != arg {
+				t.Fatalf("Expected arg[%d] to be %q, got %q", i, arg, lastCall.Args[i])
+			}
+		}
+	})
+
+	t.Run("prune error", func(t *testing.T) {
+		mockApp.Base.ResetExecCommand()
+		mockApp.Base.SetExecCommandResult("", "fatal: not a git repository", fmt.Errorf("not a repo"))
+
+		err := app.PruneWorktrees()
+		if err == nil {
+			t.Fatal("Expected error but got none")
+		}
+		if !strings.Contains(err.Error(), "failed to prune worktrees") {
+			t.Fatalf("Expected error message to contain 'failed to prune worktrees', got: %v", err)
+		}
+	})
+}

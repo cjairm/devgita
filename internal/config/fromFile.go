@@ -65,6 +65,11 @@ type FailedInstallation struct {
 	AttemptCount int       `yaml:"attempt_count"`
 }
 
+// WorktreeConfig stores worktree-specific settings
+type WorktreeConfig struct {
+	DefaultAI string `yaml:"default_ai"` // "opencode" | "claude"; empty = fallback to "opencode"
+}
+
 type GlobalConfig struct {
 	AppPath             string                 `yaml:"app_path"`
 	ConfigPath          string                 `yaml:"config_path"`
@@ -75,6 +80,7 @@ type GlobalConfig struct {
 	Shortcuts           map[string]string      `yaml:"shortcuts"`
 	Shell               ShellFeatures          `yaml:"shell"`
 	FailedInstallations []FailedInstallation   `yaml:"failed_installations,omitempty"`
+	Worktree            WorktreeConfig         `yaml:"worktree"`
 }
 
 func getGlobalConfigFilePath() string {

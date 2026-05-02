@@ -41,3 +41,9 @@ Icon?
 # Devgita binaries (all platforms)
 devgita-darwin-*
 devgita-linux-*
+
+# Claude Code worktrees (legacy)
+.claude/worktrees/
+
+# Claude Code worktrees (legacy)
+.claude/worktrees/

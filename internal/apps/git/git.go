@@ -258,6 +258,32 @@ func (g *Git) GetRepoRoot() (string, error) {
 	return strings.TrimSpace(stdout), nil
 }
 
+// IsWorktreeDirty checks if a worktree has uncommitted changes
+func (g *Git) IsWorktreeDirty(path string) (bool, error) {
+	execCommand := cmd.CommandParams{
+		Command: constants.Git,
+		Args:    []string{"-C", path, "status", "--porcelain"},
+	}
+	stdout, _, err := g.Base.ExecCommand(execCommand)
+	if err != nil {
+		return false, fmt.Errorf("failed to check worktree status: %w", err)
+	}
+	return strings.TrimSpace(stdout) != "", nil
+}
+
+// PruneWorktrees removes stale worktree entries
+func (g *Git) PruneWorktrees() error {
+	execCommand := cmd.CommandParams{
+		Command: constants.Git,
+		Args:    []string{"worktree", "prune"},
+	}
+	_, _, err := g.Base.ExecCommand(execCommand)
+	if err != nil {
+		return fmt.Errorf("failed to prune worktrees: %w", err)
+	}
+	return nil
+}
+
 // parseWorktreeOutput parses the porcelain output of git worktree list
 func parseWorktreeOutput(output string) []WorktreeInfo {
 	var worktrees []WorktreeInfo
