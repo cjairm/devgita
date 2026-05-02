@@ -9,8 +9,11 @@
 package tmux
 
 import (
+	"bufio"
 	"fmt"
+	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/cjairm/devgita/internal/apps"
 	"github.com/cjairm/devgita/internal/apps/baseapp"
@@ -130,8 +133,24 @@ func (t *Tmux) CreateWindow(name, workdir string) error {
 
 // HasWindow checks if a window exists in the current session
 func (t *Tmux) HasWindow(name string) bool {
-	err := t.ExecuteCommand("select-window", "-t", name)
-	return err == nil
+	if os.Getenv("TMUX") == "" {
+		return false
+	}
+	execCommand := cmd.CommandParams{
+		Command: constants.Tmux,
+		Args:    []string{"list-windows", "-F", "#{window_name}"},
+	}
+	stdout, _, err := t.Base.ExecCommand(execCommand)
+	if err != nil {
+		return false
+	}
+	scanner := bufio.NewScanner(strings.NewReader(stdout))
+	for scanner.Scan() {
+		if strings.TrimSpace(scanner.Text()) == name {
+			return true
+		}
+	}
+	return false
 }
 
 // KillWindow closes a specific window by name
