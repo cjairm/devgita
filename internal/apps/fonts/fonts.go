@@ -73,4 +73,3 @@ func (f *Fonts) SoftInstallAll() {
 		}
 	}
 }
-
