@@ -200,6 +200,13 @@ func TestRemove(t *testing.T) {
 		mockGitBase.SetExecCommandResult(tempDir+"\n", "", nil)
 		mockTmuxBase.SetExecCommandResult("", "", nil)
 
+		repoSlug := filepath.Base(tempDir)
+		wtPath := filepath.Join(paths.Paths.Data.Root, "devgita", "worktrees", repoSlug, "feature-test")
+		if err := os.MkdirAll(wtPath, 0755); err != nil {
+			t.Fatalf("Failed to create worktree dir: %v", err)
+		}
+		defer os.RemoveAll(filepath.Dir(wtPath))
+
 		err := wm.Remove("feature-test", true)
 		if err != nil {
 			t.Fatalf("Remove failed: %v", err)
@@ -242,6 +249,7 @@ func TestRemove(t *testing.T) {
 		if err := os.MkdirAll(wtPath, 0755); err != nil {
 			t.Fatalf("Failed to create worktree dir: %v", err)
 		}
+		defer os.RemoveAll(filepath.Dir(filepath.Dir(wtPath)))
 
 		err := wm.Remove("feature-test", true)
 		if err != nil {
@@ -357,14 +365,14 @@ func TestParseJumpOutput(t *testing.T) {
 		}
 	})
 
-	t.Run("ctrl-x key", func(t *testing.T) {
-		output := "ctrl-x\nmyrepo/feature-a\tfeature-a\tactive"
+	t.Run("ctrl-d key", func(t *testing.T) {
+		output := "ctrl-d\nmyrepo/feature-a\tfeature-a\tactive"
 		key, row, err := parseJumpOutput(output)
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
 		}
-		if key != "ctrl-x" {
-			t.Errorf("Expected key 'ctrl-x', got %q", key)
+		if key != "ctrl-d" {
+			t.Errorf("Expected key 'ctrl-d', got %q", key)
 		}
 		if row != "myrepo/feature-a\tfeature-a\tactive" {
 			t.Errorf("Expected row %q, got %q", "myrepo/feature-a\tfeature-a\tactive", row)

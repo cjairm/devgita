@@ -15,6 +15,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -49,21 +50,28 @@ type WorktreeState struct {
 	BranchExists bool
 }
 
+type pendingDeleteInfo struct {
+	repoSlug string
+	name     string
+}
+
 // WorktreeManager coordinates git worktrees with tmux windows
 type WorktreeManager struct {
-	Git  *git.Git
-	Tmux *tmux.Tmux
-	Fzf  *fzf.Fzf
-	Base cmd.BaseCommandExecutor
+	Git           *git.Git
+	Tmux          *tmux.Tmux
+	Fzf           *fzf.Fzf
+	Base          cmd.BaseCommandExecutor
+	pendingDelete *pendingDeleteInfo
 }
 
 // New creates a new WorktreeManager instance
 func New() *WorktreeManager {
 	return &WorktreeManager{
-		Git:  git.New(),
-		Tmux: tmux.New(),
-		Fzf:  fzf.New(),
-		Base: cmd.NewBaseCommand(),
+		Git:           git.New(),
+		Tmux:          tmux.New(),
+		Fzf:           fzf.New(),
+		Base:          cmd.NewBaseCommand(),
+		pendingDelete: nil,
 	}
 }
 
@@ -116,11 +124,22 @@ func (w *WorktreeManager) Create(name string, coder AICoder) error {
 	}
 
 	if err := w.Git.CreateWorktree(wtPath, name); err != nil {
+		if strings.Contains(err.Error(), "is a missing but already registered") {
+			if pruneErr := w.Git.PruneWorktrees(); pruneErr == nil {
+				if retryErr := w.Git.CreateWorktree(wtPath, name); retryErr == nil {
+					return w.createWindowAndLaunch(windowName, wtPath, coder)
+				}
+			}
+		}
 		return fmt.Errorf("failed to create worktree: %w", err)
 	}
 
+	return w.createWindowAndLaunch(windowName, wtPath, coder)
+}
+
+func (w *WorktreeManager) createWindowAndLaunch(windowName, wtPath string, coder AICoder) error {
 	if err := w.Tmux.CreateWindow(windowName, wtPath); err != nil {
-		_ = w.Git.RemoveWorktree(wtPath, true, name)
+		_ = w.Git.RemoveWorktree(wtPath, true, "")
 		return fmt.Errorf("failed to create tmux window: %w", err)
 	}
 
@@ -140,6 +159,16 @@ func (w *WorktreeManager) worktreeState(repoSlug, name string) (WorktreeState, e
 
 	if _, err := os.Stat(state.WtPath); err == nil {
 		state.WtExists = true
+	}
+
+	worktrees, err := w.Git.ListWorktrees()
+	if err == nil {
+		for _, wt := range worktrees {
+			if wt.Path == state.WtPath {
+				state.WtExists = true
+				break
+			}
+		}
 	}
 
 	if w.Tmux.HasWindow(state.WindowName) {
@@ -216,7 +245,31 @@ func (w *WorktreeManager) List() ([]WorktreeStatus, error) {
 	return statuses, nil
 }
 
-// Remove removes a worktree and its tmux window
+// findRepoForWorktree searches the centralized base path for a worktree by name
+// and returns the repo slug that owns it. Returns "" if not found or ambiguous.
+func (w *WorktreeManager) findRepoForWorktree(name string) string {
+	entries, err := os.ReadDir(GetWorktreeBasePath())
+	if err != nil {
+		return ""
+	}
+	var matches []string
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		if _, err := os.Stat(filepath.Join(GetWorktreeBasePath(), e.Name(), name)); err == nil {
+			matches = append(matches, e.Name())
+		}
+	}
+	if len(matches) == 1 {
+		return matches[0]
+	}
+	return ""
+}
+
+// Remove removes a worktree and its tmux window.
+// When the named worktree is not in the current repo, it searches the
+// centralized base path so cross-repo removal works from any directory.
 func (w *WorktreeManager) Remove(name string, force bool) error {
 	repoRoot, err := w.Git.GetRepoRoot()
 	if err != nil {
@@ -224,13 +277,24 @@ func (w *WorktreeManager) Remove(name string, force bool) error {
 	}
 
 	repoSlug := filepath.Base(repoRoot)
-	wtPath := w.worktreePath(repoSlug, name)
-	windowName := windowPrefix + name
-
 	state, err := w.worktreeState(repoSlug, name)
 	if err != nil {
 		return err
 	}
+
+	// Not found in current repo — search centralized base path.
+	if !state.WtExists && !state.WindowExists {
+		if slug := w.findRepoForWorktree(name); slug != "" {
+			repoSlug = slug
+			state, err = w.worktreeState(repoSlug, name)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	wtPath := w.worktreePath(repoSlug, name)
+	windowName := windowPrefix + name
 
 	if !state.WtExists && !state.WindowExists {
 		return fmt.Errorf("nothing to remove for worktree '%s'", name)
@@ -238,10 +302,9 @@ func (w *WorktreeManager) Remove(name string, force bool) error {
 
 	if state.WtExists && !force {
 		dirty, err := w.Git.IsWorktreeDirty(wtPath)
-		if err != nil {
-			return fmt.Errorf("failed to check worktree status: %w", err)
-		}
-		if dirty {
+		// If the dirty check errors (e.g. stale/broken worktree not registered
+		// with git), allow removal rather than blocking on an unverifiable state.
+		if err == nil && dirty {
 			return fmt.Errorf("worktree '%s' has uncommitted changes; use --force to remove anyway", name)
 		}
 	}
@@ -254,7 +317,11 @@ func (w *WorktreeManager) Remove(name string, force bool) error {
 
 	if state.WtExists {
 		if err := w.Git.RemoveWorktree(wtPath, true, name); err != nil {
-			return fmt.Errorf("failed to remove worktree: %w", err)
+			// Fallback for stale worktrees: directory exists on disk but git
+			// doesn't know about it. Remove the directory directly then prune.
+			if rmErr := os.RemoveAll(wtPath); rmErr != nil {
+				return fmt.Errorf("failed to remove worktree: %w", err)
+			}
 		}
 		if err := w.Git.PruneWorktrees(); err != nil {
 			// Log but don't fail
@@ -322,12 +389,7 @@ func (w *WorktreeManager) Prune() error {
 	}
 
 	fmt.Print("Remove all? [y/N]: ")
-	var response string
-	if _, err := fmt.Scanln(&response); err != nil {
-		return fmt.Errorf("cancelled")
-	}
-
-	if strings.ToLower(response) != "y" && strings.ToLower(response) != "yes" {
+	if !confirmFromTTY() {
 		return fmt.Errorf("cancelled")
 	}
 
@@ -345,7 +407,8 @@ func (w *WorktreeManager) Prune() error {
 	return nil
 }
 
-// removeByRepo removes a worktree by repo slug and name
+// removeByRepo removes a worktree by repo slug and name.
+// Mirrors the same tolerant logic as Remove.
 func (w *WorktreeManager) removeByRepo(repoSlug, name string, force bool) error {
 	wtPath := w.worktreePath(repoSlug, name)
 	windowName := windowPrefix + name
@@ -359,6 +422,13 @@ func (w *WorktreeManager) removeByRepo(repoSlug, name string, force bool) error 
 		return nil
 	}
 
+	if state.WtExists && !force {
+		dirty, err := w.Git.IsWorktreeDirty(wtPath)
+		if err == nil && dirty {
+			return fmt.Errorf("worktree '%s' has uncommitted changes; use --force to remove anyway", name)
+		}
+	}
+
 	if state.WindowExists {
 		if err := w.Tmux.KillWindow(windowName); err != nil {
 			// Log but don't fail
@@ -367,7 +437,9 @@ func (w *WorktreeManager) removeByRepo(repoSlug, name string, force bool) error 
 
 	if state.WtExists {
 		if err := w.Git.RemoveWorktree(wtPath, true, name); err != nil {
-			return fmt.Errorf("failed to remove worktree: %w", err)
+			if rmErr := os.RemoveAll(wtPath); rmErr != nil {
+				return fmt.Errorf("failed to remove worktree: %w", err)
+			}
 		}
 		if err := w.Git.PruneWorktrees(); err != nil {
 			// Log but don't fail
@@ -376,6 +448,55 @@ func (w *WorktreeManager) removeByRepo(repoSlug, name string, force bool) error 
 		if err := w.Git.PruneWorktrees(); err != nil {
 			// Log but don't fail
 		}
+	}
+
+	return nil
+}
+
+// confirmAndRemove implements double-confirm delete pattern (like opencode).
+// First ctrl-d shows "press again to delete", second ctrl-d within 3s actually deletes.
+func (w *WorktreeManager) confirmAndRemove(rows []string, repoSlug, name string) error {
+	currentPending := w.pendingDelete
+
+	if currentPending != nil && currentPending.repoSlug == repoSlug && currentPending.name == name {
+		w.pendingDelete = nil
+		return w.removeByRepo(repoSlug, name, false)
+	}
+
+	w.pendingDelete = &pendingDeleteInfo{repoSlug: repoSlug, name: name}
+
+	output, err := w.runFzfWithExpect(rows, fmt.Sprintf("ctrl-d: press again to delete %s/%s | ctrl-r: repair | enter: jump", repoSlug, name))
+	if err != nil {
+		if err.Error() == "selection cancelled" {
+			return nil
+		}
+		return err
+	}
+
+	key, row, err := parseJumpOutput(output)
+	if err != nil {
+		return err
+	}
+
+	parts := parseJumpRow(row)
+	if len(parts) < 2 {
+		return fmt.Errorf("invalid selection")
+	}
+
+	newRepoSlug := parts[0]
+	newName := parts[1]
+
+	if key == "ctrl-d" && newRepoSlug == repoSlug && newName == name {
+		w.pendingDelete = nil
+		return w.removeByRepo(repoSlug, name, false)
+	}
+
+	if key == "ctrl-r" {
+		coder, err := ResolveAICoder("")
+		if err != nil {
+			return err
+		}
+		return w.Repair(name, coder)
 	}
 
 	return nil
@@ -454,13 +575,8 @@ func (w *WorktreeManager) Jump(resolvedCoder string) error {
 			}
 			fmt.Printf("Window '%s' not found. Use 'dg wt repair %s' to recreate it.\n", windowName, name)
 			return nil
-		case "ctrl-x":
-			fmt.Printf("Remove worktree '%s/%s'? [y/N]: ", repoSlug, name)
-			var response string
-			if _, err := fmt.Scanln(&response); err != nil || (strings.ToLower(response) != "y" && strings.ToLower(response) != "yes") {
-				return nil
-			}
-			return w.removeByRepo(repoSlug, name, false)
+		case "ctrl-d":
+			return w.confirmAndRemove(rows, repoSlug, name)
 		case "ctrl-r":
 			coder, err := ResolveAICoder(resolvedCoder)
 			if err != nil {
@@ -479,19 +595,13 @@ func (w *WorktreeManager) Jump(resolvedCoder string) error {
 
 	repoSlug := parts[0]
 	name := parts[1]
-	wtPath := w.worktreePath(repoSlug, name)
 
 	switch key {
 	case "":
-		fmt.Println(wtPath)
+		fmt.Println(w.worktreePath(repoSlug, name))
 		return nil
-	case "ctrl-x":
-		fmt.Printf("Remove worktree '%s/%s'? [y/N]: ", repoSlug, name)
-		var response string
-		if _, err := fmt.Scanln(&response); err != nil || (strings.ToLower(response) != "y" && strings.ToLower(response) != "yes") {
-			return nil
-		}
-		return w.removeByRepo(repoSlug, name, false)
+	case "ctrl-d":
+		return w.confirmAndRemove(rows, repoSlug, name)
 	case "ctrl-r":
 		coder, err := ResolveAICoder(resolvedCoder)
 		if err != nil {
@@ -521,25 +631,53 @@ func parseJumpRow(row string) []string {
 	return strings.SplitN(row, "\t", 3)
 }
 
-// runFzfWithExpect runs fzf with --expect flag
-func (w *WorktreeManager) runFzfWithExpect(rows []string) (string, error) {
-	execCommand := cmd.CommandParams{
-		Command: "fzf",
-		Args: []string{
-			"--header", "enter: jump | ctrl-x: delete | ctrl-r: repair",
-			"--expect", "ctrl-x,ctrl-r",
-			"--with-nth", "1,2,3",
-			"--delimiter", "\t",
-			"--reverse",
-		},
+// confirmFromTTY reads a y/n answer directly from /dev/tty so it works even
+// after fzf has consumed the process stdin (e.g. inside a tmux display-popup).
+// In tmux popup mode, we skip confirmation since the user already pressed ctrl-d.
+func confirmFromTTY() bool {
+	if os.Getenv("TMUX") != "" {
+		return true
 	}
-
-	stdout, _, err := w.Base.ExecCommand(execCommand)
+	tty, err := os.Open("/dev/tty")
 	if err != nil {
+		var response string
+		fmt.Scanln(&response) //nolint:errcheck
+		return strings.ToLower(strings.TrimSpace(response)) == "y"
+	}
+	defer tty.Close()
+	var response string
+	fmt.Fscan(tty, &response)
+	return strings.ToLower(strings.TrimSpace(response)) == "y"
+}
+
+// runFzfWithExpect pipes rows to fzf via stdin and returns the raw output.
+// Base.ExecCommand has no stdin parameter, so we use exec.Command directly
+// (same pattern as Fzf.SelectFromList). fzf renders its UI to /dev/tty and
+// writes the selected item to stdout, which Output() captures.
+func (w *WorktreeManager) runFzfWithExpect(rows []string, header ...string) (string, error) {
+	defaultHeader := "enter: jump | ctrl-d: delete | ctrl-r: repair"
+	if len(header) > 0 && header[0] != "" {
+		defaultHeader = header[0]
+	}
+	fzfCmd := exec.Command("fzf",
+		"--height=60%",
+		"--reverse",
+		"--header", defaultHeader,
+		"--expect", "ctrl-d,ctrl-r",
+		"--with-nth", "1,2,3",
+		"--delimiter", "\t",
+	)
+	fzfCmd.Stdin = strings.NewReader(strings.Join(rows, "\n"))
+
+	output, err := fzfCmd.Output()
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 130 {
+			return "", fmt.Errorf("selection cancelled")
+		}
 		return "", fmt.Errorf("fzf failed: %w", err)
 	}
 
-	return stdout, nil
+	return string(output), nil
 }
 
 // parseJumpOutput parses the fzf output into key and row
