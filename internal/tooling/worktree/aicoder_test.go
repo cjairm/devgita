@@ -51,7 +51,7 @@ func TestOpenCodeCoderCommand(t *testing.T) {
 
 func TestClaudeCoderCommand(t *testing.T) {
 	coder := &ClaudeCoder{}
-	if coder.Command() != "claude" {
-		t.Errorf("expected command 'claude', got %q", coder.Command())
+	if coder.Command() != "CLAUDE_CODE_NO_FLICKER=1 claude" {
+		t.Errorf("expected command 'CLAUDE_CODE_NO_FLICKER=1 claude', got %q", coder.Command())
 	}
 }

@@ -29,7 +29,7 @@ func (o *OpenCodeCoder) EnsureInstalled() error {
 type ClaudeCoder struct{}
 
 func (c *ClaudeCoder) Name() string    { return "claude" }
-func (c *ClaudeCoder) Command() string { return "claude" }
+func (c *ClaudeCoder) Command() string { return "CLAUDE_CODE_NO_FLICKER=1 claude" }
 func (c *ClaudeCoder) EnsureInstalled() error {
 	if _, err := exec.LookPath("claude"); err != nil {
 		return fmt.Errorf("claude is not installed. Install it with: dg install --only terminal")
