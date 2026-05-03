@@ -454,19 +454,21 @@ func (w *WorktreeManager) removeByRepo(repoSlug, name string, force bool) error 
 }
 
 // confirmAndRemove implements double-confirm delete pattern (like opencode).
-// First ctrl-d shows "press again to delete", second ctrl-d within 3s actually deletes.
+// First ctrl-d shows "press again to delete", second ctrl-d actually deletes.
 func (w *WorktreeManager) confirmAndRemove(rows []string, repoSlug, name string) error {
-	currentPending := w.pendingDelete
-
-	if currentPending != nil && currentPending.repoSlug == repoSlug && currentPending.name == name {
+	// If there's already a pending delete for this worktree, execute it
+	if w.pendingDelete != nil && w.pendingDelete.repoSlug == repoSlug && w.pendingDelete.name == name {
 		w.pendingDelete = nil
 		return w.removeByRepo(repoSlug, name, false)
 	}
 
+	// Set this worktree as pending delete
 	w.pendingDelete = &pendingDeleteInfo{repoSlug: repoSlug, name: name}
 
+	// Show confirmation message and wait for second action
 	output, err := w.runFzfWithExpect(rows, fmt.Sprintf("ctrl-d: press again to delete %s/%s | ctrl-r: repair | enter: jump", repoSlug, name))
 	if err != nil {
+		w.pendingDelete = nil // Clear pending on error/cancel
 		if err.Error() == "selection cancelled" {
 			return nil
 		}
@@ -475,30 +477,44 @@ func (w *WorktreeManager) confirmAndRemove(rows []string, repoSlug, name string)
 
 	key, row, err := parseJumpOutput(output)
 	if err != nil {
+		w.pendingDelete = nil
 		return err
 	}
 
 	parts := parseJumpRow(row)
 	if len(parts) < 2 {
+		w.pendingDelete = nil
 		return fmt.Errorf("invalid selection")
 	}
 
 	newRepoSlug := parts[0]
 	newName := parts[1]
 
-	if key == "ctrl-d" && newRepoSlug == repoSlug && newName == name {
+	// If user pressed ctrl-d again on the same worktree, delete it
+	if key == "ctrl-d" && w.pendingDelete != nil && w.pendingDelete.repoSlug == newRepoSlug && w.pendingDelete.name == newName {
 		w.pendingDelete = nil
-		return w.removeByRepo(repoSlug, name, false)
+		return w.removeByRepo(newRepoSlug, newName, false)
 	}
 
+	// If user pressed ctrl-d on a different worktree, start over with that one
+	if key == "ctrl-d" {
+		// Recursively handle the new pending delete
+		w.pendingDelete = nil
+		return w.confirmAndRemove(rows, newRepoSlug, newName)
+	}
+
+	// If user pressed ctrl-r, repair the worktree
 	if key == "ctrl-r" {
+		w.pendingDelete = nil
 		coder, err := ResolveAICoder("")
 		if err != nil {
 			return err
 		}
-		return w.Repair(name, coder)
+		return w.Repair(newName, coder)
 	}
 
+	// Any other action (enter, etc.) cancels the pending delete
+	w.pendingDelete = nil
 	return nil
 }
 
