@@ -387,6 +387,143 @@ func TestParseJumpOutput(t *testing.T) {
 	})
 }
 
+func TestParseRepoAndName(t *testing.T) {
+	tests := []struct {
+		name        string
+		row         string
+		wantRepo    string
+		wantName    string
+		wantErr     bool
+	}{
+		{
+			name:     "standard row",
+			row:      "myrepo/feature-a\tfeature-a\tactive",
+			wantRepo: "myrepo",
+			wantName: "feature-a",
+		},
+		{
+			name:     "inactive status",
+			row:      "devgita/fix-123\tfix-123\tinactive",
+			wantRepo: "devgita",
+			wantName: "fix-123",
+		},
+		{
+			name:    "empty row",
+			row:     "",
+			wantErr: true,
+		},
+		{
+			name:    "no slash in first column",
+			row:     "noslash\tbranch\tactive",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo, name, err := parseRepoAndName(tt.row)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("Expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+			if repo != tt.wantRepo {
+				t.Errorf("repo: expected %q, got %q", tt.wantRepo, repo)
+			}
+			if name != tt.wantName {
+				t.Errorf("name: expected %q, got %q", tt.wantName, name)
+			}
+		})
+	}
+}
+
+// TestRemoveByRepoUsesCorrectPath verifies that the worktree path constructed in
+// removeByRepo matches the path that List() would discover, catching the bug where
+// Jump() passed "repo/name" as repoSlug instead of just "repo".
+func TestRemoveByRepoUsesCorrectPath(t *testing.T) {
+	const wtName = "fix-bug"
+
+	newWM := func() (*WorktreeManager, string) {
+		tempDir := t.TempDir()
+		mockGitBase := commands.NewMockBaseCommand()
+		mockTmuxBase := commands.NewMockBaseCommand()
+		// Make git commands fail so RemoveWorktree errors and os.RemoveAll fallback runs.
+		mockGitBase.SetExecCommandResult("", "git error", os.ErrNotExist)
+		// Make tmux commands fail so window is reported as not present.
+		mockTmuxBase.SetExecCommandResult("", "window not found", os.ErrNotExist)
+		wm := &WorktreeManager{
+			Git:  &git.Git{Cmd: commands.NewMockCommand(), Base: mockGitBase},
+			Tmux: &tmux.Tmux{Cmd: commands.NewMockCommand(), Base: mockTmuxBase},
+			Base: commands.NewMockBaseCommand(),
+		}
+		return wm, filepath.Base(tempDir)
+	}
+
+	t.Run("wrong repoSlug leaves directory intact", func(t *testing.T) {
+		wm, repoSlug := newWM()
+		wtPath := filepath.Join(paths.Paths.Data.Root, "devgita", "worktrees", repoSlug, wtName)
+		if err := os.MkdirAll(wtPath, 0755); err != nil {
+			t.Fatalf("setup: %v", err)
+		}
+		defer os.RemoveAll(filepath.Dir(wtPath))
+
+		// "repo/name" was the broken slug Jump() used to pass.
+		wrongSlug := repoSlug + "/" + wtName
+		if err := wm.removeByRepo(wrongSlug, wtName, true); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if _, err := os.Stat(wtPath); os.IsNotExist(err) {
+			t.Error("directory was removed despite wrong repoSlug — fix broke the invariant")
+		}
+	})
+
+	t.Run("correct repoSlug removes directory via fallback", func(t *testing.T) {
+		wm, repoSlug := newWM()
+		wtPath := filepath.Join(paths.Paths.Data.Root, "devgita", "worktrees", repoSlug, wtName)
+		if err := os.MkdirAll(wtPath, 0755); err != nil {
+			t.Fatalf("setup: %v", err)
+		}
+		defer os.RemoveAll(filepath.Dir(wtPath))
+
+		if err := wm.removeByRepo(repoSlug, wtName, true); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if _, err := os.Stat(wtPath); !os.IsNotExist(err) {
+			t.Error("expected directory to be removed with correct repoSlug")
+		}
+	})
+}
+
+// TestParseRepoAndNameRoundTrip confirms that a row produced by formatJumpRow
+// round-trips through parseRepoAndName back to the original repo and name.
+func TestParseRepoAndNameRoundTrip(t *testing.T) {
+	wm := &WorktreeManager{}
+	repo, name := "devgita", "my-feature"
+	row := formatJumpRow(repo, name, name, "inactive")
+
+	gotRepo, gotName, err := parseRepoAndName(row)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotRepo != repo {
+		t.Errorf("repo: want %q got %q", repo, gotRepo)
+	}
+	if gotName != name {
+		t.Errorf("name: want %q got %q", name, gotName)
+	}
+
+	// The path built from parsed values must match the direct call.
+	want := wm.worktreePath(repo, name)
+	got := wm.worktreePath(gotRepo, gotName)
+	if want != got {
+		t.Errorf("worktreePath mismatch: want %q got %q", want, got)
+	}
+}
+
 func TestWorktreePath(t *testing.T) {
 	wm := &WorktreeManager{}
 	path := wm.worktreePath("myrepo", "feature-a")

@@ -481,17 +481,12 @@ func (w *WorktreeManager) confirmAndRemove(rows []string, repoSlug, name string)
 		return err
 	}
 
-	parts := parseJumpRow(row)
-	if len(parts) < 2 {
-		w.pendingDelete = nil
-		return fmt.Errorf("invalid selection")
+	newRepoSlug, newName, err := parseRepoAndName(row)
+	if err != nil {
+		return err
 	}
 
-	newRepoSlug := parts[0]
-	newName := parts[1]
-
-	// If user pressed ctrl-d again on the same worktree, delete it
-	if key == "ctrl-d" && w.pendingDelete != nil && w.pendingDelete.repoSlug == newRepoSlug && w.pendingDelete.name == newName {
+	if key == "ctrl-d" && newRepoSlug == repoSlug && newName == name {
 		w.pendingDelete = nil
 		return w.removeByRepo(newRepoSlug, newName, false)
 	}
@@ -575,13 +570,10 @@ func (w *WorktreeManager) Jump(resolvedCoder string) error {
 			return nil
 		}
 
-		parts := parseJumpRow(row)
-		if len(parts) < 2 {
-			return fmt.Errorf("invalid selection")
+		repoSlug, name, err := parseRepoAndName(row)
+		if err != nil {
+			return err
 		}
-
-		repoSlug := parts[0]
-		name := parts[1]
 		windowName := windowPrefix + name
 
 		switch key {
@@ -604,13 +596,10 @@ func (w *WorktreeManager) Jump(resolvedCoder string) error {
 		}
 	}
 
-	parts := parseJumpRow(row)
-	if len(parts) < 2 {
-		return fmt.Errorf("invalid selection")
+	repoSlug, name, err := parseRepoAndName(row)
+	if err != nil {
+		return err
 	}
-
-	repoSlug := parts[0]
-	name := parts[1]
 
 	switch key {
 	case "":
@@ -645,6 +634,20 @@ func formatWindowRow(name string) string {
 // parseJumpRow parses a worktree row back into its components
 func parseJumpRow(row string) []string {
 	return strings.SplitN(row, "\t", 3)
+}
+
+// parseRepoAndName extracts repoSlug and worktree name from a jump row.
+// Row format is "repo/name\tbranch\tstatus"; parts[0] is the combined "repo/name".
+func parseRepoAndName(row string) (repoSlug, name string, err error) {
+	parts := parseJumpRow(row)
+	if len(parts) < 1 {
+		return "", "", fmt.Errorf("invalid selection")
+	}
+	combined := strings.SplitN(parts[0], "/", 2)
+	if len(combined) < 2 {
+		return "", "", fmt.Errorf("invalid selection: expected repo/name format, got %q", parts[0])
+	}
+	return combined[0], combined[1], nil
 }
 
 // confirmFromTTY reads a y/n answer directly from /dev/tty so it works even
