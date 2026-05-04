@@ -1,6 +1,7 @@
 ---
 description: Create focused commits from staged changes
 temperature: 0.1
+model: haiku
 tools:
   write: false
   edit: false
