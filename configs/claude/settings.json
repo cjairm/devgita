@@ -2,7 +2,6 @@
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "theme": "custom:default",
   "permissions": {
-    "mode": "acceptEdits",
     "allow": [
       "Bash(go *)",
       "Bash(gofmt *)",
@@ -12,23 +11,15 @@
       "Bash(pip *)",
       "Bash(node *)",
       "Bash(npm *)",
+      "Bash(npx *)",
       "Bash(pnpm *)",
       "Bash(yarn *)",
       "Bash(tsc *)",
-      "Bash(git status)",
-      "Bash(git diff *)",
-      "Bash(git log *)",
-      "Bash(git add *)",
-      "Bash(git commit *)",
-      "Bash(git commit -m *)",
+      "Bash(gh *)",
+      "Bash(git *)",
       "Bash(rg *)",
       "Bash(grep *)",
       "Bash(find *)",
-      "Read",
-      "Edit",
-      "Bash(go test *)",
-      "Bash(go run *)",
-      "Bash(go mod *)",
       "Bash(make *)",
       "Bash(poetry *)",
       "Bash(uv *)",
@@ -37,7 +28,9 @@
       "Bash(pnpm *)",
       "Bash(nx *)",
       "Bash(turbo *)",
-      "Bash(vitest *)"
+      "Bash(vitest *)",
+      "Read",
+      "Edit"
     ],
     "deny": [
       "Bash(curl *)",
@@ -59,7 +52,8 @@
       "Read(**/id_ed25519)",
       "Edit(.git/**)",
       "Edit(.claude/**)"
-    ]
+    ],
+    "mode": "acceptEdits"
   },
   "env": {
     "ENABLE_CLAUDEAI_MCP_SERVERS": "false"
