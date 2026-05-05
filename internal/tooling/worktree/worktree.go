@@ -113,7 +113,17 @@ func (w *WorktreeManager) Create(name string, coder AICoder) error {
 		return fmt.Errorf("worktree '%s' already exists and has an active window; use `dg wt jump %s`", name, name)
 	}
 	if state.WtExists && !state.WindowExists {
-		return fmt.Errorf("worktree '%s' exists but has no active window; use `dg wt repair %s`", name, name)
+		// Check if directory actually exists on disk
+		if _, err := os.Stat(wtPath); os.IsNotExist(err) {
+			// Directory missing but git still tracks it - auto-prune and continue
+			if pruneErr := w.Git.PruneWorktrees(); pruneErr != nil {
+				return fmt.Errorf("stale worktree entry detected but failed to prune: %w", pruneErr)
+			}
+			// After pruning, continue with creation
+		} else {
+			// Directory exists, suggest repair
+			return fmt.Errorf("worktree '%s' exists but has no active window; use `dg wt repair %s`", name, name)
+		}
 	}
 	if !state.WtExists && state.WindowExists {
 		return fmt.Errorf("orphan window '%s' exists; run `tmux kill-window -t %s` manually", windowName, windowName)
@@ -354,8 +364,23 @@ func (w *WorktreeManager) Repair(name string, coder AICoder) error {
 	wtPath := w.worktreePath(repoSlug, name)
 	windowName := windowPrefix + name
 
-	if _, err := os.Stat(wtPath); os.IsNotExist(err) {
+	state, err := w.worktreeState(repoSlug, name)
+	if err != nil {
+		return err
+	}
+
+	// If worktree doesn't exist at all (neither on disk nor in git), error out
+	if !state.WtExists {
 		return fmt.Errorf("no worktree '%s' to repair", name)
+	}
+
+	// If directory doesn't exist on disk but git knows about it, prune and error
+	if _, err := os.Stat(wtPath); os.IsNotExist(err) {
+		// Prune stale worktree entries
+		if pruneErr := w.Git.PruneWorktrees(); pruneErr != nil {
+			return fmt.Errorf("worktree '%s' directory missing and failed to prune: %w", name, pruneErr)
+		}
+		return fmt.Errorf("worktree '%s' directory was missing; pruned stale entry. Run `dg wt new %s` to recreate", name, name)
 	}
 
 	if !w.Tmux.HasWindow(windowName) {
