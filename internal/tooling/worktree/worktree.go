@@ -17,6 +17,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/cjairm/devgita/internal/apps/git"
@@ -479,7 +480,8 @@ func (w *WorktreeManager) removeByRepo(repoSlug, name string, force bool) error 
 }
 
 // confirmAndRemove implements double-confirm delete pattern (like opencode).
-// First ctrl-d shows "press again to delete", second ctrl-d actually deletes.
+// First ctrl-d highlights the row red (inline) and moves it to the top so the
+// cursor lands on it; second ctrl-d on the same row actually deletes.
 func (w *WorktreeManager) confirmAndRemove(rows []string, repoSlug, name string) error {
 	// If there's already a pending delete for this worktree, execute it
 	if w.pendingDelete != nil && w.pendingDelete.repoSlug == repoSlug && w.pendingDelete.name == name {
@@ -490,8 +492,7 @@ func (w *WorktreeManager) confirmAndRemove(rows []string, repoSlug, name string)
 	// Set this worktree as pending delete
 	w.pendingDelete = &pendingDeleteInfo{repoSlug: repoSlug, name: name}
 
-	// Show confirmation message and wait for second action
-	output, err := w.runFzfWithExpect(rows, fmt.Sprintf("ctrl-d: press again to delete %s/%s | ctrl-r: repair | enter: jump", repoSlug, name))
+	output, err := w.runFzfWithExpect(buildConfirmRows(rows, repoSlug, name))
 	if err != nil {
 		w.pendingDelete = nil // Clear pending on error/cancel
 		if err.Error() == "selection cancelled" {
@@ -706,6 +707,7 @@ func (w *WorktreeManager) runFzfWithExpect(rows []string, header ...string) (str
 	fzfCmd := exec.Command("fzf",
 		"--height=60%",
 		"--reverse",
+		"--ansi",
 		"--header", defaultHeader,
 		"--expect", "ctrl-d,ctrl-r",
 		"--with-nth", "1,2,3",
@@ -724,6 +726,37 @@ func (w *WorktreeManager) runFzfWithExpect(rows []string, header ...string) (str
 	return string(output), nil
 }
 
+var ansiEscape = regexp.MustCompile(`\x1b\[[0-9;]*m`)
+
+func stripANSI(s string) string {
+	return ansiEscape.ReplaceAllString(s, "")
+}
+
+// buildConfirmRows returns display rows for the delete-confirmation step.
+// The pending item's name column is highlighted red and placed first so that
+// fzf's cursor lands on it when it reopens (--reverse shows item 0 at top).
+func buildConfirmRows(rows []string, repoSlug, name string) []string {
+	pendingKey := repoSlug + "/" + name
+	displayRows := make([]string, 0, len(rows))
+	var pendingDisplayRow string
+	for _, row := range rows {
+		parts := strings.SplitN(row, "\t", 2)
+		if parts[0] == pendingKey {
+			rest := ""
+			if len(parts) == 2 {
+				rest = "\t" + parts[1]
+			}
+			pendingDisplayRow = "\033[41m" + parts[0] + "\033[0m" + rest
+		} else {
+			displayRows = append(displayRows, row)
+		}
+	}
+	if pendingDisplayRow != "" {
+		displayRows = append([]string{pendingDisplayRow}, displayRows...)
+	}
+	return displayRows
+}
+
 // parseJumpOutput parses the fzf output into key and row
 func parseJumpOutput(output string) (key, row string, err error) {
 	scanner := bufio.NewScanner(strings.NewReader(output))
@@ -740,10 +773,10 @@ func parseJumpOutput(output string) (key, row string, err error) {
 	}
 
 	if len(lines) == 1 {
-		return "", lines[0], nil
+		return "", stripANSI(lines[0]), nil
 	}
 
-	return lines[0], lines[1], nil
+	return lines[0], stripANSI(lines[1]), nil
 }
 
 // listNonWorktreeWindows returns tmux windows that are not worktree-owned

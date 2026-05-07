@@ -621,3 +621,130 @@ func TestRepairStaleWorktree(t *testing.T) {
 func TestCreateStaleWorktree(t *testing.T) {
 	t.Skip("This test requires complex mock setup to simulate git worktree list output with stale entries")
 }
+
+func TestStripANSI(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "no codes",
+			input: "plain text",
+			want:  "plain text",
+		},
+		{
+			name:  "red background around name column",
+			input: "\033[41mmyrepo/feature-a\033[0m\tbranch\tactive",
+			want:  "myrepo/feature-a\tbranch\tactive",
+		},
+		{
+			name:  "multiple codes",
+			input: "\033[1m\033[31mbold red\033[0m",
+			want:  "bold red",
+		},
+		{
+			name:  "empty string",
+			input: "",
+			want:  "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := stripANSI(tt.input)
+			if got != tt.want {
+				t.Errorf("stripANSI(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestParseJumpOutputStripsANSI(t *testing.T) {
+	t.Run("row with red background ANSI is stripped", func(t *testing.T) {
+		output := "ctrl-d\n\033[41mmyrepo/feature-a\033[0m\tbranch\tactive"
+		key, row, err := parseJumpOutput(output)
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		if key != "ctrl-d" {
+			t.Errorf("Expected key 'ctrl-d', got %q", key)
+		}
+		want := "myrepo/feature-a\tbranch\tactive"
+		if row != want {
+			t.Errorf("Expected stripped row %q, got %q", want, row)
+		}
+	})
+
+	t.Run("plain row without ANSI is unchanged", func(t *testing.T) {
+		output := "ctrl-d\nmyrepo/fix-123\tfix-123\tinactive"
+		_, row, err := parseJumpOutput(output)
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		want := "myrepo/fix-123\tfix-123\tinactive"
+		if row != want {
+			t.Errorf("Expected row %q, got %q", want, row)
+		}
+	})
+}
+
+func TestBuildConfirmRows(t *testing.T) {
+	rows := []string{
+		"myrepo/feature-a\tbranch-a\tactive",
+		"myrepo/feature-b\tbranch-b\tinactive",
+		"myrepo/feature-c\tbranch-c\tactive",
+	}
+
+	t.Run("pending item is moved to position 0", func(t *testing.T) {
+		result := buildConfirmRows(rows, "myrepo", "feature-c")
+		if len(result) != 3 {
+			t.Fatalf("Expected 3 rows, got %d", len(result))
+		}
+		// First row must contain the pending item's key after stripping ANSI
+		if !strings.Contains(stripANSI(result[0]), "myrepo/feature-c") {
+			t.Errorf("Expected pending item first, got %q", result[0])
+		}
+	})
+
+	t.Run("pending item's name column has red background ANSI", func(t *testing.T) {
+		result := buildConfirmRows(rows, "myrepo", "feature-b")
+		pendingRow := result[0]
+		if !strings.Contains(pendingRow, "\033[41m") {
+			t.Errorf("Expected red background escape in pending row, got %q", pendingRow)
+		}
+		if !strings.Contains(pendingRow, "\033[0m") {
+			t.Errorf("Expected reset escape in pending row, got %q", pendingRow)
+		}
+	})
+
+	t.Run("non-pending rows are unchanged", func(t *testing.T) {
+		result := buildConfirmRows(rows, "myrepo", "feature-a")
+		// result[0] is pending (feature-a); result[1] and result[2] are the others
+		for _, row := range result[1:] {
+			if strings.Contains(row, "\033[") {
+				t.Errorf("Non-pending row should not contain ANSI codes, got %q", row)
+			}
+		}
+	})
+
+	t.Run("pending item data is preserved after stripping ANSI", func(t *testing.T) {
+		result := buildConfirmRows(rows, "myrepo", "feature-b")
+		cleaned := stripANSI(result[0])
+		if cleaned != "myrepo/feature-b\tbranch-b\tinactive" {
+			t.Errorf("Stripped pending row should equal original, got %q", cleaned)
+		}
+	})
+
+	t.Run("unknown repoSlug/name returns rows unchanged and in original order", func(t *testing.T) {
+		result := buildConfirmRows(rows, "other", "unknown")
+		if len(result) != 3 {
+			t.Fatalf("Expected 3 rows, got %d", len(result))
+		}
+		for i, row := range result {
+			if row != rows[i] {
+				t.Errorf("row[%d] should be unchanged: want %q, got %q", i, rows[i], row)
+			}
+		}
+	})
+}
