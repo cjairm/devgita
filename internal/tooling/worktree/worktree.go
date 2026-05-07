@@ -63,17 +63,20 @@ type WorktreeManager struct {
 	Fzf           *fzf.Fzf
 	Base          cmd.BaseCommandExecutor
 	pendingDelete *pendingDeleteInfo
+	fzfRun        func(rows []string, header string) (string, error)
 }
 
 // New creates a new WorktreeManager instance
 func New() *WorktreeManager {
-	return &WorktreeManager{
+	wm := &WorktreeManager{
 		Git:           git.New(),
 		Tmux:          tmux.New(),
 		Fzf:           fzf.New(),
 		Base:          cmd.NewBaseCommand(),
 		pendingDelete: nil,
 	}
+	wm.fzfRun = wm.execFzf
+	return wm
 }
 
 // worktreePath returns ~/.local/share/devgita/worktrees/<repo-slug>/<name>
@@ -695,20 +698,24 @@ func confirmFromTTY() bool {
 	return strings.ToLower(strings.TrimSpace(response)) == "y"
 }
 
-// runFzfWithExpect pipes rows to fzf via stdin and returns the raw output.
-// Base.ExecCommand has no stdin parameter, so we use exec.Command directly
-// (same pattern as Fzf.SelectFromList). fzf renders its UI to /dev/tty and
-// writes the selected item to stdout, which Output() captures.
+// runFzfWithExpect delegates to w.fzfRun so tests can inject a mock.
 func (w *WorktreeManager) runFzfWithExpect(rows []string, header ...string) (string, error) {
-	defaultHeader := "enter: jump | ctrl-d: delete | ctrl-r: repair"
+	h := "enter: jump | ctrl-d: delete | ctrl-r: repair"
 	if len(header) > 0 && header[0] != "" {
-		defaultHeader = header[0]
+		h = header[0]
 	}
+	return w.fzfRun(rows, h)
+}
+
+// execFzf is the real fzf execution assigned to fzfRun in New().
+// fzf renders its UI to /dev/tty and writes the selection to stdout,
+// which Output() captures.
+func (w *WorktreeManager) execFzf(rows []string, header string) (string, error) {
 	fzfCmd := exec.Command("fzf",
 		"--height=60%",
 		"--reverse",
 		"--ansi",
-		"--header", defaultHeader,
+		"--header", header,
 		"--expect", "ctrl-d,ctrl-r",
 		"--with-nth", "1,2,3",
 		"--delimiter", "\t",

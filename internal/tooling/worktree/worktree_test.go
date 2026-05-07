@@ -1,6 +1,7 @@
 package worktree
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -249,7 +250,7 @@ func TestRemove(t *testing.T) {
 		if err := os.MkdirAll(wtPath, 0755); err != nil {
 			t.Fatalf("Failed to create worktree dir: %v", err)
 		}
-		defer os.RemoveAll(filepath.Dir(filepath.Dir(wtPath)))
+		defer os.RemoveAll(filepath.Dir(wtPath))
 
 		err := wm.Remove("feature-test", true)
 		if err != nil {
@@ -620,6 +621,156 @@ func TestRepairStaleWorktree(t *testing.T) {
 // and continues with creation
 func TestCreateStaleWorktree(t *testing.T) {
 	t.Skip("This test requires complex mock setup to simulate git worktree list output with stale entries")
+}
+
+type fzfCall struct {
+	rows   []string
+	header string
+}
+
+// uniqueSlug returns a repoSlug guaranteed not to collide with any real
+// worktree on disk, by deriving it from t.TempDir(). Use this for any test
+// that drives confirmAndRemove down the delete path, since that path
+// resolves wtPath against the real filesystem.
+func uniqueSlug(t *testing.T) string {
+	t.Helper()
+	return filepath.Base(t.TempDir())
+}
+
+// newMockWM builds a WorktreeManager with mocked git/tmux and a controllable
+// fzfRun. Each fzf call appends to the returned slice; the closure returns
+// the next (out, err) pair from results, repeating the last pair after exhaustion.
+func newMockWM(results []struct {
+	out string
+	err error
+}) (*WorktreeManager, *[]fzfCall) {
+	calls := &[]fzfCall{}
+	idx := 0
+	wm := &WorktreeManager{
+		Git:  &git.Git{Cmd: commands.NewMockCommand(), Base: commands.NewMockBaseCommand()},
+		Tmux: &tmux.Tmux{Cmd: commands.NewMockCommand(), Base: commands.NewMockBaseCommand()},
+		Base: commands.NewMockBaseCommand(),
+	}
+	wm.fzfRun = func(rows []string, header string) (string, error) {
+		*calls = append(*calls, fzfCall{rows: rows, header: header})
+		r := results[idx]
+		if idx < len(results)-1 {
+			idx++
+		}
+		return r.out, r.err
+	}
+	return wm, calls
+}
+
+func TestConfirmAndRemovePendingItemIsFirstWithRedBackground(t *testing.T) {
+	slug := uniqueSlug(t)
+	rows := []string{
+		slug + "/feature-a\tbranch-a\tactive",
+		slug + "/feature-b\tbranch-b\tinactive",
+		slug + "/feature-c\tbranch-c\tactive",
+	}
+
+	wm, calls := newMockWM([]struct {
+		out string
+		err error
+	}{
+		{out: "", err: fmt.Errorf("selection cancelled")},
+	})
+
+	_ = wm.confirmAndRemove(rows, slug, "feature-c")
+
+	if len(*calls) != 1 {
+		t.Fatalf("Expected 1 fzf call, got %d", len(*calls))
+	}
+	first := (*calls)[0].rows[0]
+	if !strings.Contains(stripANSI(first), slug+"/feature-c") {
+		t.Errorf("Expected feature-c first, got %q", first)
+	}
+	if !strings.Contains(first, "\033[41m") {
+		t.Errorf("Expected red ANSI background in first row, got %q", first)
+	}
+	if wm.pendingDelete != nil {
+		t.Error("Expected pendingDelete cleared after cancel")
+	}
+}
+
+func TestConfirmAndRemoveDeleteExecutedOnSecondCtrlD(t *testing.T) {
+	slug := uniqueSlug(t)
+	rows := []string{slug + "/feature-a\tbranch-a\tactive"}
+
+	wm, calls := newMockWM([]struct {
+		out string
+		err error
+	}{
+		{out: "ctrl-d\n" + slug + "/feature-a\tbranch-a\tactive", err: nil},
+	})
+
+	err := wm.confirmAndRemove(rows, slug, "feature-a")
+	// removeByRepo runs but state.WtExists is false (slug is unique to TempDir,
+	// so no real path exists), so it returns nil without touching the filesystem.
+	_ = err
+
+	if len(*calls) != 1 {
+		t.Errorf("Expected 1 fzf call, got %d", len(*calls))
+	}
+	if wm.pendingDelete != nil {
+		t.Error("Expected pendingDelete nil after confirmed delete")
+	}
+}
+
+func TestConfirmAndRemoveCancelClearsPending(t *testing.T) {
+	slug := uniqueSlug(t)
+	rows := []string{slug + "/feature-a\tbranch-a\tactive"}
+
+	wm, _ := newMockWM([]struct {
+		out string
+		err error
+	}{
+		{out: "", err: fmt.Errorf("selection cancelled")},
+	})
+
+	err := wm.confirmAndRemove(rows, slug, "feature-a")
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if wm.pendingDelete != nil {
+		t.Error("Expected pendingDelete nil after cancel")
+	}
+}
+
+func TestConfirmAndRemoveDifferentItemRedirectsConfirm(t *testing.T) {
+	slug := uniqueSlug(t)
+	rows := []string{
+		slug + "/feature-a\tbranch-a\tactive",
+		slug + "/feature-b\tbranch-b\tinactive",
+	}
+
+	callIdx := 0
+	calls := &[]fzfCall{}
+	wm := &WorktreeManager{
+		Git:  &git.Git{Cmd: commands.NewMockCommand(), Base: commands.NewMockBaseCommand()},
+		Tmux: &tmux.Tmux{Cmd: commands.NewMockCommand(), Base: commands.NewMockBaseCommand()},
+		Base: commands.NewMockBaseCommand(),
+	}
+	wm.fzfRun = func(r []string, h string) (string, error) {
+		*calls = append(*calls, fzfCall{rows: r, header: h})
+		callIdx++
+		if callIdx == 1 {
+			return "ctrl-d\n" + slug + "/feature-b\tbranch-b\tinactive", nil
+		}
+		return "", fmt.Errorf("selection cancelled")
+	}
+
+	_ = wm.confirmAndRemove(rows, slug, "feature-a")
+
+	// Should have launched fzf twice: once for feature-a, once for feature-b
+	if len(*calls) != 2 {
+		t.Errorf("Expected 2 fzf calls (redirect), got %d", len(*calls))
+	}
+	secondFirst := (*calls)[1].rows[0]
+	if !strings.Contains(stripANSI(secondFirst), slug+"/feature-b") {
+		t.Errorf("Expected feature-b first in second call, got %q", secondFirst)
+	}
 }
 
 func TestStripANSI(t *testing.T) {
