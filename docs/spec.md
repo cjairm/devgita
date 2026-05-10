@@ -151,7 +151,35 @@ _Linux (Debian/Ubuntu)_:
 
 ### 3. Command Reference
 
-**Current**: `dg install` with options
+**Current commands**:
+
+#### `dg install`
+
+See [Installation Command](#1-installation-command-dg-install) above.
+
+#### `dg configure [app]`
+
+Re-applies configuration files for a named app without reinstalling the app itself.
+
+```
+dg configure <app> [--force]
+```
+
+**Flags**:
+- `--force` — Overwrite existing configuration files. Without this flag, configuration is only applied if files do not already exist (soft mode).
+
+**Behavior**:
+- Exact app name required (case-sensitive). Supported apps: `aerospace`, `alacritty`, `brave`, `claude`, `devgita`, `docker`, `fastfetch`, `flameshot`, `gimp`, `git`, `i3`, `lazydocker`, `lazygit`, `mise`, `neovim`, `opencode`, `raycast`, `tmux`, `ulauncher`.
+- Apps that have no configuration to deploy (e.g., `brave`) return `ErrConfigureNotSupported` — the command prints an info message and exits zero.
+- Unknown app names print a sorted list of supported apps and exit non-zero.
+
+**Examples**:
+```
+dg configure git            # Apply git config if not already present
+dg configure neovim --force # Overwrite existing neovim config
+dg configure brave          # Info: configure not supported for brave (exit 0)
+dg configure foo            # Error: unknown app "foo" + supported list (exit non-zero)
+```
 
 **Planned commands**: See [ROADMAP.md](ROADMAP.md) for planned features and future commands.
 

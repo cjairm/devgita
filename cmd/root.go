@@ -34,7 +34,7 @@ Key Features:
 Available Commands:
   install        Install apps, languages, fonts, themes (with optional --soft mode)
   reinstall      Force reinstallation and configuration
-  configure      Configure environment files (e.g., zsh, vim, etc.)
+  configure      Apply configuration files for a named app (e.g., dg configure git)
   re-configure   Re-apply configuration even if already present
   uninstall      Remove previously installed apps or assets (fonts/themes) safely
   update         Update selected apps (e.g., --neovim, --aerospace)
