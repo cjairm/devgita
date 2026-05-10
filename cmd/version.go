@@ -23,8 +23,9 @@ var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print the version number of devgita",
 	Long:  `All software has versions. This is devgita's.`,
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		fmt.Printf("devgita %s (commit: %s, built: %s)\n", Version, Commit, BuildDate)
+		return nil
 	},
 }
 

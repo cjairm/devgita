@@ -43,7 +43,7 @@ Flags:
   --only <...>     Only install specific categories (e.g., terminal, languages, desktop)
   --skip <...>     Skip specific categories (e.g., terminal, languages, desktop)
 `,
-	Run: run,
+	RunE: run,
 }
 
 func init() {
@@ -56,7 +56,7 @@ func init() {
 		StringSliceVar(&skip, "skip", []string{}, "Skip specific categories (comma or repeatable)")
 }
 
-func run(cmd *cobra.Command, args []string) {
+func run(cmd *cobra.Command, args []string) error {
 	onlySet := make(map[string]bool)
 	for _, item := range only {
 		onlySet[item] = true
@@ -77,16 +77,21 @@ func run(cmd *cobra.Command, args []string) {
 	osCmd := commands.NewCommand()
 
 	utils.PrintInfo("Validating version...")
-	utils.MaybeExitWithError(osCmd.ValidateOSVersion())
+	if err := osCmd.ValidateOSVersion(); err != nil {
+		return err
+	}
 
 	utils.PrintInfo("Installing package manager...")
-	utils.MaybeExitWithError(osCmd.MaybeInstallPackageManager())
+	if err := osCmd.MaybeInstallPackageManager(); err != nil {
+		return err
+	}
 
 	installDevgita()
 	installTerminalTools(onlySet, skipSet)
 	installLanguages(ctx, onlySet, skipSet)
 	installDatabases(ctx, onlySet, skipSet)
 	installDesktopTools(onlySet, skipSet)
+	return nil
 }
 
 func installDevgita() {

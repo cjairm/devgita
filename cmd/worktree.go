@@ -60,18 +60,18 @@ Valid AI coders: opencode (oc), claude (cc, claudecode)
 After creation, switch to the window with:
   <prefix> + [window number] or <prefix> + w to see all windows`,
 	Args: cobra.ExactArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		name := args[0]
 		aiAlias := resolveAIAlias(aiFlag, &globalConfig)
 
 		coder, err := worktree.ResolveAICoder(aiAlias)
 		if err != nil {
-			utils.MaybeExitWithError(err)
+			return err
 		}
 
 		wm := worktree.New()
 		if err := wm.Create(name, coder); err != nil {
-			utils.MaybeExitWithError(err)
+			return err
 		}
 
 		repoRoot, _ := wm.Git.GetRepoRoot()
@@ -82,6 +82,7 @@ After creation, switch to the window with:
 		utils.PrintSuccess(fmt.Sprintf("Created worktree: %s/%s", repoSlug, name))
 		utils.PrintSuccess(fmt.Sprintf("Created tmux window: %s", worktree.GetWindowName(name)))
 		utils.PrintInfo("Switch to window with: <prefix> + w")
+		return nil
 	},
 }
 
@@ -97,15 +98,17 @@ Shows worktrees from all repos in ~/.local/share/devgita/worktrees/ along with:
   - Associated tmux window name
   - Whether the window is currently active`,
 	Args: cobra.NoArgs,
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		wm := worktree.New()
 
 		statuses, err := wm.List()
-		utils.MaybeExitWithError(err)
+		if err != nil {
+			return err
+		}
 
 		if len(statuses) == 0 {
 			utils.PrintInfo("No worktrees found")
-			return
+			return nil
 		}
 
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
@@ -119,6 +122,7 @@ Shows worktrees from all repos in ~/.local/share/devgita/worktrees/ along with:
 				s.Repo, s.Name, s.Branch, s.TmuxWindow, status)
 		}
 		w.Flush()
+		return nil
 	},
 }
 
@@ -139,14 +143,14 @@ Use --force to remove even if the worktree has uncommitted changes.
 
 Warning: Any uncommitted changes in the worktree will be lost.`,
 	Args: cobra.MaximumNArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		wm := worktree.New()
 		var name string
 
 		if len(args) == 0 {
 			selected, err := wm.SelectWorktreeInteractively("Select worktree to remove:")
 			if err != nil {
-				utils.MaybeExitWithError(err)
+				return err
 			}
 			name = selected
 		} else {
@@ -154,10 +158,11 @@ Warning: Any uncommitted changes in the worktree will be lost.`,
 		}
 
 		if err := wm.Remove(name, forceFlag); err != nil {
-			utils.MaybeExitWithError(err)
+			return err
 		}
 
 		utils.PrintSuccess(fmt.Sprintf("Removed worktree: %s", name))
+		return nil
 	},
 }
 
@@ -185,13 +190,11 @@ Non-worktree windows can only be jumped to (enter); delete/repair are no-op.
 Example:
   dg wt j    # Opens fzf picker, then switches to selected window`,
 	Args: cobra.NoArgs,
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		wm := worktree.New()
 		aiAlias := resolveAIAlias("", &globalConfig)
 
-		if err := wm.Jump(aiAlias); err != nil {
-			utils.MaybeExitWithError(err)
-		}
+		return wm.Jump(aiAlias)
 	},
 }
 
@@ -211,22 +214,23 @@ AI coder selection follows the same precedence as create:
   3. worktree.default_ai in global_config.yaml
   4. Default: opencode`,
 	Args: cobra.ExactArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		name := args[0]
 		aiAlias := resolveAIAlias(aiFlag, &globalConfig)
 
 		coder, err := worktree.ResolveAICoder(aiAlias)
 		if err != nil {
-			utils.MaybeExitWithError(err)
+			return err
 		}
 
 		wm := worktree.New()
 		if err := wm.Repair(name, coder); err != nil {
-			utils.MaybeExitWithError(err)
+			return err
 		}
 
 		utils.PrintSuccess(fmt.Sprintf("Repaired worktree: %s", name))
 		utils.PrintSuccess(fmt.Sprintf("Launched AI coder in window: %s", worktree.GetWindowName(name)))
+		return nil
 	},
 }
 
@@ -246,14 +250,15 @@ Each worktree is removed using the same logic as 'dg wt remove':
 Example:
   dg wt prune    # Prompts for confirmation, then removes all worktrees`,
 	Args: cobra.NoArgs,
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		wm := worktree.New()
 
 		if err := wm.Prune(); err != nil {
-			utils.MaybeExitWithError(err)
+			return err
 		}
 
 		utils.PrintSuccess("All worktrees removed")
+		return nil
 	},
 }
 
