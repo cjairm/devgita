@@ -137,6 +137,12 @@ func (dg *Devgita) Uninstall() error {
 }
 
 func (dg *Devgita) ForceConfigure() error {
+	// Re-extract embedded configs so deployed configs/claude, configs/opencode, etc.
+	// always match the current binary (not the original install).
+	if err := dg.Install(); err != nil {
+		return fmt.Errorf("failed to refresh embedded configs: %w", err)
+	}
+
 	gc := &config.GlobalConfig{}
 	if err := gc.Create(); err != nil {
 		return fmt.Errorf("failed to create global config: %w", err)
