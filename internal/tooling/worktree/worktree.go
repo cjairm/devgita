@@ -259,6 +259,19 @@ func (w *WorktreeManager) List() ([]WorktreeStatus, error) {
 	return statuses, nil
 }
 
+// ListNames returns just the worktree names across all repos for shell completion.
+func (w *WorktreeManager) ListNames() ([]string, error) {
+	statuses, err := w.List()
+	if err != nil {
+		return nil, err
+	}
+	names := make([]string, 0, len(statuses))
+	for _, s := range statuses {
+		names = append(names, s.Name)
+	}
+	return names, nil
+}
+
 // findRepoForWorktree searches the centralized base path for a worktree by name
 // and returns the repo slug that owns it. Returns "" if not found or ambiguous.
 func (w *WorktreeManager) findRepoForWorktree(name string) string {

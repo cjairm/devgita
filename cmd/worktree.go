@@ -143,6 +143,16 @@ Use --force to remove even if the worktree has uncommitted changes.
 
 Warning: Any uncommitted changes in the worktree will be lost.`,
 	Args: cobra.MaximumNArgs(1),
+	ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		if len(args) != 0 {
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		}
+		names, err := worktree.New().ListNames()
+		if err != nil {
+			return nil, cobra.ShellCompDirectiveError
+		}
+		return names, cobra.ShellCompDirectiveNoFileComp
+	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		wm := worktree.New()
 		var name string
@@ -190,6 +200,13 @@ Non-worktree windows can only be jumped to (enter); delete/repair are no-op.
 Example:
   dg wt j    # Opens fzf picker, then switches to selected window`,
 	Args: cobra.NoArgs,
+	ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		names, err := worktree.New().ListNames()
+		if err != nil {
+			return nil, cobra.ShellCompDirectiveError
+		}
+		return names, cobra.ShellCompDirectiveNoFileComp
+	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		wm := worktree.New()
 		aiAlias := resolveAIAlias("", &globalConfig)
