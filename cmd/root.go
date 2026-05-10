@@ -64,9 +64,6 @@ func Execute() {
 func init() {
 	rootCmd.PersistentFlags().
 		BoolVar(&verbose, "verbose", false, "Enable verbose logging")
-	rootCmd.PersistentFlags().
-		BoolVar(&verbose, "debug", false, "Alias for --verbose")
-	rootCmd.PersistentFlags().MarkDeprecated("debug", "use --verbose instead")
 
 	// Ensure this runs before any subcommand
 	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
