@@ -16,7 +16,7 @@ var verbose bool
 var rootCmd = &cobra.Command{
 	Use:          "dg",
 	SilenceUsage: true,
-	Short: "Devgita - Your cross-platform CLI to install, configure, and manage development environments",
+	Short:        "Devgita - Your cross-platform CLI to install, configure, and manage development environments",
 	Long: `Devgita (dg) helps you set up and manage your development environment with ease.
 
 Key Features:
