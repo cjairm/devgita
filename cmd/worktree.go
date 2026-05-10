@@ -96,6 +96,7 @@ Shows worktrees from all repos in ~/.local/share/devgita/worktrees/ along with:
   - Branch name
   - Associated tmux window name
   - Whether the window is currently active`,
+	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		wm := worktree.New()
 
@@ -183,6 +184,7 @@ Non-worktree windows can only be jumped to (enter); delete/repair are no-op.
 
 Example:
   dg wt j    # Opens fzf picker, then switches to selected window`,
+	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		wm := worktree.New()
 		aiAlias := resolveAIAlias("", &globalConfig)
@@ -243,6 +245,7 @@ Each worktree is removed using the same logic as 'dg wt remove':
 
 Example:
   dg wt prune    # Prompts for confirmation, then removes all worktrees`,
+	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		wm := worktree.New()
 

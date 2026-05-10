@@ -12,7 +12,8 @@ import (
 var verbose bool
 
 var rootCmd = &cobra.Command{
-	Use:   "dg",
+	Use:          "dg",
+	SilenceUsage: true,
 	Short: "Devgita - Your cross-platform CLI to install, configure, and manage development environments",
 	Long: `Devgita (dg) helps you set up and manage your development environment with ease.
 
@@ -63,6 +64,7 @@ func init() {
 		BoolVar(&verbose, "verbose", false, "Enable verbose logging")
 	rootCmd.PersistentFlags().
 		BoolVar(&verbose, "debug", false, "Alias for --verbose")
+	rootCmd.PersistentFlags().MarkDeprecated("debug", "use --verbose instead")
 
 	// Ensure this runs before any subcommand
 	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
