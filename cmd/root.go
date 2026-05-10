@@ -4,6 +4,8 @@
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/cjairm/devgita/pkg/logger"
 	"github.com/cjairm/devgita/pkg/utils"
 	"github.com/spf13/cobra"
@@ -74,4 +76,9 @@ func init() {
 	}
 
 	rootCmd.SetHelpFunc(utils.PrompCustomHelp)
+
+	rootCmd.Version = Version
+	rootCmd.SetVersionTemplate(fmt.Sprintf(
+		"devgita {{.Version}} (commit: %s, built: %s)\n", Commit, BuildDate,
+	))
 }

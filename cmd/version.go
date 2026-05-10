@@ -5,7 +5,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
 )
@@ -31,14 +30,4 @@ var versionCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(versionCmd)
-
-	// Add --version flag to root command
-	rootCmd.Flags().BoolP("version", "v", false, "Print version information")
-
-	// Check for --version flag before running any command
-	rootCmd.ParseFlags(os.Args[1:])
-	if versionFlag, _ := rootCmd.Flags().GetBool("version"); versionFlag {
-		fmt.Printf("devgita %s (commit: %s, built: %s)\n", Version, Commit, BuildDate)
-		os.Exit(0)
-	}
 }
