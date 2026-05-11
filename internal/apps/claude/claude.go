@@ -116,16 +116,22 @@ func (c *Claude) ForceConfigure() error {
 }
 
 func (c *Claude) SoftConfigure() error {
-	gc := &config.GlobalConfig{}
-	if err := gc.Load(); err != nil {
-		return fmt.Errorf("failed to load global config: %w", err)
-	}
-	if gc.IsAlreadyInstalled(constants.Claude, "package") ||
-		gc.IsInstalledByDevgita(constants.Claude, "package") {
-		return nil
-	}
 	markerFile := filepath.Join(paths.Paths.Config.Claude, "settings.json")
 	if files.FileAlreadyExist(markerFile) {
+		// Config already exists, but ensure shell feature is enabled
+		gc := &config.GlobalConfig{}
+		if err := gc.Load(); err != nil {
+			return fmt.Errorf("failed to load global config: %w", err)
+		}
+		if !gc.Shell.Claude {
+			gc.Shell.Claude = true
+			if err := gc.Save(); err != nil {
+				return fmt.Errorf("failed to save global config: %w", err)
+			}
+			if err := gc.RegenerateShellConfig(); err != nil {
+				return fmt.Errorf("failed to regenerate shell config: %w", err)
+			}
+		}
 		return nil
 	}
 	return c.ForceConfigure()
