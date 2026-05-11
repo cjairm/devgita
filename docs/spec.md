@@ -1,6 +1,6 @@
 # Devgita Product Specification
 
-**Last Updated**: 2026-04-28  
+**Last Updated**: 2026-05-11  
 **Owner**: @cjairm
 
 ---
@@ -49,7 +49,6 @@ devgita/
 - **Coordinator pattern** for category orchestration (see `internal/tooling/languages/` as reference)
 
 ---
-
 
 ## Features
 
@@ -166,19 +165,76 @@ dg configure <app> [--force]
 ```
 
 **Flags**:
+
 - `--force` — Overwrite existing configuration files. Without this flag, configuration is only applied if files do not already exist (soft mode).
 
 **Behavior**:
+
 - Exact app name required (case-sensitive). Supported apps: `aerospace`, `alacritty`, `brave`, `claude`, `devgita`, `docker`, `fastfetch`, `flameshot`, `gimp`, `git`, `i3`, `lazydocker`, `lazygit`, `mise`, `neovim`, `opencode`, `raycast`, `tmux`, `ulauncher`.
 - Apps that have no configuration to deploy (e.g., `brave`) return `ErrConfigureNotSupported` — the command prints an info message and exits zero.
 - Unknown app names print a sorted list of supported apps and exit non-zero.
 
 **Examples**:
+
 ```
 dg configure git            # Apply git config if not already present
 dg configure neovim --force # Overwrite existing neovim config
 dg configure brave          # Info: configure not supported for brave (exit 0)
 dg configure foo            # Error: unknown app "foo" + supported list (exit non-zero)
+```
+
+**Planned commands**: See [ROADMAP.md](ROADMAP.md) for planned features and future commands.
+
+#### `dg completion [shell]`
+
+Generates a shell completion script for the given shell.
+
+```
+dg completion [bash|zsh|fish|powershell]
+```
+
+**Behavior**:
+
+- Prints the completion script to stdout; source it or add to your shell config.
+- Example: `dg completion zsh > ~/.zsh/completions/_dg`
+- Tab completion is pre-wired for `dg worktree remove <name>` and `dg worktree jump`.
+
+#### `dg worktree`
+
+Manages git worktrees with integrated tmux sessions and AI coders.
+
+```
+dg worktree <subcommand> [flags]
+dg wt <subcommand> [flags]     # alias
+```
+
+**Subcommands**:
+
+| Subcommand      | Description                                            |
+| --------------- | ------------------------------------------------------ |
+| `create <name>` | Create a new worktree + tmux window                    |
+| `list`          | List all managed worktrees                             |
+| `remove [name]` | Remove a worktree (interactive picker if name omitted) |
+| `jump`          | fzf-powered picker to switch between worktree windows  |
+| `repair <name>` | Recreate the tmux window for an existing worktree      |
+| `prune`         | Remove **all** managed worktrees after confirmation    |
+
+**Flags for `create` and `repair`**:
+
+- `--ai <alias>` / `-a <alias>` — AI coder to launch in the window. Accepted aliases: `opencode`, `oc`, `claude`, `cc`, `claudecode`. Resolution order: flag → `DEVGITA_AI` env var → `worktree.default_ai` in `global_config.yaml`.
+
+**Flag for `remove`**:
+
+- `--force` / `-f` — Force removal even if the worktree has uncommitted changes.
+
+**Examples**:
+
+```
+dg wt create feature-login                  # Create worktree, use default AI
+dg wt create feature-login --ai claude      # Create with Claude Code
+dg wt repair feature-login                  # Recreate missing tmux window
+dg wt jump                                  # fzf picker (ctrl-d delete, ctrl-r repair)
+dg wt prune                                 # Remove all worktrees (prompts for confirmation)
 ```
 
 **Planned commands**: See [ROADMAP.md](ROADMAP.md) for planned features and future commands.
@@ -309,6 +365,7 @@ Install desktop applications?
 - **Debian 12+** (Bookworm) and **Ubuntu 24+** with APT
 
 **Intentional constraints:**
+
 - **CLI-only** — No graphical installation interfaces
 - **Official package sources only** — Homebrew (macOS) and APT (Linux); no custom repositories
 - **No Windows support** — macOS and Linux only

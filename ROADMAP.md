@@ -4,16 +4,22 @@ Public roadmap of planned features, improvements, and discussion topics for futu
 
 ---
 
+## Implemented Commands
+
+### Configuration & Management
+
+- 🟢 **`dg configure [app]`** — Re-applies configuration files for a named app without reinstalling
+  - `--force` overwrites existing config files; default (soft mode) only applies if files are absent
+  - Supports 19 apps; apps with no config return an info message and exit zero
+  - Shipped in v0.10.0
+
+---
+
 ## Planned Commands
 
 The following commands are planned but not yet implemented:
 
 ### Configuration & Management
-
-- **`dg configure [app]`** — Update configuration files after changes
-  - Should handle re-installation of config files
-  - Option: `--force` to overwrite existing files
-  - Related: Should we uninstall and reinstall the app?
 
 - **`dg uninstall [app/category]`** — Remove installed packages
   - Must verify packages were installed by us (not pre-existing)
