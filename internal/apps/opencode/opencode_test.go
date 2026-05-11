@@ -329,7 +329,7 @@ func TestSoftConfigure(t *testing.T) {
 		testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
 	})
 
-	t.Run("SkipWhenAlreadyInstalledByDevgita", func(t *testing.T) {
+	t.Run("ConfigureWhenAlreadyInstalledButNotConfigured", func(t *testing.T) {
 		tc := testutil.SetupCompleteTest(t)
 		defer tc.Cleanup()
 
@@ -346,7 +346,26 @@ shell:
 			t.Fatal(err)
 		}
 
+		appConfigDir := filepath.Join(tc.AppDir, "configs", "opencode")
 		userConfigDir := filepath.Join(tc.ConfigDir, "opencode")
+
+		if err := os.MkdirAll(appConfigDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.MkdirAll(filepath.Join(appConfigDir, "themes"), 0755); err != nil {
+			t.Fatal(err)
+		}
+		templatePath := filepath.Join(appConfigDir, "opencode.json.tmpl")
+		if err := os.WriteFile(templatePath, []byte(`{"theme": "{{ .Theme }}"}`), 0644); err != nil {
+			t.Fatal(err)
+		}
+		themeSourcePath := filepath.Join(appConfigDir, "themes", "default.json")
+		if err := os.WriteFile(themeSourcePath, []byte(`{"name": "test"}`), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		setupSharedDir(t, tc.AppDir)
+		paths.Paths.App.Configs.OpenCode = appConfigDir
 		paths.Paths.Config.OpenCode = userConfigDir
 
 		app := &OpenCode{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
@@ -356,8 +375,8 @@ shell:
 		}
 
 		configPath := filepath.Join(userConfigDir, "opencode.json")
-		if _, err := os.Stat(configPath); err == nil {
-			t.Error("Expected NO config file when already installed")
+		if _, err := os.Stat(configPath); err != nil {
+			t.Fatalf("Expected config file to be created even when already installed: %v", err)
 		}
 
 		testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
