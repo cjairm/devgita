@@ -1,6 +1,7 @@
 package devgita
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -46,6 +47,22 @@ func mockExtractor(destDir string) error {
 	}
 
 	return nil
+}
+
+func TestGetZshConfigPath_MatchesRegenerateShellConfigOutput(t *testing.T) {
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
+
+	// getZshConfigPath must return the same path that RegenerateShellConfig writes to.
+	// A mismatch causes the source line in .zshrc to point to a non-existent file.
+	expected := filepath.Join(paths.Paths.App.Root, fmt.Sprintf("%s.zsh", constants.App.Name))
+	actual := getZshConfigPath()
+
+	if actual != expected {
+		t.Errorf("getZshConfigPath() = %q, want %q (must match RegenerateShellConfig output path)", actual, expected)
+	}
+
+	testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
 }
 
 func TestNew(t *testing.T) {
@@ -320,8 +337,8 @@ shell:
 		t.Fatalf("Failed to create existing config: %v", err)
 	}
 
-	// Create existing zsh config at the correct location
-	// The devgita app expects it at config/devgita/.devgita.zsh, not app/devgita.zsh
+	// Create existing zsh config at the correct location (App.Root/devgita.zsh)
+	// This must match where RegenerateShellConfig writes the file
 	actualZshPath := getZshConfigPath()
 	existingZsh := "# Custom zsh marker\nsource /custom/path\n"
 	if err := os.WriteFile(actualZshPath, []byte(existingZsh), 0644); err != nil {

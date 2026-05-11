@@ -38,7 +38,7 @@ func getGlobalConfigPath() string {
 }
 
 func getZshConfigPath() string {
-	return filepath.Join(getConfigDirPath(), constants.App.File.ZshConfig)
+	return filepath.Join(paths.Paths.App.Root, fmt.Sprintf("%s.zsh", constants.App.Name))
 }
 
 func New() *Devgita {
