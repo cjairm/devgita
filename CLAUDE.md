@@ -209,7 +209,38 @@ See [ROADMAP.md](ROADMAP.md) for planned features and future platform support
 
 ---
 
-## 9. Change discipline
+## 9. Versioning & tagging
+
+Devgita follows [Semantic Versioning](https://semver.org/) strictly: **`vMAJOR.MINOR.PATCH`**
+
+### Which bump to use
+
+| Change type | Bump | Example |
+| --- | --- | --- |
+| Bug fix, typo, test fix, docs correction | **PATCH** `x.x.^` | `v0.10.2` -> `v0.10.3` |
+| New feature, new app installer, new command, new flag | **MINOR** `x.^.x` | `v0.10.3` -> `v0.11.0` |
+| Breaking change to CLI interface, config format change, removed platform support | **MAJOR** `^.x.x` | `v0.11.0` -> `v1.0.0` |
+
+**Rules:**
+- Tags always start with `v` (e.g., `v0.10.3`, not `0.10.3`)
+- PATCH resets to 0 on MINOR bump; MINOR and PATCH reset to 0 on MAJOR bump
+- Refactoring with no behavior change = PATCH (conservative)
+- Multiple bug fixes in one release = single PATCH bump
+- A release mixing features and fixes = MINOR bump (the higher bump wins)
+- When in doubt, ask before tagging
+
+### Tagging workflow
+
+```bash
+git tag v0.10.3
+git push origin v0.10.3
+```
+
+GitHub Actions builds and publishes automatically. See [docs/guides/releasing.md](docs/guides/releasing.md) for the full release process.
+
+---
+
+## 10. Change discipline
 
 Things that must never happen silently (always require explicit PR discussion and test):
 
@@ -222,7 +253,7 @@ Things that must never happen silently (always require explicit PR discussion an
 
 ---
 
-## 10. Spec-driven development
+## 11. Spec-driven development
 
 When to write documentation **before** code:
 

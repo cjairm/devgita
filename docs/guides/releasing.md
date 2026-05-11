@@ -23,19 +23,7 @@ Before creating a release, ensure:
 
 ### 2. Determine Version Number
 
-Devgita follows [Semantic Versioning](https://semver.org/):
-
-- **MAJOR.MINOR.PATCH** (e.g., `v1.2.3`)
-  - **MAJOR**: Incompatible API changes or major breaking changes
-  - **MINOR**: New functionality in a backward-compatible manner
-  - **PATCH**: Backward-compatible bug fixes
-
-**Examples**:
-
-- `v0.1.0` - Initial release
-- `v0.1.1` - Bug fix release
-- `v0.2.0` - New features added
-- `v1.0.0` - First stable release
+See [CLAUDE.md section 9](../../CLAUDE.md#9-versioning--tagging) for which bump to use (PATCH, MINOR, or MAJOR).
 
 ### 3. Create and Push Release Tag
 
@@ -201,10 +189,7 @@ If users report download failures:
 
 ### Version Numbering Guidelines
 
-- **v0.x.x**: Pre-1.0 development versions
-- **v1.0.0**: First stable release (when ready for production)
-- **v1.x.x**: Stable releases with backward compatibility
-- **v2.0.0+**: Major version bumps for breaking changes
+See [CLAUDE.md section 9](../../CLAUDE.md#9-versioning--tagging) for the full versioning policy, bump decision table, and rules.
 
 ### Release Frequency
 

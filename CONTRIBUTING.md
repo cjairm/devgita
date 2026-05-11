@@ -309,12 +309,7 @@ git push -u origin <BRANCH-NAME>
 
 ### Version Numbers
 
-Devgita uses [Semantic Versioning](https://semver.org/):
-
-- **MAJOR.MINOR.PATCH** (e.g., `v1.2.3`)
-  - **MAJOR:** Breaking changes to CLI interface
-  - **MINOR:** New features, backwards compatible
-  - **PATCH:** Bug fixes
+See [CLAUDE.md section 9](CLAUDE.md#9-versioning--tagging) for the full versioning policy, bump rules, and tagging workflow.
 
 ### Making a Release
 
