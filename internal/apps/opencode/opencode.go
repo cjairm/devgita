@@ -115,19 +115,25 @@ func (o *OpenCode) ForceConfigure() error {
 }
 
 func (o *OpenCode) SoftConfigure() error {
-	gc := &config.GlobalConfig{}
-	if err := gc.Load(); err != nil {
-		return fmt.Errorf("failed to load global config: %w", err)
-	}
-	if gc.IsAlreadyInstalled(constants.OpenCode, "package") ||
-		gc.IsInstalledByDevgita(constants.OpenCode, "package") {
-		return nil
-	}
 	markerFile := filepath.Join(
 		paths.Paths.Config.OpenCode,
 		fmt.Sprintf("%s.json", constants.OpenCode),
 	)
 	if files.FileAlreadyExist(markerFile) {
+		// Config already exists, but ensure shell feature is enabled
+		gc := &config.GlobalConfig{}
+		if err := gc.Load(); err != nil {
+			return fmt.Errorf("failed to load global config: %w", err)
+		}
+		if !gc.Shell.Opencode {
+			gc.Shell.Opencode = true
+			if err := gc.Save(); err != nil {
+				return fmt.Errorf("failed to save global config: %w", err)
+			}
+			if err := gc.RegenerateShellConfig(); err != nil {
+				return fmt.Errorf("failed to regenerate shell config: %w", err)
+			}
+		}
 		return nil
 	}
 	return o.ForceConfigure()
