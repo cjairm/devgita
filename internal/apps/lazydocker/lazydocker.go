@@ -117,6 +117,9 @@ func (ld *LazyDocker) Uninstall() error {
 
 func (ld *LazyDocker) ForceConfigure() error {
 	gc := &config.GlobalConfig{}
+	if err := gc.Create(); err != nil {
+		return fmt.Errorf("failed to create global config: %w", err)
+	}
 	if err := gc.Load(); err != nil {
 		return fmt.Errorf("failed to load global config: %w", err)
 	}
@@ -132,6 +135,9 @@ func (ld *LazyDocker) ForceConfigure() error {
 
 func (ld *LazyDocker) SoftConfigure() error {
 	gc := &config.GlobalConfig{}
+	if err := gc.Create(); err != nil {
+		return fmt.Errorf("failed to create global config: %w", err)
+	}
 	if err := gc.Load(); err != nil {
 		return fmt.Errorf("failed to load global config: %w", err)
 	}

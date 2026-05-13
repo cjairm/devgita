@@ -64,6 +64,9 @@ func (c *Claude) ForceConfigure() error {
 	}
 
 	gc := &config.GlobalConfig{}
+	if err := gc.Create(); err != nil {
+		return fmt.Errorf("failed to create global config: %w", err)
+	}
 	if err := gc.Load(); err != nil {
 		return fmt.Errorf("failed to load global config: %w", err)
 	}
@@ -120,6 +123,9 @@ func (c *Claude) SoftConfigure() error {
 	if files.FileAlreadyExist(markerFile) {
 		// Config already exists, but ensure shell feature is enabled
 		gc := &config.GlobalConfig{}
+		if err := gc.Create(); err != nil {
+			return fmt.Errorf("failed to create global config: %w", err)
+		}
 		if err := gc.Load(); err != nil {
 			return fmt.Errorf("failed to load global config: %w", err)
 		}

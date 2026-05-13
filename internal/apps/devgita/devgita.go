@@ -175,6 +175,9 @@ func (dg *Devgita) SoftConfigure() error {
 		return dg.ForceConfigure()
 	}
 	gc := &config.GlobalConfig{}
+	if err := gc.Create(); err != nil {
+		return fmt.Errorf("failed to create global config: %w", err)
+	}
 	if err := gc.Load(); err != nil {
 		return fmt.Errorf("failed to load global config: %w", err)
 	}

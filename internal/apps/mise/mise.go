@@ -48,6 +48,9 @@ func (m *Mise) SoftInstall() error {
 // ForceConfigure enables mise shell integration and regenerates shell config
 func (m *Mise) ForceConfigure() error {
 	gc := &config.GlobalConfig{}
+	if err := gc.Create(); err != nil {
+		return fmt.Errorf("failed to create global config: %w", err)
+	}
 	if err := gc.Load(); err != nil {
 		return fmt.Errorf("failed to load global config: %w", err)
 	}
@@ -63,6 +66,9 @@ func (m *Mise) ForceConfigure() error {
 
 func (m *Mise) SoftConfigure() error {
 	gc := &config.GlobalConfig{}
+	if err := gc.Create(); err != nil {
+		return fmt.Errorf("failed to create global config: %w", err)
+	}
 	if err := gc.Load(); err != nil {
 		return fmt.Errorf("failed to load global config: %w", err)
 	}
@@ -74,6 +80,9 @@ func (m *Mise) SoftConfigure() error {
 
 func (m *Mise) Uninstall() error {
 	gc := &config.GlobalConfig{}
+	if err := gc.Create(); err != nil {
+		return fmt.Errorf("failed to create global config: %w", err)
+	}
 	if err := gc.Load(); err != nil {
 		return fmt.Errorf("failed to load global config: %w", err)
 	}

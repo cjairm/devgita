@@ -160,6 +160,9 @@ func (n *Neovim) ForceConfigure() error {
 		return fmt.Errorf("failed to check Neovim version: %w", err)
 	}
 	gc := &config.GlobalConfig{}
+	if err := gc.Create(); err != nil {
+		return fmt.Errorf("failed to create global config: %w", err)
+	}
 	if err := gc.Load(); err != nil {
 		return fmt.Errorf("failed to load global config: %w", err)
 	}
@@ -174,6 +177,9 @@ func (n *Neovim) SoftConfigure() error {
 	isDirEmpty := files.IsDirEmpty(paths.Paths.Config.Nvim)
 	if isDirPresent && !isDirEmpty {
 		gc := &config.GlobalConfig{}
+		if err := gc.Create(); err != nil {
+			return fmt.Errorf("failed to create global config: %w", err)
+		}
 		if err := gc.Load(); err != nil {
 			return fmt.Errorf("failed to load global config: %w", err)
 		}

@@ -56,6 +56,9 @@ func (t *Tmux) SoftInstall() error {
 
 func (t *Tmux) ForceConfigure() error {
 	gc := &config.GlobalConfig{}
+	if err := gc.Create(); err != nil {
+		return fmt.Errorf("failed to create global config: %w", err)
+	}
 	if err := gc.Load(); err != nil {
 		return fmt.Errorf("failed to load global config: %w", err)
 	}
@@ -73,6 +76,9 @@ func (t *Tmux) SoftConfigure() error {
 	isFilePresent := files.FileAlreadyExist(configFile)
 	if isFilePresent {
 		gc := &config.GlobalConfig{}
+		if err := gc.Create(); err != nil {
+			return fmt.Errorf("failed to create global config: %w", err)
+		}
 		if err := gc.Load(); err != nil {
 			return fmt.Errorf("failed to load global config: %w", err)
 		}

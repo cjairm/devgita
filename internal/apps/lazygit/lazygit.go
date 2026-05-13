@@ -115,6 +115,9 @@ func (lg *LazyGit) Uninstall() error {
 
 func (lg *LazyGit) ForceConfigure() error {
 	gc := &config.GlobalConfig{}
+	if err := gc.Create(); err != nil {
+		return fmt.Errorf("failed to create global config: %w", err)
+	}
 	if err := gc.Load(); err != nil {
 		return fmt.Errorf("failed to load global config: %w", err)
 	}
@@ -130,6 +133,9 @@ func (lg *LazyGit) ForceConfigure() error {
 
 func (lg *LazyGit) SoftConfigure() error {
 	gc := &config.GlobalConfig{}
+	if err := gc.Create(); err != nil {
+		return fmt.Errorf("failed to create global config: %w", err)
+	}
 	if err := gc.Load(); err != nil {
 		return fmt.Errorf("failed to load global config: %w", err)
 	}
