@@ -2,7 +2,7 @@
 
 **Date:** 2026-05-12  
 **Estimated Duration:** ~14-18 hours (40+ file touches, 18 app uninstall paths + tests; Steps 5-8 are parallelizable)  
-**Status:** Draft
+**Status:** Draft (Revised 2026-05-13)
 
 ---
 
@@ -15,7 +15,7 @@ Devgita tracks everything it installs in `~/.config/devgita/global_config.yaml` 
 
 `dg uninstall` reverses the install process: removes the binary/package, removes config files devgita wrote, disables shell features, and updates `global_config.yaml`. Pre-existing packages are never touched.
 
-Each app's `Uninstall()` is self-contained — it handles binary removal, config cleanup, shell feature disabling, and global config updates, exactly mirroring how `ForceConfigure` works.
+Each app's `Uninstall()` is self-contained — it handles binary removal, config cleanup, shell feature disabling, and global config updates, exactly mirroring how `Install` + `ForceConfigure` work.
 
 Related: [ROADMAP.md](../../../ROADMAP.md) · [docs/guides/app-interface.md](../../guides/app-interface.md) · [docs/guides/testing-patterns.md](../../guides/testing-patterns.md)
 
@@ -32,9 +32,9 @@ Related: [ROADMAP.md](../../../ROADMAP.md) · [docs/guides/app-interface.md](../
 | `internal/commands/debian.go` | Debian impl — needs `UninstallPackage` (`apt-get remove -y`), `UninstallDesktopApp` (same as package on Debian) |
 | `internal/commands/mock.go` | Already has `UninstallPackage` — needs `UninstallDesktopApp` added |
 | `internal/config/fromFile.go` | Needs `RemoveFromInstalled(itemName, itemType string)` |
-| `internal/apps/{app}/{app}.go` | 18 app files — all need real `Uninstall()` + 14 need `AddToInstalled` fix in `ForceConfigure` |
-| `internal/registry/registry.go` | **Move** from `internal/apps/registry/` — existing `GetApp`/`Names`/`GetAppsByKind` + new `AppEntry` struct, `Registry` map, filter helpers |
-| `cmd/install.go` | Update to import `internal/registry` |
+| `internal/apps/{app}/{app}.go` | 18 app files — all need real `Uninstall()` |
+| `internal/apps/registry/registry.go` | Add `AppMeta` map and helpers (keep in current package — see import cycle note) |
+| `cmd/install.go` | No import change needed (already uses `internal/apps/registry`) |
 | `cmd/uninstall.go` | **New** — `dg uninstall <app|category>` command |
 
 ### Current state of `UninstallPackage`
@@ -66,53 +66,89 @@ Each app's `Uninstall()` must do all of: binary/package removal → config dir r
 | `tmux` | terminal | `Cmd.UninstallPackage(tmux)` | `~/.tmux.conf` (single file, not dir) | `constants.Tmux` |
 | `ulauncher` | desktop | `Cmd.UninstallDesktopApp(ulauncher)` (Linux only; no-op on macOS) | none | none |
 
-### Registry `AppEntry` struct — authoritative item-type source
+### ⚠️ REVISED: Item type model — actual tracking vs aspirational
 
-The flat `AppToCoordinator` map becomes a typed `AppEntry` struct in the new registry package. This is the single source of truth for item types — not derived from coordinator or app kind:
+**Critical finding from codebase audit:** Apps are tracked during `Install()` by `MaybeInstallPackage` or `MaybeInstallDesktopApp` in `internal/commands/base.go` (line 324). These methods call `AddToInstalled` internally with these item types:
+
+- `MaybeInstallPackage` → tracks as `"package"`
+- `MaybeInstallDesktopApp` → tracks as `"desktop_app"`
+
+This means the **actual item types in `global_config.yaml`** for existing installations are:
+
+| App | Tracked via | Actual item type in global_config |
+|-----|------------|----------------------------------|
+| `aerospace` | `MaybeInstallDesktopApp` | `"desktop_app"` |
+| `alacritty` | `MaybeInstallDesktopApp` | `"desktop_app"` |
+| `brave` | `MaybeInstallDesktopApp` | `"desktop_app"` |
+| `claude` | `MaybeInstallPackage` + explicit `AddToInstalled` | `"package"` |
+| `docker` | `MaybeInstallDesktopApp` | `"desktop_app"` |
+| `fastfetch` | `MaybeInstallPackage` | `"package"` |
+| `flameshot` | `MaybeInstallDesktopApp` | `"desktop_app"` |
+| `gimp` | `MaybeInstallDesktopApp` | `"desktop_app"` |
+| `git` | `MaybeInstallPackage` | `"package"` |
+| `i3` | `MaybeInstallPackage` | `"package"` |
+| `lazydocker` | `MaybeInstallPackage` | `"package"` |
+| `lazygit` | `MaybeInstallPackage` | `"package"` |
+| `mise` | `MaybeInstallPackage` | `"package"` |
+| `neovim` | `MaybeInstallPackage` | `"package"` |
+| `opencode` | `MaybeInstallPackage` + explicit `AddToInstalled` | `"package"` |
+| `raycast` | `MaybeInstallDesktopApp` | `"desktop_app"` |
+| `tmux` | `MaybeInstallPackage` | `"package"` |
+| `ulauncher` | `MaybeInstallDesktopApp` | `"desktop_app"` |
+
+**The previous draft's `AppEntry.ItemType` table was wrong for 9 apps** (fastfetch, git, i3, lazydocker, lazygit, mise, neovim, tmux were listed as `"terminal_tool"` but are actually tracked as `"package"`). Using the wrong item type in `RemoveFromInstalled` would silently fail to remove the entry.
+
+**Decision:** `RemoveFromInstalled` and `IsInstalledByDevgita` calls in `Uninstall()` must use the **actual tracked item type** (`"package"` or `"desktop_app"`), matching what `MaybeInstall*` stored. The `AppMeta` map below reflects reality.
+
+### ⚠️ REVISED: Registry stays in `internal/apps/registry/` — no move
+
+**Import cycle risk:** The original plan proposed moving the registry to `internal/registry/` for "broader reuse." However, the registry imports all app packages (`internal/apps/aerospace`, `internal/apps/alacritty`, etc.) for its factory map. If `cmd/uninstall.go` or any non-app package imports `internal/registry`, that's fine — but if any app package ever needed to import the registry (e.g., to look up its own metadata), it would create an import cycle.
+
+**The current location `internal/apps/registry/` is correct.** The registry's factory map must live alongside app imports. Instead of moving it, we add metadata to the same package:
 
 ```go
-type AppEntry struct {
+// AppMeta holds metadata for uninstall orchestration.
+// ItemType must match what MaybeInstall* stored in global_config.yaml.
+type AppMeta struct {
     Coordinator     string // "terminal" | "desktop" | ""
-    ItemType        string // "terminal_tool" | "desktop_app" | "package"
-    HasShellFeature bool   // true if app registers a shell feature via gc.EnableShellFeature
+    ItemType        string // "package" | "desktop_app" — must match actual tracking
+    HasShellFeature bool
 }
 
-var Registry = map[string]AppEntry{
-    "aerospace":  {Coordinator: "desktop",   ItemType: "desktop_app",    HasShellFeature: false},
-    "alacritty":  {Coordinator: "desktop",   ItemType: "desktop_app",    HasShellFeature: false},
-    "brave":      {Coordinator: "desktop",   ItemType: "desktop_app",    HasShellFeature: false},
-    "claude":     {Coordinator: "terminal",  ItemType: "package",        HasShellFeature: true},
-    "docker":     {Coordinator: "desktop",   ItemType: "desktop_app",    HasShellFeature: false},
-    "fastfetch":  {Coordinator: "terminal",  ItemType: "terminal_tool",  HasShellFeature: false},
-    "flameshot":  {Coordinator: "desktop",   ItemType: "desktop_app",    HasShellFeature: false},
-    "gimp":       {Coordinator: "desktop",   ItemType: "desktop_app",    HasShellFeature: false},
-    "git":        {Coordinator: "terminal",  ItemType: "terminal_tool",  HasShellFeature: false},
-    "i3":         {Coordinator: "desktop",   ItemType: "terminal_tool",  HasShellFeature: false},  // intentional: see note below
-    "lazydocker": {Coordinator: "terminal",  ItemType: "terminal_tool",  HasShellFeature: true},
-    "lazygit":    {Coordinator: "terminal",  ItemType: "terminal_tool",  HasShellFeature: true},
-    "mise":       {Coordinator: "terminal",  ItemType: "terminal_tool",  HasShellFeature: true},
-    "neovim":     {Coordinator: "terminal",  ItemType: "terminal_tool",  HasShellFeature: true},
-    "opencode":   {Coordinator: "terminal",  ItemType: "package",        HasShellFeature: true},
-    "raycast":    {Coordinator: "desktop",   ItemType: "desktop_app",    HasShellFeature: false},
-    "tmux":       {Coordinator: "terminal",  ItemType: "terminal_tool",  HasShellFeature: true},
-    "ulauncher":  {Coordinator: "desktop",   ItemType: "desktop_app",    HasShellFeature: false},
-    "devgita":    {Coordinator: "",          ItemType: "",               HasShellFeature: false},  // sentinel: see note below
+var Meta = map[string]AppMeta{
+    "aerospace":  {Coordinator: "desktop",   ItemType: "desktop_app",  HasShellFeature: false},
+    "alacritty":  {Coordinator: "desktop",   ItemType: "desktop_app",  HasShellFeature: false},
+    "brave":      {Coordinator: "desktop",   ItemType: "desktop_app",  HasShellFeature: false},
+    "claude":     {Coordinator: "terminal",  ItemType: "package",      HasShellFeature: true},
+    "docker":     {Coordinator: "desktop",   ItemType: "desktop_app",  HasShellFeature: false},
+    "fastfetch":  {Coordinator: "terminal",  ItemType: "package",      HasShellFeature: false},
+    "flameshot":  {Coordinator: "desktop",   ItemType: "desktop_app",  HasShellFeature: false},
+    "gimp":       {Coordinator: "desktop",   ItemType: "desktop_app",  HasShellFeature: false},
+    "git":        {Coordinator: "terminal",  ItemType: "package",      HasShellFeature: false},
+    "i3":         {Coordinator: "desktop",   ItemType: "package",      HasShellFeature: false},
+    "lazydocker": {Coordinator: "terminal",  ItemType: "package",      HasShellFeature: true},
+    "lazygit":    {Coordinator: "terminal",  ItemType: "package",      HasShellFeature: true},
+    "mise":       {Coordinator: "terminal",  ItemType: "package",      HasShellFeature: true},
+    "neovim":     {Coordinator: "terminal",  ItemType: "package",      HasShellFeature: true},
+    "opencode":   {Coordinator: "terminal",  ItemType: "package",      HasShellFeature: true},
+    "raycast":    {Coordinator: "desktop",   ItemType: "desktop_app",  HasShellFeature: false},
+    "tmux":       {Coordinator: "terminal",  ItemType: "package",      HasShellFeature: true},
+    "ulauncher":  {Coordinator: "desktop",   ItemType: "desktop_app",  HasShellFeature: false},
+    "devgita":    {Coordinator: "",           ItemType: "",             HasShellFeature: false},
 }
 ```
 
-`AppToCoordinator` becomes a derived helper: `func CoordinatorFor(name string) string { return Registry[name].Coordinator }`.
+Add helpers: `IsKnownApp`, `IsKnownCategory`, `KnownCategories`, `AppsByCoordinator`.
 
-> **Note — `i3` uses `terminal_tool` item type despite being a desktop coordinator app.** This is intentional: i3 is installed via `apt-get install` (a package, not a desktop app/cask), and `global_config.yaml` tracks it under `terminal_tools`. Changing it to `desktop_app` would break existing state tracking for users who already have i3 installed. Do not "fix" this.
+### ⚠️ REVISED: "14 apps missing tracking" is overstated
 
-> **Note — `devgita` is an intentional sentinel entry** with empty Coordinator and ItemType. It exists so that `IsKnownApp("devgita")` returns `true`, enabling the orchestrator to intercept `dg uninstall devgita` with a clear error message ("cannot uninstall devgita from itself") rather than falling through to "unknown app". It has a factory entry (for `dg configure devgita`) but its `Uninstall()` is not implemented in this cycle — the orchestrator blocks it before reaching the factory.
+**Previous claim:** 14 apps don't call `AddToInstalled` in `ForceConfigure`, so `IsInstalledByDevgita` returns false.
 
-### Critical tracking gap: `AddToInstalled` is missing for 14 apps
+**Actual situation:** All 18 apps ARE tracked during `Install()` by `MaybeInstallPackage`/`MaybeInstallDesktopApp` (which call `AddToInstalled` internally in `base.go:324`). The "gap" only affects `dg configure --force <app>` when run standalone without a prior install — a rare edge case.
 
-**Only 4 apps currently call `AddToInstalled` in `ForceConfigure`:** alacritty, aerospace, claude, opencode.
+**Revised fix:** Still add `AddToInstalled` to the 14 apps' `ForceConfigure()` for correctness, but **this is NOT a prerequisite for uninstall**. Apps installed via `dg install` are already tracked. Demote this from "critical prerequisite" (Step 4) to "cleanup" (final step). The uninstall orchestrator will work correctly for normally-installed apps without this fix.
 
-The other 14 do not — meaning `IsInstalledByDevgita` returns `false` for lazygit, tmux, neovim, mise, fastfetch, git, i3, lazydocker, brave, docker, flameshot, gimp, raycast, and ulauncher even after devgita installed them. The uninstall ownership check would silently skip all of them.
-
-**Fix (part of this cycle):** Add `gc.AddToInstalled(constants.AppName, entry.ItemType)` to each missing app's `ForceConfigure()`, alongside the existing gc operations. This is a small, isolated change per app and follows the established pattern.
+**Item types for `ForceConfigure` AddToInstalled calls must match the actual tracking:** use `"package"` for terminal apps, `"desktop_app"` for desktop apps — matching what `MaybeInstall*` uses. The 4 apps that already have explicit `AddToInstalled` calls (aerospace: `"desktop_app"`, alacritty: `"desktop_app"`, claude: `"package"`, opencode: `"package"`) are already correct.
 
 ### Uninstall outcome decision table
 
@@ -128,6 +164,8 @@ One definitive rule for every exit path from `app.Uninstall()`:
 **Rule:** state is only persisted after binary removal succeeds. Config removal is best-effort (`_ = os.RemoveAll`) — failures are logged as warnings but do not block gc updates. This matches the implementation pattern used for tmux, neovim, and claude. Partial success (binary gone, gc.Save failed) is logged as an error — the user knows to clean up manually. The orchestrator collects all per-app errors and returns non-zero if any app failed.
 
 `ErrUninstallNotSupported` will not occur for any of the 18 apps after this cycle. If it somehow appears (e.g. future app added to registry but Uninstall not updated), treat it as a hard error — do NOT update global config.
+
+**⚠️ Item type in `RemoveFromInstalled` calls:** Every `Uninstall()` must use the item type that matches what `MaybeInstall*` stored. Terminal apps installed via `MaybeInstallPackage` use `"package"`, not `"terminal_tool"`. Desktop apps installed via `MaybeInstallDesktopApp` use `"desktop_app"`. Getting this wrong means the entry stays in global_config after uninstall.
 
 ### Global config `RemoveFromInstalled` — new method needed
 
@@ -182,11 +220,11 @@ Implement `dg uninstall <app|category>` that fully reverses the install process 
 
 - [ ] Add `UninstallPackage` and `UninstallDesktopApp` to `Command` interface + implement on `MacOSCommand`, `DebianCommand` + add `UninstallDesktopApp` to `MockCommand`
 - [ ] Add `RemoveFromInstalled` to `GlobalConfig`
-- [ ] Move `internal/apps/registry/` to `internal/registry/` for broader reuse; extend with `AppEntry`/`Registry` map; update `cmd/install.go` and `cmd/configure.go` imports
-- [ ] Implement real `Uninstall()` for all 18 apps per the spec table above
+- [ ] Add `AppMeta` struct and `Meta` map to `internal/apps/registry/` (NO package move — avoids import cycle risk); add filter helpers (`IsKnownApp`, `IsKnownCategory`, `AppsByCoordinator`)
+- [ ] Implement real `Uninstall()` for all 18 apps per the spec table above, using correct item types (`"package"` for terminal apps, `"desktop_app"` for desktop apps)
 - [ ] Mocked tests for every app's `Uninstall()` (success + failure paths)
 - [ ] Implement `cmd/uninstall.go` with `dg uninstall <app|category>`
-- [ ] Fix `AddToInstalled` tracking in `ForceConfigure` for the 14 apps that are missing it
+- [ ] (Cleanup) Fix `AddToInstalled` tracking in `ForceConfigure` for the 14 apps that are missing it — not a prerequisite for uninstall (apps are tracked during `Install()` by `MaybeInstall*`)
 - [ ] Orchestrator checks `IsInstalledByDevgita` before calling `Uninstall()`; skips pre-existing apps with a warning
 - [ ] `dg uninstall languages` / `dg uninstall databases` fail fast with explicit "not supported yet" error
 - [ ] `dg uninstall devgita` fails fast with "cannot uninstall devgita from itself"
@@ -218,10 +256,8 @@ Implement `dg uninstall <app|category>` that fully reverses the install process 
 | Modify | `internal/commands/mock.go` | Add `UninstallDesktopApp` + `UninstalledDesktopApp` field |
 | Modify | `internal/config/fromFile.go` | Add `RemoveFromInstalled` |
 | Modify | `internal/config/fromFile_test.go` | Test `RemoveFromInstalled` |
-| Move | `internal/registry/registry.go` | Move from `internal/apps/registry/`; add `AppEntry` struct, `Registry` map, filter helpers |
-| Move | `internal/registry/registry_test.go` | Move existing tests; add registry helper tests |
-| Modify | `cmd/install.go` | Import `internal/registry`, drop local copies |
-| Modify | `cmd/configure.go` | Update import from `internal/apps/registry` to `internal/registry` |
+| Modify | `internal/apps/registry/registry.go` | Add `AppMeta` struct, `Meta` map, filter helpers (NO package move) |
+| Modify | `internal/apps/registry/registry_test.go` | Add `AppMeta` consistency tests |
 | Modify | `internal/apps/aerospace/aerospace.go` | Real `Uninstall()` |
 | Create/Modify | `internal/apps/aerospace/aerospace_test.go` | Uninstall tests |
 | Modify | `internal/apps/alacritty/alacritty.go` | Real `Uninstall()` |
@@ -336,37 +372,33 @@ func (gc *GlobalConfig) RemoveFromInstalled(itemName, itemType string) {
 
 - Verify: `go test ./internal/config/ -v`
 
-#### Step 3: Move registry to `internal/registry/`
+#### Step 3: Add `AppMeta` map to `internal/apps/registry/`
 
-Move `internal/apps/registry/` to `internal/registry/` so it's available for broader reuse beyond apps (e.g., `cmd/uninstall.go`, future `cmd/status.go`). The existing `GetApp`, `Names`, `GetAppsByKind`, and `formatNames` functions stay as-is.
+**No package move.** The registry stays at `internal/apps/registry/` to avoid import cycle risk (it imports all app packages). Add the `AppMeta` struct and `Meta` map (see spec in Engineer Context). Add new helpers:
+- `IsKnownApp`, `IsKnownCategory`, `KnownCategories`, `AppsByCoordinator`
 
-Add the `AppEntry` struct and `Registry` map (see spec in Engineer Context). Add new helpers migrated from `cmd/install.go`:
-- `KnownCategories` → derived from unique `Coordinator` values in `Registry` (e.g., `"terminal"`, `"desktop"`), not from app-name keys
-- `IsKnownCategory`, `IsKnownApp`, `FormatAppNames`
-- `BuildAppFilter`, `BuildSkipFilter`, `HasAppsForCoordinator`, `ShouldRunCategory`
+Add a compile-time test asserting every `Meta` entry with `Coordinator != ""` has a matching factory — catches registry-factory drift.
 
-The existing `GetApp(name string) (apps.App, error)` factory already handles app instantiation — no need for a separate `NewApp`. The cycle doc's orchestrator uses `GetApp` directly.
+No import changes needed for `cmd/install.go` or `cmd/configure.go` — they already import `internal/apps/registry`.
 
-Add a compile-time test asserting every `Registry` entry with `Coordinator != ""` has a matching factory — catches the registry-factory drift risk.
+- Verify: `go test ./internal/apps/registry/` and `go test ./cmd/ -run TestInstall` and `go test ./cmd/ -run TestConfigure`
 
-Update `cmd/install.go` and `cmd/configure.go` to import `internal/registry` (was `internal/apps/registry`). Remove the old `internal/apps/registry/` directory. No behavior change.
+#### Step 4: (Cleanup, not prerequisite) Fix `AddToInstalled` tracking in 14 apps' `ForceConfigure`
 
-- Verify: `go test ./internal/registry/` and `go test ./cmd/ -run TestInstall` and `go test ./cmd/ -run TestConfigure`
-
-#### Step 4: Fix `AddToInstalled` tracking in 14 apps
-
-**Why this is a prerequisite:** `IsInstalledByDevgita` returns `false` for the 14 apps that don't call `AddToInstalled`, so the orchestrator would silently skip them on uninstall.
+**Why this is NOT a prerequisite for uninstall:** All apps are already tracked during `Install()` by `MaybeInstallPackage`/`MaybeInstallDesktopApp` in `base.go:324`. This fix only matters for the `dg configure --force <app>` edge case (standalone reconfigure without prior install).
 
 For each of the 14 apps missing the call, add to their `ForceConfigure()` alongside existing gc operations:
 ```go
-gc.AddToInstalled(constants.AppName, registry.Registry["appname"].ItemType)
+gc.AddToInstalled(constants.AppName, "package")   // for terminal apps using MaybeInstallPackage
+gc.AddToInstalled(constants.AppName, "desktop_app") // for desktop apps using MaybeInstallDesktopApp
 ```
 
-Apps needing this fix: `brave`, `docker`, `fastfetch`, `flameshot`, `gimp`, `git`, `i3`, `lazydocker`, `lazygit`, `mise`, `neovim`, `raycast`, `tmux`, `ulauncher`.
+Apps needing `"package"`: `fastfetch`, `git`, `i3`, `lazydocker`, `lazygit`, `mise`, `neovim`, `tmux`.
+Apps needing `"desktop_app"`: `brave`, `docker`, `flameshot`, `gimp`, `raycast`, `ulauncher`.
 
-The 4 that already have it (alacritty, aerospace, claude, opencode) are fine.
+The 4 that already have it (alacritty: `"desktop_app"`, aerospace: `"desktop_app"`, claude: `"package"`, opencode: `"package"`) are correct.
 
-- Verify: `go test ./internal/apps/... -v` (no behavior change, just ensures tracking is recorded)
+- Verify: `go test ./internal/apps/... -v`
 
 #### Step 5: Implement `Uninstall()` for no-config desktop apps (batch)
 
@@ -441,7 +473,7 @@ func (t *Tmux) Uninstall() error {
     _ = os.Remove(filepath.Join(paths.Paths.Home.Root, ".tmux.conf")) // best-effort
     gc.DisableShellFeature(constants.Tmux)
     if err := gc.RegenerateShellConfig(); err != nil { ... }
-    gc.RemoveFromInstalled(constants.Tmux, "terminal_tool")
+    gc.RemoveFromInstalled(constants.Tmux, "package")
     return gc.Save()
 }
 ```
@@ -472,7 +504,7 @@ func (ld *LazyDocker) Uninstall() error {
     }
     gc.DisableShellFeature(constants.LazyDocker)
     if err := gc.RegenerateShellConfig(); err != nil { ... }
-    gc.RemoveFromInstalled(constants.LazyDocker, "terminal_tool")
+    gc.RemoveFromInstalled(constants.LazyDocker, "package")
     return gc.Save()
 }
 ```
@@ -510,7 +542,7 @@ func (n *Neovim) Uninstall() error {
     _ = os.RemoveAll(paths.Paths.Config.Nvim) // best-effort
     gc.DisableShellFeature(constants.Neovim)
     if err := gc.RegenerateShellConfig(); err != nil { ... }
-    gc.RemoveFromInstalled(constants.Neovim, "terminal_tool")
+    gc.RemoveFromInstalled(constants.Neovim, "package")
     return gc.Save()
 }
 ```
@@ -561,22 +593,23 @@ func init() { rootCmd.AddCommand(uninstallCmd) }
 
 ```go
 // test seam — overridden in tests to inject mocks
-var getAppFn = registry.GetApp
+// NOTE: named `uninstallGetAppFn` to avoid collision with `getAppFn` in cmd/configure.go
+var uninstallGetAppFn = registry.GetApp
 ```
 
 1. **Block reserved targets first** (before any other validation):
    - `languages` or `databases` → return error: `"dg uninstall languages/databases is not yet supported — manage runtimes via mise"`
    - `devgita` → return error: `"cannot uninstall devgita from itself"`
 2. Validate arg — `registry.IsKnownCategory` or `registry.IsKnownApp`; if neither, return error listing valid categories + apps
-3. Build target list: if category arg, all `registry.Registry` entries where `Coordinator == arg`; if app arg, just that entry
+3. Build target list: if category arg, all `registry.Meta` entries where `Coordinator == arg`; if app arg, just that entry
 4. Load `gc` once
 5. Track `anyFailed bool` and `shellFeatureChanged bool`
 6. For each target app:
-   a. `itemType := registry.Registry[name].ItemType`
+   a. `itemType := registry.Meta[name].ItemType`
    b. If `!gc.IsInstalledByDevgita(name, itemType)`: log warning "skipping %s: not installed by devgita", continue
-   c. `app, err := getAppFn(name)` — uses the seam, mockable in tests
+   c. `app, err := uninstallGetAppFn(name)` — uses the seam, mockable in tests
    d. If `err := app.Uninstall(); err != nil`: log error, set `anyFailed = true`, continue
-    e. On success: set `shellFeatureChanged = true` if `registry.Registry[name].HasShellFeature` is true
+    e. On success: set `shellFeatureChanged = true` if `registry.Meta[name].HasShellFeature` is true
 7. If `shellFeatureChanged`: print `"Run \`source ~/.zshrc\` to apply shell changes."`
    - Note: `RegenerateShellConfig` is called inside each `app.Uninstall()`, not here. The orchestrator only prints the user-facing reminder.
 8. If `anyFailed`: return a summary error listing which apps failed
@@ -593,14 +626,14 @@ var getAppFn = registry.GetApp
 - Category uninstall → all apps in category processed, non-tracked ones skipped
 - Shell-feature app uninstalled → "source ~/.zshrc" message printed
 
-**Use the `getAppFn` seam** — override it in test setup:
+**Use the `uninstallGetAppFn` seam** — override it in test setup:
 ```go
 func TestUninstallSingleApp(t *testing.T) {
     mockCmd := commands.NewMockCommand()
-    getAppFn = func(name string) (apps.App, error) {
+    uninstallGetAppFn = func(name string) (apps.App, error) {
         return &someapp.SomeApp{Cmd: mockCmd, Base: commands.NewMockBaseCommand()}, nil
     }
-    t.Cleanup(func() { getAppFn = registry.GetApp }) // restore
+    t.Cleanup(func() { uninstallGetAppFn = registry.GetApp }) // restore
     // ... run command
 }
 ```
@@ -623,7 +656,7 @@ make lint
 ```bash
 go test ./internal/commands/     # Command interface + impls
 go test ./internal/config/       # RemoveFromInstalled
-go test ./internal/registry/     # App registry helpers
+go test ./internal/apps/registry/ # App registry helpers
 go test ./internal/apps/...      # All 18 app Uninstall() implementations
 go test ./cmd/                   # CLI command
 go test ./...                    # Everything
@@ -669,12 +702,15 @@ go test ./...                     # nothing else broken
 
 ## 8. Cross-Model Review Notes
 
-- [ ] Domain context clear?
-- [ ] Step ordering correct? (Command layer → GlobalConfig → Registry → AddToInstalled fix → Apps → CLI)
+- [x] Domain context clear?
+- [x] Step ordering correct? (Command layer → GlobalConfig → Registry metadata → Apps → CLI → Cleanup ForceConfigure)
 - [ ] `removeAllFn` injection needed for all config-dir apps, or just the complex ones?
-- [x] ~~`AppEntry.HasShellFeature bool` — should this field be added to the registry struct?~~ **Decision: Yes, added as explicit `HasShellFeature bool` field on `AppEntry`.**
-- [ ] `paths.Config.Nvim` vs `paths.Config.Neovim` — verify actual field name in `paths.go` before implementing neovim Uninstall
-- [ ] Confirm item types in `AppEntry` table match what each app's `ForceConfigure` was using (4 pre-existing + 14 new ones must agree)
+- [x] ~~`AppEntry.HasShellFeature bool` — should this field be added to the registry struct?~~ **Decision: Yes, added as explicit `HasShellFeature bool` field on `AppMeta`.**
+- [x] ~~`paths.Config.Nvim` vs `paths.Config.Neovim`~~ **Confirmed: `paths.Config.Nvim` is the actual field name in `paths.go`.**
+- [x] ~~Confirm item types in `AppEntry` table match what each app's `ForceConfigure` was using~~ **REVISED: Item types now match actual `MaybeInstall*` tracking (`"package"` for terminal apps, `"desktop_app"` for desktop apps). Previous draft had 9 wrong entries using `"terminal_tool"`.**
+- [x] ~~Registry package move~~ **CANCELLED: Stays at `internal/apps/registry/` to avoid import cycle risk.**
+- [x] ~~`getAppFn` naming collision~~ **Fixed: renamed to `uninstallGetAppFn` in `cmd/uninstall.go`.**
+- [x] ~~14 apps "missing tracking" as prerequisite~~ **REVISED: Demoted to cleanup. Apps are tracked during `Install()` by `MaybeInstall*`.**
 
 **Key invariant:** After a successful `dg uninstall <app>`, running `dg install --only <app>` must reinstall cleanly — global config no longer tracks it as installed, so `MaybeInstallPackage` proceeds normally. Test this end-to-end manually for at least one app (fastfetch is good — simple, no shell feature).
 
