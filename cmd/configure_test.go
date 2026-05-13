@@ -39,9 +39,14 @@ func (m *mockConfigureApp) SoftConfigure() error {
 
 func setupConfigureCmd(t *testing.T, mock apps.App) func() {
 	t.Helper()
-	orig := getAppFn
+	origApp := getAppFn
+	origRefresh := refreshEmbeddedConfigs
 	getAppFn = func(name string) (apps.App, error) { return mock, nil }
-	return func() { getAppFn = orig }
+	refreshEmbeddedConfigs = func() error { return nil }
+	return func() {
+		getAppFn = origApp
+		refreshEmbeddedConfigs = origRefresh
+	}
 }
 
 func TestConfigure_SoftPath(t *testing.T) {
@@ -83,11 +88,16 @@ func TestConfigure_ForcePath(t *testing.T) {
 }
 
 func TestConfigure_UnknownApp(t *testing.T) {
-	orig := getAppFn
+	origApp := getAppFn
+	origRefresh := refreshEmbeddedConfigs
 	getAppFn = func(name string) (apps.App, error) {
 		return nil, fmt.Errorf("unknown app %q", name)
 	}
-	defer func() { getAppFn = orig }()
+	refreshEmbeddedConfigs = func() error { return nil }
+	defer func() {
+		getAppFn = origApp
+		refreshEmbeddedConfigs = origRefresh
+	}()
 
 	configureForce = false
 	err := runConfigure(configureCmd, []string{"notanapp"})
