@@ -267,6 +267,7 @@ When to write documentation **before** code:
 1. If the change is substantial, create a cycle document in `docs/plans/cycles/YYYY-MM-DD-<name>.md`
 2. Get user/team approval before implementing
 3. Track progress by checking off steps as you go
+4. When all steps are complete, mark all tasks/checkboxes in the cycle doc as done and update the status field in the document header to **Done**
 
 ---
 
