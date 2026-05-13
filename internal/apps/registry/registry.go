@@ -25,29 +25,30 @@ import (
 	"github.com/cjairm/devgita/internal/apps/raycast"
 	"github.com/cjairm/devgita/internal/apps/tmux"
 	"github.com/cjairm/devgita/internal/apps/ulauncher"
+	"github.com/cjairm/devgita/pkg/constants"
 )
 
 // factories maps app names to lazy constructors so apps are only instantiated when needed.
 var factories = map[string]func() apps.App{
-	"aerospace":  func() apps.App { return aerospace.New() },
-	"alacritty":  func() apps.App { return alacritty.New() },
-	"brave":      func() apps.App { return brave.New() },
-	"claude":     func() apps.App { return claude.New() },
-	"devgita":    func() apps.App { return devgita.New() },
-	"docker":     func() apps.App { return docker.New() },
-	"fastfetch":  func() apps.App { return fastfetch.New() },
-	"flameshot":  func() apps.App { return flameshot.New() },
-	"gimp":       func() apps.App { return gimp.New() },
-	"git":        func() apps.App { return git.New() },
-	"i3":         func() apps.App { return i3.New() },
-	"lazydocker": func() apps.App { return lazydocker.New() },
-	"lazygit":    func() apps.App { return lazygit.New() },
-	"mise":       func() apps.App { return mise.New() },
-	"neovim":     func() apps.App { return neovim.New() },
-	"opencode":   func() apps.App { return opencode.New() },
-	"raycast":    func() apps.App { return raycast.New() },
-	"tmux":       func() apps.App { return tmux.New() },
-	"ulauncher":  func() apps.App { return ulauncher.New() },
+	constants.Aerospace:  func() apps.App { return aerospace.New() },
+	constants.Alacritty:  func() apps.App { return alacritty.New() },
+	constants.Brave:      func() apps.App { return brave.New() },
+	constants.Claude:     func() apps.App { return claude.New() },
+	constants.DevgitaApp: func() apps.App { return devgita.New() },
+	constants.Docker:     func() apps.App { return docker.New() },
+	constants.Fastfetch:  func() apps.App { return fastfetch.New() },
+	constants.Flameshot:  func() apps.App { return flameshot.New() },
+	constants.Gimp:       func() apps.App { return gimp.New() },
+	constants.Git:        func() apps.App { return git.New() },
+	constants.I3:         func() apps.App { return i3.New() },
+	constants.LazyDocker: func() apps.App { return lazydocker.New() },
+	constants.LazyGit:    func() apps.App { return lazygit.New() },
+	constants.Mise:       func() apps.App { return mise.New() },
+	constants.Neovim:     func() apps.App { return neovim.New() },
+	constants.OpenCode:   func() apps.App { return opencode.New() },
+	constants.Raycast:    func() apps.App { return raycast.New() },
+	constants.Tmux:       func() apps.App { return tmux.New() },
+	constants.Ulauncher:  func() apps.App { return ulauncher.New() },
 }
 
 // GetApp returns the App for the given name, or an error listing all supported names.
