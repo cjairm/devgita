@@ -69,6 +69,18 @@ func Names() []string {
 	return names
 }
 
+// GetAppsByKind returns sorted names of all registered apps matching the given kind.
+func GetAppsByKind(kind apps.AppKind) []string {
+	var names []string
+	for name, factory := range factories {
+		if factory().Kind() == kind {
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names)
+	return names
+}
+
 // formatNames formats registered names into aligned columns for display.
 func formatNames() string {
 	names := Names()

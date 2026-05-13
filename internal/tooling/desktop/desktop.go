@@ -20,9 +20,24 @@ import (
 	"github.com/cjairm/devgita/pkg/utils"
 )
 
+// softInstaller is the subset of apps.App used by the desktop coordinator.
+type softInstaller interface {
+	SoftInstall() error
+}
+
+// namedInstaller pairs an app name with its installer. Used for injection in tests.
+type namedInstaller struct {
+	name string
+	app  softInstaller
+}
+
 type Desktop struct {
 	Cmd  cmd.Command
 	Base cmd.BaseCommand
+	// crossPlatformAppsOverride replaces the default cross-platform app list when non-nil (tests).
+	crossPlatformAppsOverride []namedInstaller
+	// launcherOverride replaces the platform-specific launcher (raycast/ulauncher) when non-nil (tests).
+	launcherOverride *namedInstaller
 }
 
 func New() *Desktop {
@@ -31,26 +46,60 @@ func New() *Desktop {
 	return &Desktop{Cmd: osCmd, Base: *baseCmd}
 }
 
-func (d *Desktop) InstallAndConfigure() error {
-	err := d.InstallAlacritty()
-	displayMessage(err, constants.Alacritty)
+func (d *Desktop) getCrossPlatformApps() []namedInstaller {
+	if d.crossPlatformAppsOverride != nil {
+		return d.crossPlatformAppsOverride
+	}
+	return []namedInstaller{
+		{constants.Docker, docker.New()},
+		{constants.Gimp, gimp.New()},
+		{constants.Brave, brave.New()},
+		{constants.Flameshot, flameshot.New()},
+	}
+}
+
+// shouldInstallApp returns true when an app should run given the active filters.
+// appFilter non-empty: app must be in the filter. skipFilter always excludes.
+func shouldInstallApp(name string, appFilter, skipFilter map[string]bool) bool {
+	if skipFilter[name] {
+		return false
+	}
+	if len(appFilter) > 0 && !appFilter[name] {
+		return false
+	}
+	return true
+}
+
+// InstallAndConfigure runs the full desktop setup.
+// appFilter: when non-empty, only those apps are installed (fonts skipped).
+// skipFilter: those apps are always skipped regardless of appFilter.
+func (d *Desktop) InstallAndConfigure(appFilter, skipFilter map[string]bool) error {
+	if shouldInstallApp(constants.Alacritty, appFilter, skipFilter) {
+		err := d.InstallAlacritty()
+		displayMessage(err, constants.Alacritty)
+	}
 
 	// Platform-specific window managers
 	if d.Base.Platform.IsMac() {
-		err = d.InstallAerospace()
-		displayMessage(err, constants.Aerospace)
+		if shouldInstallApp(constants.Aerospace, appFilter, skipFilter) {
+			err := d.InstallAerospace()
+			displayMessage(err, constants.Aerospace)
+		}
 	} else {
-		// Debian/Ubuntu: Install i3 tiling window manager
-		err = d.InstallI3()
-		displayMessage(err, constants.I3)
+		if shouldInstallApp(constants.I3, appFilter, skipFilter) {
+			err := d.InstallI3()
+			displayMessage(err, constants.I3)
+		}
 	}
 
-	utils.PrintInfo("Installing fonts (if no previously installed)...")
-	f := fonts.New()
-	f.SoftInstallAll()
+	// Fonts only run when no specific app filter is active
+	if len(appFilter) == 0 {
+		utils.PrintInfo("Installing fonts (if no previously installed)...")
+		f := fonts.New()
+		f.SoftInstallAll()
+	}
 
-	// Install desktop apps (platform-gated where appropriate)
-	d.InstallDesktopAppsWithoutConfiguration()
+	d.InstallDesktopAppsWithoutConfiguration(appFilter, skipFilter)
 
 	if d.Base.Platform.IsMac() {
 		d.DisplayPrivacyInstructions()
@@ -59,39 +108,38 @@ func (d *Desktop) InstallAndConfigure() error {
 	return nil
 }
 
-func (d *Desktop) InstallDesktopAppsWithoutConfiguration() {
-	// Cross-platform apps: docker, gimp, brave, flameshot
-	crossPlatformApps := []struct {
-		name string
-		app  interface {
-			SoftInstall() error
-		}
-	}{
-		{constants.Docker, docker.New()},
-		{constants.Gimp, gimp.New()},
-		{constants.Brave, brave.New()},
-		{constants.Flameshot, flameshot.New()},
-	}
-
-	for _, desktopApp := range crossPlatformApps {
-		if err := desktopApp.app.SoftInstall(); err != nil {
-			displayMessage(err, desktopApp.name)
+// InstallDesktopAppsWithoutConfiguration installs cross-platform and launcher apps with filtering.
+func (d *Desktop) InstallDesktopAppsWithoutConfiguration(appFilter, skipFilter map[string]bool) {
+	for _, entry := range d.getCrossPlatformApps() {
+		if !shouldInstallApp(entry.name, appFilter, skipFilter) {
 			continue
+		}
+		if err := entry.app.SoftInstall(); err != nil {
+			displayMessage(err, entry.name)
 		}
 	}
 
 	// Platform-specific launchers
-	if d.Base.Platform.IsMac() {
-		// macOS: Raycast launcher
-		r := raycast.New()
-		if err := r.SoftInstall(); err != nil {
-			displayMessage(err, constants.Raycast)
+	if d.launcherOverride != nil {
+		entry := d.launcherOverride
+		if shouldInstallApp(entry.name, appFilter, skipFilter) {
+			if err := entry.app.SoftInstall(); err != nil {
+				displayMessage(err, entry.name)
+			}
+		}
+	} else if d.Base.Platform.IsMac() {
+		if shouldInstallApp(constants.Raycast, appFilter, skipFilter) {
+			r := raycast.New()
+			if err := r.SoftInstall(); err != nil {
+				displayMessage(err, constants.Raycast)
+			}
 		}
 	} else {
-		// Debian/Ubuntu: Ulauncher
-		u := ulauncher.New()
-		if err := u.SoftInstall(); err != nil {
-			displayMessage(err, constants.Ulauncher)
+		if shouldInstallApp(constants.Ulauncher, appFilter, skipFilter) {
+			u := ulauncher.New()
+			if err := u.SoftInstall(); err != nil {
+				displayMessage(err, constants.Ulauncher)
+			}
 		}
 	}
 }

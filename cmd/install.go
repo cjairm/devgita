@@ -5,6 +5,8 @@ package cmd
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	"github.com/cjairm/devgita/internal/apps/devgita"
 	"github.com/cjairm/devgita/internal/commands"
@@ -23,6 +25,47 @@ var (
 	skip []string
 )
 
+// knownCategories are the install categories accepted by --only/--skip.
+var knownCategories = []string{"terminal", "languages", "databases", "desktop"}
+
+// appToCoordinator maps each registry app to the coordinator that installs it.
+// alacritty has KindTerminal but is installed by the desktop coordinator.
+// devgita ("") is never included in dg install.
+var appToCoordinator = map[string]string{
+	"claude":     "terminal",
+	"fastfetch":  "terminal",
+	"git":        "terminal",
+	"lazydocker": "terminal",
+	"lazygit":    "terminal",
+	"mise":       "terminal",
+	"neovim":     "terminal",
+	"opencode":   "terminal",
+	"tmux":       "terminal",
+	"alacritty":  "desktop",
+	"aerospace":  "desktop",
+	"brave":      "desktop",
+	"docker":     "desktop",
+	"flameshot":  "desktop",
+	"gimp":       "desktop",
+	"i3":         "desktop",
+	"raycast":    "desktop",
+	"ulauncher":  "desktop",
+	"devgita":    "",
+}
+
+// installConfig holds the resolved plan for a single dg install run.
+type installConfig struct {
+	runTerminal  bool
+	runLanguages bool
+	runDatabases bool
+	runDesktop   bool
+	// Per-coordinator filters (nil = no filter, non-nil = only these apps)
+	terminalAppFilter  map[string]bool
+	terminalSkipFilter map[string]bool
+	desktopAppFilter   map[string]bool
+	desktopSkipFilter  map[string]bool
+}
+
 var installCmd = &cobra.Command{
 	Use:   "install",
 	Short: "Install devgita and all required tools",
@@ -40,8 +83,13 @@ Supported platforms:
   - Debian 12+ (Bookworm) / Ubuntu 24+ via apt
 
 Flags:
-  --only <...>     Only install specific categories (e.g., terminal, languages, desktop)
-  --skip <...>     Skip specific categories (e.g., terminal, languages, desktop)
+  --only <...>     Only install specific categories or apps (e.g., terminal, neovim)
+  --skip <...>     Skip specific categories or apps (e.g., databases, git)
+
+Per-app targeting (registry apps only):
+  dg install --only neovim            # install only neovim
+  dg install --skip git               # install everything except git
+  dg install --only terminal --skip lazygit  # full terminal minus lazygit
 `,
 	RunE: run,
 }
@@ -49,25 +97,19 @@ Flags:
 func init() {
 	rootCmd.AddCommand(installCmd)
 
-	// Multi-value flags
 	installCmd.Flags().
-		StringSliceVar(&only, "only", []string{}, "Only install specific categories (comma or repeatable)")
+		StringSliceVar(&only, "only", []string{}, "Only install specific categories or apps (comma-separated or repeatable)")
 	installCmd.Flags().
-		StringSliceVar(&skip, "skip", []string{}, "Skip specific categories (comma or repeatable)")
+		StringSliceVar(&skip, "skip", []string{}, "Skip specific categories or apps (comma-separated or repeatable)")
 }
 
 func run(cmd *cobra.Command, args []string) error {
-	onlySet := make(map[string]bool)
-	for _, item := range only {
-		onlySet[item] = true
+	cfg, err := parseInstallFlags(only, skip)
+	if err != nil {
+		return err
 	}
 
-	skipSet := make(map[string]bool)
-	for _, item := range skip {
-		skipSet[item] = true
-	}
-
-	logger.L().Debugw("flags", "only", onlySet, "skip", skipSet, "verbose", verbose)
+	logger.L().Debugw("install config", "cfg", cfg, "verbose", verbose)
 
 	utils.PrintBold(constants.Devgita)
 	utils.Print("=> Begin installation (or abort with ctrl+c)...", "")
@@ -87,11 +129,175 @@ func run(cmd *cobra.Command, args []string) error {
 	}
 
 	installDevgita()
-	installTerminalTools(onlySet, skipSet)
-	installLanguages(ctx, onlySet, skipSet)
-	installDatabases(ctx, onlySet, skipSet)
-	installDesktopTools(onlySet, skipSet)
+
+	if cfg.runTerminal {
+		installTerminalTools(cfg.terminalAppFilter, cfg.terminalSkipFilter)
+	} else {
+		utils.PrintInfo("Skipping terminal tools installation")
+	}
+
+	if cfg.runLanguages {
+		installLanguages(ctx)
+	} else {
+		utils.PrintInfo("Skipping development languages installation")
+	}
+
+	if cfg.runDatabases {
+		installDatabases(ctx)
+	} else {
+		utils.PrintInfo("Skipping databases installation")
+	}
+
+	if cfg.runDesktop {
+		installDesktopTools(cfg.desktopAppFilter, cfg.desktopSkipFilter)
+	} else {
+		utils.PrintInfo("Skipping desktop applications installation")
+	}
+
 	return nil
+}
+
+// parseInstallFlags splits --only/--skip into category and app sets, validates them,
+// and returns a resolved installConfig describing what should run and with what filters.
+func parseInstallFlags(onlyFlags, skipFlags []string) (*installConfig, error) {
+	onlyCategorySet := make(map[string]bool)
+	onlyAppSet := make(map[string]bool)
+	skipCategorySet := make(map[string]bool)
+	skipAppSet := make(map[string]bool)
+
+	for _, item := range onlyFlags {
+		switch {
+		case isKnownCategory(item):
+			onlyCategorySet[item] = true
+		case isKnownApp(item):
+			onlyAppSet[item] = true
+		default:
+			return nil, fmt.Errorf("unknown value %q for --only\n\nValid categories: %s\nValid apps: %s",
+				item, strings.Join(knownCategories, ", "), formatAppNames())
+		}
+	}
+
+	for _, item := range skipFlags {
+		switch {
+		case isKnownCategory(item):
+			skipCategorySet[item] = true
+		case isKnownApp(item):
+			skipAppSet[item] = true
+		default:
+			return nil, fmt.Errorf("unknown value %q for --skip\n\nValid categories: %s\nValid apps: %s",
+				item, strings.Join(knownCategories, ", "), formatAppNames())
+		}
+	}
+
+	hasAnyOnly := len(onlyCategorySet) > 0 || len(onlyAppSet) > 0
+
+	terminalAppFilter := buildAppFilter("terminal", onlyCategorySet, onlyAppSet, skipAppSet)
+	desktopAppFilter := buildAppFilter("desktop", onlyCategorySet, onlyAppSet, skipAppSet)
+	terminalSkipFilter := buildSkipFilter("terminal", skipAppSet)
+	desktopSkipFilter := buildSkipFilter("desktop", skipAppSet)
+
+	hasTerminalApps := hasAppsForCoordinator("terminal", onlyAppSet)
+	hasDesktopApps := hasAppsForCoordinator("desktop", onlyAppSet)
+
+	return &installConfig{
+		runTerminal:        shouldRunCategory("terminal", onlyCategorySet, skipCategorySet, hasAnyOnly, hasTerminalApps),
+		runLanguages:       shouldRunCategory("languages", onlyCategorySet, skipCategorySet, hasAnyOnly, false),
+		runDatabases:       shouldRunCategory("databases", onlyCategorySet, skipCategorySet, hasAnyOnly, false),
+		runDesktop:         shouldRunCategory("desktop", onlyCategorySet, skipCategorySet, hasAnyOnly, hasDesktopApps),
+		terminalAppFilter:  terminalAppFilter,
+		terminalSkipFilter: terminalSkipFilter,
+		desktopAppFilter:   desktopAppFilter,
+		desktopSkipFilter:  desktopSkipFilter,
+	}, nil
+}
+
+// shouldRunCategory returns true if the given category should execute.
+func shouldRunCategory(category string, onlyCategorySet, skipCategorySet map[string]bool, hasAnyOnly, hasAppsForCategory bool) bool {
+	if skipCategorySet[category] {
+		return false
+	}
+	if !hasAnyOnly {
+		return true
+	}
+	if onlyCategorySet[category] {
+		return true
+	}
+	return hasAppsForCategory
+}
+
+// buildAppFilter returns the app-level only-filter for a coordinator.
+// Returns nil when the category is explicitly selected (full install) or no apps belong to it.
+func buildAppFilter(coordinator string, onlyCategorySet, onlyAppSet, skipAppSet map[string]bool) map[string]bool {
+	if onlyCategorySet[coordinator] {
+		return nil
+	}
+	var filter map[string]bool
+	for appName, coord := range appToCoordinator {
+		if coord == coordinator && onlyAppSet[appName] && !skipAppSet[appName] {
+			if filter == nil {
+				filter = make(map[string]bool)
+			}
+			filter[appName] = true
+		}
+	}
+	return filter
+}
+
+// buildSkipFilter returns the app-level skip-filter for a coordinator.
+func buildSkipFilter(coordinator string, skipAppSet map[string]bool) map[string]bool {
+	var filter map[string]bool
+	for appName, coord := range appToCoordinator {
+		if coord == coordinator && skipAppSet[appName] {
+			if filter == nil {
+				filter = make(map[string]bool)
+			}
+			filter[appName] = true
+		}
+	}
+	return filter
+}
+
+// hasAppsForCoordinator reports whether onlyAppSet contains any app belonging to coordinator.
+func hasAppsForCoordinator(coordinator string, onlyAppSet map[string]bool) bool {
+	for appName := range onlyAppSet {
+		if appToCoordinator[appName] == coordinator {
+			return true
+		}
+	}
+	return false
+}
+
+func isKnownCategory(s string) bool {
+	for _, c := range knownCategories {
+		if c == s {
+			return true
+		}
+	}
+	return false
+}
+
+func isKnownApp(s string) bool {
+	coord, ok := appToCoordinator[s]
+	return ok && coord != ""
+}
+
+// formatAppNames returns a sorted, comma-joined list of all targetable app names.
+func formatAppNames() string {
+	targetable := make([]string, 0, len(appToCoordinator))
+	for name, coord := range appToCoordinator {
+		if coord != "" {
+			targetable = append(targetable, name)
+		}
+	}
+	// sort for deterministic output
+	for i := 0; i < len(targetable); i++ {
+		for j := i + 1; j < len(targetable); j++ {
+			if targetable[i] > targetable[j] {
+				targetable[i], targetable[j] = targetable[j], targetable[i]
+			}
+		}
+	}
+	return strings.Join(targetable, ", ")
 }
 
 func installDevgita() {
@@ -101,49 +307,26 @@ func installDevgita() {
 	utils.MaybeExitWithError(dg.SoftConfigure())
 }
 
-func installTerminalTools(onlySet, skipSet map[string]bool) {
-	if shouldInstall("terminal", onlySet, skipSet) {
-		t := terminal.New()
-		t.InstallAndConfigure()
-	} else {
-		utils.PrintInfo("Skipping terminal tools installation")
-	}
+func installTerminalTools(appFilter, skipFilter map[string]bool) {
+	t := terminal.New()
+	t.InstallAndConfigure(appFilter, skipFilter)
 }
 
-func installLanguages(ctx context.Context, onlySet, skipSet map[string]bool) {
-	if shouldInstall("languages", onlySet, skipSet) {
-		l := languages.New()
-		ctx, err := l.ChooseLanguages(ctx)
-		utils.MaybeExitWithError(err)
-		l.InstallChosen(ctx)
-	} else {
-		utils.PrintInfo("Skipping development languages installation")
-	}
+func installLanguages(ctx context.Context) {
+	l := languages.New()
+	ctx, err := l.ChooseLanguages(ctx)
+	utils.MaybeExitWithError(err)
+	l.InstallChosen(ctx)
 }
 
-func installDatabases(ctx context.Context, onlySet, skipSet map[string]bool) {
-	if shouldInstall("databases", onlySet, skipSet) {
-		d := databases.New()
-		ctx, err := d.ChooseDatabases(ctx)
-		utils.MaybeExitWithError(err)
-		d.InstallChosen(ctx)
-	} else {
-		utils.PrintInfo("Skipping databases installation")
-	}
+func installDatabases(ctx context.Context) {
+	d := databases.New()
+	ctx, err := d.ChooseDatabases(ctx)
+	utils.MaybeExitWithError(err)
+	d.InstallChosen(ctx)
 }
 
-func installDesktopTools(onlySet, skipSet map[string]bool) {
-	if shouldInstall("desktop", onlySet, skipSet) {
-		desktopTool := desktop.New()
-		desktopTool.InstallAndConfigure()
-	} else {
-		utils.PrintInfo("Skipping desktop applications installation")
-	}
-}
-
-func shouldInstall(category string, only, skip map[string]bool) bool {
-	if len(only) > 0 {
-		return only[category]
-	}
-	return !skip[category]
+func installDesktopTools(appFilter, skipFilter map[string]bool) {
+	desktopTool := desktop.New()
+	desktopTool.InstallAndConfigure(appFilter, skipFilter)
 }

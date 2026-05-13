@@ -4,6 +4,7 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/cjairm/devgita/internal/apps"
 	"github.com/cjairm/devgita/internal/testutil"
 )
 
@@ -49,6 +50,54 @@ func TestGetApp_AllRegisteredApps(t *testing.T) {
 				t.Errorf("GetApp(%q).Name() = %q, want %q", name, app.Name(), name)
 			}
 		})
+	}
+}
+
+func TestGetAppsByKind_Terminal(t *testing.T) {
+	names := GetAppsByKind(apps.KindTerminal)
+	expected := []string{"alacritty", "claude", "fastfetch", "git", "lazydocker", "lazygit", "mise", "neovim", "opencode", "tmux"}
+	if len(names) != len(expected) {
+		t.Errorf("GetAppsByKind(KindTerminal) returned %d names, want %d: %v", len(names), len(expected), names)
+	}
+	if !sort.StringsAreSorted(names) {
+		t.Error("GetAppsByKind(KindTerminal) is not sorted")
+	}
+	got := make(map[string]bool, len(names))
+	for _, n := range names {
+		got[n] = true
+	}
+	for _, name := range expected {
+		if !got[name] {
+			t.Errorf("GetAppsByKind(KindTerminal) missing %q", name)
+		}
+	}
+}
+
+func TestGetAppsByKind_Desktop(t *testing.T) {
+	names := GetAppsByKind(apps.KindDesktop)
+	expected := []string{"aerospace", "brave", "docker", "flameshot", "gimp", "i3", "raycast", "ulauncher"}
+	if len(names) != len(expected) {
+		t.Errorf("GetAppsByKind(KindDesktop) returned %d names, want %d: %v", len(names), len(expected), names)
+	}
+	got := make(map[string]bool, len(names))
+	for _, n := range names {
+		got[n] = true
+	}
+	for _, name := range expected {
+		if !got[name] {
+			t.Errorf("GetAppsByKind(KindDesktop) missing %q", name)
+		}
+	}
+}
+
+func TestGetAppsByKind_NoMeta(t *testing.T) {
+	terminal := GetAppsByKind(apps.KindTerminal)
+	desktop := GetAppsByKind(apps.KindDesktop)
+	all := append(terminal, desktop...)
+	for _, name := range all {
+		if name == "devgita" {
+			t.Errorf("KindMeta app %q must not appear in terminal or desktop results", name)
+		}
 	}
 }
 

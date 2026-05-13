@@ -61,7 +61,43 @@ Primary entry point for setting up a development environment.
 - Interactive mode: `dg install` launches interactive prompts for category selection
 - Category filtering: `--only category1,category2`
 - Category exclusion: `--skip category1`
+- Per-app targeting: `--only appname` or `--skip appname` (registry apps only)
 - Verbose logging: `--verbose`
+
+#### Per-App Targeting
+
+`--only` and `--skip` accept both category names and individual app names from the registry.
+
+**Granularity levels:**
+
+```
+dg install --only terminal          # full terminal category (existing behavior)
+dg install --only neovim            # single app by name — only neovim installed
+dg install --skip git               # skip git; install everything else normally
+dg install --only terminal --skip lazygit  # full terminal minus lazygit
+dg install --only neovim --only docker    # neovim (terminal) + docker (desktop) only
+```
+
+**Behavior when an app filter is active** (`--only <appname>`):
+
+- Only the specified registry apps are installed in that coordinator
+- `InstallDevTools` and `InstallCoreLibs` are skipped (user asked for a specific app, not a full setup)
+- Fonts installation is also skipped in the desktop coordinator
+
+**Individually targetable apps** (registry-managed, 18 apps):
+
+| Coordinator | Apps |
+|---|---|
+| terminal | claude, fastfetch, git, lazydocker, lazygit, mise, neovim, opencode, tmux |
+| desktop | aerospace, alacritty, brave, docker, flameshot, gimp, i3, raycast, ulauncher |
+
+**Note on alacritty:** `alacritty` has `KindTerminal` in the registry but is installed by the desktop coordinator. Use `--only alacritty` (not `--only terminal`) to target it specifically.
+
+**Not individually targetable** (no registry entry):
+- Core libs: autoconf, bison, ncurses, openssl, etc.
+- Dev tools: bat, fzf, ripgrep, zoxide, etc.
+- Languages: node, python, go, rust, php (use interactive selection)
+- Databases: postgresql, redis, mysql, etc. (use interactive selection)
 
 #### Categories
 

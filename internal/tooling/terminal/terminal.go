@@ -85,9 +85,23 @@ func (s *InstallationSummary) FormatSummary() string {
 	return fmt.Sprintf("Installed: %d, Failed: %d, Skipped: %d", s.Installed, s.Failed, s.Skipped)
 }
 
+// softInstallable is the subset of apps.App used by the terminal coordinator.
+type softInstallable interface {
+	SoftInstall() error
+	SoftConfigure() error
+}
+
+// namedInstallable pairs an app name with its installer. Used for injection in tests.
+type namedInstallable struct {
+	name string
+	app  softInstallable
+}
+
 type Terminal struct {
 	Cmd  commands.Command
 	Base commands.BaseCommand
+	// appsOverride replaces the default terminal app list when non-nil (used in tests).
+	appsOverride []namedInstallable
 }
 
 func New() *Terminal {
@@ -96,94 +110,62 @@ func New() *Terminal {
 	return &Terminal{Cmd: osCmd, Base: *baseCmd}
 }
 
-func (t *Terminal) InstallAndConfigure() {
-	summary := &InstallationSummary{}
-
-	err := t.DisplayGithubInstructions()
-	displayMessage(err, "instructions", true)
-	t.InstallTerminalApps(summary)
-	t.InstallDevTools(summary)
-	t.InstallCoreLibs(summary)
-
-	utils.PrintInfo(fmt.Sprintf("Installation complete: %s", summary.FormatSummary()))
-}
-
-func (t *Terminal) InstallTerminalApps(summary *InstallationSummary) {
-	// should install:
-	// - fastfetch
-	// - git
-	// - lazydocker
-	// - lazygit
-	// - mise
-	// - neovim
-	// - opencode
-	// - tmux
-	terminalApps := []struct {
-		name string
-		app  interface {
-			SoftInstall() error
-			SoftConfigure() error
-		}
-	}{
+// defaultApps returns the production list of registry apps managed by this coordinator.
+func defaultApps() []namedInstallable {
+	return []namedInstallable{
 		{constants.Fastfetch, fastfetch.New()},
 		{constants.Git, git.New()},
 		{constants.Mise, mise.New()},
 		{constants.Neovim, neovim.New()},
 		{constants.Tmux, tmux.New()},
-	}
-	for _, terminalApp := range terminalApps {
-		if err := terminalApp.app.SoftInstall(); err != nil {
-			displayMessage(err, terminalApp.name)
-			trackResult(summary, terminalApp.name, err)
-			continue
-		}
-		trackResult(summary, terminalApp.name, nil)
-		if err := terminalApp.app.SoftConfigure(); err != nil {
-			displayMessage(err, terminalApp.name, true)
-		}
-	}
-
-	o := opencode.New()
-	if err := o.SoftInstall(); err != nil {
-		displayMessage(err, constants.OpenCode)
-		trackResult(summary, constants.OpenCode, err)
-	} else {
-		trackResult(summary, constants.OpenCode, nil)
-		if err := o.SoftConfigure(); err != nil {
-			displayMessage(err, constants.OpenCode, true)
-		}
-	}
-
-	cc := claude.New()
-	if err := cc.SoftInstall(); err != nil {
-		displayMessage(err, constants.Claude)
-		trackResult(summary, constants.Claude, err)
-	} else {
-		trackResult(summary, constants.Claude, nil)
-		if err := cc.SoftConfigure(); err != nil {
-			displayMessage(err, constants.Claude, true)
-		}
-	}
-
-	tuis := []struct {
-		name string
-		app  interface {
-			SoftInstall() error
-			SoftConfigure() error
-		}
-	}{
+		{constants.OpenCode, opencode.New()},
+		{constants.Claude, claude.New()},
 		{constants.LazyDocker, lazydocker.New()},
 		{constants.LazyGit, lazygit.New()},
 	}
-	for _, tui := range tuis {
-		if err := tui.app.SoftInstall(); err != nil {
-			displayMessage(err, tui.name)
-			trackResult(summary, tui.name, err)
+}
+
+func (t *Terminal) getApps() []namedInstallable {
+	if t.appsOverride != nil {
+		return t.appsOverride
+	}
+	return defaultApps()
+}
+
+// InstallAndConfigure runs the full terminal setup.
+// appFilter: when non-empty, only those registry apps are installed (devtools/corelibs skipped).
+// skipFilter: those registry apps are always skipped regardless of appFilter.
+func (t *Terminal) InstallAndConfigure(appFilter, skipFilter map[string]bool) {
+	summary := &InstallationSummary{}
+
+	err := t.DisplayGithubInstructions()
+	displayMessage(err, "instructions", true)
+	t.InstallTerminalApps(summary, appFilter, skipFilter)
+	if len(appFilter) == 0 {
+		t.InstallDevTools(summary)
+		t.InstallCoreLibs(summary)
+	}
+
+	utils.PrintInfo(fmt.Sprintf("Installation complete: %s", summary.FormatSummary()))
+}
+
+// InstallTerminalApps installs registry-managed terminal apps with optional filtering.
+func (t *Terminal) InstallTerminalApps(summary *InstallationSummary, appFilter, skipFilter map[string]bool) {
+	for _, entry := range t.getApps() {
+		if skipFilter[entry.name] {
 			continue
 		}
-		trackResult(summary, tui.name, nil)
-		if err := tui.app.SoftConfigure(); err != nil {
-			displayMessage(err, tui.name, true)
+		if len(appFilter) > 0 && !appFilter[entry.name] {
+			continue
+		}
+		if err := entry.app.SoftInstall(); err != nil {
+			displayMessage(err, entry.name)
+			trackResult(summary, entry.name, err)
+			continue
+		}
+		trackResult(summary, entry.name, nil)
+		if err := entry.app.SoftConfigure(); err != nil {
+			displayMessage(err, entry.name, true)
 		}
 	}
 }
