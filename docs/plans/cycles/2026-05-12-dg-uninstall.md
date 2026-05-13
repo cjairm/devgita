@@ -33,7 +33,7 @@ Related: [ROADMAP.md](../../../ROADMAP.md) · [docs/guides/app-interface.md](../
 | `internal/commands/mock.go` | Already has `UninstallPackage` — needs `UninstallDesktopApp` added |
 | `internal/config/fromFile.go` | Needs `RemoveFromInstalled(itemName, itemType string)` |
 | `internal/apps/{app}/{app}.go` | 18 app files — all need real `Uninstall()` + 14 need `AddToInstalled` fix in `ForceConfigure` |
-| `internal/registry/registry.go` | **New** — extract shared app registry (`AppEntry` struct + filter helpers) from `cmd/install.go` |
+| `internal/registry/registry.go` | **Move** from `internal/apps/registry/` — existing `GetApp`/`Names`/`GetAppsByKind` + new `AppEntry` struct, `Registry` map, filter helpers |
 | `cmd/install.go` | Update to import `internal/registry` |
 | `cmd/uninstall.go` | **New** — `dg uninstall <app|category>` command |
 
@@ -104,7 +104,7 @@ var Registry = map[string]AppEntry{
 
 > **Note — `i3` uses `terminal_tool` item type despite being a desktop coordinator app.** This is intentional: i3 is installed via `apt-get install` (a package, not a desktop app/cask), and `global_config.yaml` tracks it under `terminal_tools`. Changing it to `desktop_app` would break existing state tracking for users who already have i3 installed. Do not "fix" this.
 
-> **Note — `devgita` is an intentional sentinel entry** with empty Coordinator and ItemType. It exists so that `IsKnownApp("devgita")` returns `true`, enabling the orchestrator to intercept `dg uninstall devgita` with a clear error message ("cannot uninstall devgita from itself") rather than falling through to "unknown app". It has no `NewApp` factory case and no `Uninstall()` implementation.
+> **Note — `devgita` is an intentional sentinel entry** with empty Coordinator and ItemType. It exists so that `IsKnownApp("devgita")` returns `true`, enabling the orchestrator to intercept `dg uninstall devgita` with a clear error message ("cannot uninstall devgita from itself") rather than falling through to "unknown app". It has a factory entry (for `dg configure devgita`) but its `Uninstall()` is not implemented in this cycle — the orchestrator blocks it before reaching the factory.
 
 ### Critical tracking gap: `AddToInstalled` is missing for 14 apps
 
@@ -182,7 +182,7 @@ Implement `dg uninstall <app|category>` that fully reverses the install process 
 
 - [ ] Add `UninstallPackage` and `UninstallDesktopApp` to `Command` interface + implement on `MacOSCommand`, `DebianCommand` + add `UninstallDesktopApp` to `MockCommand`
 - [ ] Add `RemoveFromInstalled` to `GlobalConfig`
-- [ ] Extract shared registry to `internal/registry/registry.go`; update `cmd/install.go` to use it
+- [ ] Move `internal/apps/registry/` to `internal/registry/` for broader reuse; extend with `AppEntry`/`Registry` map; update `cmd/install.go` and `cmd/configure.go` imports
 - [ ] Implement real `Uninstall()` for all 18 apps per the spec table above
 - [ ] Mocked tests for every app's `Uninstall()` (success + failure paths)
 - [ ] Implement `cmd/uninstall.go` with `dg uninstall <app|category>`
@@ -218,9 +218,10 @@ Implement `dg uninstall <app|category>` that fully reverses the install process 
 | Modify | `internal/commands/mock.go` | Add `UninstallDesktopApp` + `UninstalledDesktopApp` field |
 | Modify | `internal/config/fromFile.go` | Add `RemoveFromInstalled` |
 | Modify | `internal/config/fromFile_test.go` | Test `RemoveFromInstalled` |
-| Create | `internal/registry/registry.go` | `AppEntry` struct, `Registry` map, filter helpers, `NewApp` factory |
-| Create | `internal/registry/registry_test.go` | Registry helper tests |
+| Move | `internal/registry/registry.go` | Move from `internal/apps/registry/`; add `AppEntry` struct, `Registry` map, filter helpers |
+| Move | `internal/registry/registry_test.go` | Move existing tests; add registry helper tests |
 | Modify | `cmd/install.go` | Import `internal/registry`, drop local copies |
+| Modify | `cmd/configure.go` | Update import from `internal/apps/registry` to `internal/registry` |
 | Modify | `internal/apps/aerospace/aerospace.go` | Real `Uninstall()` |
 | Create/Modify | `internal/apps/aerospace/aerospace_test.go` | Uninstall tests |
 | Modify | `internal/apps/alacritty/alacritty.go` | Real `Uninstall()` |
@@ -335,29 +336,22 @@ func (gc *GlobalConfig) RemoveFromInstalled(itemName, itemType string) {
 
 - Verify: `go test ./internal/config/ -v`
 
-#### Step 3: Extract registry to `internal/registry/`
+#### Step 3: Move registry to `internal/registry/`
 
-Create `internal/registry/registry.go` with the `AppEntry` struct and `Registry` map (see spec in Engineer Context). Migrate helpers from `cmd/install.go`:
+Move `internal/apps/registry/` to `internal/registry/` so it's available for broader reuse beyond apps (e.g., `cmd/uninstall.go`, future `cmd/status.go`). The existing `GetApp`, `Names`, `GetAppsByKind`, and `formatNames` functions stay as-is.
+
+Add the `AppEntry` struct and `Registry` map (see spec in Engineer Context). Add new helpers migrated from `cmd/install.go`:
 - `KnownCategories` → derived from unique `Coordinator` values in `Registry` (e.g., `"terminal"`, `"desktop"`), not from app-name keys
 - `IsKnownCategory`, `IsKnownApp`, `FormatAppNames`
 - `BuildAppFilter`, `BuildSkipFilter`, `HasAppsForCoordinator`, `ShouldRunCategory`
 
-Add `NewApp(name string) (apps.App, error)` factory:
-```go
-func NewApp(name string) (apps.App, error) {
-    switch name {
-    case "aerospace":  return aerospace.New(), nil
-    // ... all 18
-    default:           return nil, fmt.Errorf("unknown app %q", name)
-    }
-}
-```
+The existing `GetApp(name string) (apps.App, error)` factory already handles app instantiation — no need for a separate `NewApp`. The cycle doc's orchestrator uses `GetApp` directly.
 
-Add a compile-time test asserting every `Registry` entry with `Coordinator != ""` has a matching `NewApp` case — catches the registry-factory drift risk.
+Add a compile-time test asserting every `Registry` entry with `Coordinator != ""` has a matching factory — catches the registry-factory drift risk.
 
-Update `cmd/install.go` to import `internal/registry` and drop local copies. No behavior change.
+Update `cmd/install.go` and `cmd/configure.go` to import `internal/registry` (was `internal/apps/registry`). Remove the old `internal/apps/registry/` directory. No behavior change.
 
-- Verify: `go test ./internal/registry/` and `go test ./cmd/ -run TestInstall`
+- Verify: `go test ./internal/registry/` and `go test ./cmd/ -run TestInstall` and `go test ./cmd/ -run TestConfigure`
 
 #### Step 4: Fix `AddToInstalled` tracking in 14 apps
 
@@ -567,7 +561,7 @@ func init() { rootCmd.AddCommand(uninstallCmd) }
 
 ```go
 // test seam — overridden in tests to inject mocks
-var newAppFn = registry.NewApp
+var getAppFn = registry.GetApp
 ```
 
 1. **Block reserved targets first** (before any other validation):
@@ -580,7 +574,7 @@ var newAppFn = registry.NewApp
 6. For each target app:
    a. `itemType := registry.Registry[name].ItemType`
    b. If `!gc.IsInstalledByDevgita(name, itemType)`: log warning "skipping %s: not installed by devgita", continue
-   c. `app, err := newAppFn(name)` — uses the seam, mockable in tests
+   c. `app, err := getAppFn(name)` — uses the seam, mockable in tests
    d. If `err := app.Uninstall(); err != nil`: log error, set `anyFailed = true`, continue
     e. On success: set `shellFeatureChanged = true` if `registry.Registry[name].HasShellFeature` is true
 7. If `shellFeatureChanged`: print `"Run \`source ~/.zshrc\` to apply shell changes."`
@@ -594,19 +588,19 @@ var newAppFn = registry.NewApp
 - `dg uninstall devgita` → "cannot uninstall devgita from itself" (checked before validation)
 - Unknown arg → error listing valid targets
 - App not tracked by devgita → warning logged, exit zero
-- Single app uninstall succeeds → no error, `newAppFn` called with correct name
+- Single app uninstall succeeds → no error, `getAppFn` called with correct name
 - `app.Uninstall()` returns error → `anyFailed` captured, non-zero exit, other apps continue
 - Category uninstall → all apps in category processed, non-tracked ones skipped
 - Shell-feature app uninstalled → "source ~/.zshrc" message printed
 
-**Use the `newAppFn` seam** — override it in test setup:
+**Use the `getAppFn` seam** — override it in test setup:
 ```go
 func TestUninstallSingleApp(t *testing.T) {
     mockCmd := commands.NewMockCommand()
-    newAppFn = func(name string) (apps.App, error) {
+    getAppFn = func(name string) (apps.App, error) {
         return &someapp.SomeApp{Cmd: mockCmd, Base: commands.NewMockBaseCommand()}, nil
     }
-    t.Cleanup(func() { newAppFn = registry.NewApp }) // restore
+    t.Cleanup(func() { getAppFn = registry.GetApp }) // restore
     // ... run command
 }
 ```
