@@ -13,6 +13,47 @@
       "color": "#8ec07c"
     }
   },
+  "permission": {
+    "*": "ask",
+
+    "read": {
+      "*": "allow",
+
+      "./.env": "deny",
+      "./.env.*": "deny",
+      "./secrets/**": "deny",
+
+      "*.pem": "deny",
+      "*.key": "deny",
+      "*.env": "deny",
+
+      "**/id_rsa": "deny",
+      "**/id_ed25519": "deny"
+    },
+
+    "bash": {
+      "*": "allow",
+
+      "terraform apply *": "deny",
+
+      "kubectl delete *": "deny",
+      "kubectl apply *": "deny",
+
+      "aws *": "deny",
+      "gcloud *": "deny",
+      "az *": "deny",
+
+      "rm -rf *": "deny",
+      "sudo *": "deny"
+    },
+
+    "edit": {
+      "*": "allow",
+
+      ".git/**": "deny",
+      ".claude/**": "deny"
+    }
+  },
   "formatter": {
     "prettier": {
       "command": ["npx", "prettier", "--write", "$FILE"],
