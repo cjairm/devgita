@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 
 	"github.com/cjairm/devgita/internal/apps"
 	"github.com/cjairm/devgita/internal/apps/baseapp"
@@ -152,8 +151,9 @@ func (dg *Devgita) ForceConfigure() error {
 	}
 	gc.AppPath = paths.Paths.App.Root
 	gc.ConfigPath = getConfigDirPath()
-	// Set platform flag for shell template conditionals
-	gc.Shell.IsMac = runtime.GOOS == "darwin"
+	// Auto-detect installed tools so the shell config reflects reality,
+	// even if global_config.yaml lost its shell feature flags.
+	gc.ReconcileShellFeatures()
 	gc.EnableShellFeature(DevgitaExtended)
 	if err := gc.Save(); err != nil {
 		return fmt.Errorf("failed to save global config: %w", err)
