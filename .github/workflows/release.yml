@@ -27,20 +27,22 @@ jobs:
         run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
       
       - name: Build binaries
+        env:
+          VERSION: ${{ steps.get_version.outputs.VERSION }}
+          COMMIT: ${{ github.sha }}
         run: |
-          # Build for macOS amd64
-          GOOS=darwin GOARCH=amd64 go build -o devgita-darwin-amd64 -ldflags="-s -w" .
-          
-          # Build for macOS arm64
-          GOOS=darwin GOARCH=arm64 go build -o devgita-darwin-arm64 -ldflags="-s -w" .
-          
-          # Build for Linux amd64
-          GOOS=linux GOARCH=amd64 go build -o devgita-linux-amd64 -ldflags="-s -w" .
-          
-          # Build for Linux arm64
-          GOOS=linux GOARCH=arm64 go build -o devgita-linux-arm64 -ldflags="-s -w" .
-          
-          # Make all binaries executable
+          BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          SHORT_COMMIT=$(echo "$COMMIT" | cut -c1-7)
+          LDFLAGS="-s -w \
+            -X 'github.com/cjairm/devgita/cmd.Version=${VERSION}' \
+            -X 'github.com/cjairm/devgita/cmd.Commit=${SHORT_COMMIT}' \
+            -X 'github.com/cjairm/devgita/cmd.BuildDate=${BUILD_DATE}'"
+
+          GOOS=darwin  GOARCH=amd64 go build -o devgita-darwin-amd64  -ldflags="$LDFLAGS" .
+          GOOS=darwin  GOARCH=arm64 go build -o devgita-darwin-arm64  -ldflags="$LDFLAGS" .
+          GOOS=linux   GOARCH=amd64 go build -o devgita-linux-amd64   -ldflags="$LDFLAGS" .
+          GOOS=linux   GOARCH=arm64 go build -o devgita-linux-arm64   -ldflags="$LDFLAGS" .
+
           chmod +x devgita-*
       
       - name: Create Release
