@@ -166,6 +166,7 @@ func (n *Neovim) ForceConfigure() error {
 	if err := gc.Load(); err != nil {
 		return fmt.Errorf("failed to load global config: %w", err)
 	}
+	gc.AddToInstalled(constants.Neovim, "package")
 	if err := enableFeature(gc); err != nil {
 		return fmt.Errorf("failed to enable neovim feature: %w", err)
 	}
@@ -194,7 +195,36 @@ func (n *Neovim) SoftConfigure() error {
 }
 
 func (n *Neovim) Uninstall() error {
-	return fmt.Errorf("%w for neovim", apps.ErrUninstallNotSupported)
+	gc := &config.GlobalConfig{}
+	if err := gc.Load(); err != nil {
+		return fmt.Errorf("failed to load global config: %w", err)
+	}
+	if n.Base.IsMac() {
+		if err := n.Cmd.UninstallPackage(constants.Neovim); err != nil {
+			return fmt.Errorf("failed to uninstall neovim: %w", err)
+		}
+	} else {
+		for _, rmArgs := range [][]string{
+			{"-f", "/usr/local/bin/nvim"},
+			{"-rf", "/usr/local/lib/nvim"},
+			{"-rf", "/usr/local/share/nvim"},
+		} {
+			if _, _, err := n.Base.ExecCommand(cmd.CommandParams{
+				Command: "rm",
+				Args:    rmArgs,
+				IsSudo:  true,
+			}); err != nil {
+				return fmt.Errorf("failed to remove neovim files (%v): %w", rmArgs, err)
+			}
+		}
+	}
+	_ = os.RemoveAll(paths.Paths.Config.Nvim)
+	gc.DisableShellFeature(constants.Neovim)
+	if err := gc.RegenerateShellConfig(); err != nil {
+		return fmt.Errorf("failed to regenerate shell config: %w", err)
+	}
+	gc.RemoveFromInstalled(constants.Neovim, "package")
+	return gc.Save()
 }
 
 func (n *Neovim) ExecuteCommand(args ...string) error {

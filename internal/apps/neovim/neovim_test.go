@@ -113,33 +113,88 @@ func TestInstallDebian(t *testing.T) {
 }
 
 func TestForceInstall(t *testing.T) {
-	mockApp := testutil.NewMockApp()
-	mockApp.Base.IsMacResult = true // simulate macOS
-	app := &Neovim{Cmd: mockApp.Cmd, Base: mockApp.Base}
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
+
+	nvimConfigDir := filepath.Join(tc.ConfigDir, "nvim")
+	oldNvimDir := paths.Paths.Config.Nvim
+	t.Cleanup(func() { paths.Paths.Config.Nvim = oldNvimDir })
+	paths.Paths.Config.Nvim = nvimConfigDir
+
+	tc.MockApp.Base.IsMacResult = true // macOS path: brew uninstall
+	app := &Neovim{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
 
 	if err := app.ForceInstall(); err != nil {
-		t.Fatalf("ForceInstall() should succeed even when uninstall is not supported: %v", err)
+		t.Fatalf("ForceInstall() error: %v", err)
 	}
-	if mockApp.Cmd.InstalledPkg != constants.Neovim {
-		t.Errorf("expected Install to be called, got %q", mockApp.Cmd.InstalledPkg)
+	if tc.MockApp.Cmd.InstalledPkg != constants.Neovim {
+		t.Errorf("expected Install to be called, got %q", tc.MockApp.Cmd.InstalledPkg)
 	}
 
-	testutil.VerifyNoRealCommands(t, mockApp.Base)
+	testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
 }
 
 func TestUninstall(t *testing.T) {
-	mockApp := testutil.NewMockApp()
-	app := &Neovim{Cmd: mockApp.Cmd, Base: mockApp.Base}
+	t.Run("macOS", func(t *testing.T) {
+		tc := testutil.SetupCompleteTest(t)
+		defer tc.Cleanup()
 
-	err := app.Uninstall()
-	if err == nil {
-		t.Fatal("expected Uninstall to return error for unsupported operation")
-	}
-	if !errors.Is(err, apps.ErrUninstallNotSupported) {
-		t.Errorf("expected ErrUninstallNotSupported, got: %v", err)
-	}
+		nvimConfigDir := filepath.Join(tc.ConfigDir, "nvim")
+		oldNvimDir := paths.Paths.Config.Nvim
+		t.Cleanup(func() { paths.Paths.Config.Nvim = oldNvimDir })
+		paths.Paths.Config.Nvim = nvimConfigDir
 
-	testutil.VerifyNoRealCommands(t, mockApp.Base)
+		tc.MockApp.Base.IsMacResult = true
+		app := &Neovim{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
+
+		if err := app.Uninstall(); err != nil {
+			t.Fatalf("Uninstall error: %v", err)
+		}
+		if tc.MockApp.Cmd.UninstalledPkg != constants.Neovim {
+			t.Errorf("expected UninstallPackage(%s), got %q", constants.Neovim, tc.MockApp.Cmd.UninstalledPkg)
+		}
+
+		testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
+	})
+
+	t.Run("linux", func(t *testing.T) {
+		tc := testutil.SetupCompleteTest(t)
+		defer tc.Cleanup()
+
+		nvimConfigDir := filepath.Join(tc.ConfigDir, "nvim")
+		oldNvimDir := paths.Paths.Config.Nvim
+		t.Cleanup(func() { paths.Paths.Config.Nvim = oldNvimDir })
+		paths.Paths.Config.Nvim = nvimConfigDir
+
+		tc.MockApp.Base.IsMacResult = false
+		tc.MockApp.Base.SetExecCommandResult("", "", nil)
+		app := &Neovim{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
+
+		if err := app.Uninstall(); err != nil {
+			t.Fatalf("Uninstall error: %v", err)
+		}
+
+		// Linux path issues 3 rm commands via Base.ExecCommand
+		if tc.MockApp.Base.GetExecCommandCallCount() != 3 {
+			t.Fatalf("expected 3 ExecCommand calls, got %d", tc.MockApp.Base.GetExecCommandCallCount())
+		}
+		calls := tc.MockApp.Base.ExecCommandCalls
+		for _, call := range calls {
+			if call.Command != "rm" || !call.IsSudo {
+				t.Errorf("expected sudo rm, got command=%q IsSudo=%v", call.Command, call.IsSudo)
+			}
+		}
+		// Verify the three paths
+		if calls[0].Args[1] != "/usr/local/bin/nvim" {
+			t.Errorf("expected /usr/local/bin/nvim, got %v", calls[0].Args)
+		}
+		if calls[1].Args[1] != "/usr/local/lib/nvim" {
+			t.Errorf("expected /usr/local/lib/nvim, got %v", calls[1].Args)
+		}
+		if calls[2].Args[1] != "/usr/local/share/nvim" {
+			t.Errorf("expected /usr/local/share/nvim, got %v", calls[2].Args)
+		}
+	})
 }
 
 func TestUpdate(t *testing.T) {

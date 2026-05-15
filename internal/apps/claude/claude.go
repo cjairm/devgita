@@ -55,7 +55,23 @@ func (c *Claude) SoftInstall() error {
 }
 
 func (c *Claude) Uninstall() error {
-	return fmt.Errorf("%w — run: npm uninstall -g @anthropic-ai/claude-code", apps.ErrUninstallNotSupported)
+	gc := &config.GlobalConfig{}
+	if err := gc.Load(); err != nil {
+		return fmt.Errorf("failed to load global config: %w", err)
+	}
+	if _, _, err := c.Base.ExecCommand(cmd.CommandParams{
+		Command: "npm",
+		Args:    []string{"uninstall", "-g", "@anthropic-ai/claude-code"},
+	}); err != nil {
+		return fmt.Errorf("failed to uninstall claude: %w", err)
+	}
+	_ = os.RemoveAll(paths.Paths.Config.Claude)
+	gc.DisableShellFeature(constants.Claude)
+	if err := gc.RegenerateShellConfig(); err != nil {
+		return fmt.Errorf("failed to regenerate shell config: %w", err)
+	}
+	gc.RemoveFromInstalled(constants.Claude, "package")
+	return gc.Save()
 }
 
 func (c *Claude) ForceConfigure() error {

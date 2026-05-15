@@ -57,32 +57,66 @@ func TestInstall(t *testing.T) {
 }
 
 func TestForceInstall(t *testing.T) {
-	mockApp := testutil.NewMockApp()
-	app := &Claude{Cmd: mockApp.Cmd, Base: mockApp.Base}
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
+
+	claudeConfigDir := filepath.Join(tc.ConfigDir, ".claude")
+	oldClaudeDir := paths.Paths.Config.Claude
+	t.Cleanup(func() { paths.Paths.Config.Claude = oldClaudeDir })
+	paths.Paths.Config.Claude = claudeConfigDir
+
+	app := &Claude{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
 
 	if err := app.ForceInstall(); err != nil {
 		t.Fatalf("ForceInstall error: %v", err)
 	}
 
-	last := mockApp.Base.GetLastExecCommandCall()
-	if last == nil || last.Command != "sh" {
-		t.Errorf("Expected install script via 'sh', got %v", last)
+	// ForceInstall runs Uninstall (npm uninstall) then Install (sh curl)
+	// Both use Base.ExecCommand, so we expect 2 calls
+	calls := tc.MockApp.Base.ExecCommandCalls
+	if len(calls) < 2 {
+		t.Fatalf("expected at least 2 ExecCommand calls, got %d", len(calls))
+	}
+	if calls[0].Command != "npm" {
+		t.Errorf("expected first command 'npm' (uninstall), got %q", calls[0].Command)
+	}
+	last := calls[len(calls)-1]
+	if last.Command != "sh" {
+		t.Errorf("Expected install script via 'sh', got %q", last.Command)
 	}
 }
 
 func TestUninstall(t *testing.T) {
-	mockApp := testutil.NewMockApp()
-	app := &Claude{Cmd: mockApp.Cmd, Base: mockApp.Base}
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
 
-	err := app.Uninstall()
-	if err == nil {
-		t.Fatal("Expected Uninstall to return error")
+	claudeConfigDir := filepath.Join(tc.ConfigDir, ".claude")
+	if err := os.MkdirAll(claudeConfigDir, 0755); err != nil {
+		t.Fatal(err)
 	}
-	if !errors.Is(err, apps.ErrUninstallNotSupported) {
-		t.Errorf("expected ErrUninstallNotSupported, got: %v", err)
+	oldClaudeDir := paths.Paths.Config.Claude
+	t.Cleanup(func() { paths.Paths.Config.Claude = oldClaudeDir })
+	paths.Paths.Config.Claude = claudeConfigDir
+
+	app := &Claude{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
+
+	if err := app.Uninstall(); err != nil {
+		t.Fatalf("Uninstall error: %v", err)
 	}
 
-	testutil.VerifyNoRealCommands(t, mockApp.Base)
+	// Verify npm uninstall was called
+	last := tc.MockApp.Base.GetLastExecCommandCall()
+	if last == nil || last.Command != "npm" {
+		t.Fatalf("expected npm uninstall command, got %v", last)
+	}
+	if len(last.Args) < 3 || last.Args[2] != "@anthropic-ai/claude-code" {
+		t.Errorf("expected npm uninstall -g @anthropic-ai/claude-code, got args %v", last.Args)
+	}
+
+	// Config dir should be removed
+	if _, err := os.Stat(claudeConfigDir); err == nil {
+		t.Error("expected claude config dir to be removed")
+	}
 }
 
 func TestUpdate(t *testing.T) {
