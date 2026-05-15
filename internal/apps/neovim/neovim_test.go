@@ -235,6 +235,12 @@ func TestForceConfigure(t *testing.T) {
 	}
 
 	// Override global paths
+	oldNeovimSrc := paths.Paths.App.Configs.Neovim
+	oldNeovimDst := paths.Paths.Config.Nvim
+	t.Cleanup(func() {
+		paths.Paths.App.Configs.Neovim = oldNeovimSrc
+		paths.Paths.Config.Nvim = oldNeovimDst
+	})
 	paths.Paths.App.Configs.Neovim = src
 	paths.Paths.Config.Nvim = dst
 
@@ -297,6 +303,12 @@ func TestSoftConfigure(t *testing.T) {
 	}
 
 	// Override global paths
+	oldNeovimSrc := paths.Paths.App.Configs.Neovim
+	oldNeovimDst := paths.Paths.Config.Nvim
+	t.Cleanup(func() {
+		paths.Paths.App.Configs.Neovim = oldNeovimSrc
+		paths.Paths.Config.Nvim = oldNeovimDst
+	})
 	paths.Paths.App.Configs.Neovim = src
 	paths.Paths.Config.Nvim = dst
 
