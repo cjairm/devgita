@@ -209,6 +209,21 @@ func (gc *GlobalConfig) AddToInstalled(itemName, itemType string) {
 	gc.AddToConfig(itemName, itemType, "installed")
 }
 
+// RemoveFromInstalled removes itemName from the installed tracking list for itemType.
+func (gc *GlobalConfig) RemoveFromInstalled(itemName, itemType string) {
+	slice := gc.getInstalledSlice(itemType)
+	if slice == nil {
+		return
+	}
+	result := (*slice)[:0]
+	for _, v := range *slice {
+		if v != itemName {
+			result = append(result, v)
+		}
+	}
+	*slice = result
+}
+
 func (gc *GlobalConfig) AddToAlreadyInstalled(itemName, itemType string) {
 	gc.AddToConfig(itemName, itemType, "already_installed")
 }
