@@ -1,7 +1,11 @@
-return { -- Highlight, edit, and navigate code
+return {
 	"nvim-treesitter/nvim-treesitter",
+	branch = "main",
+
+	build = ":TSUpdate",
+
 	config = function()
-		local filetypes = {
+		local parsers = {
 			"bash",
 			"c",
 			"diff",
@@ -16,15 +20,23 @@ return { -- Highlight, edit, and navigate code
 			"vimdoc",
 			"typescript",
 			"javascript",
-			"html",
 			"go",
 			"php",
 		}
-		require("nvim-treesitter").install(filetypes)
+
+		require("nvim-treesitter").install(parsers)
+
 		vim.api.nvim_create_autocmd("FileType", {
-			pattern = filetypes,
-			callback = function()
-				vim.treesitter.start()
+			callback = function(args)
+				local buf = args.buf
+				local ft = args.match
+
+				local lang = vim.treesitter.language.get_lang(ft)
+				if not lang then
+					return
+				end
+
+				pcall(vim.treesitter.start, buf, lang)
 			end,
 		})
 	end,
