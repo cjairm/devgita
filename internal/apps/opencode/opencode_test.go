@@ -26,6 +26,8 @@ func setupSharedDir(t *testing.T, baseDir string) {
 			t.Fatal(err)
 		}
 	}
+	oldShared := paths.Paths.App.Configs.Shared
+	t.Cleanup(func() { paths.Paths.App.Configs.Shared = oldShared })
 	paths.Paths.App.Configs.Shared = sharedDir
 }
 
@@ -67,6 +69,7 @@ func TestInstall(t *testing.T) {
 }
 
 func TestForceInstall(t *testing.T) {
+	testutil.IsolateXDGDirs(t)
 	tc := testutil.SetupCompleteTest(t)
 	defer tc.Cleanup()
 
@@ -102,6 +105,7 @@ func TestSoftInstall(t *testing.T) {
 }
 
 func TestUninstall(t *testing.T) {
+	testutil.IsolateXDGDirs(t)
 	tc := testutil.SetupCompleteTest(t)
 	defer tc.Cleanup()
 
@@ -142,6 +146,7 @@ func TestUpdate(t *testing.T) {
 
 func TestForceConfigure(t *testing.T) {
 	t.Run("ConfigureWithDefaultTheme", func(t *testing.T) {
+		testutil.IsolateXDGDirs(t)
 		tc := testutil.SetupCompleteTest(t)
 		defer tc.Cleanup()
 
@@ -175,7 +180,13 @@ func TestForceConfigure(t *testing.T) {
 		}
 
 		setupSharedDir(t, tc.AppDir)
+
+		oldAppConfigs := paths.Paths.App.Configs.OpenCode
+		t.Cleanup(func() { paths.Paths.App.Configs.OpenCode = oldAppConfigs })
 		paths.Paths.App.Configs.OpenCode = appConfigDir
+
+		oldConfigOpenCode := paths.Paths.Config.OpenCode
+		t.Cleanup(func() { paths.Paths.Config.OpenCode = oldConfigOpenCode })
 		paths.Paths.Config.OpenCode = userConfigDir
 
 		app := &OpenCode{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
@@ -218,6 +229,7 @@ func TestForceConfigure(t *testing.T) {
 	})
 
 	t.Run("RemovesExistingConfigDirectory", func(t *testing.T) {
+		testutil.IsolateXDGDirs(t)
 		tc := testutil.SetupCompleteTest(t)
 		defer tc.Cleanup()
 
@@ -249,7 +261,13 @@ func TestForceConfigure(t *testing.T) {
 		}
 
 		setupSharedDir(t, tc.AppDir)
+
+		oldAppConfigs := paths.Paths.App.Configs.OpenCode
+		t.Cleanup(func() { paths.Paths.App.Configs.OpenCode = oldAppConfigs })
 		paths.Paths.App.Configs.OpenCode = appConfigDir
+
+		oldConfigOpenCode := paths.Paths.Config.OpenCode
+		t.Cleanup(func() { paths.Paths.Config.OpenCode = oldConfigOpenCode })
 		paths.Paths.Config.OpenCode = userConfigDir
 
 		app := &OpenCode{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
@@ -273,6 +291,7 @@ func TestForceConfigure(t *testing.T) {
 
 func TestSoftConfigure(t *testing.T) {
 	t.Run("SkipWhenAlreadyConfigured", func(t *testing.T) {
+		testutil.IsolateXDGDirs(t)
 		tc := testutil.SetupCompleteTest(t)
 		defer tc.Cleanup()
 
@@ -285,6 +304,8 @@ func TestSoftConfigure(t *testing.T) {
 			t.Fatal(err)
 		}
 
+		oldConfigOpenCode := paths.Paths.Config.OpenCode
+		t.Cleanup(func() { paths.Paths.Config.OpenCode = oldConfigOpenCode })
 		paths.Paths.Config.OpenCode = userConfigDir
 
 		app := &OpenCode{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
@@ -305,6 +326,7 @@ func TestSoftConfigure(t *testing.T) {
 	})
 
 	t.Run("ConfigureWhenNotConfigured", func(t *testing.T) {
+		testutil.IsolateXDGDirs(t)
 		tc := testutil.SetupCompleteTest(t)
 		defer tc.Cleanup()
 
@@ -328,7 +350,13 @@ func TestSoftConfigure(t *testing.T) {
 		}
 
 		setupSharedDir(t, tc.AppDir)
+
+		oldAppConfigs := paths.Paths.App.Configs.OpenCode
+		t.Cleanup(func() { paths.Paths.App.Configs.OpenCode = oldAppConfigs })
 		paths.Paths.App.Configs.OpenCode = appConfigDir
+
+		oldConfigOpenCode := paths.Paths.Config.OpenCode
+		t.Cleanup(func() { paths.Paths.Config.OpenCode = oldConfigOpenCode })
 		paths.Paths.Config.OpenCode = userConfigDir
 
 		app := &OpenCode{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
@@ -346,6 +374,7 @@ func TestSoftConfigure(t *testing.T) {
 	})
 
 	t.Run("ConfigureWhenAlreadyInstalledButNotConfigured", func(t *testing.T) {
+		testutil.IsolateXDGDirs(t)
 		tc := testutil.SetupCompleteTest(t)
 		defer tc.Cleanup()
 
@@ -381,7 +410,13 @@ shell:
 		}
 
 		setupSharedDir(t, tc.AppDir)
+
+		oldAppConfigs := paths.Paths.App.Configs.OpenCode
+		t.Cleanup(func() { paths.Paths.App.Configs.OpenCode = oldAppConfigs })
 		paths.Paths.App.Configs.OpenCode = appConfigDir
+
+		oldConfigOpenCode := paths.Paths.Config.OpenCode
+		t.Cleanup(func() { paths.Paths.Config.OpenCode = oldConfigOpenCode })
 		paths.Paths.Config.OpenCode = userConfigDir
 
 		app := &OpenCode{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}

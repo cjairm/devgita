@@ -59,6 +59,7 @@ func TestInstall(t *testing.T) {
 func TestForceInstall(t *testing.T) {
 	tc := testutil.SetupCompleteTest(t)
 	defer tc.Cleanup()
+	testutil.IsolateXDGDirs(t)
 
 	claudeConfigDir := filepath.Join(tc.ConfigDir, ".claude")
 	oldClaudeDir := paths.Paths.Config.Claude
@@ -89,6 +90,7 @@ func TestForceInstall(t *testing.T) {
 func TestUninstall(t *testing.T) {
 	tc := testutil.SetupCompleteTest(t)
 	defer tc.Cleanup()
+	testutil.IsolateXDGDirs(t)
 
 	claudeConfigDir := filepath.Join(tc.ConfigDir, ".claude")
 	if err := os.MkdirAll(claudeConfigDir, 0755); err != nil {
@@ -165,8 +167,18 @@ func TestForceConfigure(t *testing.T) {
 		}
 	}
 
+	testutil.IsolateXDGDirs(t)
+
+	oldAppConfigsClaude := paths.Paths.App.Configs.Claude
+	t.Cleanup(func() { paths.Paths.App.Configs.Claude = oldAppConfigsClaude })
 	paths.Paths.App.Configs.Claude = appConfigDir
+
+	oldAppConfigsShared := paths.Paths.App.Configs.Shared
+	t.Cleanup(func() { paths.Paths.App.Configs.Shared = oldAppConfigsShared })
 	paths.Paths.App.Configs.Shared = sharedDir
+
+	oldConfigClaude := paths.Paths.Config.Claude
+	t.Cleanup(func() { paths.Paths.Config.Claude = oldConfigClaude })
 	paths.Paths.Config.Claude = userConfigDir
 
 	app := &Claude{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
@@ -210,7 +222,11 @@ func TestSoftConfigure_AlreadyConfigured(t *testing.T) {
 	tc := testutil.SetupCompleteTest(t)
 	defer tc.Cleanup()
 
+	testutil.IsolateXDGDirs(t)
+
 	userConfigDir := filepath.Join(tc.ConfigDir, "..", ".claude")
+	oldConfigClaude := paths.Paths.Config.Claude
+	t.Cleanup(func() { paths.Paths.Config.Claude = oldConfigClaude })
 	paths.Paths.Config.Claude = userConfigDir
 
 	// Pre-create marker file so SoftConfigure skips

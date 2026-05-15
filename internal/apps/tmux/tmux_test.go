@@ -97,6 +97,8 @@ func TestForceInstall(t *testing.T) {
 	tc := testutil.SetupCompleteTest(t)
 	defer tc.Cleanup()
 
+	testutil.IsolateXDGDirs(t)
+
 	oldHome := paths.Paths.Home.Root
 	t.Cleanup(func() { paths.Paths.Home.Root = oldHome })
 	paths.Paths.Home.Root = tc.ConfigDir
@@ -172,6 +174,8 @@ func TestUninstall(t *testing.T) {
 	tc := testutil.SetupCompleteTest(t)
 	defer tc.Cleanup()
 
+	testutil.IsolateXDGDirs(t)
+
 	oldHome := paths.Paths.Home.Root
 	t.Cleanup(func() { paths.Paths.Home.Root = oldHome })
 	paths.Paths.Home.Root = tc.ConfigDir
@@ -225,7 +229,14 @@ func TestForceConfigure(t *testing.T) {
 		t.Fatalf("Failed to create destination directory: %v", err)
 	}
 
+	testutil.IsolateXDGDirs(t)
+
+	oldTmux := paths.Paths.App.Configs.Tmux
+	t.Cleanup(func() { paths.Paths.App.Configs.Tmux = oldTmux })
 	paths.Paths.App.Configs.Tmux = sourceDir
+
+	oldHome := paths.Paths.Home.Root
+	t.Cleanup(func() { paths.Paths.Home.Root = oldHome })
 	paths.Paths.Home.Root = destDir
 
 	// Create source tmux.conf file (without leading dot in source)
@@ -288,7 +299,14 @@ func TestSoftConfigure(t *testing.T) {
 
 		destDir := tc.ConfigDir
 
+		testutil.IsolateXDGDirs(t)
+
+		oldTmux := paths.Paths.App.Configs.Tmux
+		t.Cleanup(func() { paths.Paths.App.Configs.Tmux = oldTmux })
 		paths.Paths.App.Configs.Tmux = sourceDir
+
+		oldHome := paths.Paths.Home.Root
+		t.Cleanup(func() { paths.Paths.Home.Root = oldHome })
 		paths.Paths.Home.Root = destDir
 
 		// Create source tmux.conf file (without leading dot in source)
@@ -346,6 +364,10 @@ func TestSoftConfigure(t *testing.T) {
 		homeDir := tc.ConfigDir
 
 		// Set Home path before creating the config file
+		testutil.IsolateXDGDirs(t)
+
+		oldHome := paths.Paths.Home.Root
+		t.Cleanup(func() { paths.Paths.Home.Root = oldHome })
 		paths.Paths.Home.Root = homeDir
 
 		existingConfig := filepath.Join(homeDir, ".tmux.conf")
@@ -361,6 +383,8 @@ func TestSoftConfigure(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to create source directory: %v", err)
 		}
+		oldTmux2 := paths.Paths.App.Configs.Tmux
+		t.Cleanup(func() { paths.Paths.App.Configs.Tmux = oldTmux2 })
 		paths.Paths.App.Configs.Tmux = sourceDir
 
 		// Create a different source config to prove it's not copied (without leading dot in source)
