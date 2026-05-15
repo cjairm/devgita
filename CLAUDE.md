@@ -130,6 +130,8 @@ Accidental real command execution is a common mistake. It can:
 - [ ] All public functionality has tests
 - [ ] Use `testutil.MockApp` for command mocking (see `internal/testutil/`)
 - [ ] Verify no real commands executed: `testutil.VerifyNoRealCommands(t, mockApp.Base)`
+- [ ] **Call `testutil.IsolateXDGDirs(t)` in any test that calls Uninstall, ForceInstall, ForceConfigure, or SoftConfigure — prevents deleting real user data**
+- [ ] **Save and restore every `paths.Paths.*` mutation via `t.Cleanup` — prevents cross-test state leakage**
 - [ ] Use `t.Helper()` in test helper functions
 - [ ] Test both success and failure paths
 - [ ] No real Homebrew/apt calls in tests

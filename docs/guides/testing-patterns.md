@@ -178,6 +178,7 @@ mockBase.ResetExecCommand()
 
 ### Path Management
 
+- `IsolateXDGDirs(t)` - **Required** for tests calling Uninstall/ForceInstall/Configure; redirects all XDG dirs to temp
 - `SetupIsolatedPaths(t)` - Override global paths, returns cleanup function
 - `SetupTestDirs(t)` - Create isolated directory structure
 - `SetupTestEnvironment(t)` - Combines both, recommended for config tests
@@ -398,6 +399,33 @@ func TestWithPathOverride(t *testing.T) {
 }
 ```
 
+### 5a. Isolate XDG Directories (CRITICAL)
+
+**Any test that calls `Uninstall()`, `ForceInstall()`, `ForceConfigure()`, or `SoftConfigure()` MUST call `testutil.IsolateXDGDirs(t)`.** These functions use `paths.GetDataDir()`, `paths.GetStateDir()`, `paths.GetCacheDir()`, or `paths.GetConfigDir()` which read `$HOME` and `$XDG_*` env vars at runtime. Without isolation, `os.RemoveAll` in uninstall code deletes real user data.
+
+```go
+func TestUninstall(t *testing.T) {
+    tc := testutil.SetupCompleteTest(t)
+    defer tc.Cleanup()
+
+    // CRITICAL: redirect XDG dirs to temp before any code that touches them
+    testutil.IsolateXDGDirs(t)
+
+    // Also override per-app paths with t.Cleanup restoration
+    oldConfigPath := paths.Paths.Config.MyApp
+    t.Cleanup(func() { paths.Paths.Config.MyApp = oldConfigPath })
+    paths.Paths.Config.MyApp = filepath.Join(tc.ConfigDir, "myapp")
+
+    app := &MyApp{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
+    app.Uninstall()
+    // ...
+}
+```
+
+**Why `SetupCompleteTest` is not enough:** `SetupCompleteTest` only overrides `paths.Paths.App.Root`, `Config.Root`, and `App.Configs.Templates`. It does NOT override per-app fields like `Config.Nvim`, `Config.Git`, etc. And it does NOT set `$XDG_*` env vars, so dynamic path helpers (`GetDataDir`, `GetCacheDir`, etc.) still resolve to real `~/` directories.
+
+**What `IsolateXDGDirs` does:** Sets `HOME`, `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_STATE_HOME`, and `XDG_CACHE_HOME` to subdirectories of `t.TempDir()`. All values are automatically restored after the test via `t.Setenv`.
+
 ### 6. Asserting unsupported operations with `errors.Is`
 
 Use `errors.Is` — never string-match — when asserting that an operation is unsupported:
@@ -456,6 +484,8 @@ This test is only meaningful because `baseapp.Reinstall` skips a "not supported"
 
 - [ ] Initialize logger: `testutil.InitLogger()` in `init()`
 - [ ] Use appropriate isolation level (Simple Mock / Isolated Paths / Complete)
+- [ ] **Call `testutil.IsolateXDGDirs(t)` in any test that calls Uninstall, ForceInstall, ForceConfigure, or SoftConfigure**
+- [ ] **Save and restore every `paths.Paths.*` mutation via `t.Cleanup`**
 - [ ] Test `Install()`, `SoftInstall()`, `ExecuteCommand()`
 - [ ] Test error handling scenarios
 - [ ] Use subtests for organizing related scenarios
@@ -499,6 +529,8 @@ go tool cover -html=coverage.out
 | ----------------------------------- | -------------------------------------------------------------- |
 | `nil pointer dereference` in logger | Add `testutil.InitLogger()` in `init()`                        |
 | Real commands executed during tests | Use `MockBaseCommand` and verify with `VerifyNoRealCommands()` |
+| Test deletes real user data         | Add `testutil.IsolateXDGDirs(t)` before Uninstall/ForceInstall |
+| `paths.Paths.*` leaks between tests | Save and restore via `t.Cleanup` before every mutation         |
 | Test fails on second run            | Reset mock state: `mockApp.Reset()`                            |
 | Permission errors in file tests     | Use `t.TempDir()`                                              |
 | Path-related tests affect others    | Use `t.Cleanup()` to restore paths                             |
