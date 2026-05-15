@@ -51,6 +51,11 @@ func TestInstall(t *testing.T) {
 func TestForceInstall(t *testing.T) {
 	tc := testutil.SetupCompleteTest(t)
 	defer tc.Cleanup()
+	testutil.IsolateXDGDirs(t)
+
+	oldAlacrittyConfig := paths.Paths.Config.Alacritty
+	t.Cleanup(func() { paths.Paths.Config.Alacritty = oldAlacrittyConfig })
+	paths.Paths.Config.Alacritty = filepath.Join(tc.ConfigDir, "alacritty")
 
 	app := &Alacritty{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
 
@@ -81,6 +86,11 @@ func TestSoftInstall(t *testing.T) {
 func TestUninstall(t *testing.T) {
 	tc := testutil.SetupCompleteTest(t)
 	defer tc.Cleanup()
+	testutil.IsolateXDGDirs(t)
+
+	oldAlacrittyConfig := paths.Paths.Config.Alacritty
+	t.Cleanup(func() { paths.Paths.Config.Alacritty = oldAlacrittyConfig })
+	paths.Paths.Config.Alacritty = filepath.Join(tc.ConfigDir, "alacritty")
 
 	app := &Alacritty{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
 
@@ -112,6 +122,7 @@ func TestUpdate(t *testing.T) {
 func TestForceConfigure(t *testing.T) {
 	tc := testutil.SetupCompleteTest(t)
 	defer tc.Cleanup()
+	testutil.IsolateXDGDirs(t)
 
 	tmplDir := filepath.Join(tc.AppDir, "alacritty")
 	if err := os.MkdirAll(tmplDir, 0755); err != nil {
@@ -198,6 +209,7 @@ background = "0x282828"
 func TestSoftConfigure(t *testing.T) {
 	tc := testutil.SetupCompleteTest(t)
 	defer tc.Cleanup()
+	testutil.IsolateXDGDirs(t)
 
 	tmplDir := filepath.Join(tc.AppDir, "alacritty")
 	if err := os.MkdirAll(tmplDir, 0755); err != nil {

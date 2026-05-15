@@ -116,10 +116,7 @@ func TestForceInstall(t *testing.T) {
 	tc := testutil.SetupCompleteTest(t)
 	defer tc.Cleanup()
 
-	tmpDir := t.TempDir()
-	t.Setenv("XDG_DATA_HOME", filepath.Join(tmpDir, "data"))
-	t.Setenv("XDG_STATE_HOME", filepath.Join(tmpDir, "state"))
-	t.Setenv("XDG_CACHE_HOME", filepath.Join(tmpDir, "cache"))
+	testutil.IsolateXDGDirs(t)
 
 	nvimConfigDir := filepath.Join(tc.ConfigDir, "nvim")
 	oldNvimDir := paths.Paths.Config.Nvim
@@ -144,10 +141,7 @@ func TestUninstall(t *testing.T) {
 		tc := testutil.SetupCompleteTest(t)
 		defer tc.Cleanup()
 
-		tmpDir := t.TempDir()
-		t.Setenv("XDG_DATA_HOME", filepath.Join(tmpDir, "data"))
-		t.Setenv("XDG_STATE_HOME", filepath.Join(tmpDir, "state"))
-		t.Setenv("XDG_CACHE_HOME", filepath.Join(tmpDir, "cache"))
+		testutil.IsolateXDGDirs(t)
 
 		nvimConfigDir := filepath.Join(tc.ConfigDir, "nvim")
 		oldNvimDir := paths.Paths.Config.Nvim
@@ -171,10 +165,7 @@ func TestUninstall(t *testing.T) {
 		tc := testutil.SetupCompleteTest(t)
 		defer tc.Cleanup()
 
-		tmpDir := t.TempDir()
-		t.Setenv("XDG_DATA_HOME", filepath.Join(tmpDir, "data"))
-		t.Setenv("XDG_STATE_HOME", filepath.Join(tmpDir, "state"))
-		t.Setenv("XDG_CACHE_HOME", filepath.Join(tmpDir, "cache"))
+		testutil.IsolateXDGDirs(t)
 
 		nvimConfigDir := filepath.Join(tc.ConfigDir, "nvim")
 		oldNvimDir := paths.Paths.Config.Nvim
@@ -230,6 +221,8 @@ func TestUpdate(t *testing.T) {
 func TestForceConfigure(t *testing.T) {
 	tc := testutil.SetupCompleteTest(t)
 	defer tc.Cleanup()
+
+	testutil.IsolateXDGDirs(t)
 
 	// Create neovim config source
 	src := filepath.Join(tc.AppDir, "neovim")
@@ -298,6 +291,8 @@ func TestForceConfigure(t *testing.T) {
 func TestSoftConfigure(t *testing.T) {
 	tc := testutil.SetupCompleteTest(t)
 	defer tc.Cleanup()
+
+	testutil.IsolateXDGDirs(t)
 
 	// Create neovim config source
 	src := filepath.Join(tc.AppDir, "neovim")

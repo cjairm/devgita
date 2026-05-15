@@ -50,6 +50,11 @@ func TestInstall(t *testing.T) {
 func TestForceInstall(t *testing.T) {
 	tc := testutil.SetupCompleteTest(t)
 	defer tc.Cleanup()
+	testutil.IsolateXDGDirs(t)
+
+	oldCfg := paths.Paths.Config.Aerospace
+	t.Cleanup(func() { paths.Paths.Config.Aerospace = oldCfg })
+	paths.Paths.Config.Aerospace = filepath.Join(tc.ConfigDir, "aerospace")
 
 	app := &Aerospace{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
 
@@ -80,6 +85,11 @@ func TestSoftInstall(t *testing.T) {
 func TestUninstall(t *testing.T) {
 	tc := testutil.SetupCompleteTest(t)
 	defer tc.Cleanup()
+	testutil.IsolateXDGDirs(t)
+
+	oldCfg := paths.Paths.Config.Aerospace
+	t.Cleanup(func() { paths.Paths.Config.Aerospace = oldCfg })
+	paths.Paths.Config.Aerospace = filepath.Join(tc.ConfigDir, "aerospace")
 
 	app := &Aerospace{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
 
@@ -111,6 +121,7 @@ func TestUpdate(t *testing.T) {
 func TestForceConfigure(t *testing.T) {
 	tc := testutil.SetupCompleteTest(t)
 	defer tc.Cleanup()
+	testutil.IsolateXDGDirs(t)
 
 	src := filepath.Join(tc.AppDir, "aerospace")
 	dst := filepath.Join(tc.ConfigDir, "aerospace")
@@ -155,6 +166,7 @@ func TestForceConfigure(t *testing.T) {
 func TestSoftConfigure(t *testing.T) {
 	tc := testutil.SetupCompleteTest(t)
 	defer tc.Cleanup()
+	testutil.IsolateXDGDirs(t)
 
 	src := filepath.Join(tc.AppDir, "aerospace")
 	dst := filepath.Join(tc.ConfigDir, "aerospace")

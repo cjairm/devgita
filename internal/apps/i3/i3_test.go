@@ -71,6 +71,7 @@ func TestSoftInstall(t *testing.T) {
 func TestForceInstall(t *testing.T) {
 	tc := testutil.SetupCompleteTest(t)
 	defer tc.Cleanup()
+	testutil.IsolateXDGDirs(t)
 
 	i := &I3{Cmd: tc.MockApp.Cmd}
 
@@ -87,6 +88,7 @@ func TestForceInstall(t *testing.T) {
 func TestUninstall(t *testing.T) {
 	tc := testutil.SetupCompleteTest(t)
 	defer tc.Cleanup()
+	testutil.IsolateXDGDirs(t)
 
 	i := &I3{Cmd: tc.MockApp.Cmd}
 
@@ -103,6 +105,7 @@ func TestUninstall(t *testing.T) {
 func TestForceConfigure(t *testing.T) {
 	cleanup := testutil.SetupIsolatedPaths(t)
 	defer cleanup()
+	testutil.IsolateXDGDirs(t)
 
 	appDir, configDir, _, _ := testutil.SetupTestDirs(t)
 
@@ -119,6 +122,12 @@ func TestForceConfigure(t *testing.T) {
 	}
 
 	// Override paths
+	oldAppConfigsI3 := paths.Paths.App.Configs.I3
+	oldConfigI3 := paths.Paths.Config.I3
+	t.Cleanup(func() {
+		paths.Paths.App.Configs.I3 = oldAppConfigsI3
+		paths.Paths.Config.I3 = oldConfigI3
+	})
 	paths.Paths.App.Configs.I3 = i3ConfigAppDir
 	paths.Paths.Config.I3 = filepath.Join(configDir, "i3")
 
@@ -148,6 +157,7 @@ func TestForceConfigure(t *testing.T) {
 func TestSoftConfigure_PreservesExisting(t *testing.T) {
 	cleanup := testutil.SetupIsolatedPaths(t)
 	defer cleanup()
+	testutil.IsolateXDGDirs(t)
 
 	appDir, configDir, _, _ := testutil.SetupTestDirs(t)
 
@@ -170,6 +180,12 @@ func TestSoftConfigure_PreservesExisting(t *testing.T) {
 	}
 
 	// Override paths
+	oldAppConfigsI3 := paths.Paths.App.Configs.I3
+	oldConfigI3 := paths.Paths.Config.I3
+	t.Cleanup(func() {
+		paths.Paths.App.Configs.I3 = oldAppConfigsI3
+		paths.Paths.Config.I3 = oldConfigI3
+	})
 	paths.Paths.App.Configs.I3 = i3ConfigAppDir
 	paths.Paths.Config.I3 = i3ConfigLocalDir
 
@@ -198,6 +214,7 @@ func TestSoftConfigure_PreservesExisting(t *testing.T) {
 func TestSoftConfigure_AppliesWhenMissing(t *testing.T) {
 	cleanup := testutil.SetupIsolatedPaths(t)
 	defer cleanup()
+	testutil.IsolateXDGDirs(t)
 
 	appDir, configDir, _, _ := testutil.SetupTestDirs(t)
 
@@ -214,6 +231,12 @@ func TestSoftConfigure_AppliesWhenMissing(t *testing.T) {
 	}
 
 	// Override paths
+	oldAppConfigsI3 := paths.Paths.App.Configs.I3
+	oldConfigI3 := paths.Paths.Config.I3
+	t.Cleanup(func() {
+		paths.Paths.App.Configs.I3 = oldAppConfigsI3
+		paths.Paths.Config.I3 = oldConfigI3
+	})
 	paths.Paths.App.Configs.I3 = i3ConfigAppDir
 	paths.Paths.Config.I3 = filepath.Join(configDir, "i3")
 

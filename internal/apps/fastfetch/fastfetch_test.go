@@ -56,6 +56,11 @@ func TestInstall(t *testing.T) {
 func TestForceInstall(t *testing.T) {
 	tc := testutil.SetupCompleteTest(t)
 	defer tc.Cleanup()
+	testutil.IsolateXDGDirs(t)
+
+	oldConfigDir := paths.Paths.Config.Fastfetch
+	t.Cleanup(func() { paths.Paths.Config.Fastfetch = oldConfigDir })
+	paths.Paths.Config.Fastfetch = filepath.Join(tc.ConfigDir, "fastfetch")
 
 	app := &Fastfetch{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
 
@@ -90,6 +95,11 @@ func TestSoftInstall(t *testing.T) {
 func TestUninstall(t *testing.T) {
 	tc := testutil.SetupCompleteTest(t)
 	defer tc.Cleanup()
+	testutil.IsolateXDGDirs(t)
+
+	oldConfigDir := paths.Paths.Config.Fastfetch
+	t.Cleanup(func() { paths.Paths.Config.Fastfetch = oldConfigDir })
+	paths.Paths.Config.Fastfetch = filepath.Join(tc.ConfigDir, "fastfetch")
 
 	app := &Fastfetch{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
 
@@ -121,6 +131,7 @@ func TestUpdate(t *testing.T) {
 func TestForceConfigure(t *testing.T) {
 	tc := testutil.SetupCompleteTest(t)
 	defer tc.Cleanup()
+	testutil.IsolateXDGDirs(t)
 
 	tempSourceDir := filepath.Join(tc.AppDir, "fastfetch-src")
 	tempTargetDir := filepath.Join(tc.ConfigDir, "fastfetch")
@@ -168,6 +179,7 @@ func TestSoftConfigure(t *testing.T) {
 	t.Run("ConfigureWhenNotExists", func(t *testing.T) {
 		tc := testutil.SetupCompleteTest(t)
 		defer tc.Cleanup()
+		testutil.IsolateXDGDirs(t)
 
 		tempSourceDir := filepath.Join(tc.AppDir, "fastfetch-src")
 		tempTargetDir := filepath.Join(tc.ConfigDir, "fastfetch")
@@ -206,6 +218,7 @@ func TestSoftConfigure(t *testing.T) {
 	t.Run("SkipWhenExists", func(t *testing.T) {
 		tc := testutil.SetupCompleteTest(t)
 		defer tc.Cleanup()
+		testutil.IsolateXDGDirs(t)
 
 		tempSourceDir := filepath.Join(tc.AppDir, "fastfetch-src")
 		tempTargetDir := filepath.Join(tc.ConfigDir, "fastfetch")

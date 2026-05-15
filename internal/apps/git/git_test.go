@@ -52,6 +52,16 @@ func TestInstall(t *testing.T) {
 func TestForceInstall(t *testing.T) {
 	tc := testutil.SetupCompleteTest(t)
 	defer tc.Cleanup()
+	testutil.IsolateXDGDirs(t)
+
+	oldConfigGit := paths.Paths.Config.Git
+	oldAppConfigsGit := paths.Paths.App.Configs.Git
+	t.Cleanup(func() {
+		paths.Paths.Config.Git = oldConfigGit
+		paths.Paths.App.Configs.Git = oldAppConfigsGit
+	})
+	paths.Paths.Config.Git = filepath.Join(t.TempDir(), "git-config")
+	paths.Paths.App.Configs.Git = filepath.Join(t.TempDir(), "git-app-configs")
 
 	app := &Git{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
 
@@ -82,6 +92,16 @@ func TestSoftInstall(t *testing.T) {
 func TestUninstall(t *testing.T) {
 	tc := testutil.SetupCompleteTest(t)
 	defer tc.Cleanup()
+	testutil.IsolateXDGDirs(t)
+
+	oldConfigGit := paths.Paths.Config.Git
+	oldAppConfigsGit := paths.Paths.App.Configs.Git
+	t.Cleanup(func() {
+		paths.Paths.Config.Git = oldConfigGit
+		paths.Paths.App.Configs.Git = oldAppConfigsGit
+	})
+	paths.Paths.Config.Git = filepath.Join(t.TempDir(), "git-config")
+	paths.Paths.App.Configs.Git = filepath.Join(t.TempDir(), "git-app-configs")
 
 	app := &Git{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
 
@@ -113,6 +133,7 @@ func TestUpdate(t *testing.T) {
 func TestForceConfigure(t *testing.T) {
 	tc := testutil.SetupCompleteTest(t)
 	defer tc.Cleanup()
+	testutil.IsolateXDGDirs(t)
 
 	src := filepath.Join(tc.AppDir, "git-src")
 	dst := filepath.Join(tc.ConfigDir, "git")
@@ -171,6 +192,8 @@ func TestForceConfigure(t *testing.T) {
 }
 
 func TestSoftConfigure(t *testing.T) {
+	testutil.IsolateXDGDirs(t)
+
 	src := t.TempDir()
 	dst := t.TempDir()
 
