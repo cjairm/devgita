@@ -6,20 +6,22 @@ import (
 	"github.com/cjairm/devgita/internal/apps"
 	"github.com/cjairm/devgita/internal/apps/baseapp"
 	"github.com/cjairm/devgita/internal/commands"
+	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/pkg/constants"
 )
 
 var _ apps.App = (*Ulauncher)(nil)
 
 type Ulauncher struct {
-	Cmd commands.Command
+	Cmd  commands.Command
+	Base commands.BaseCommandExecutor
 }
 
 func (u *Ulauncher) Name() string       { return constants.Ulauncher }
 func (u *Ulauncher) Kind() apps.AppKind { return apps.KindDesktop }
 
 func New() *Ulauncher {
-	return &Ulauncher{Cmd: commands.NewCommand()}
+	return &Ulauncher{Cmd: commands.NewCommand(), Base: commands.NewBaseCommand()}
 }
 
 func (u *Ulauncher) Install() error {
@@ -35,13 +37,30 @@ func (u *Ulauncher) ForceInstall() error {
 }
 
 func (u *Ulauncher) Uninstall() error {
-	return fmt.Errorf("%w for ulauncher — manage via system package manager", apps.ErrUninstallNotSupported)
+	if u.Base.IsMac() {
+		return nil
+	}
+	gc := &config.GlobalConfig{}
+	if err := gc.Load(); err != nil {
+		return fmt.Errorf("failed to load global config: %w", err)
+	}
+	if err := u.Cmd.UninstallDesktopApp(constants.Ulauncher); err != nil {
+		return fmt.Errorf("failed to uninstall ulauncher: %w", err)
+	}
+	gc.RemoveFromInstalled(constants.Ulauncher, "desktop_app")
+	return gc.Save()
 }
 
 func (u *Ulauncher) ForceConfigure() error {
-	// Ulauncher uses GUI-based configuration
-	// No config files to manage
-	return nil
+	gc := &config.GlobalConfig{}
+	if err := gc.Create(); err != nil {
+		return fmt.Errorf("failed to create global config: %w", err)
+	}
+	if err := gc.Load(); err != nil {
+		return fmt.Errorf("failed to load global config: %w", err)
+	}
+	gc.AddToInstalled(constants.Ulauncher, "desktop_app")
+	return gc.Save()
 }
 
 func (u *Ulauncher) SoftConfigure() error {

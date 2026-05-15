@@ -11,6 +11,7 @@ import (
 	"github.com/cjairm/devgita/internal/apps"
 	"github.com/cjairm/devgita/internal/apps/baseapp"
 	cmd "github.com/cjairm/devgita/internal/commands"
+	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/pkg/constants"
 )
 
@@ -40,8 +41,15 @@ func (f *Flameshot) SoftInstall() error {
 }
 
 func (f *Flameshot) ForceConfigure() error {
-	// No configuration needed for GUI-based screenshot tool
-	return nil
+	gc := &config.GlobalConfig{}
+	if err := gc.Create(); err != nil {
+		return fmt.Errorf("failed to create global config: %w", err)
+	}
+	if err := gc.Load(); err != nil {
+		return fmt.Errorf("failed to load global config: %w", err)
+	}
+	gc.AddToInstalled(constants.Flameshot, "desktop_app")
+	return gc.Save()
 }
 
 func (f *Flameshot) SoftConfigure() error {
@@ -50,7 +58,15 @@ func (f *Flameshot) SoftConfigure() error {
 }
 
 func (f *Flameshot) Uninstall() error {
-	return fmt.Errorf("%w for flameshot", apps.ErrUninstallNotSupported)
+	gc := &config.GlobalConfig{}
+	if err := gc.Load(); err != nil {
+		return fmt.Errorf("failed to load global config: %w", err)
+	}
+	if err := f.Cmd.UninstallDesktopApp(constants.Flameshot); err != nil {
+		return fmt.Errorf("failed to uninstall flameshot: %w", err)
+	}
+	gc.RemoveFromInstalled(constants.Flameshot, "desktop_app")
+	return gc.Save()
 }
 
 func (f *Flameshot) ExecuteCommand(args ...string) error {

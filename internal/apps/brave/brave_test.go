@@ -99,15 +99,17 @@ func TestSoftInstall(t *testing.T) {
 }
 
 func TestForceConfigure(t *testing.T) {
-	mockApp := testutil.NewMockApp()
-	brave := &Brave{Cmd: mockApp.Cmd}
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
+
+	brave := &Brave{Cmd: tc.MockApp.Cmd}
 
 	err := brave.ForceConfigure()
 	if err != nil {
 		t.Fatalf("ForceConfigure() failed: %v", err)
 	}
 
-	testutil.VerifyNoRealCommands(t, mockApp.Base)
+	testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
 }
 
 func TestSoftConfigure(t *testing.T) {
@@ -123,18 +125,30 @@ func TestSoftConfigure(t *testing.T) {
 }
 
 func TestUninstall(t *testing.T) {
-	mockApp := testutil.NewMockApp()
-	brave := &Brave{Cmd: mockApp.Cmd}
+	t.Run("success", func(t *testing.T) {
+		tc := testutil.SetupCompleteTest(t)
+		defer tc.Cleanup()
 
-	err := brave.Uninstall()
-	if err == nil {
-		t.Fatal("Expected Uninstall() to return error")
-	}
-	if !errors.Is(err, apps.ErrUninstallNotSupported) {
-		t.Errorf("expected ErrUninstallNotSupported, got: %v", err)
-	}
+		app := &Brave{Cmd: tc.MockApp.Cmd}
+		if err := app.Uninstall(); err != nil {
+			t.Fatalf("Uninstall() failed: %v", err)
+		}
+		if tc.MockApp.Cmd.UninstalledDesktopApp != constants.BraveBrowser {
+			t.Errorf("expected UninstalledDesktopApp=%q, got %q", constants.BraveBrowser, tc.MockApp.Cmd.UninstalledDesktopApp)
+		}
+		testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
+	})
 
-	testutil.VerifyNoRealCommands(t, mockApp.Base)
+	t.Run("binary removal failure", func(t *testing.T) {
+		tc := testutil.SetupCompleteTest(t)
+		defer tc.Cleanup()
+
+		tc.MockApp.Cmd.UninstallError = errors.New("brew error")
+		app := &Brave{Cmd: tc.MockApp.Cmd}
+		if err := app.Uninstall(); err == nil {
+			t.Fatal("expected error when binary removal fails")
+		}
+	})
 }
 
 func TestExecuteCommand(t *testing.T) {

@@ -11,6 +11,7 @@ import (
 	"github.com/cjairm/devgita/internal/apps"
 	"github.com/cjairm/devgita/internal/apps/baseapp"
 	cmd "github.com/cjairm/devgita/internal/commands"
+	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/pkg/constants"
 )
 
@@ -43,9 +44,15 @@ func (d *Docker) ForceInstall() error {
 }
 
 func (d *Docker) ForceConfigure() error {
-	// Docker Desktop doesn't require separate configuration files
-	// Configuration is managed through Docker Desktop GUI or daemon.json
-	return nil
+	gc := &config.GlobalConfig{}
+	if err := gc.Create(); err != nil {
+		return fmt.Errorf("failed to create global config: %w", err)
+	}
+	if err := gc.Load(); err != nil {
+		return fmt.Errorf("failed to load global config: %w", err)
+	}
+	gc.AddToInstalled(constants.Docker, "desktop_app")
+	return gc.Save()
 }
 
 func (d *Docker) SoftConfigure() error {
@@ -55,36 +62,15 @@ func (d *Docker) SoftConfigure() error {
 }
 
 func (d *Docker) Uninstall() error {
-	// Docker Desktop requires comprehensive cleanup including:
-	// 1. Quit Docker Desktop application
-	// 2. Uninstall via Homebrew cask (macOS) or package manager (Linux)
-	// 3. Remove binaries: docker, docker-compose, docker-credential-*
-	// 4. Remove configuration and data directories
-	// 5. Remove shell completions
-	//
-	// This is a complex operation that requires elevated privileges and
-	// interactive confirmation. It should be handled manually by users following
-	// Docker's official uninstall documentation.
-	//
-	// Recommended manual steps for macOS:
-	// - Quit Docker Desktop: Right-click Docker icon → "Quit Docker Desktop"
-	// - Uninstall cask: brew uninstall --cask docker
-	// - Remove binaries: sudo rm -f /usr/local/bin/docker*
-	// - Remove containers: sudo rm -rf ~/Library/Containers/com.docker.docker
-	// - Remove app support: sudo rm -rf ~/Library/Application\ Support/Docker\ Desktop
-	// - Remove Docker config: sudo rm -rf ~/.docker
-	// - Remove completions: sudo rm -f /usr/local/etc/bash_completion.d/docker
-	//                       sudo rm -f /usr/local/share/zsh/site-functions/_docker
-	//                       sudo rm -f /usr/local/share/fish/vendor_completions.d/docker.fish
-
-	// === CUSTOM ===
-	// - Quit Docker Desktop: Make sure Docker Desktop is not running. Right-click the Docker icon in the menu bar and select "Quit Docker Desktop."
-	// - Open Finder: Navigate to the Applications folder.
-	// - Locate Docker: Find the Docker.app application.
-	// - Move to Trash: Drag Docker.app to the Trash or right-click and select "Move to Trash."
-
-	// brew uninstall --cask docker && sudo rm -f /usr/local/bin/docker && sudo rm -f /usr/local/bin/docker-compose && sudo rm -f /usr/local/bin/docker-credential-desktop && sudo rm -f /usr/local/bin/docker-credential-ecr-login && sudo rm -f /usr/local/bin/docker-credential-osxkeychain && sudo rm -rf ~/Library/Containers/com.docker.docker && sudo rm -rf ~/Library/Application\ Support/Docker\ Desktop && sudo rm -rf ~/.docker && sudo rm -f /usr/local/bin/hub-tool && sudo rm -f /usr/local/bin/kubectl.docker && sudo rm -f /usr/local/etc/bash_completion.d/docker && sudo rm -f /usr/local/share/zsh/site-functions/_docker && sudo rm -f /usr/local/share/fish/vendor_completions.d/docker.fish
-	return fmt.Errorf("%w for docker — requires manual cleanup", apps.ErrUninstallNotSupported)
+	gc := &config.GlobalConfig{}
+	if err := gc.Load(); err != nil {
+		return fmt.Errorf("failed to load global config: %w", err)
+	}
+	if err := d.Cmd.UninstallDesktopApp(constants.Docker); err != nil {
+		return fmt.Errorf("failed to uninstall docker: %w", err)
+	}
+	gc.RemoveFromInstalled(constants.Docker, "desktop_app")
+	return gc.Save()
 }
 
 func (d *Docker) ExecuteCommand(args ...string) error {

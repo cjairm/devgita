@@ -52,17 +52,19 @@ func TestInstall(t *testing.T) {
 }
 
 func TestForceInstall(t *testing.T) {
-	mockApp := testutil.NewMockApp()
-	gimp := &Gimp{Cmd: mockApp.Cmd}
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
 
-	if err := gimp.ForceInstall(); err != nil {
-		t.Fatalf("ForceInstall() should succeed even when uninstall is not supported: %v", err)
+	app := &Gimp{Cmd: tc.MockApp.Cmd}
+
+	if err := app.ForceInstall(); err != nil {
+		t.Fatalf("ForceInstall() error: %v", err)
 	}
-	if mockApp.Cmd.InstalledDesktopApp != constants.Gimp {
-		t.Errorf("expected Install to be called, got %q", mockApp.Cmd.InstalledDesktopApp)
+	if tc.MockApp.Cmd.InstalledDesktopApp != constants.Gimp {
+		t.Errorf("expected Install to be called, got %q", tc.MockApp.Cmd.InstalledDesktopApp)
 	}
 
-	testutil.VerifyNoRealCommands(t, mockApp.Base)
+	testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
 }
 
 func TestSoftInstall(t *testing.T) {
@@ -99,15 +101,14 @@ func TestSoftInstall(t *testing.T) {
 }
 
 func TestForceConfigure(t *testing.T) {
-	mockApp := testutil.NewMockApp()
-	gimp := &Gimp{Cmd: mockApp.Cmd}
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
 
-	err := gimp.ForceConfigure()
-	if err != nil {
+	gimp := &Gimp{Cmd: tc.MockApp.Cmd}
+	if err := gimp.ForceConfigure(); err != nil {
 		t.Fatalf("ForceConfigure() failed: %v", err)
 	}
-
-	testutil.VerifyNoRealCommands(t, mockApp.Base)
+	testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
 }
 
 func TestSoftConfigure(t *testing.T) {
@@ -123,18 +124,30 @@ func TestSoftConfigure(t *testing.T) {
 }
 
 func TestUninstall(t *testing.T) {
-	mockApp := testutil.NewMockApp()
-	gimp := &Gimp{Cmd: mockApp.Cmd}
+	t.Run("success", func(t *testing.T) {
+		tc := testutil.SetupCompleteTest(t)
+		defer tc.Cleanup()
 
-	err := gimp.Uninstall()
-	if err == nil {
-		t.Fatal("Expected Uninstall() to return error")
-	}
-	if !errors.Is(err, apps.ErrUninstallNotSupported) {
-		t.Errorf("expected ErrUninstallNotSupported, got: %v", err)
-	}
+		app := &Gimp{Cmd: tc.MockApp.Cmd}
+		if err := app.Uninstall(); err != nil {
+			t.Fatalf("Uninstall() failed: %v", err)
+		}
+		if tc.MockApp.Cmd.UninstalledDesktopApp != constants.Gimp {
+			t.Errorf("expected UninstalledDesktopApp=%q, got %q", constants.Gimp, tc.MockApp.Cmd.UninstalledDesktopApp)
+		}
+		testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
+	})
 
-	testutil.VerifyNoRealCommands(t, mockApp.Base)
+	t.Run("binary removal failure", func(t *testing.T) {
+		tc := testutil.SetupCompleteTest(t)
+		defer tc.Cleanup()
+
+		tc.MockApp.Cmd.UninstallError = errors.New("brew error")
+		app := &Gimp{Cmd: tc.MockApp.Cmd}
+		if err := app.Uninstall(); err == nil {
+			t.Fatal("expected error when binary removal fails")
+		}
+	})
 }
 
 func TestExecuteCommand(t *testing.T) {

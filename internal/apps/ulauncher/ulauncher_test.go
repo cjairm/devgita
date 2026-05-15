@@ -66,44 +66,71 @@ func TestSoftInstall(t *testing.T) {
 }
 
 func TestForceInstall(t *testing.T) {
-	mockApp := testutil.NewMockApp()
-	u := &Ulauncher{Cmd: mockApp.Cmd}
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
+
+	tc.MockApp.Base.IsMacResult = false // Linux: Uninstall is a real operation
+	u := &Ulauncher{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
 
 	if err := u.ForceInstall(); err != nil {
-		t.Fatalf("ForceInstall() should succeed even when uninstall is not supported: %v", err)
+		t.Fatalf("ForceInstall() should succeed: %v", err)
 	}
-	if mockApp.Cmd.InstalledDesktopApp != constants.Ulauncher {
-		t.Errorf("expected Install to be called, got %q", mockApp.Cmd.InstalledDesktopApp)
+	if tc.MockApp.Cmd.InstalledDesktopApp != constants.Ulauncher {
+		t.Errorf("expected Install to be called, got %q", tc.MockApp.Cmd.InstalledDesktopApp)
 	}
-
-	testutil.VerifyNoRealCommands(t, mockApp.Base)
 }
 
 func TestUninstall(t *testing.T) {
-	mockApp := testutil.NewMockApp()
-	u := &Ulauncher{Cmd: mockApp.Cmd}
+	t.Run("linux success", func(t *testing.T) {
+		tc := testutil.SetupCompleteTest(t)
+		defer tc.Cleanup()
 
-	err := u.Uninstall()
-	if err == nil {
-		t.Fatal("Expected Uninstall to return error")
-	}
-	if !errors.Is(err, apps.ErrUninstallNotSupported) {
-		t.Errorf("expected ErrUninstallNotSupported, got: %v", err)
-	}
+		tc.MockApp.Base.IsMacResult = false
+		app := &Ulauncher{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
+		if err := app.Uninstall(); err != nil {
+			t.Fatalf("Uninstall() failed: %v", err)
+		}
+		if tc.MockApp.Cmd.UninstalledDesktopApp != constants.Ulauncher {
+			t.Errorf("expected UninstalledDesktopApp=%q, got %q", constants.Ulauncher, tc.MockApp.Cmd.UninstalledDesktopApp)
+		}
+	})
 
-	testutil.VerifyNoRealCommands(t, mockApp.Base)
+	t.Run("macOS no-op", func(t *testing.T) {
+		tc := testutil.SetupCompleteTest(t)
+		defer tc.Cleanup()
+
+		tc.MockApp.Base.IsMacResult = true
+		app := &Ulauncher{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
+		if err := app.Uninstall(); err != nil {
+			t.Fatalf("Uninstall() on macOS should return nil: %v", err)
+		}
+		if tc.MockApp.Cmd.UninstalledDesktopApp != "" {
+			t.Error("expected no uninstall on macOS")
+		}
+	})
+
+	t.Run("binary removal failure on linux", func(t *testing.T) {
+		tc := testutil.SetupCompleteTest(t)
+		defer tc.Cleanup()
+
+		tc.MockApp.Base.IsMacResult = false
+		tc.MockApp.Cmd.UninstallError = errors.New("apt error")
+		app := &Ulauncher{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
+		if err := app.Uninstall(); err == nil {
+			t.Fatal("expected error when binary removal fails")
+		}
+	})
 }
 
 func TestForceConfigure(t *testing.T) {
-	mockApp := testutil.NewMockApp()
-	u := &Ulauncher{Cmd: mockApp.Cmd}
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
 
-	err := u.ForceConfigure()
-	if err != nil {
+	u := &Ulauncher{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
+	if err := u.ForceConfigure(); err != nil {
 		t.Fatalf("ForceConfigure() failed: %v", err)
 	}
-
-	testutil.VerifyNoRealCommands(t, mockApp.Base)
+	testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
 }
 
 func TestSoftConfigure(t *testing.T) {

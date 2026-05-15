@@ -14,6 +14,7 @@ import (
 	"github.com/cjairm/devgita/internal/apps"
 	"github.com/cjairm/devgita/internal/apps/baseapp"
 	cmd "github.com/cjairm/devgita/internal/commands"
+	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/pkg/constants"
 )
 
@@ -43,8 +44,15 @@ func (g *Gimp) ForceInstall() error {
 }
 
 func (g *Gimp) ForceConfigure() error {
-	// Desktop applications don't require configuration file management
-	return nil
+	gc := &config.GlobalConfig{}
+	if err := gc.Create(); err != nil {
+		return fmt.Errorf("failed to create global config: %w", err)
+	}
+	if err := gc.Load(); err != nil {
+		return fmt.Errorf("failed to load global config: %w", err)
+	}
+	gc.AddToInstalled(constants.Gimp, "desktop_app")
+	return gc.Save()
 }
 
 func (g *Gimp) SoftConfigure() error {
@@ -53,7 +61,15 @@ func (g *Gimp) SoftConfigure() error {
 }
 
 func (g *Gimp) Uninstall() error {
-	return fmt.Errorf("%w for gimp", apps.ErrUninstallNotSupported)
+	gc := &config.GlobalConfig{}
+	if err := gc.Load(); err != nil {
+		return fmt.Errorf("failed to load global config: %w", err)
+	}
+	if err := g.Cmd.UninstallDesktopApp(constants.Gimp); err != nil {
+		return fmt.Errorf("failed to uninstall gimp: %w", err)
+	}
+	gc.RemoveFromInstalled(constants.Gimp, "desktop_app")
+	return gc.Save()
 }
 
 func (g *Gimp) ExecuteCommand(args ...string) error {

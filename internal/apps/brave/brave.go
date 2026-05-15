@@ -11,6 +11,7 @@ import (
 	"github.com/cjairm/devgita/internal/apps"
 	"github.com/cjairm/devgita/internal/apps/baseapp"
 	cmd "github.com/cjairm/devgita/internal/commands"
+	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/pkg/constants"
 )
 
@@ -43,8 +44,15 @@ func (b *Brave) SoftInstall() error {
 }
 
 func (b *Brave) ForceConfigure() error {
-	// No configuration needed for GUI-based browser
-	return nil
+	gc := &config.GlobalConfig{}
+	if err := gc.Create(); err != nil {
+		return fmt.Errorf("failed to create global config: %w", err)
+	}
+	if err := gc.Load(); err != nil {
+		return fmt.Errorf("failed to load global config: %w", err)
+	}
+	gc.AddToInstalled(constants.Brave, "desktop_app")
+	return gc.Save()
 }
 
 func (b *Brave) SoftConfigure() error {
@@ -53,7 +61,15 @@ func (b *Brave) SoftConfigure() error {
 }
 
 func (b *Brave) Uninstall() error {
-	return fmt.Errorf("%w for brave", apps.ErrUninstallNotSupported)
+	gc := &config.GlobalConfig{}
+	if err := gc.Load(); err != nil {
+		return fmt.Errorf("failed to load global config: %w", err)
+	}
+	if err := b.Cmd.UninstallDesktopApp(constants.BraveBrowser); err != nil {
+		return fmt.Errorf("failed to uninstall brave: %w", err)
+	}
+	gc.RemoveFromInstalled(constants.Brave, "desktop_app")
+	return gc.Save()
 }
 
 func (b *Brave) ExecuteCommand(args ...string) error {
