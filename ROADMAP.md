@@ -4,6 +4,21 @@ Public roadmap of planned features, improvements, and discussion topics for futu
 
 ---
 
+## 🔴 Priority: Neovim Dependencies
+
+Add the following packages as terminal tools that must be installed for Neovim to function properly:
+
+- `make`
+- `gcc`
+- `ripgrep`
+- `fd-find` (APT) / `fd` (Homebrew)
+- `tree-sitter-cli`
+- `unzip`
+- `xclip` (Linux only; macOS uses `pbcopy`/`pbpaste`)
+- `neovim`
+
+---
+
 ## Implemented Commands
 
 ### Configuration & Management
@@ -13,6 +28,11 @@ Public roadmap of planned features, improvements, and discussion topics for futu
   - Supports 19 apps; apps with no config return an info message and exit zero
   - Shipped in v0.10.0
 
+- 🟢 **`dg uninstall [app/category]`** — Remove installed packages
+  - Verifies packages were installed by us (not pre-existing)
+  - Handles updates differently (leaves pre-existing packages in place)
+  - Scope: Can pass `--app` or `--package` for single-package uninstall
+
 ---
 
 ## Planned Commands
@@ -20,11 +40,6 @@ Public roadmap of planned features, improvements, and discussion topics for futu
 The following commands are planned but not yet implemented:
 
 ### Configuration & Management
-
-- **`dg uninstall [app/category]`** — Remove installed packages
-  - Must verify packages were installed by us (not pre-existing)
-  - Handle updates differently (leave pre-existing packages in place)
-  - Scope: Can pass `--app` or `--package` for single-package uninstall
 
 - **`dg list` / `dg installed`** — Show what's installed
   - Display installed packages with versions and timestamps
