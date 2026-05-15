@@ -300,15 +300,7 @@ func TestSoftConfigure(t *testing.T) {
 		}
 
 		// Mock the HOME environment variable since SoftConfigure uses os.UserHomeDir()
-		oldHome := os.Getenv("HOME")
-		defer func() {
-			if oldHome != "" {
-				os.Setenv("HOME", oldHome)
-			} else {
-				os.Unsetenv("HOME")
-			}
-		}()
-		os.Setenv("HOME", destDir)
+		t.Setenv("HOME", destDir)
 
 		app := tmux.New()
 
@@ -380,15 +372,7 @@ func TestSoftConfigure(t *testing.T) {
 		}
 
 		// Mock the UserHomeDir for this test by temporarily setting HOME env var
-		oldHome := os.Getenv("HOME")
-		defer func() {
-			if oldHome != "" {
-				os.Setenv("HOME", oldHome)
-			} else {
-				os.Unsetenv("HOME")
-			}
-		}()
-		os.Setenv("HOME", homeDir)
+		t.Setenv("HOME", homeDir)
 
 		app := tmux.New()
 
