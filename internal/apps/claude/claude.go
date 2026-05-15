@@ -60,8 +60,8 @@ func (c *Claude) Uninstall() error {
 		return fmt.Errorf("failed to load global config: %w", err)
 	}
 	if _, _, err := c.Base.ExecCommand(cmd.CommandParams{
-		Command: "npm",
-		Args:    []string{"uninstall", "-g", "@anthropic-ai/claude-code"},
+		Command: "sh",
+		Args:    []string{"-c", "rm -f ~/.local/bin/claude && rm -rf ~/.local/share/claude"},
 	}); err != nil {
 		return fmt.Errorf("failed to uninstall claude: %w", err)
 	}

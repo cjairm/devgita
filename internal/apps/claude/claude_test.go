@@ -71,14 +71,14 @@ func TestForceInstall(t *testing.T) {
 		t.Fatalf("ForceInstall error: %v", err)
 	}
 
-	// ForceInstall runs Uninstall (npm uninstall) then Install (sh curl)
+	// ForceInstall runs Uninstall (sh rm) then Install (sh curl)
 	// Both use Base.ExecCommand, so we expect 2 calls
 	calls := tc.MockApp.Base.ExecCommandCalls
 	if len(calls) < 2 {
 		t.Fatalf("expected at least 2 ExecCommand calls, got %d", len(calls))
 	}
-	if calls[0].Command != "npm" {
-		t.Errorf("expected first command 'npm' (uninstall), got %q", calls[0].Command)
+	if calls[0].Command != "sh" {
+		t.Errorf("expected first command 'sh' (uninstall), got %q", calls[0].Command)
 	}
 	last := calls[len(calls)-1]
 	if last.Command != "sh" {
@@ -104,13 +104,13 @@ func TestUninstall(t *testing.T) {
 		t.Fatalf("Uninstall error: %v", err)
 	}
 
-	// Verify npm uninstall was called
+	// Verify sh rm uninstall was called
 	last := tc.MockApp.Base.GetLastExecCommandCall()
-	if last == nil || last.Command != "npm" {
-		t.Fatalf("expected npm uninstall command, got %v", last)
+	if last == nil || last.Command != "sh" {
+		t.Fatalf("expected sh uninstall command, got %v", last)
 	}
-	if len(last.Args) < 3 || last.Args[2] != "@anthropic-ai/claude-code" {
-		t.Errorf("expected npm uninstall -g @anthropic-ai/claude-code, got args %v", last.Args)
+	if len(last.Args) < 2 || last.Args[1] != "rm -f ~/.local/bin/claude && rm -rf ~/.local/share/claude" {
+		t.Errorf("expected sh -c rm uninstall command, got args %v", last.Args)
 	}
 
 	// Config dir should be removed
