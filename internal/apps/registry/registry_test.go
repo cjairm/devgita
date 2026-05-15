@@ -101,6 +101,61 @@ func TestGetAppsByKind_NoMeta(t *testing.T) {
 	}
 }
 
+func TestMeta_ConsistencyWithFactories(t *testing.T) {
+	for name, meta := range Meta {
+		if meta.Coordinator == "" {
+			continue // devgita sentinel — no factory requirement
+		}
+		if _, ok := factories[name]; !ok {
+			t.Errorf("Meta entry %q has Coordinator %q but no factory entry", name, meta.Coordinator)
+		}
+	}
+	for name := range factories {
+		if _, ok := Meta[name]; !ok {
+			t.Errorf("factory entry %q has no Meta entry", name)
+		}
+	}
+}
+
+func TestIsKnownApp(t *testing.T) {
+	if !IsKnownApp("git") {
+		t.Error("IsKnownApp(git) = false, want true")
+	}
+	if IsKnownApp("devgita") {
+		t.Error("IsKnownApp(devgita) = true, want false")
+	}
+	if IsKnownApp("notanapp") {
+		t.Error("IsKnownApp(notanapp) = true, want false")
+	}
+}
+
+func TestIsKnownCategory(t *testing.T) {
+	if !IsKnownCategory("terminal") {
+		t.Error("IsKnownCategory(terminal) = false, want true")
+	}
+	if !IsKnownCategory("desktop") {
+		t.Error("IsKnownCategory(desktop) = false, want true")
+	}
+	if IsKnownCategory("languages") {
+		t.Error("IsKnownCategory(languages) = true, want false")
+	}
+}
+
+func TestAppsByCoordinator(t *testing.T) {
+	terminal := AppsByCoordinator("terminal")
+	if len(terminal) == 0 {
+		t.Error("AppsByCoordinator(terminal) returned empty slice")
+	}
+	for _, name := range terminal {
+		if Meta[name].Coordinator != "terminal" {
+			t.Errorf("AppsByCoordinator(terminal) includes %q which has coordinator %q", name, Meta[name].Coordinator)
+		}
+	}
+	if !sort.StringsAreSorted(terminal) {
+		t.Error("AppsByCoordinator(terminal) is not sorted")
+	}
+}
+
 func TestNames_ContainsAllApps(t *testing.T) {
 	names := Names()
 	if len(names) != len(expectedApps) {

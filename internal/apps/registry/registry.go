@@ -28,6 +28,76 @@ import (
 	"github.com/cjairm/devgita/pkg/constants"
 )
 
+// AppMeta holds metadata for uninstall orchestration.
+// ItemType must match what MaybeInstall* stored in global_config.yaml.
+type AppMeta struct {
+	Coordinator     string // "terminal" | "desktop" | ""
+	ItemType        string // "package" | "desktop_app" — must match actual tracking
+	HasShellFeature bool
+}
+
+// Meta maps every registered app name to its uninstall metadata.
+var Meta = map[string]AppMeta{
+	constants.Aerospace:  {Coordinator: "desktop", ItemType: "desktop_app", HasShellFeature: false},
+	constants.Alacritty:  {Coordinator: "desktop", ItemType: "desktop_app", HasShellFeature: false},
+	constants.Brave:      {Coordinator: "desktop", ItemType: "desktop_app", HasShellFeature: false},
+	constants.Claude:     {Coordinator: "terminal", ItemType: "package", HasShellFeature: true},
+	constants.Docker:     {Coordinator: "desktop", ItemType: "desktop_app", HasShellFeature: false},
+	constants.Fastfetch:  {Coordinator: "terminal", ItemType: "package", HasShellFeature: false},
+	constants.Flameshot:  {Coordinator: "desktop", ItemType: "desktop_app", HasShellFeature: false},
+	constants.Gimp:       {Coordinator: "desktop", ItemType: "desktop_app", HasShellFeature: false},
+	constants.Git:        {Coordinator: "terminal", ItemType: "package", HasShellFeature: false},
+	constants.I3:         {Coordinator: "desktop", ItemType: "package", HasShellFeature: false},
+	constants.LazyDocker: {Coordinator: "terminal", ItemType: "package", HasShellFeature: true},
+	constants.LazyGit:    {Coordinator: "terminal", ItemType: "package", HasShellFeature: true},
+	constants.Mise:       {Coordinator: "terminal", ItemType: "package", HasShellFeature: true},
+	constants.Neovim:     {Coordinator: "terminal", ItemType: "package", HasShellFeature: true},
+	constants.OpenCode:   {Coordinator: "terminal", ItemType: "package", HasShellFeature: true},
+	constants.Raycast:    {Coordinator: "desktop", ItemType: "desktop_app", HasShellFeature: false},
+	constants.Tmux:       {Coordinator: "terminal", ItemType: "package", HasShellFeature: true},
+	constants.Ulauncher:  {Coordinator: "desktop", ItemType: "desktop_app", HasShellFeature: false},
+	constants.DevgitaApp: {Coordinator: "", ItemType: "", HasShellFeature: false},
+}
+
+// knownCategories is the set of valid uninstall coordinator categories.
+var knownCategories = map[string]bool{
+	"terminal": true,
+	"desktop":  true,
+}
+
+// IsKnownApp reports whether name is a registered app (excluding devgita itself).
+func IsKnownApp(name string) bool {
+	_, ok := Meta[name]
+	return ok && name != constants.DevgitaApp
+}
+
+// IsKnownCategory reports whether name is a valid coordinator category.
+func IsKnownCategory(name string) bool {
+	return knownCategories[name]
+}
+
+// KnownCategories returns a sorted slice of valid coordinator categories.
+func KnownCategories() []string {
+	cats := make([]string, 0, len(knownCategories))
+	for c := range knownCategories {
+		cats = append(cats, c)
+	}
+	sort.Strings(cats)
+	return cats
+}
+
+// AppsByCoordinator returns sorted app names whose Coordinator matches the given value.
+func AppsByCoordinator(coordinator string) []string {
+	var result []string
+	for name, meta := range Meta {
+		if meta.Coordinator == coordinator {
+			result = append(result, name)
+		}
+	}
+	sort.Strings(result)
+	return result
+}
+
 // factories maps app names to lazy constructors so apps are only instantiated when needed.
 var factories = map[string]func() apps.App{
 	constants.Aerospace:  func() apps.App { return aerospace.New() },
