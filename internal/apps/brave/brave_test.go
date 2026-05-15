@@ -52,17 +52,21 @@ func TestInstall(t *testing.T) {
 }
 
 func TestForceInstall(t *testing.T) {
-	mockApp := testutil.NewMockApp()
-	brave := &Brave{Cmd: mockApp.Cmd}
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
+
+	testutil.IsolateXDGDirs(t)
+
+	brave := &Brave{Cmd: tc.MockApp.Cmd}
 
 	if err := brave.ForceInstall(); err != nil {
 		t.Fatalf("ForceInstall() should succeed even when uninstall is not supported: %v", err)
 	}
-	if mockApp.Cmd.InstalledDesktopApp != "brave-browser" {
-		t.Errorf("expected Install to be called, got InstalledDesktopApp=%q", mockApp.Cmd.InstalledDesktopApp)
+	if tc.MockApp.Cmd.InstalledDesktopApp != "brave-browser" {
+		t.Errorf("expected Install to be called, got InstalledDesktopApp=%q", tc.MockApp.Cmd.InstalledDesktopApp)
 	}
 
-	testutil.VerifyNoRealCommands(t, mockApp.Base)
+	testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
 }
 
 func TestSoftInstall(t *testing.T) {
