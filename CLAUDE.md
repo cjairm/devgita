@@ -231,11 +231,38 @@ Devgita follows [Semantic Versioning](https://semver.org/) strictly: **`vMAJOR.M
 - A release mixing features and fixes = MINOR bump (the higher bump wins)
 - When in doubt, ask before tagging
 
-### Tagging workflow
+### Push & tag workflow
+
+When pushing commits and creating a tag, **always squash multiple unpushed commits into one before tagging.** This keeps the git history clean and makes it easy for developers to understand what each tag/release includes.
+
+**Steps:**
+
+1. Check how many commits are ahead of remote: `git log --oneline origin/main..HEAD`
+2. If **2+ unpushed commits** exist:
+   - Squash them into a single commit: `git reset --soft HEAD~N && git commit -m "..."`
+   - The squashed commit message should **preserve context from all original commits** — copy the bullet points from each commit message into the body. Only summarize if the combined list is too long to be readable.
+3. Create an **annotated tag** (`git tag -a`) with the same bullet points in the tag message, so developers can see what the release includes directly from the tag.
+4. Push commit and tag together: `git push origin main --tags`
+
+**Example squashed commit + tag:**
 
 ```bash
-git tag v0.10.3
-git push origin v0.10.3
+# Squash 3 commits into one
+git reset --soft HEAD~3
+git commit -m "feat: add user profile and caching
+
+- Add user profile page with avatar upload
+- Implement Redis caching layer with 5-min TTL
+- Add profile API endpoints with validation"
+
+# Tag with the same context
+git tag -a v0.11.0 -m "v0.11.0 — User profile and caching
+
+- Add user profile page with avatar upload
+- Implement Redis caching layer with 5-min TTL
+- Add profile API endpoints with validation"
+
+git push origin main --tags
 ```
 
 GitHub Actions builds and publishes automatically. See [docs/guides/releasing.md](docs/guides/releasing.md) for the full release process.
