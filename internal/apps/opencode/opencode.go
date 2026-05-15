@@ -119,6 +119,7 @@ func (o *OpenCode) ForceConfigure() error {
 			return fmt.Errorf("failed to copy opencode %s: %w", dir, err)
 		}
 	}
+	gc.ReconcileShellFeatures()
 	gc.AddToInstalled(constants.OpenCode, "package")
 	gc.Shell.Opencode = true
 	if err := gc.Save(); err != nil {

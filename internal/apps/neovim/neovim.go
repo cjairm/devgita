@@ -166,6 +166,7 @@ func (n *Neovim) ForceConfigure() error {
 	if err := gc.Load(); err != nil {
 		return fmt.Errorf("failed to load global config: %w", err)
 	}
+	gc.ReconcileShellFeatures()
 	gc.AddToInstalled(constants.Neovim, "package")
 	if err := enableFeature(gc); err != nil {
 		return fmt.Errorf("failed to enable neovim feature: %w", err)

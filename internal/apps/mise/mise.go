@@ -54,6 +54,7 @@ func (m *Mise) ForceConfigure() error {
 	if err := gc.Load(); err != nil {
 		return fmt.Errorf("failed to load global config: %w", err)
 	}
+	gc.ReconcileShellFeatures()
 	gc.EnableShellFeature(constants.Mise)
 	gc.AddToInstalled(constants.Mise, "package")
 	if err := gc.RegenerateShellConfig(); err != nil {

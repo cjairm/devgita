@@ -145,6 +145,7 @@ func (ld *LazyDocker) ForceConfigure() error {
 	if err := gc.Load(); err != nil {
 		return fmt.Errorf("failed to load global config: %w", err)
 	}
+	gc.ReconcileShellFeatures()
 	gc.EnableShellFeature(constants.LazyDocker)
 	gc.AddToInstalled(constants.LazyDocker, "package")
 	if err := gc.RegenerateShellConfig(); err != nil {

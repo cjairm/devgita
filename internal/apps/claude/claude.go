@@ -123,6 +123,7 @@ func (c *Claude) ForceConfigure() error {
 		}
 	}
 
+	gc.ReconcileShellFeatures()
 	gc.AddToInstalled(constants.Claude, "package")
 	gc.Shell.Claude = true
 	if err := gc.Save(); err != nil {

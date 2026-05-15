@@ -62,6 +62,7 @@ func (t *Tmux) ForceConfigure() error {
 	if err := gc.Load(); err != nil {
 		return fmt.Errorf("failed to load global config: %w", err)
 	}
+	gc.ReconcileShellFeatures()
 	gc.AddToInstalled(constants.Tmux, "package")
 	if err := enableFeature(gc); err != nil {
 		return fmt.Errorf("failed to enable tmux feature: %w", err)
