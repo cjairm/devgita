@@ -12,48 +12,45 @@ import (
 
 var cmd = commands.NewBaseCommand()
 
-func getHome(t *testing.T) string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		t.Fatal("could not get home dir:", err)
-	}
-	return home
-}
-
 func TestConfigDir(t *testing.T) {
-	home := getHome(t)
-
 	t.Run("no subdirs", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		t.Setenv("HOME", tmpDir)
 		t.Setenv("XDG_CONFIG_HOME", "")
 		got := paths.GetConfigDir()
-		want := filepath.Join(home, ".config")
+		want := filepath.Join(tmpDir, ".config")
 		if got != want {
 			t.Errorf("expected %q, got %q", want, got)
 		}
 	})
 
 	t.Run("one subdir", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		t.Setenv("HOME", tmpDir)
 		t.Setenv("XDG_CONFIG_HOME", "")
 		got := paths.GetConfigDir(constants.App.Name)
-		want := filepath.Join(home, ".config", constants.App.Name)
+		want := filepath.Join(tmpDir, ".config", constants.App.Name)
 		if got != want {
 			t.Errorf("expected %q, got %q", want, got)
 		}
 	})
 
 	t.Run("multiple subdirs", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		t.Setenv("HOME", tmpDir)
 		t.Setenv("XDG_CONFIG_HOME", "")
 		got := paths.GetConfigDir(constants.App.Name, "nvim")
-		want := filepath.Join(home, ".config", constants.App.Name, "nvim")
+		want := filepath.Join(tmpDir, ".config", constants.App.Name, "nvim")
 		if got != want {
 			t.Errorf("expected %q, got %q", want, got)
 		}
 	})
 
 	t.Run("XDG_CONFIG_HOME override", func(t *testing.T) {
-		t.Setenv("XDG_CONFIG_HOME", "/tmp/xdg-config")
+		xdgDir := t.TempDir()
+		t.Setenv("XDG_CONFIG_HOME", xdgDir)
 		got := paths.GetConfigDir(constants.App.Name)
-		want := filepath.Join("/tmp/xdg-config", constants.App.Name)
+		want := filepath.Join(xdgDir, constants.App.Name)
 		if got != want {
 			t.Errorf("expected %q, got %q", want, got)
 		}
@@ -61,30 +58,33 @@ func TestConfigDir(t *testing.T) {
 }
 
 func TestDataDir(t *testing.T) {
-	home := getHome(t)
-
 	t.Run("default location", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		t.Setenv("HOME", tmpDir)
 		t.Setenv("XDG_DATA_HOME", "")
 		got := paths.GetDataDir(constants.App.Name)
-		want := filepath.Join(home, ".local", "share", constants.App.Name)
+		want := filepath.Join(tmpDir, ".local", "share", constants.App.Name)
 		if got != want {
 			t.Errorf("expected %q, got %q", want, got)
 		}
 	})
 
 	t.Run("no subdir", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		t.Setenv("HOME", tmpDir)
 		t.Setenv("XDG_DATA_HOME", "")
 		got := paths.GetDataDir()
-		want := filepath.Join(home, ".local", "share")
+		want := filepath.Join(tmpDir, ".local", "share")
 		if got != want {
 			t.Errorf("expected %q, got %q", want, got)
 		}
 	})
 
 	t.Run("override", func(t *testing.T) {
-		t.Setenv("XDG_DATA_HOME", "/tmp/xdg-data")
+		xdgDir := t.TempDir()
+		t.Setenv("XDG_DATA_HOME", xdgDir)
 		got := paths.GetDataDir("app")
-		want := filepath.Join("/tmp/xdg-data", "app")
+		want := filepath.Join(xdgDir, "app")
 		if got != want {
 			t.Errorf("expected %q, got %q", want, got)
 		}
@@ -92,30 +92,33 @@ func TestDataDir(t *testing.T) {
 }
 
 func TestCacheDir(t *testing.T) {
-	home := getHome(t)
-
 	t.Run("default location", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		t.Setenv("HOME", tmpDir)
 		t.Setenv("XDG_CACHE_HOME", "")
 		got := paths.GetCacheDir(constants.App.Name)
-		want := filepath.Join(home, ".cache", constants.App.Name)
+		want := filepath.Join(tmpDir, ".cache", constants.App.Name)
 		if got != want {
 			t.Errorf("expected %q, got %q", want, got)
 		}
 	})
 
 	t.Run("multiple subdirs", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		t.Setenv("HOME", tmpDir)
 		t.Setenv("XDG_CACHE_HOME", "")
 		got := paths.GetCacheDir(constants.App.Name, "nvim")
-		want := filepath.Join(home, ".cache", constants.App.Name, "nvim")
+		want := filepath.Join(tmpDir, ".cache", constants.App.Name, "nvim")
 		if got != want {
 			t.Errorf("expected %q, got %q", want, got)
 		}
 	})
 
 	t.Run("override", func(t *testing.T) {
-		t.Setenv("XDG_CACHE_HOME", "/tmp/xdg-cache")
+		xdgDir := t.TempDir()
+		t.Setenv("XDG_CACHE_HOME", xdgDir)
 		got := paths.GetCacheDir("logs")
-		want := filepath.Join("/tmp/xdg-cache", "logs")
+		want := filepath.Join(xdgDir, "logs")
 		if got != want {
 			t.Errorf("expected %q, got %q", want, got)
 		}
@@ -123,11 +126,12 @@ func TestCacheDir(t *testing.T) {
 }
 
 func TestAppDir(t *testing.T) {
-	home := getHome(t)
-
 	t.Run("returns app dir", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		t.Setenv("HOME", tmpDir)
+		t.Setenv("XDG_DATA_HOME", "")
 		got := paths.GetAppDir("logs")
-		want := filepath.Join(home, ".local", "share", constants.App.Name, "logs")
+		want := filepath.Join(tmpDir, ".local", "share", constants.App.Name, "logs")
 		if got != want {
 			t.Errorf("expected %q, got %q", want, got)
 		}
@@ -135,12 +139,12 @@ func TestAppDir(t *testing.T) {
 }
 
 func TestApplicationsDirs(t *testing.T) {
-	home := getHome(t)
-
 	t.Run("user applications dir - linux", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		t.Setenv("HOME", tmpDir)
 		t.Setenv("XDG_DATA_HOME", "")
 		got := paths.GetUserApplicationsDir(false, "myapp")
-		want := filepath.Join(home, ".local", "share", "applications", "myapp")
+		want := filepath.Join(tmpDir, ".local", "share", "applications", "myapp")
 		if got != want {
 			t.Errorf("expected %q, got %q", want, got)
 		}
