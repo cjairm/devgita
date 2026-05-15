@@ -25,6 +25,10 @@ type MockCommand struct {
 	PackageManagerInstalled bool
 	PackageInstalled        bool
 	DesktopAppInstalled     bool
+
+	// Call history for MaybeInstallPackage
+	MaybeInstalledPkgs []string         // ordered history of all MaybeInstallPackage calls
+	MaybeInstallErrors map[string]error // per-package error injection: pkg -> error
 }
 
 // NewMockCommand creates a new MockCommand with sensible defaults
@@ -33,6 +37,8 @@ func NewMockCommand() *MockCommand {
 		PackageManagerInstalled: true,
 		PackageInstalled:        false,
 		DesktopAppInstalled:     false,
+		MaybeInstalledPkgs:      []string{},
+		MaybeInstallErrors:      map[string]error{},
 	}
 }
 
@@ -53,6 +59,12 @@ func (m *MockCommand) UninstallDesktopApp(pkg string) error {
 
 func (m *MockCommand) MaybeInstallPackage(pkg string, alias ...string) error {
 	m.MaybeInstalled = pkg
+	m.MaybeInstalledPkgs = append(m.MaybeInstalledPkgs, pkg)
+	if m.MaybeInstallErrors != nil {
+		if err, ok := m.MaybeInstallErrors[pkg]; ok {
+			return err
+		}
+	}
 	return m.MaybeInstallError
 }
 
@@ -115,6 +127,9 @@ func (m *MockCommand) Reset() {
 	m.DesktopInstallError = nil
 	m.FontInstallError = nil
 	m.ValidationError = nil
+
+	m.MaybeInstalledPkgs = []string{}
+	m.MaybeInstallErrors = map[string]error{}
 }
 
 // SetError configures error scenarios for different operations
