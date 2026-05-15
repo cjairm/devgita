@@ -246,6 +246,20 @@ func GetHomeDir(subPath ...string) string {
 	return filepath.Join(append([]string{home}, subPath...)...)
 }
 
+// Returns XDG_STATE_HOME or fallback to ~/.local/state
+// Reads environment variables dynamically to support testing
+func GetStateDir(subPath ...string) string {
+	base := os.Getenv("XDG_STATE_HOME")
+	if base == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			panic("could not determine home directory")
+		}
+		base = filepath.Join(home, ".local", "state")
+	}
+	return filepath.Join(append([]string{base}, subPath...)...)
+}
+
 // Returns XDG_CACHE_HOME or fallback to ~/.cache
 // Reads environment variables dynamically to support testing
 func GetCacheDir(subPath ...string) string {
