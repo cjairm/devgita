@@ -220,6 +220,14 @@ func (n *Neovim) Uninstall() error {
 		}
 	}
 	_ = os.RemoveAll(paths.Paths.Config.Nvim)
+	home, _ := os.UserHomeDir()
+	for _, dir := range []string{
+		filepath.Join(home, ".local", "share", "nvim"),
+		filepath.Join(home, ".local", "state", "nvim"),
+		filepath.Join(home, ".cache", "nvim"),
+	} {
+		_ = os.RemoveAll(dir)
+	}
 	gc.DisableShellFeature(constants.Neovim)
 	if err := gc.RegenerateShellConfig(); err != nil {
 		return fmt.Errorf("failed to regenerate shell config: %w", err)
