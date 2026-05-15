@@ -43,7 +43,7 @@ clean:
 # Run tests
 test:
 	@echo "Running tests..."
-	go test ./...
+	go test -p 4 ./...
 	@echo "✓ Tests passed"
 
 # Run code quality checks
