@@ -9,11 +9,13 @@ package fastfetch
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/cjairm/devgita/internal/apps"
 	"github.com/cjairm/devgita/internal/apps/baseapp"
 	cmd "github.com/cjairm/devgita/internal/commands"
+	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/files"
 	"github.com/cjairm/devgita/pkg/paths"
@@ -48,7 +50,18 @@ func (f *Fastfetch) SoftInstall() error {
 }
 
 func (f *Fastfetch) ForceConfigure() error {
-	return files.CopyDir(paths.Paths.App.Configs.Fastfetch, paths.Paths.Config.Fastfetch)
+	if err := files.CopyDir(paths.Paths.App.Configs.Fastfetch, paths.Paths.Config.Fastfetch); err != nil {
+		return err
+	}
+	gc := &config.GlobalConfig{}
+	if err := gc.Create(); err != nil {
+		return fmt.Errorf("failed to create global config: %w", err)
+	}
+	if err := gc.Load(); err != nil {
+		return fmt.Errorf("failed to load global config: %w", err)
+	}
+	gc.AddToInstalled(constants.Fastfetch, "package")
+	return gc.Save()
 }
 
 func (f *Fastfetch) SoftConfigure() error {
@@ -61,7 +74,16 @@ func (f *Fastfetch) SoftConfigure() error {
 }
 
 func (f *Fastfetch) Uninstall() error {
-	return fmt.Errorf("%w for fastfetch", apps.ErrUninstallNotSupported)
+	gc := &config.GlobalConfig{}
+	if err := gc.Load(); err != nil {
+		return fmt.Errorf("failed to load global config: %w", err)
+	}
+	if err := f.Cmd.UninstallPackage(constants.Fastfetch); err != nil {
+		return fmt.Errorf("failed to uninstall fastfetch: %w", err)
+	}
+	_ = os.RemoveAll(paths.Paths.Config.Fastfetch)
+	gc.RemoveFromInstalled(constants.Fastfetch, "package")
+	return gc.Save()
 }
 
 func (f *Fastfetch) ExecuteCommand(args ...string) error {

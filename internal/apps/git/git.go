@@ -24,12 +24,14 @@ package git
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/cjairm/devgita/internal/apps"
 	"github.com/cjairm/devgita/internal/apps/baseapp"
 	cmd "github.com/cjairm/devgita/internal/commands"
+	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/files"
 	"github.com/cjairm/devgita/pkg/paths"
@@ -71,11 +73,31 @@ func (g *Git) ForceInstall() error {
 }
 
 func (g *Git) Uninstall() error {
-	return fmt.Errorf("%w for git", apps.ErrUninstallNotSupported)
+	gc := &config.GlobalConfig{}
+	if err := gc.Load(); err != nil {
+		return fmt.Errorf("failed to load global config: %w", err)
+	}
+	if err := g.Cmd.UninstallPackage(constants.Git); err != nil {
+		return fmt.Errorf("failed to uninstall git: %w", err)
+	}
+	_ = os.RemoveAll(paths.Paths.Config.Git)
+	gc.RemoveFromInstalled(constants.Git, "package")
+	return gc.Save()
 }
 
 func (g *Git) ForceConfigure() error {
-	return files.CopyDir(paths.Paths.App.Configs.Git, paths.Paths.Config.Git)
+	if err := files.CopyDir(paths.Paths.App.Configs.Git, paths.Paths.Config.Git); err != nil {
+		return err
+	}
+	gc := &config.GlobalConfig{}
+	if err := gc.Create(); err != nil {
+		return fmt.Errorf("failed to create global config: %w", err)
+	}
+	if err := gc.Load(); err != nil {
+		return fmt.Errorf("failed to load global config: %w", err)
+	}
+	gc.AddToInstalled(constants.Git, "package")
+	return gc.Save()
 }
 
 func (g *Git) SoftConfigure() error {

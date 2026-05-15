@@ -54,17 +54,19 @@ func TestInstall(t *testing.T) {
 }
 
 func TestForceInstall(t *testing.T) {
-	mockApp := testutil.NewMockApp()
-	app := &Fastfetch{Cmd: mockApp.Cmd, Base: mockApp.Base}
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
+
+	app := &Fastfetch{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
 
 	if err := app.ForceInstall(); err != nil {
-		t.Fatalf("ForceInstall() should succeed even when uninstall is not supported: %v", err)
+		t.Fatalf("ForceInstall() error: %v", err)
 	}
-	if mockApp.Cmd.InstalledPkg != constants.Fastfetch {
-		t.Errorf("expected Install to be called, got %q", mockApp.Cmd.InstalledPkg)
+	if tc.MockApp.Cmd.InstalledPkg != constants.Fastfetch {
+		t.Errorf("expected Install to be called, got %q", tc.MockApp.Cmd.InstalledPkg)
 	}
 
-	testutil.VerifyNoRealCommands(t, mockApp.Base)
+	testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
 }
 
 func TestSoftInstall(t *testing.T) {
@@ -86,18 +88,19 @@ func TestSoftInstall(t *testing.T) {
 }
 
 func TestUninstall(t *testing.T) {
-	mockApp := testutil.NewMockApp()
-	app := &Fastfetch{Cmd: mockApp.Cmd, Base: mockApp.Base}
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
 
-	err := app.Uninstall()
-	if err == nil {
-		t.Fatal("expected Uninstall to return error for unsupported operation")
+	app := &Fastfetch{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
+
+	if err := app.Uninstall(); err != nil {
+		t.Fatalf("Uninstall error: %v", err)
 	}
-	if !errors.Is(err, apps.ErrUninstallNotSupported) {
-		t.Errorf("expected ErrUninstallNotSupported, got: %v", err)
+	if tc.MockApp.Cmd.UninstalledPkg != constants.Fastfetch {
+		t.Errorf("expected UninstallPackage(%s), got %q", constants.Fastfetch, tc.MockApp.Cmd.UninstalledPkg)
 	}
 
-	testutil.VerifyNoRealCommands(t, mockApp.Base)
+	testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
 }
 
 func TestUpdate(t *testing.T) {
@@ -116,159 +119,138 @@ func TestUpdate(t *testing.T) {
 }
 
 func TestForceConfigure(t *testing.T) {
-	// Create temp directories for testing
-	tempSourceDir := t.TempDir()
-	tempTargetDir := t.TempDir()
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
 
-	// Override global paths for the duration of the test
-	oldFastFetchConfigAppDir := paths.Paths.App.Configs.Fastfetch
-	oldFastFetchConfigLocalDir := paths.Paths.Config.Fastfetch
-	defer func() {
-		paths.Paths.App.Configs.Fastfetch = oldFastFetchConfigAppDir
-		paths.Paths.Config.Fastfetch = oldFastFetchConfigLocalDir
-	}()
+	tempSourceDir := filepath.Join(tc.AppDir, "fastfetch-src")
+	tempTargetDir := filepath.Join(tc.ConfigDir, "fastfetch")
+	if err := os.MkdirAll(tempSourceDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	oldAppDir := paths.Paths.App.Configs.Fastfetch
+	oldConfigDir := paths.Paths.Config.Fastfetch
+	t.Cleanup(func() {
+		paths.Paths.App.Configs.Fastfetch = oldAppDir
+		paths.Paths.Config.Fastfetch = oldConfigDir
+	})
 	paths.Paths.App.Configs.Fastfetch = tempSourceDir
 	paths.Paths.Config.Fastfetch = tempTargetDir
 
-	// Create a test config file in the source directory
-	testConfigContent := `{
-		"$schema": "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json",
-		"logo": {
-			"source": "auto",
-			"padding": {
-				"top": 1,
-				"left": 4
-			}
-		},
-		"display": {
-		"separator": " ~ "
-	    }
-	}`
-	configFile := filepath.Join(tempSourceDir, "config.jsonc")
-	if err := os.WriteFile(configFile, []byte(testConfigContent), 0644); err != nil {
-		t.Fatalf("Failed to create test config file: %v", err)
+	testConfigContent := `{"display": {"separator": " ~ "}}`
+	if err := os.WriteFile(filepath.Join(tempSourceDir, "config.jsonc"), []byte(testConfigContent), 0644); err != nil {
+		t.Fatal(err)
 	}
 
-	mockApp := testutil.NewMockApp()
-	app := &Fastfetch{Cmd: mockApp.Cmd}
+	app := &Fastfetch{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
 
 	if err := app.ForceConfigure(); err != nil {
 		t.Fatalf("ForceConfigure error: %v", err)
 	}
 
-	// Verify that the config file was copied to the target directory
 	targetConfigFile := filepath.Join(tempTargetDir, "config.jsonc")
 	if _, err := os.Stat(targetConfigFile); os.IsNotExist(err) {
-		t.Fatalf("Expected config file to be copied to target directory, but it doesn't exist")
+		t.Fatalf("expected config file to be copied to target directory")
 	}
 
-	// Verify the content was copied correctly
 	copiedContent, err := os.ReadFile(targetConfigFile)
 	if err != nil {
-		t.Fatalf("Failed to read copied config file: %v", err)
+		t.Fatalf("failed to read copied config file: %v", err)
 	}
-
 	if string(copiedContent) != testConfigContent {
-		t.Fatalf(
-			"Expected copied content to match original, but it doesn't. Original: %s, Copied: %s",
-			testConfigContent,
-			string(copiedContent),
-		)
+		t.Fatalf("content mismatch: expected %q, got %q", testConfigContent, string(copiedContent))
 	}
 
-	testutil.VerifyNoRealCommands(t, mockApp.Base)
+	testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
 }
 
 func TestSoftConfigure(t *testing.T) {
-	// Test case 1: Configuration doesn't exist - should configure
 	t.Run("ConfigureWhenNotExists", func(t *testing.T) {
-		tempSourceDir := t.TempDir()
-		tempTargetDir := t.TempDir()
+		tc := testutil.SetupCompleteTest(t)
+		defer tc.Cleanup()
 
-		// Override global paths for the duration of the test
-		oldFastFetchConfigAppDir := paths.Paths.App.Configs.Fastfetch
-		oldFastFetchConfigLocalDir := paths.Paths.Config.Fastfetch
-		defer func() {
-			paths.Paths.App.Configs.Fastfetch = oldFastFetchConfigAppDir
-			paths.Paths.Config.Fastfetch = oldFastFetchConfigLocalDir
-		}()
+		tempSourceDir := filepath.Join(tc.AppDir, "fastfetch-src")
+		tempTargetDir := filepath.Join(tc.ConfigDir, "fastfetch")
+		if err := os.MkdirAll(tempSourceDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+
+		oldAppDir := paths.Paths.App.Configs.Fastfetch
+		oldConfigDir := paths.Paths.Config.Fastfetch
+		t.Cleanup(func() {
+			paths.Paths.App.Configs.Fastfetch = oldAppDir
+			paths.Paths.Config.Fastfetch = oldConfigDir
+		})
 		paths.Paths.App.Configs.Fastfetch = tempSourceDir
 		paths.Paths.Config.Fastfetch = tempTargetDir
 
-		// Create a test config file in the source directory
 		testConfigContent := `{"display": {"separator": " ~ "}}`
-		configFile := filepath.Join(tempSourceDir, "config.jsonc")
-		if err := os.WriteFile(configFile, []byte(testConfigContent), 0644); err != nil {
-			t.Fatalf("Failed to create test config file: %v", err)
+		if err := os.WriteFile(filepath.Join(tempSourceDir, "config.jsonc"), []byte(testConfigContent), 0644); err != nil {
+			t.Fatal(err)
 		}
 
-		mockApp := testutil.NewMockApp()
-		app := &Fastfetch{Cmd: mockApp.Cmd}
+		app := &Fastfetch{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
 
 		if err := app.SoftConfigure(); err != nil {
 			t.Fatalf("SoftConfigure error: %v", err)
 		}
 
-		// Verify that the config file was copied to the target directory
 		targetConfigFile := filepath.Join(tempTargetDir, "config.jsonc")
 		if _, err := os.Stat(targetConfigFile); os.IsNotExist(err) {
-			t.Fatalf("Expected config file to be copied to target directory, but it doesn't exist")
+			t.Fatalf("expected config file to be copied to target directory")
 		}
 
-		testutil.VerifyNoRealCommands(t, mockApp.Base)
+		testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
 	})
 
-	// Test case 2: Configuration already exists - should skip
 	t.Run("SkipWhenExists", func(t *testing.T) {
-		tempSourceDir := t.TempDir()
-		tempTargetDir := t.TempDir()
+		tc := testutil.SetupCompleteTest(t)
+		defer tc.Cleanup()
 
-		// Override global paths for the duration of the test
-		oldFastFetchConfigAppDir := paths.Paths.App.Configs.Fastfetch
-		oldFastFetchConfigLocalDir := paths.Paths.Config.Fastfetch
-		defer func() {
-			paths.Paths.App.Configs.Fastfetch = oldFastFetchConfigAppDir
-			paths.Paths.Config.Fastfetch = oldFastFetchConfigLocalDir
-		}()
+		tempSourceDir := filepath.Join(tc.AppDir, "fastfetch-src")
+		tempTargetDir := filepath.Join(tc.ConfigDir, "fastfetch")
+		if err := os.MkdirAll(tempSourceDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.MkdirAll(tempTargetDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+
+		oldAppDir := paths.Paths.App.Configs.Fastfetch
+		oldConfigDir := paths.Paths.Config.Fastfetch
+		t.Cleanup(func() {
+			paths.Paths.App.Configs.Fastfetch = oldAppDir
+			paths.Paths.Config.Fastfetch = oldConfigDir
+		})
 		paths.Paths.App.Configs.Fastfetch = tempSourceDir
 		paths.Paths.Config.Fastfetch = tempTargetDir
 
-		// Create existing config file in target directory
 		existingContent := `{"existing": "config"}`
 		targetConfigFile := filepath.Join(tempTargetDir, "config.jsonc")
 		if err := os.WriteFile(targetConfigFile, []byte(existingContent), 0644); err != nil {
-			t.Fatalf("Failed to create existing config file: %v", err)
+			t.Fatal(err)
 		}
 
-		// Create different config file in source directory
 		sourceContent := `{"new": "config"}`
-		sourceConfigFile := filepath.Join(tempSourceDir, "config.jsonc")
-		if err := os.WriteFile(sourceConfigFile, []byte(sourceContent), 0644); err != nil {
-			t.Fatalf("Failed to create source config file: %v", err)
+		if err := os.WriteFile(filepath.Join(tempSourceDir, "config.jsonc"), []byte(sourceContent), 0644); err != nil {
+			t.Fatal(err)
 		}
 
-		mockApp := testutil.NewMockApp()
-		app := &Fastfetch{Cmd: mockApp.Cmd}
+		app := &Fastfetch{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
 
 		if err := app.SoftConfigure(); err != nil {
 			t.Fatalf("SoftConfigure error: %v", err)
 		}
 
-		// Verify content wasn't overwritten
 		content, err := os.ReadFile(targetConfigFile)
 		if err != nil {
-			t.Fatalf("Failed to read target config file: %v", err)
+			t.Fatalf("failed to read target config file: %v", err)
 		}
-
 		if string(content) != existingContent {
-			t.Fatalf(
-				"Expected file content to remain unchanged, but it was modified. Original: %s, New: %s",
-				existingContent,
-				string(content),
-			)
+			t.Fatalf("expected file content unchanged, got %q", string(content))
 		}
 
-		testutil.VerifyNoRealCommands(t, mockApp.Base)
+		testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
 	})
 }
 

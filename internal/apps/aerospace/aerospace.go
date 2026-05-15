@@ -12,6 +12,7 @@ package aerospace
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/cjairm/devgita/internal/apps"
@@ -52,7 +53,16 @@ func (a *Aerospace) ForceInstall() error {
 }
 
 func (a *Aerospace) Uninstall() error {
-	return fmt.Errorf("%w for aerospace", apps.ErrUninstallNotSupported)
+	gc := &config.GlobalConfig{}
+	if err := gc.Load(); err != nil {
+		return fmt.Errorf("failed to load global config: %w", err)
+	}
+	if err := a.Cmd.UninstallDesktopApp("nikitabobko/tap/aerospace"); err != nil {
+		return fmt.Errorf("failed to uninstall aerospace: %w", err)
+	}
+	_ = os.RemoveAll(paths.Paths.Config.Aerospace)
+	gc.RemoveFromInstalled(constants.Aerospace, "desktop_app")
+	return gc.Save()
 }
 
 func (a *Aerospace) ForceConfigure() error {

@@ -2,11 +2,13 @@ package i3
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/cjairm/devgita/internal/apps"
 	"github.com/cjairm/devgita/internal/apps/baseapp"
 	"github.com/cjairm/devgita/internal/commands"
+	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/files"
 	"github.com/cjairm/devgita/pkg/logger"
@@ -39,7 +41,16 @@ func (i *I3) ForceInstall() error {
 }
 
 func (i *I3) Uninstall() error {
-	return fmt.Errorf("%w for i3 — manage via system package manager", apps.ErrUninstallNotSupported)
+	gc := &config.GlobalConfig{}
+	if err := gc.Load(); err != nil {
+		return fmt.Errorf("failed to load global config: %w", err)
+	}
+	if err := i.Cmd.UninstallPackage(constants.I3); err != nil {
+		return fmt.Errorf("failed to uninstall i3: %w", err)
+	}
+	_ = os.RemoveAll(paths.Paths.Config.I3)
+	gc.RemoveFromInstalled(constants.I3, "package")
+	return gc.Save()
 }
 
 func (i *I3) ForceConfigure() error {
@@ -48,7 +59,15 @@ func (i *I3) ForceConfigure() error {
 		return fmt.Errorf("failed to copy i3 config: %w", err)
 	}
 	logger.L().Infow("i3 configuration applied", "source", paths.Paths.App.Configs.I3, "dest", paths.Paths.Config.I3)
-	return nil
+	gc := &config.GlobalConfig{}
+	if err := gc.Create(); err != nil {
+		return fmt.Errorf("failed to create global config: %w", err)
+	}
+	if err := gc.Load(); err != nil {
+		return fmt.Errorf("failed to load global config: %w", err)
+	}
+	gc.AddToInstalled(constants.I3, "package")
+	return gc.Save()
 }
 
 func (i *I3) SoftConfigure() error {

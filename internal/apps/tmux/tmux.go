@@ -62,6 +62,7 @@ func (t *Tmux) ForceConfigure() error {
 	if err := gc.Load(); err != nil {
 		return fmt.Errorf("failed to load global config: %w", err)
 	}
+	gc.AddToInstalled(constants.Tmux, "package")
 	if err := enableFeature(gc); err != nil {
 		return fmt.Errorf("failed to enable tmux feature: %w", err)
 	}
@@ -93,7 +94,20 @@ func (t *Tmux) SoftConfigure() error {
 }
 
 func (t *Tmux) Uninstall() error {
-	return fmt.Errorf("%w for tmux", apps.ErrUninstallNotSupported)
+	gc := &config.GlobalConfig{}
+	if err := gc.Load(); err != nil {
+		return fmt.Errorf("failed to load global config: %w", err)
+	}
+	if err := t.Cmd.UninstallPackage(constants.Tmux); err != nil {
+		return fmt.Errorf("failed to uninstall tmux: %w", err)
+	}
+	_ = os.Remove(filepath.Join(paths.Paths.Home.Root, configFileName))
+	gc.DisableShellFeature(constants.Tmux)
+	if err := gc.RegenerateShellConfig(); err != nil {
+		return fmt.Errorf("failed to regenerate shell config: %w", err)
+	}
+	gc.RemoveFromInstalled(constants.Tmux, "package")
+	return gc.Save()
 }
 
 func (t *Tmux) ExecuteCommand(args ...string) error {

@@ -50,17 +50,19 @@ func TestInstall(t *testing.T) {
 }
 
 func TestForceInstall(t *testing.T) {
-	mockApp := testutil.NewMockApp()
-	app := &Git{Cmd: mockApp.Cmd, Base: mockApp.Base}
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
+
+	app := &Git{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
 
 	if err := app.ForceInstall(); err != nil {
-		t.Fatalf("ForceInstall() should succeed even when uninstall is not supported: %v", err)
+		t.Fatalf("ForceInstall() error: %v", err)
 	}
-	if mockApp.Cmd.InstalledPkg != constants.Git {
-		t.Errorf("expected Install to be called, got %q", mockApp.Cmd.InstalledPkg)
+	if tc.MockApp.Cmd.InstalledPkg != constants.Git {
+		t.Errorf("expected Install to be called, got %q", tc.MockApp.Cmd.InstalledPkg)
 	}
 
-	testutil.VerifyNoRealCommands(t, mockApp.Base)
+	testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
 }
 
 func TestSoftInstall(t *testing.T) {
@@ -78,18 +80,19 @@ func TestSoftInstall(t *testing.T) {
 }
 
 func TestUninstall(t *testing.T) {
-	mockApp := testutil.NewMockApp()
-	app := &Git{Cmd: mockApp.Cmd, Base: mockApp.Base}
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
 
-	err := app.Uninstall()
-	if err == nil {
-		t.Fatal("expected Uninstall to return error for unsupported operation")
+	app := &Git{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
+
+	if err := app.Uninstall(); err != nil {
+		t.Fatalf("Uninstall error: %v", err)
 	}
-	if !errors.Is(err, apps.ErrUninstallNotSupported) {
-		t.Errorf("expected ErrUninstallNotSupported, got: %v", err)
+	if tc.MockApp.Cmd.UninstalledPkg != constants.Git {
+		t.Errorf("expected UninstallPackage(%s), got %q", constants.Git, tc.MockApp.Cmd.UninstalledPkg)
 	}
 
-	testutil.VerifyNoRealCommands(t, mockApp.Base)
+	testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
 }
 
 func TestUpdate(t *testing.T) {
@@ -108,22 +111,27 @@ func TestUpdate(t *testing.T) {
 }
 
 func TestForceConfigure(t *testing.T) {
-	src := t.TempDir()
-	dst := t.TempDir()
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
+
+	src := filepath.Join(tc.AppDir, "git-src")
+	dst := filepath.Join(tc.ConfigDir, "git")
+	if err := os.MkdirAll(src, 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	oldAppDir, oldLocalDir := paths.Paths.App.Configs.Git, paths.Paths.Config.Git
-	paths.Paths.App.Configs.Git, paths.Paths.Config.Git = src, dst
 	t.Cleanup(func() {
 		paths.Paths.App.Configs.Git, paths.Paths.Config.Git = oldAppDir, oldLocalDir
 	})
+	paths.Paths.App.Configs.Git, paths.Paths.Config.Git = src, dst
 
 	originalContent := "[user]\n\tname = Test User"
 	if err := os.WriteFile(filepath.Join(src, ".gitconfig"), []byte(originalContent), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
-	mockApp := testutil.NewMockApp()
-	app := &Git{Cmd: mockApp.Cmd}
+	app := &Git{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
 
 	if err := app.ForceConfigure(); err != nil {
 		t.Fatalf("ForceConfigure error: %v", err)
@@ -159,7 +167,7 @@ func TestForceConfigure(t *testing.T) {
 		t.Fatalf("ForceConfigure did not overwrite: expected %q, got %q", originalContent, string(finalContent))
 	}
 
-	testutil.VerifyNoRealCommands(t, mockApp.Base)
+	testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
 }
 
 func TestSoftConfigure(t *testing.T) {

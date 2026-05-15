@@ -48,17 +48,19 @@ func TestInstall(t *testing.T) {
 }
 
 func TestForceInstall(t *testing.T) {
-	mockApp := testutil.NewMockApp()
-	app := &Aerospace{Cmd: mockApp.Cmd, Base: mockApp.Base}
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
+
+	app := &Aerospace{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
 
 	if err := app.ForceInstall(); err != nil {
-		t.Fatalf("ForceInstall() should succeed even when uninstall is not supported: %v", err)
+		t.Fatalf("ForceInstall() error: %v", err)
 	}
-	if mockApp.Cmd.InstalledDesktopApp != "nikitabobko/tap/aerospace" {
-		t.Errorf("expected Install to be called, got %q", mockApp.Cmd.InstalledDesktopApp)
+	if tc.MockApp.Cmd.InstalledDesktopApp != "nikitabobko/tap/aerospace" {
+		t.Errorf("expected Install to be called, got %q", tc.MockApp.Cmd.InstalledDesktopApp)
 	}
 
-	testutil.VerifyNoRealCommands(t, mockApp.Base)
+	testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
 }
 
 func TestSoftInstall(t *testing.T) {
@@ -76,18 +78,19 @@ func TestSoftInstall(t *testing.T) {
 }
 
 func TestUninstall(t *testing.T) {
-	mockApp := testutil.NewMockApp()
-	app := &Aerospace{Cmd: mockApp.Cmd, Base: mockApp.Base}
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
 
-	err := app.Uninstall()
-	if err == nil {
-		t.Fatal("expected Uninstall to return error for unsupported operation")
+	app := &Aerospace{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
+
+	if err := app.Uninstall(); err != nil {
+		t.Fatalf("Uninstall error: %v", err)
 	}
-	if !errors.Is(err, apps.ErrUninstallNotSupported) {
-		t.Errorf("expected ErrUninstallNotSupported, got: %v", err)
+	if tc.MockApp.Cmd.UninstalledDesktopApp != "nikitabobko/tap/aerospace" {
+		t.Errorf("expected UninstallDesktopApp(nikitabobko/tap/aerospace), got %q", tc.MockApp.Cmd.UninstalledDesktopApp)
 	}
 
-	testutil.VerifyNoRealCommands(t, mockApp.Base)
+	testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
 }
 
 func TestUpdate(t *testing.T) {

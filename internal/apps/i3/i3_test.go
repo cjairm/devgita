@@ -69,32 +69,35 @@ func TestSoftInstall(t *testing.T) {
 }
 
 func TestForceInstall(t *testing.T) {
-	mockApp := testutil.NewMockApp()
-	i := &I3{Cmd: mockApp.Cmd}
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
+
+	i := &I3{Cmd: tc.MockApp.Cmd}
 
 	if err := i.ForceInstall(); err != nil {
-		t.Fatalf("ForceInstall() should succeed even when uninstall is not supported: %v", err)
+		t.Fatalf("ForceInstall() error: %v", err)
 	}
-	if mockApp.Cmd.InstalledPkg != constants.I3 {
-		t.Errorf("expected Install to be called, got %q", mockApp.Cmd.InstalledPkg)
+	if tc.MockApp.Cmd.InstalledPkg != constants.I3 {
+		t.Errorf("expected Install to be called, got %q", tc.MockApp.Cmd.InstalledPkg)
 	}
 
-	testutil.VerifyNoRealCommands(t, mockApp.Base)
+	testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
 }
 
 func TestUninstall(t *testing.T) {
-	mockApp := testutil.NewMockApp()
-	i := &I3{Cmd: mockApp.Cmd}
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
 
-	err := i.Uninstall()
-	if err == nil {
-		t.Fatal("Expected Uninstall to return error")
+	i := &I3{Cmd: tc.MockApp.Cmd}
+
+	if err := i.Uninstall(); err != nil {
+		t.Fatalf("Uninstall error: %v", err)
 	}
-	if !errors.Is(err, apps.ErrUninstallNotSupported) {
-		t.Errorf("expected ErrUninstallNotSupported, got: %v", err)
+	if tc.MockApp.Cmd.UninstalledPkg != constants.I3 {
+		t.Errorf("expected UninstallPackage(%s), got %q", constants.I3, tc.MockApp.Cmd.UninstalledPkg)
 	}
 
-	testutil.VerifyNoRealCommands(t, mockApp.Base)
+	testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
 }
 
 func TestForceConfigure(t *testing.T) {

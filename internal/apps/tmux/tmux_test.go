@@ -94,17 +94,23 @@ func TestInstall(t *testing.T) {
 func TestForceInstall(t *testing.T) {
 	t.Helper()
 
-	mockApp := testutil.NewMockApp()
-	app := &tmux.Tmux{Cmd: mockApp.Cmd, Base: mockApp.Base}
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
+
+	oldHome := paths.Paths.Home.Root
+	t.Cleanup(func() { paths.Paths.Home.Root = oldHome })
+	paths.Paths.Home.Root = tc.ConfigDir
+
+	app := &tmux.Tmux{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
 
 	if err := app.ForceInstall(); err != nil {
-		t.Fatalf("ForceInstall() should succeed even when uninstall is not supported: %v", err)
+		t.Fatalf("ForceInstall() error: %v", err)
 	}
-	if mockApp.Cmd.InstalledPkg != constants.Tmux {
-		t.Errorf("expected Install to be called, got %q", mockApp.Cmd.InstalledPkg)
+	if tc.MockApp.Cmd.InstalledPkg != constants.Tmux {
+		t.Errorf("expected Install to be called, got %q", tc.MockApp.Cmd.InstalledPkg)
 	}
 
-	testutil.VerifyNoRealCommands(t, mockApp.Base)
+	testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
 }
 
 func TestSoftInstall(t *testing.T) {
@@ -163,18 +169,23 @@ func TestSoftInstall(t *testing.T) {
 func TestUninstall(t *testing.T) {
 	t.Helper()
 
-	mockApp := testutil.NewMockApp()
-	app := &tmux.Tmux{Cmd: mockApp.Cmd, Base: mockApp.Base}
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
 
-	err := app.Uninstall()
-	if err == nil {
-		t.Fatal("expected Uninstall to return error for unsupported operation")
+	oldHome := paths.Paths.Home.Root
+	t.Cleanup(func() { paths.Paths.Home.Root = oldHome })
+	paths.Paths.Home.Root = tc.ConfigDir
+
+	app := &tmux.Tmux{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
+
+	if err := app.Uninstall(); err != nil {
+		t.Fatalf("Uninstall error: %v", err)
 	}
-	if !errors.Is(err, apps.ErrUninstallNotSupported) {
-		t.Errorf("expected ErrUninstallNotSupported, got: %v", err)
+	if tc.MockApp.Cmd.UninstalledPkg != constants.Tmux {
+		t.Errorf("expected UninstallPackage(%s), got %q", constants.Tmux, tc.MockApp.Cmd.UninstalledPkg)
 	}
 
-	testutil.VerifyNoRealCommands(t, mockApp.Base)
+	testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
 }
 
 func TestUpdate(t *testing.T) {

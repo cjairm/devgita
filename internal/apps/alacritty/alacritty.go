@@ -6,6 +6,7 @@ package alacritty
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/cjairm/devgita/internal/apps"
@@ -102,7 +103,16 @@ func (a *Alacritty) SoftConfigure() error {
 }
 
 func (a *Alacritty) Uninstall() error {
-	return fmt.Errorf("%w for alacritty", apps.ErrUninstallNotSupported)
+	gc := &config.GlobalConfig{}
+	if err := gc.Load(); err != nil {
+		return fmt.Errorf("failed to load global config: %w", err)
+	}
+	if err := a.Cmd.UninstallDesktopApp(constants.Alacritty); err != nil {
+		return fmt.Errorf("failed to uninstall alacritty: %w", err)
+	}
+	_ = os.RemoveAll(paths.Paths.Config.Alacritty)
+	gc.RemoveFromInstalled(constants.Alacritty, "desktop_app")
+	return gc.Save()
 }
 
 func (a *Alacritty) ExecuteCommand(args ...string) error {
