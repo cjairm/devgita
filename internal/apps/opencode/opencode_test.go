@@ -67,17 +67,24 @@ func TestInstall(t *testing.T) {
 }
 
 func TestForceInstall(t *testing.T) {
-	mockApp := testutil.NewMockApp()
-	app := &OpenCode{Cmd: mockApp.Cmd, Base: mockApp.Base}
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
+
+	userConfigDir := filepath.Join(tc.ConfigDir, "opencode")
+	oldOpenCodeDir := paths.Paths.Config.OpenCode
+	t.Cleanup(func() { paths.Paths.Config.OpenCode = oldOpenCodeDir })
+	paths.Paths.Config.OpenCode = userConfigDir
+
+	app := &OpenCode{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
 
 	if err := app.ForceInstall(); err != nil {
-		t.Fatalf("ForceInstall() should succeed even when uninstall is not supported: %v", err)
+		t.Fatalf("ForceInstall() error: %v", err)
 	}
-	if mockApp.Cmd.InstalledPkg != constants.OpenCode {
-		t.Errorf("expected Install to be called, got %q", mockApp.Cmd.InstalledPkg)
+	if tc.MockApp.Cmd.InstalledPkg != constants.OpenCode {
+		t.Errorf("expected Install to be called, got %q", tc.MockApp.Cmd.InstalledPkg)
 	}
 
-	testutil.VerifyNoRealCommands(t, mockApp.Base)
+	testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
 }
 
 func TestSoftInstall(t *testing.T) {
@@ -95,18 +102,27 @@ func TestSoftInstall(t *testing.T) {
 }
 
 func TestUninstall(t *testing.T) {
-	mockApp := testutil.NewMockApp()
-	app := &OpenCode{Cmd: mockApp.Cmd, Base: mockApp.Base}
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
 
-	err := app.Uninstall()
-	if err == nil {
-		t.Fatal("expected Uninstall to return error for unsupported operation")
+	userConfigDir := filepath.Join(tc.ConfigDir, "opencode")
+	if err := os.MkdirAll(userConfigDir, 0755); err != nil {
+		t.Fatal(err)
 	}
-	if !errors.Is(err, apps.ErrUninstallNotSupported) {
-		t.Errorf("expected ErrUninstallNotSupported, got: %v", err)
+	oldOpenCodeDir := paths.Paths.Config.OpenCode
+	t.Cleanup(func() { paths.Paths.Config.OpenCode = oldOpenCodeDir })
+	paths.Paths.Config.OpenCode = userConfigDir
+
+	app := &OpenCode{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
+
+	if err := app.Uninstall(); err != nil {
+		t.Fatalf("Uninstall error: %v", err)
+	}
+	if tc.MockApp.Cmd.UninstalledPkg != constants.OpenCode {
+		t.Errorf("expected UninstallPackage(%s), got %q", constants.OpenCode, tc.MockApp.Cmd.UninstalledPkg)
 	}
 
-	testutil.VerifyNoRealCommands(t, mockApp.Base)
+	testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
 }
 
 func TestUpdate(t *testing.T) {

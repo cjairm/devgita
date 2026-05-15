@@ -54,17 +54,16 @@ func TestForceInstall(t *testing.T) {
 	tc := testutil.SetupCompleteTest(t)
 	defer tc.Cleanup()
 
-	mockApp := testutil.NewMockApp()
-	app := &Mise{Cmd: mockApp.Cmd}
+	app := &Mise{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
 
 	if err := app.ForceInstall(); err != nil {
 		t.Fatalf("ForceInstall() should succeed: %v", err)
 	}
-	if mockApp.Cmd.InstalledPkg != constants.Mise {
-		t.Errorf("expected Install to be called, got %q", mockApp.Cmd.InstalledPkg)
+	if tc.MockApp.Cmd.InstalledPkg != constants.Mise {
+		t.Errorf("expected Install to be called, got %q", tc.MockApp.Cmd.InstalledPkg)
 	}
 
-	testutil.VerifyNoRealCommands(t, mockApp.Base)
+	testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
 }
 
 func TestSoftInstall(t *testing.T) {
@@ -395,6 +394,10 @@ func TestUninstall(t *testing.T) {
 
 	if err := app.Uninstall(); err != nil {
 		t.Fatalf("Uninstall error: %v", err)
+	}
+
+	if mockApp.Cmd.UninstalledPkg != constants.Mise {
+		t.Errorf("expected UninstallPackage(%s), got %q", constants.Mise, mockApp.Cmd.UninstalledPkg)
 	}
 
 	// Verify feature was disabled in config

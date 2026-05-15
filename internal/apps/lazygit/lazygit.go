@@ -110,7 +110,29 @@ func (lg *LazyGit) ForceInstall() error {
 }
 
 func (lg *LazyGit) Uninstall() error {
-	return fmt.Errorf("%w for lazygit", apps.ErrUninstallNotSupported)
+	gc := &config.GlobalConfig{}
+	if err := gc.Load(); err != nil {
+		return fmt.Errorf("failed to load global config: %w", err)
+	}
+	if lg.Base.IsMac() {
+		if err := lg.Cmd.UninstallPackage(constants.LazyGit); err != nil {
+			return fmt.Errorf("failed to uninstall lazygit: %w", err)
+		}
+	} else {
+		if _, _, err := lg.Base.ExecCommand(cmd.CommandParams{
+			Command: "rm",
+			Args:    []string{"-f", "/usr/local/bin/lazygit"},
+			IsSudo:  true,
+		}); err != nil {
+			return fmt.Errorf("failed to remove lazygit binary: %w", err)
+		}
+	}
+	gc.DisableShellFeature(constants.LazyGit)
+	if err := gc.RegenerateShellConfig(); err != nil {
+		return fmt.Errorf("failed to regenerate shell config: %w", err)
+	}
+	gc.RemoveFromInstalled(constants.LazyGit, "package")
+	return gc.Save()
 }
 
 func (lg *LazyGit) ForceConfigure() error {
@@ -122,6 +144,7 @@ func (lg *LazyGit) ForceConfigure() error {
 		return fmt.Errorf("failed to load global config: %w", err)
 	}
 	gc.EnableShellFeature(constants.LazyGit)
+	gc.AddToInstalled(constants.LazyGit, "package")
 	if err := gc.RegenerateShellConfig(); err != nil {
 		return fmt.Errorf("failed to generate shell config: %w", err)
 	}

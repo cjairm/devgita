@@ -101,18 +101,20 @@ func TestInstallDebian(t *testing.T) {
 }
 
 func TestForceInstall(t *testing.T) {
-	mockApp := testutil.NewMockApp()
-	mockApp.Base.IsMacResult = true // simulate macOS
-	app := &LazyDocker{Cmd: mockApp.Cmd, Base: mockApp.Base}
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
+
+	tc.MockApp.Base.IsMacResult = true // macOS path: brew uninstall
+	app := &LazyDocker{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
 
 	if err := app.ForceInstall(); err != nil {
-		t.Fatalf("ForceInstall() should succeed even when uninstall is not supported: %v", err)
+		t.Fatalf("ForceInstall() error: %v", err)
 	}
-	if mockApp.Cmd.InstalledPkg != expectedPackageName {
-		t.Errorf("expected Install to be called, got %q", mockApp.Cmd.InstalledPkg)
+	if tc.MockApp.Cmd.InstalledPkg != expectedPackageName {
+		t.Errorf("expected Install to be called, got %q", tc.MockApp.Cmd.InstalledPkg)
 	}
 
-	testutil.VerifyNoRealCommands(t, mockApp.Base)
+	testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
 }
 
 func TestSoftInstall(t *testing.T) {
@@ -174,18 +176,47 @@ func TestSoftInstallDebian_NotInstalled(t *testing.T) {
 }
 
 func TestUninstall(t *testing.T) {
-	mockApp := testutil.NewMockApp()
-	app := &LazyDocker{Cmd: mockApp.Cmd, Base: mockApp.Base}
+	t.Run("macOS", func(t *testing.T) {
+		tc := testutil.SetupCompleteTest(t)
+		defer tc.Cleanup()
 
-	err := app.Uninstall()
-	if err == nil {
-		t.Fatal("expected Uninstall to return error for unsupported operation")
-	}
-	if !errors.Is(err, apps.ErrUninstallNotSupported) {
-		t.Errorf("expected ErrUninstallNotSupported, got: %v", err)
-	}
+		tc.MockApp.Base.IsMacResult = true
+		app := &LazyDocker{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
 
-	testutil.VerifyNoRealCommands(t, mockApp.Base)
+		if err := app.Uninstall(); err != nil {
+			t.Fatalf("Uninstall error: %v", err)
+		}
+		if tc.MockApp.Cmd.UninstalledPkg != expectedPackageName {
+			t.Errorf("expected UninstallPackage(%s), got %q", expectedPackageName, tc.MockApp.Cmd.UninstalledPkg)
+		}
+
+		testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
+	})
+
+	t.Run("linux", func(t *testing.T) {
+		tc := testutil.SetupCompleteTest(t)
+		defer tc.Cleanup()
+
+		tc.MockApp.Base.IsMacResult = false
+		tc.MockApp.Base.SetExecCommandResult("", "", nil)
+		app := &LazyDocker{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
+
+		if err := app.Uninstall(); err != nil {
+			t.Fatalf("Uninstall error: %v", err)
+		}
+
+		// Linux path uses Base.ExecCommand directly for rm
+		lastCall := tc.MockApp.Base.GetLastExecCommandCall()
+		if lastCall == nil {
+			t.Fatal("expected ExecCommand call for rm")
+		}
+		if lastCall.Command != "rm" || !lastCall.IsSudo {
+			t.Errorf("expected sudo rm, got command=%q IsSudo=%v", lastCall.Command, lastCall.IsSudo)
+		}
+		if len(lastCall.Args) < 2 || lastCall.Args[1] != "/usr/local/bin/lazydocker" {
+			t.Errorf("expected /usr/local/bin/lazydocker in args, got %v", lastCall.Args)
+		}
+	})
 }
 
 func TestUpdate(t *testing.T) {

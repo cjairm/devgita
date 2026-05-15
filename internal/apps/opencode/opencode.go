@@ -54,7 +54,20 @@ func (o *OpenCode) SoftInstall() error {
 }
 
 func (o *OpenCode) Uninstall() error {
-	return fmt.Errorf("%w for opencode", apps.ErrUninstallNotSupported)
+	gc := &config.GlobalConfig{}
+	if err := gc.Load(); err != nil {
+		return fmt.Errorf("failed to load global config: %w", err)
+	}
+	if err := o.Cmd.UninstallPackage(constants.OpenCode); err != nil {
+		return fmt.Errorf("failed to uninstall opencode: %w", err)
+	}
+	_ = os.RemoveAll(paths.Paths.Config.OpenCode)
+	gc.DisableShellFeature(constants.OpenCode)
+	if err := gc.RegenerateShellConfig(); err != nil {
+		return fmt.Errorf("failed to regenerate shell config: %w", err)
+	}
+	gc.RemoveFromInstalled(constants.OpenCode, "package")
+	return gc.Save()
 }
 
 func (o *OpenCode) ForceConfigure() error {

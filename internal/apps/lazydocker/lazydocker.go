@@ -112,7 +112,29 @@ func (ld *LazyDocker) ForceInstall() error {
 }
 
 func (ld *LazyDocker) Uninstall() error {
-	return fmt.Errorf("%w for lazydocker", apps.ErrUninstallNotSupported)
+	gc := &config.GlobalConfig{}
+	if err := gc.Load(); err != nil {
+		return fmt.Errorf("failed to load global config: %w", err)
+	}
+	if ld.Base.IsMac() {
+		if err := ld.Cmd.UninstallPackage(packageName); err != nil {
+			return fmt.Errorf("failed to uninstall lazydocker: %w", err)
+		}
+	} else {
+		if _, _, err := ld.Base.ExecCommand(cmd.CommandParams{
+			Command: "rm",
+			Args:    []string{"-f", "/usr/local/bin/lazydocker"},
+			IsSudo:  true,
+		}); err != nil {
+			return fmt.Errorf("failed to remove lazydocker binary: %w", err)
+		}
+	}
+	gc.DisableShellFeature(constants.LazyDocker)
+	if err := gc.RegenerateShellConfig(); err != nil {
+		return fmt.Errorf("failed to regenerate shell config: %w", err)
+	}
+	gc.RemoveFromInstalled(constants.LazyDocker, "package")
+	return gc.Save()
 }
 
 func (ld *LazyDocker) ForceConfigure() error {
@@ -124,6 +146,7 @@ func (ld *LazyDocker) ForceConfigure() error {
 		return fmt.Errorf("failed to load global config: %w", err)
 	}
 	gc.EnableShellFeature(constants.LazyDocker)
+	gc.AddToInstalled(constants.LazyDocker, "package")
 	if err := gc.RegenerateShellConfig(); err != nil {
 		return fmt.Errorf("failed to generate shell config: %w", err)
 	}

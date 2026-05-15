@@ -55,6 +55,7 @@ func (m *Mise) ForceConfigure() error {
 		return fmt.Errorf("failed to load global config: %w", err)
 	}
 	gc.EnableShellFeature(constants.Mise)
+	gc.AddToInstalled(constants.Mise, "package")
 	if err := gc.RegenerateShellConfig(); err != nil {
 		return fmt.Errorf("failed to generate shell config: %w", err)
 	}
@@ -80,17 +81,17 @@ func (m *Mise) SoftConfigure() error {
 
 func (m *Mise) Uninstall() error {
 	gc := &config.GlobalConfig{}
-	if err := gc.Create(); err != nil {
-		return fmt.Errorf("failed to create global config: %w", err)
-	}
 	if err := gc.Load(); err != nil {
 		return fmt.Errorf("failed to load global config: %w", err)
 	}
+	if err := m.Cmd.UninstallPackage(constants.Mise); err != nil {
+		return fmt.Errorf("failed to uninstall mise: %w", err)
+	}
 	gc.DisableShellFeature(constants.Mise)
 	if err := gc.RegenerateShellConfig(); err != nil {
-		return fmt.Errorf("failed to generate shell config: %w", err)
+		return fmt.Errorf("failed to regenerate shell config: %w", err)
 	}
-	// TODO: We still uninstall the app or remove downloaded doc - see `Install`
+	gc.RemoveFromInstalled(constants.Mise, "package")
 	return gc.Save()
 }
 
