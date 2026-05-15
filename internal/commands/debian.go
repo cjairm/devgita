@@ -54,6 +54,19 @@ func (d *DebianCommand) MaybeInstallFont(
 	}, "font")
 }
 
+func (d *DebianCommand) UninstallPackage(pkg string) error {
+	_, _, err := d.ExecCommand(CommandParams{
+		Command: "apt-get",
+		Args:    []string{"remove", "-y", pkg},
+		IsSudo:  true,
+	})
+	return err
+}
+
+func (d *DebianCommand) UninstallDesktopApp(pkg string) error {
+	return d.UninstallPackage(pkg)
+}
+
 func (d *DebianCommand) InstallPackage(packageName string) error {
 	// Use strategy pattern to select appropriate installation method
 	strategy := d.getInstallationStrategy(packageName)

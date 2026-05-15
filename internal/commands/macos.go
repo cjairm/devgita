@@ -51,6 +51,16 @@ func (m *MacOSCommand) MaybeInstallFont(
 	}, m.InstallDesktopApp, nil, "font")
 }
 
+func (m *MacOSCommand) UninstallPackage(pkg string) error {
+	_, _, err := m.ExecCommand(CommandParams{Command: "brew", Args: []string{"uninstall", pkg}})
+	return err
+}
+
+func (m *MacOSCommand) UninstallDesktopApp(pkg string) error {
+	_, _, err := m.ExecCommand(CommandParams{Command: "brew", Args: []string{"uninstall", "--cask", pkg}})
+	return err
+}
+
 func (m *MacOSCommand) InstallPackage(packageName string) error {
 	logger.L().Debug(fmt.Sprintf("executing: brew install %s", packageName))
 	cmd := CommandParams{

@@ -6,6 +6,7 @@ import "os/exec"
 type MockCommand struct {
 	InstalledPkg          string
 	UninstalledPkg        string
+	UninstalledDesktopApp string
 	MaybeInstalled        string
 	InstalledDesktopApp   string
 	MaybeInstalledDesktop string
@@ -42,6 +43,11 @@ func (m *MockCommand) InstallPackage(pkg string) error {
 
 func (m *MockCommand) UninstallPackage(pkg string) error {
 	m.UninstalledPkg = pkg
+	return m.UninstallError
+}
+
+func (m *MockCommand) UninstallDesktopApp(pkg string) error {
+	m.UninstalledDesktopApp = pkg
 	return m.UninstallError
 }
 
@@ -96,6 +102,7 @@ func (m *MockCommand) IsDesktopAppInstalled(desktopAppName string) (bool, error)
 func (m *MockCommand) Reset() {
 	m.InstalledPkg = ""
 	m.UninstalledPkg = ""
+	m.UninstalledDesktopApp = ""
 	m.MaybeInstalled = ""
 	m.InstalledDesktopApp = ""
 	m.MaybeInstalledDesktop = ""

@@ -15,6 +15,10 @@ type Command interface {
 	InstallPackageManager() error
 	IsPackageManagerInstalled() bool
 
+	// Uninstall
+	UninstallPackage(packageName string) error
+	UninstallDesktopApp(packageName string) error
+
 	// Utils
 	IsPackageInstalled(packageName string) (bool, error)
 	IsDesktopAppInstalled(desktopAppName string) (bool, error)
