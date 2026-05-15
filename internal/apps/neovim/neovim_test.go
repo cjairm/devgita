@@ -65,6 +65,15 @@ func TestSoftInstall(t *testing.T) {
 		t.Fatalf("expected MaybeInstallPackage(%s), got %q", constants.Neovim, mockApp.Cmd.MaybeInstalled)
 	}
 
+	// Confirm deps were installed before neovim itself
+	if len(mockApp.Cmd.MaybeInstalledPkgs) < 2 {
+		t.Fatalf("expected dep installs before neovim, got %v", mockApp.Cmd.MaybeInstalledPkgs)
+	}
+	last := mockApp.Cmd.MaybeInstalledPkgs[len(mockApp.Cmd.MaybeInstalledPkgs)-1]
+	if last != constants.Neovim {
+		t.Errorf("expected last MaybeInstall to be neovim, got %q", last)
+	}
+
 	testutil.VerifyNoRealCommands(t, mockApp.Base)
 }
 

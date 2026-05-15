@@ -56,6 +56,9 @@ func New() *Neovim {
 }
 
 func (n *Neovim) Install() error {
+	if err := InstallDeps(n.Base, n.Cmd); err != nil {
+		return fmt.Errorf("failed to install neovim dependencies: %w", err)
+	}
 	if n.Base.IsMac() {
 		return n.Cmd.InstallPackage(constants.Neovim)
 	}
@@ -67,6 +70,9 @@ func (n *Neovim) ForceInstall() error {
 }
 
 func (n *Neovim) SoftInstall() error {
+	if err := InstallDeps(n.Base, n.Cmd); err != nil {
+		return fmt.Errorf("failed to install neovim dependencies: %w", err)
+	}
 	if n.Base.IsMac() {
 		return n.Cmd.MaybeInstallPackage(constants.Neovim)
 	}
