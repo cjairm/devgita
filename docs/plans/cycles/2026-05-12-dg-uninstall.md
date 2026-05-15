@@ -2,7 +2,7 @@
 
 **Date:** 2026-05-12  
 **Estimated Duration:** ~14-18 hours (40+ file touches, 18 app uninstall paths + tests; Steps 5-8 are parallelizable)  
-**Status:** Draft (Revised 2026-05-13)
+**Status:** Done
 
 ---
 
