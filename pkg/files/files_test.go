@@ -631,7 +631,7 @@ install tmux
 		t.Log("Template with missing field renders as <no value>")
 	})
 
-	t.Run("error when output directory does not exist", func(t *testing.T) {
+	t.Run("creates output directory when it does not exist", func(t *testing.T) {
 		// Create valid template
 		templatePath := filepath.Join(tempDir, "valid.tmpl")
 		templateContent := `Value: {{.Key}}`
@@ -640,16 +640,18 @@ install tmux
 			t.Fatalf("Failed to create template file: %v", err)
 		}
 
-		// Try to write to non-existent directory
+		// Write to a path whose parent directory does not yet exist
 		outputPath := filepath.Join(tempDir, "nonexistent_dir", "output.txt")
 		data := map[string]string{"Key": "Value"}
 
 		err := files.GenerateFromTemplate(templatePath, outputPath, data)
-		if err == nil {
-			t.Fatal("Expected an error when output directory does not exist, got nil")
+		if err != nil {
+			t.Fatalf("Expected directory to be created automatically, got error: %v", err)
 		}
 
-		t.Logf("Correctly handled nonexistent output directory: %v", err)
+		if _, err := os.Stat(outputPath); err != nil {
+			t.Fatalf("Expected output file to exist after auto-creating directory: %v", err)
+		}
 	})
 
 	t.Run("overwrite existing output file", func(t *testing.T) {

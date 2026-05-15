@@ -205,6 +205,10 @@ func GenerateFromTemplate(templatePath, outputPath string, data any) error {
 	if err != nil {
 		return fmt.Errorf("failed to parse template %s: %w", templatePath, err)
 	}
+	// Ensure the output directory exists before creating the temp file
+	if err := os.MkdirAll(filepath.Dir(outputPath), DirPermission); err != nil {
+		return fmt.Errorf("failed to create directory for %s: %w", outputPath, err)
+	}
 	// Write to temporary file first (atomic write pattern)
 	tempFile, err := os.CreateTemp(filepath.Dir(outputPath), "."+filepath.Base(outputPath)+".tmp.*")
 	if err != nil {
