@@ -4,18 +4,19 @@ Public roadmap of planned features, improvements, and discussion topics for futu
 
 ---
 
-## 🔴 Priority: Neovim Dependencies
+## 🟢 Completed: Neovim Dependencies
 
-Add the following packages as terminal tools that must be installed for Neovim to function properly:
+Shipped in v0.15.0. The following packages are now automatically installed as prerequisites when installing Neovim:
 
 - `make`
-- `gcc`
+- `gcc` (Linux only)
 - `ripgrep`
 - `fd-find` (APT) / `fd` (Homebrew)
-- `tree-sitter-cli`
+- `tree-sitter-cli` (with npm fallback on Debian Bookworm stable)
 - `unzip`
 - `xclip` (Linux only; macOS uses `pbcopy`/`pbpaste`)
-- `neovim`
+
+Includes graceful fallback for `tree-sitter-cli` and transparent state tracking in `global_config.yaml`.
 
 ---
 
