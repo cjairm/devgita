@@ -116,6 +116,11 @@ func TestForceInstall(t *testing.T) {
 	tc := testutil.SetupCompleteTest(t)
 	defer tc.Cleanup()
 
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", filepath.Join(tmpDir, "data"))
+	t.Setenv("XDG_STATE_HOME", filepath.Join(tmpDir, "state"))
+	t.Setenv("XDG_CACHE_HOME", filepath.Join(tmpDir, "cache"))
+
 	nvimConfigDir := filepath.Join(tc.ConfigDir, "nvim")
 	oldNvimDir := paths.Paths.Config.Nvim
 	t.Cleanup(func() { paths.Paths.Config.Nvim = oldNvimDir })
