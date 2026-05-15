@@ -21,6 +21,31 @@ type TestPaths struct {
 // PathsCleanup is a function that restores original paths
 type PathsCleanup func()
 
+// IsolateXDGDirs redirects all XDG base directories to a temp directory.
+// This prevents tests from reading, writing, or deleting real user data
+// in ~/.local/share, ~/.local/state, ~/.cache, or ~/.config.
+//
+// CRITICAL: Any test that calls Uninstall(), ForceInstall(), or any code
+// path that uses paths.GetDataDir, paths.GetStateDir, paths.GetCacheDir,
+// or paths.GetConfigDir MUST call this helper first.
+//
+// Usage:
+//
+//	testutil.IsolateXDGDirs(t)
+//	// XDG dirs now point to temp directories; restored automatically after test
+func IsolateXDGDirs(t *testing.T) string {
+	t.Helper()
+
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(tmpDir, ".config"))
+	t.Setenv("XDG_DATA_HOME", filepath.Join(tmpDir, ".local", "share"))
+	t.Setenv("XDG_STATE_HOME", filepath.Join(tmpDir, ".local", "state"))
+	t.Setenv("XDG_CACHE_HOME", filepath.Join(tmpDir, ".cache"))
+
+	return tmpDir
+}
+
 // SetupIsolatedPaths overrides global path variables with test-specific paths
 // Returns a cleanup function to restore original paths
 //
