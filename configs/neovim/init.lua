@@ -212,9 +212,11 @@ do
 	-- require 'kickstart.plugins.debug'
 	-- require 'kickstart.plugins.indent_line'
 	-- require 'kickstart.plugins.autopairs'
-	-- require 'kickstart.plugins.gitsigns' -- adds gitsigns recommended keymaps
+	-- [devgita]
+	require("kickstart.plugins.gitsigns")
 	require("kickstart.plugins.lint")
-	require("devgita.plugins.neotree")
+	require("kickstart.plugins.neotree")
+	-- [/devgita]
 
 	-- NOTE: You can add your own plugins, configuration, etc from `lua/custom/plugins/*.lua`
 	--
