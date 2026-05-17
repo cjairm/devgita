@@ -45,17 +45,14 @@ require("conform").setup({
 	formatters = {
 		prettier = {
 			condition = function(_, ctx)
-				return vim.fs.find(
-					{
-						"prettier.config.js",
-						"prettier.config.cjs",
-						".prettierrc",
-						".prettierrc.js",
-						".prettierrc.json",
-						".prettierrc.yml",
-					},
-					{ path = ctx.filename, upward = true }
-				)[1] ~= nil
+				return vim.fs.find({
+					"prettier.config.js",
+					"prettier.config.cjs",
+					".prettierrc",
+					".prettierrc.js",
+					".prettierrc.json",
+					".prettierrc.yml",
+				}, { path = ctx.filename, upward = true })[1] ~= nil
 			end,
 		},
 	},

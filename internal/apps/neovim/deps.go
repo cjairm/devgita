@@ -53,6 +53,11 @@ func InstallDeps(base cmd.BaseCommandExecutor, c cmd.Command) error {
 	// tree-sitter-cli — best-effort; fallback to npm if primary package manager fails
 	installTreeSitter(base, c)
 
+	// nvim-lint linters — best-effort installs so save-time linting doesn't ENOENT
+	installMarkdownlint(base, c)
+	installFlake8(c)
+	installGolangciLint(base, c)
+
 	return nil
 }
 
@@ -89,6 +94,83 @@ func installTreeSitter(base cmd.BaseCommandExecutor, c cmd.Command) {
 	gc.AddToInstalled(constants.TreeSitterCli, "package")
 	if saveErr := gc.Save(); saveErr != nil {
 		logger.L().Warnw("Could not save global config after tracking tree-sitter-cli",
+			"error", saveErr)
+	}
+}
+
+// installMarkdownlint installs markdownlint-cli via the primary package manager
+// (brew on macOS), falling back to npm. Used by the nvim-lint plugin for markdown
+// files. Soft install — warn and continue on failure; Neovim still works.
+func installMarkdownlint(base cmd.BaseCommandExecutor, c cmd.Command) {
+	primaryErr := c.MaybeInstallPackage(constants.Markdownlint)
+	if primaryErr == nil {
+		return
+	}
+	logger.L().Warnw("Primary markdownlint-cli install failed, trying npm fallback",
+		"error", primaryErr)
+
+	_, stderr, err := base.ExecCommand(cmd.CommandParams{
+		Command: "npm",
+		Args:    []string{"install", "-g", "markdownlint-cli"},
+	})
+	if err != nil {
+		logger.L().Warnw("npm fallback for markdownlint-cli also failed — markdown linting disabled",
+			"error", err, "stderr", stderr)
+		return
+	}
+
+	gc := &config.GlobalConfig{}
+	if loadErr := gc.Load(); loadErr != nil {
+		logger.L().Warnw("Could not load global config to track markdownlint-cli",
+			"error", loadErr)
+		return
+	}
+	gc.AddToInstalled(constants.Markdownlint, "package")
+	if saveErr := gc.Save(); saveErr != nil {
+		logger.L().Warnw("Could not save global config after tracking markdownlint-cli",
+			"error", saveErr)
+	}
+}
+
+// installFlake8 installs flake8 via the primary package manager. Available on
+// both brew and apt under the same name. Soft install — warn and continue.
+func installFlake8(c cmd.Command) {
+	if err := c.MaybeInstallPackage(constants.Flake8); err != nil {
+		logger.L().Warnw("flake8 install failed — python linting disabled",
+			"error", err)
+	}
+}
+
+// installGolangciLint installs golangci-lint via the primary package manager
+// (brew on macOS, apt on newer Ubuntu), falling back to `go install`. Soft
+// install — warn and continue on failure.
+func installGolangciLint(base cmd.BaseCommandExecutor, c cmd.Command) {
+	primaryErr := c.MaybeInstallPackage(constants.GolangciLint)
+	if primaryErr == nil {
+		return
+	}
+	logger.L().Warnw("Primary golangci-lint install failed, trying `go install` fallback",
+		"error", primaryErr)
+
+	_, stderr, err := base.ExecCommand(cmd.CommandParams{
+		Command: "go",
+		Args:    []string{"install", "github.com/golangci/golangci-lint/cmd/golangci-lint@latest"},
+	})
+	if err != nil {
+		logger.L().Warnw("`go install` fallback for golangci-lint also failed — go linting disabled",
+			"error", err, "stderr", stderr)
+		return
+	}
+
+	gc := &config.GlobalConfig{}
+	if loadErr := gc.Load(); loadErr != nil {
+		logger.L().Warnw("Could not load global config to track golangci-lint",
+			"error", loadErr)
+		return
+	}
+	gc.AddToInstalled(constants.GolangciLint, "package")
+	if saveErr := gc.Save(); saveErr != nil {
+		logger.L().Warnw("Could not save global config after tracking golangci-lint",
 			"error", saveErr)
 	}
 }

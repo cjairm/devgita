@@ -37,7 +37,9 @@
       "Bash(wc *)",
       "Bash(mkdir *)",
       "Bash(cp *)",
+      "Bash(cd *)",
       "Bash(source *)",
+      "Bash(cat *)",
       "Read",
       "Edit"
     ],

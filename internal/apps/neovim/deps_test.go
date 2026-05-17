@@ -26,6 +26,9 @@ func TestInstallDeps_Mac(t *testing.T) {
 		constants.FdFind,
 		constants.Unzip,
 		constants.TreeSitterCli,
+		constants.Markdownlint,
+		constants.Flake8,
+		constants.GolangciLint,
 	}
 	if len(pkgs) != len(expected) {
 		t.Fatalf("expected %d MaybeInstallPackage calls, got %d: %v", len(expected), len(pkgs), pkgs)
@@ -68,6 +71,9 @@ func TestInstallDeps_Linux(t *testing.T) {
 		constants.Unzip,
 		constants.Xclip,
 		constants.TreeSitterCli,
+		constants.Markdownlint,
+		constants.Flake8,
+		constants.GolangciLint,
 	}
 	if len(pkgs) != len(expected) {
 		t.Fatalf("expected %d MaybeInstallPackage calls, got %d: %v", len(expected), len(pkgs), pkgs)
@@ -129,6 +135,76 @@ func TestInstallDeps_TreeSitterBothFail(t *testing.T) {
 	if len(mockApp.Base.ExecCommandCalls) == 0 {
 		t.Fatal("expected ExecCommand to be called for npm fallback attempt")
 	}
+}
+
+// TestInstallDeps_MarkdownlintFallback_Linux verifies that when markdownlint-cli primary
+// install fails, npm fallback is attempted with the correct package name.
+func TestInstallDeps_MarkdownlintFallback_Linux(t *testing.T) {
+	mockApp := testutil.NewMockApp()
+	mockApp.Base.IsMacResult = false
+	mockApp.Cmd.MaybeInstallErrors[constants.Markdownlint] = errors.New("not found in apt")
+	mockApp.Base.SetExecCommandResult("", "", nil)
+
+	err := InstallDeps(mockApp.Base, mockApp.Cmd)
+	if err != nil {
+		t.Fatalf("InstallDeps should return nil when markdownlint primary fails, got: %v", err)
+	}
+
+	// Look for the npm install -g markdownlint-cli call
+	found := false
+	for _, call := range mockApp.Base.ExecCommandCalls {
+		if call.Command == "npm" && len(call.Args) >= 3 &&
+			call.Args[0] == "install" && call.Args[1] == "-g" && call.Args[2] == "markdownlint-cli" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected npm install -g markdownlint-cli call, got: %v", mockApp.Base.ExecCommandCalls)
+	}
+}
+
+// TestInstallDeps_GolangciLintFallback_Linux verifies that when golangci-lint primary
+// install fails, `go install` fallback is attempted with the correct module path.
+func TestInstallDeps_GolangciLintFallback_Linux(t *testing.T) {
+	mockApp := testutil.NewMockApp()
+	mockApp.Base.IsMacResult = false
+	mockApp.Cmd.MaybeInstallErrors[constants.GolangciLint] = errors.New("not found in apt")
+	mockApp.Base.SetExecCommandResult("", "", nil)
+
+	err := InstallDeps(mockApp.Base, mockApp.Cmd)
+	if err != nil {
+		t.Fatalf("InstallDeps should return nil when golangci-lint primary fails, got: %v", err)
+	}
+
+	// Look for the go install call
+	found := false
+	for _, call := range mockApp.Base.ExecCommandCalls {
+		if call.Command == "go" && len(call.Args) >= 2 &&
+			call.Args[0] == "install" &&
+			call.Args[1] == "github.com/golangci/golangci-lint/cmd/golangci-lint@latest" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected `go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest`, got: %v", mockApp.Base.ExecCommandCalls)
+	}
+}
+
+// TestInstallDeps_Flake8Fails verifies that when flake8 install fails, InstallDeps
+// still returns nil (soft install — warn and continue).
+func TestInstallDeps_Flake8Fails(t *testing.T) {
+	mockApp := testutil.NewMockApp()
+	mockApp.Base.IsMacResult = false
+	mockApp.Cmd.MaybeInstallErrors[constants.Flake8] = errors.New("flake8 install failed")
+
+	err := InstallDeps(mockApp.Base, mockApp.Cmd)
+	if err != nil {
+		t.Fatalf("InstallDeps should return nil when flake8 fails (soft install), got: %v", err)
+	}
+
+	testutil.VerifyNoRealCommands(t, mockApp.Base)
 }
 
 // TestInstallDeps_MakeFails verifies that when make install fails, error is returned immediately
