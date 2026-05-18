@@ -75,36 +75,51 @@
     "padding": 2
   },
   "hooks": {
-    "afterEdit": [
+    "PostToolUse": [
       {
-        "command": "~/.local/share/nvim/mason/bin/eslint_d . --fix || true"
-      },
-      {
-        "command": "~/.local/share/nvim/mason/bin/prettier . --write || true"
-      },
-      {
-        "command": "~/.local/share/nvim/mason/bin/isort . || true"
-      },
-      {
-        "command": "~/.local/share/nvim/mason/bin/black . || true"
-      },
-      {
-        "command": "~/.local/share/nvim/mason/bin/flake8 . || true"
-      },
-      {
-        "command": "~/.local/share/nvim/mason/bin/goimports -w . || true"
-      },
-      {
-        "command": "~/.local/share/nvim/mason/bin/gofumpt -w . || true"
-      },
-      {
-        "command": "~/.local/share/nvim/mason/bin/golines -w . || true"
-      },
-      {
-        "command": "~/.local/share/nvim/mason/bin/stylua . || true"
-      },
-      {
-        "command": "~/.local/share/nvim/mason/bin/shfmt -w . || true"
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.local/share/nvim/mason/bin/eslint_d . --fix || true"
+          },
+          {
+            "type": "command",
+            "command": "~/.local/share/nvim/mason/bin/prettier . --write || true"
+          },
+          {
+            "type": "command",
+            "command": "~/.local/share/nvim/mason/bin/isort . || true"
+          },
+          {
+            "type": "command",
+            "command": "~/.local/share/nvim/mason/bin/black . || true"
+          },
+          {
+            "type": "command",
+            "command": "~/.local/share/nvim/mason/bin/flake8 . || true"
+          },
+          {
+            "type": "command",
+            "command": "~/.local/share/nvim/mason/bin/goimports -w . || true"
+          },
+          {
+            "type": "command",
+            "command": "~/.local/share/nvim/mason/bin/gofumpt -w . || true"
+          },
+          {
+            "type": "command",
+            "command": "~/.local/share/nvim/mason/bin/golines -w . || true"
+          },
+          {
+            "type": "command",
+            "command": "~/.local/share/nvim/mason/bin/stylua . || true"
+          },
+          {
+            "type": "command",
+            "command": "~/.local/share/nvim/mason/bin/shfmt -w . || true"
+          }
+        ]
       }
     ]
   }
