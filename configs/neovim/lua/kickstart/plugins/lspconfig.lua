@@ -125,8 +125,6 @@ local servers = {
 	ts_ls = {},
 	-- [/devgita]
 
-	stylua = {}, -- Used to format Lua code
-
 	-- Special Lua Config, as recommended by neovim help docs
 	lua_ls = {
 		on_init = function(client)
@@ -188,15 +186,17 @@ local ensure_installed = vim.tbl_keys(servers or {})
 vim.list_extend(ensure_installed, {
 	-- [devgita] formatters and linters (not LSP servers)
 	"black",
-	"eslint_d",
 	"flake8",
 	"goimports",
 	"gofumpt",
 	"golangci-lint",
 	"golines",
 	"isort",
+	"markdownlint",
 	"prettier",
+	"prettierd",
 	"shfmt",
+	"stylua",
 	-- [/devgita]
 })
 

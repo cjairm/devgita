@@ -38,6 +38,7 @@ require("conform").setup({
 		markdown = { "prettierd", "prettier", stop_after_first = true },
 		graphql = { "prettierd", "prettier", stop_after_first = true },
 		go = { "goimports", "gofmt", "golines" },
+		sh = { "shfmt" },
 		-- Conform can also run multiple formatters sequentially
 		python = { "isort", "black" },
 	},
