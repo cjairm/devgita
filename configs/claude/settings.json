@@ -81,43 +81,43 @@
         "hooks": [
           {
             "type": "command",
-            "command": "~/.local/share/nvim/mason/bin/eslint_d . --fix || true"
+            "command": "~/.local/share/nvim/mason/bin/eslint_d $CLAUDE_FILE_PATHS --fix || true"
           },
           {
             "type": "command",
-            "command": "~/.local/share/nvim/mason/bin/prettier . --write || true"
+            "command": "~/.local/share/nvim/mason/bin/prettier $CLAUDE_FILE_PATHS --write || true"
           },
           {
             "type": "command",
-            "command": "~/.local/share/nvim/mason/bin/isort . || true"
+            "command": "~/.local/share/nvim/mason/bin/isort $CLAUDE_FILE_PATHS || true"
           },
           {
             "type": "command",
-            "command": "~/.local/share/nvim/mason/bin/black . || true"
+            "command": "echo $CLAUDE_FILE_PATHS | grep -q '\\.py$' && ~/.local/share/nvim/mason/bin/black $CLAUDE_FILE_PATHS || true"
           },
           {
             "type": "command",
-            "command": "~/.local/share/nvim/mason/bin/flake8 . || true"
+            "command": "~/.local/share/nvim/mason/bin/flake8 $CLAUDE_FILE_PATHS || true"
           },
           {
             "type": "command",
-            "command": "~/.local/share/nvim/mason/bin/goimports -w . || true"
+            "command": "~/.local/share/nvim/mason/bin/goimports -w $CLAUDE_FILE_PATHS || true"
           },
           {
             "type": "command",
-            "command": "~/.local/share/nvim/mason/bin/gofumpt -w . || true"
+            "command": "~/.local/share/nvim/mason/bin/gofumpt -w $CLAUDE_FILE_PATHS || true"
           },
           {
             "type": "command",
-            "command": "~/.local/share/nvim/mason/bin/golines -w . || true"
+            "command": "~/.local/share/nvim/mason/bin/golines -w $CLAUDE_FILE_PATHS || true"
           },
           {
             "type": "command",
-            "command": "~/.local/share/nvim/mason/bin/stylua . || true"
+            "command": "~/.local/share/nvim/mason/bin/stylua $CLAUDE_FILE_PATHS || true"
           },
           {
             "type": "command",
-            "command": "~/.local/share/nvim/mason/bin/shfmt -w . || true"
+            "command": "~/.local/share/nvim/mason/bin/shfmt -w $CLAUDE_FILE_PATHS || true"
           }
         ]
       }
