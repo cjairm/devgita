@@ -306,6 +306,52 @@ func (g *Git) PruneWorktrees() error {
 	return nil
 }
 
+// CheckHookCompatibility scans the repo's effective hooks directory for scripts
+// that use `[ -d .git ]` or `test -d .git`. In a git worktree the .git entry is
+// a FILE, not a directory, so those checks always fail and block git commit.
+// Returns one warning string per offending hook file, or nil if all clear.
+func (g *Git) CheckHookCompatibility(repoRoot string) []string {
+	hooksDir := g.hooksDir(repoRoot)
+
+	hookFiles := []string{"pre-commit", "commit-msg", "prepare-commit-msg", "post-commit", "pre-push"}
+	incompatiblePatterns := []string{"[ -d .git", "test -d .git"}
+
+	var warnings []string
+	for _, hookFile := range hookFiles {
+		content, err := os.ReadFile(filepath.Join(hooksDir, hookFile))
+		if err != nil {
+			continue
+		}
+		contentStr := string(content)
+		for _, pattern := range incompatiblePatterns {
+			if strings.Contains(contentStr, pattern) {
+				warnings = append(warnings, fmt.Sprintf("%s (contains %q)", hookFile, pattern))
+				break
+			}
+		}
+	}
+	return warnings
+}
+
+// hooksDir returns the effective hooks directory for repoRoot.
+// Respects core.hooksPath if configured; falls back to <repoRoot>/.git/hooks.
+func (g *Git) hooksDir(repoRoot string) string {
+	execCommand := cmd.CommandParams{
+		Command: constants.Git,
+		Args:    []string{"-C", repoRoot, "config", "--get", "core.hooksPath"},
+	}
+	if stdout, _, err := g.Base.ExecCommand(execCommand); err == nil {
+		p := strings.TrimSpace(stdout)
+		if p != "" {
+			if !filepath.IsAbs(p) {
+				p = filepath.Join(repoRoot, p)
+			}
+			return p
+		}
+	}
+	return filepath.Join(repoRoot, ".git", "hooks")
+}
+
 // parseWorktreeOutput parses the porcelain output of git worktree list
 func parseWorktreeOutput(output string) []WorktreeInfo {
 	var worktrees []WorktreeInfo

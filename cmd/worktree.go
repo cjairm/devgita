@@ -70,7 +70,7 @@ After creation, switch to the window with:
 		}
 
 		wm := worktree.New()
-		if err := wm.Create(name, coder); err != nil {
+		if err := wm.Create(name, coder, forceFlag); err != nil {
 			return err
 		}
 
@@ -294,6 +294,7 @@ func init() {
 	worktreeCmd.AddCommand(worktreePruneCmd)
 
 	worktreeCreateCmd.Flags().StringVarP(&aiFlag, "ai", "a", "", "AI coder to launch (opencode, oc, claude, cc, claudecode)")
+	worktreeCreateCmd.Flags().BoolVarP(&forceFlag, "force", "f", false, "Skip hook compatibility check")
 	worktreeRepairCmd.Flags().StringVarP(&aiFlag, "ai", "a", "", "AI coder to launch (opencode, oc, claude, cc, claudecode)")
 	worktreeRemoveCmd.Flags().BoolVarP(&forceFlag, "force", "f", false, "Force removal even if worktree has uncommitted changes")
 }

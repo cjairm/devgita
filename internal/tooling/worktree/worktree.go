@@ -89,8 +89,10 @@ func GetWorktreeBasePath() string {
 	return filepath.Join(paths.Paths.Data.Root, "devgita", "worktrees")
 }
 
-// Create creates a new worktree with tmux window and launches the specified AI coder
-func (w *WorktreeManager) Create(name string, coder AICoder) error {
+// Create creates a new worktree with tmux window and launches the specified AI coder.
+// If force is false and the repo has hooks incompatible with git worktrees, the user
+// is prompted to confirm before proceeding.
+func (w *WorktreeManager) Create(name string, coder AICoder, force bool) error {
 	if coder == nil {
 		return fmt.Errorf("AI coder is required")
 	}
@@ -131,6 +133,20 @@ func (w *WorktreeManager) Create(name string, coder AICoder) error {
 	}
 	if !state.WtExists && state.WindowExists {
 		return fmt.Errorf("orphan window '%s' exists; run `tmux kill-window -t %s` manually", windowName, windowName)
+	}
+
+	if !force {
+		if warnings := w.Git.CheckHookCompatibility(repoRoot); len(warnings) > 0 {
+			fmt.Println("Warning: this repo has hooks incompatible with git worktrees:")
+			for _, warning := range warnings {
+				fmt.Printf("  - %s\n", warning)
+			}
+			fmt.Println("In a worktree, .git is a file not a directory, so these hooks will fail.")
+			fmt.Print("Continue anyway? [y/N] (or re-run with --force to skip this check): ")
+			if !confirmFromTTY() {
+				return fmt.Errorf("cancelled")
+			}
+		}
 	}
 
 	if err := os.MkdirAll(filepath.Dir(wtPath), 0755); err != nil {

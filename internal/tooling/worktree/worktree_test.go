@@ -94,7 +94,7 @@ func TestCreate(t *testing.T) {
 		mockGitBase.SetExecCommandResult(tempDir+"\n", "", nil)
 		mockTmuxBase.SetExecCommandResult("", "window not found", os.ErrNotExist)
 
-		err := wm.Create("feature-test", &OpenCodeCoder{})
+		err := wm.Create("feature-test", &OpenCodeCoder{}, true)
 		if err == nil {
 			if mockGitBase.GetExecCommandCallCount() < 1 {
 				t.Error("Expected git commands to be called")
@@ -104,7 +104,7 @@ func TestCreate(t *testing.T) {
 
 	t.Run("nil coder returns error", func(t *testing.T) {
 		wm := &WorktreeManager{}
-		err := wm.Create("test", nil)
+		err := wm.Create("test", nil, true)
 		if err == nil {
 			t.Fatal("Expected error for nil coder")
 		}
@@ -131,7 +131,7 @@ func TestCreate(t *testing.T) {
 
 		mockGitBase.SetExecCommandResult("", "fatal: not a git repository", os.ErrNotExist)
 
-		err := wm.Create("feature-test", &OpenCodeCoder{})
+		err := wm.Create("feature-test", &OpenCodeCoder{}, true)
 		if err == nil {
 			t.Fatal("Expected error when not in git repo")
 		}

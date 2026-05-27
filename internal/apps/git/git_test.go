@@ -658,6 +658,138 @@ func TestIsWorktreeDirty(t *testing.T) {
 	})
 }
 
+func TestCheckHookCompatibility(t *testing.T) {
+	t.Run("no hooks directory returns no warnings", func(t *testing.T) {
+		mockApp := testutil.NewMockApp()
+		app := &Git{Cmd: mockApp.Cmd, Base: mockApp.Base}
+		mockApp.Base.SetExecCommandResult("", "exit status 1", fmt.Errorf("exit status 1"))
+
+		warnings := app.CheckHookCompatibility(t.TempDir())
+		if len(warnings) != 0 {
+			t.Errorf("Expected no warnings, got %v", warnings)
+		}
+	})
+
+	t.Run("hook with [ -d .git pattern triggers warning", func(t *testing.T) {
+		mockApp := testutil.NewMockApp()
+		app := &Git{Cmd: mockApp.Cmd, Base: mockApp.Base}
+		mockApp.Base.SetExecCommandResult("", "exit status 1", fmt.Errorf("exit status 1"))
+
+		tmpDir := t.TempDir()
+		hooksDir := filepath.Join(tmpDir, ".git", "hooks")
+		if err := os.MkdirAll(hooksDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		hookContent := "#!/bin/bash\n[ -d .git ] || { echo 'no .git directory found'; exit 1; }\n"
+		if err := os.WriteFile(filepath.Join(hooksDir, "pre-commit"), []byte(hookContent), 0755); err != nil {
+			t.Fatal(err)
+		}
+
+		warnings := app.CheckHookCompatibility(tmpDir)
+		if len(warnings) != 1 {
+			t.Fatalf("Expected 1 warning, got %d: %v", len(warnings), warnings)
+		}
+		if !strings.Contains(warnings[0], "pre-commit") {
+			t.Errorf("Expected warning to mention pre-commit, got %q", warnings[0])
+		}
+		if !strings.Contains(warnings[0], `[ -d .git`) {
+			t.Errorf("Expected warning to mention the pattern, got %q", warnings[0])
+		}
+	})
+
+	t.Run("hook with test -d .git pattern triggers warning", func(t *testing.T) {
+		mockApp := testutil.NewMockApp()
+		app := &Git{Cmd: mockApp.Cmd, Base: mockApp.Base}
+		mockApp.Base.SetExecCommandResult("", "exit status 1", fmt.Errorf("exit status 1"))
+
+		tmpDir := t.TempDir()
+		hooksDir := filepath.Join(tmpDir, ".git", "hooks")
+		if err := os.MkdirAll(hooksDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		hookContent := "#!/bin/bash\ntest -d .git || exit 1\n"
+		if err := os.WriteFile(filepath.Join(hooksDir, "commit-msg"), []byte(hookContent), 0755); err != nil {
+			t.Fatal(err)
+		}
+
+		warnings := app.CheckHookCompatibility(tmpDir)
+		if len(warnings) != 1 {
+			t.Fatalf("Expected 1 warning, got %d: %v", len(warnings), warnings)
+		}
+		if !strings.Contains(warnings[0], "commit-msg") {
+			t.Errorf("Expected warning to mention commit-msg, got %q", warnings[0])
+		}
+	})
+
+	t.Run("hook using git rev-parse is compatible", func(t *testing.T) {
+		mockApp := testutil.NewMockApp()
+		app := &Git{Cmd: mockApp.Cmd, Base: mockApp.Base}
+		mockApp.Base.SetExecCommandResult("", "exit status 1", fmt.Errorf("exit status 1"))
+
+		tmpDir := t.TempDir()
+		hooksDir := filepath.Join(tmpDir, ".git", "hooks")
+		if err := os.MkdirAll(hooksDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		hookContent := "#!/bin/bash\ngit_dir=$(git rev-parse --git-dir)\necho \"git dir: $git_dir\"\n"
+		if err := os.WriteFile(filepath.Join(hooksDir, "pre-commit"), []byte(hookContent), 0755); err != nil {
+			t.Fatal(err)
+		}
+
+		warnings := app.CheckHookCompatibility(tmpDir)
+		if len(warnings) != 0 {
+			t.Errorf("Expected no warnings for compatible hook, got %v", warnings)
+		}
+	})
+
+	t.Run("respects custom core.hooksPath", func(t *testing.T) {
+		mockApp := testutil.NewMockApp()
+		app := &Git{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+		tmpDir := t.TempDir()
+		huskyDir := filepath.Join(tmpDir, ".husky")
+		if err := os.MkdirAll(huskyDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		hookContent := "#!/bin/sh\n[ -d .git ] || exit 1\n"
+		if err := os.WriteFile(filepath.Join(huskyDir, "pre-commit"), []byte(hookContent), 0755); err != nil {
+			t.Fatal(err)
+		}
+		mockApp.Base.SetExecCommandResult(".husky\n", "", nil)
+
+		warnings := app.CheckHookCompatibility(tmpDir)
+		if len(warnings) != 1 {
+			t.Fatalf("Expected 1 warning for husky hook, got %d: %v", len(warnings), warnings)
+		}
+		if !strings.Contains(warnings[0], "pre-commit") {
+			t.Errorf("Expected pre-commit warning, got %q", warnings[0])
+		}
+	})
+
+	t.Run("multiple hooks each trigger one warning", func(t *testing.T) {
+		mockApp := testutil.NewMockApp()
+		app := &Git{Cmd: mockApp.Cmd, Base: mockApp.Base}
+		mockApp.Base.SetExecCommandResult("", "exit status 1", fmt.Errorf("exit status 1"))
+
+		tmpDir := t.TempDir()
+		hooksDir := filepath.Join(tmpDir, ".git", "hooks")
+		if err := os.MkdirAll(hooksDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		badHook := "#!/bin/bash\n[ -d .git ] || exit 1\n"
+		for _, name := range []string{"pre-commit", "commit-msg"} {
+			if err := os.WriteFile(filepath.Join(hooksDir, name), []byte(badHook), 0755); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		warnings := app.CheckHookCompatibility(tmpDir)
+		if len(warnings) != 2 {
+			t.Errorf("Expected 2 warnings, got %d: %v", len(warnings), warnings)
+		}
+	})
+}
+
 func TestPruneWorktrees(t *testing.T) {
 	mockApp := testutil.NewMockApp()
 	app := &Git{Cmd: mockApp.Cmd, Base: mockApp.Base}
