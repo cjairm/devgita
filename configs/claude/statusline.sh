@@ -73,13 +73,20 @@ MINS=$((DUR_MS / 60000))
 SECS=$(((DUR_MS % 60000) / 1000))
 SEP=" ${DIM}|${RESET} "
 
-# Compact display for worktrees - show just the worktree name instead of full path
+# Compact display for worktrees - show the parent folder (repo slug) instead of
+# the worktree name, since the worktree/branch name is already shown via the branch.
 if [ -n "$WORKTREE" ]; then
-    # Truncate worktree name if > 30 chars
-    if [ ${#WORKTREE} -gt 30 ]; then
-        DISPLAY_DIR="${WORKTREE:0:27}..."
+    # WORKTREE may be a full path or a bare name; resolve the parent folder name.
+    if [ "${WORKTREE#*/}" != "$WORKTREE" ]; then
+        PARENT_DIR=$(basename "$(dirname "$WORKTREE")")
     else
-        DISPLAY_DIR="$WORKTREE"
+        PARENT_DIR=$(basename "$(dirname "$DIR")")
+    fi
+    # Truncate if > 30 chars
+    if [ ${#PARENT_DIR} -gt 30 ]; then
+        DISPLAY_DIR="${PARENT_DIR:0:27}..."
+    else
+        DISPLAY_DIR="$PARENT_DIR"
     fi
     L="${DIM}wt:${RESET}${CYAN}${DISPLAY_DIR}${RESET}"
 elif [ -n "$HOME" ] && [ "$DIR" = "$HOME" ]; then
@@ -93,6 +100,10 @@ else
     L="${DIM}${DISPLAY_DIR}${RESET}"
 fi
 if [ -n "$GB" ]; then
+    # Head-truncate long branch names (keep the prefix, e.g. ticket id) at 30 chars
+    if [ ${#GB} -gt 30 ]; then
+        GB="${GB:0:27}..."
+    fi
     L+="${SEP}${BLUE}${GB}${RESET}"
     [ "${GS:-0}" -gt 0 ] && L+=" ${GREEN}+${GS}${RESET}"
     [ "${GM:-0}" -gt 0 ] && L+=" ${YELLOW}~${GM}${RESET}"
