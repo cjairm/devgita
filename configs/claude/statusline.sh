@@ -73,14 +73,25 @@ MINS=$((DUR_MS / 60000))
 SECS=$(((DUR_MS % 60000) / 1000))
 SEP=" ${DIM}|${RESET} "
 
-if [ -n "$HOME" ] && [ "$DIR" = "$HOME" ]; then
+# Compact display for worktrees - show just the worktree name instead of full path
+if [ -n "$WORKTREE" ]; then
+    # Truncate worktree name if > 30 chars
+    if [ ${#WORKTREE} -gt 30 ]; then
+        DISPLAY_DIR="${WORKTREE:0:27}..."
+    else
+        DISPLAY_DIR="$WORKTREE"
+    fi
+    L="${DIM}wt:${RESET}${CYAN}${DISPLAY_DIR}${RESET}"
+elif [ -n "$HOME" ] && [ "$DIR" = "$HOME" ]; then
     DISPLAY_DIR="~"
+    L="${DIM}${DISPLAY_DIR}${RESET}"
 elif [ -n "$HOME" ] && [ "${DIR#"$HOME"/}" != "$DIR" ]; then
     DISPLAY_DIR="~/${DIR#"$HOME"/}"
+    L="${DIM}${DISPLAY_DIR}${RESET}"
 else
     DISPLAY_DIR="$DIR"
+    L="${DIM}${DISPLAY_DIR}${RESET}"
 fi
-L="${DIM}${DISPLAY_DIR}${RESET}"
 if [ -n "$GB" ]; then
     L+="${SEP}${BLUE}${GB}${RESET}"
     [ "${GS:-0}" -gt 0 ] && L+=" ${GREEN}+${GS}${RESET}"
@@ -92,7 +103,7 @@ if [ "${ADDED:-0}" -gt 0 ] || [ "${REMOVED:-0}" -gt 0 ]; then
 fi
 SESSION=""
 [ -n "$AGENT" ]    && SESSION+="${MAGENTA}@${AGENT}${RESET}"
-[ -n "$WORKTREE" ] && SESSION+="${SESSION:+ }${DIM}wt:${WORKTREE}${RESET}"
+# WORKTREE is now shown in the path prefix, no need to duplicate here
 [ -n "$SESSION" ]  && L+="${SEP}${SESSION}"
 L+="${SEP}${BAR_COLOR}${BAR_FILL}${DIM}${BAR_EMPTY}${RESET} ${PCT}% ctx"
 if [ "$FIVE_H" -ge 0 ] || [ "$SEVEN_D" -ge 0 ]; then
