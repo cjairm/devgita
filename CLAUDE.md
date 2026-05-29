@@ -9,6 +9,7 @@
 Devgita is a cross-platform development environment manager that automates installation and configuration of terminal tools, programming language runtimes, database systems, and desktop applications on macOS and Debian/Ubuntu.
 
 **Core functionality:**
+
 - **Installation automation** — `dg install` with interactive category selection
 - **Category-based setup** — terminal tools, languages, databases, desktop apps
 - **Cross-platform support** — Single command syntax works on macOS and Linux
@@ -109,6 +110,7 @@ Hard constraints that override all other considerations:
 **See [docs/guides/error-handling.md](docs/guides/error-handling.md) for detailed patterns.**
 
 Key principles:
+
 - Always check errors: `if err != nil { return err }` or `logger.Fatal(err)`
 - Use `MaybeExitWithError()` for user-facing errors
 - Provide actionable error messages: tell users what went wrong and how to fix it
@@ -121,12 +123,14 @@ Key principles:
 **See [docs/guides/testing-patterns.md](docs/guides/testing-patterns.md) for complete patterns, examples, and reference.**
 
 Accidental real command execution is a common mistake. It can:
+
 - Break tests on different systems (missing tools, platform differences)
 - Modify user state (install packages, create files)
 - Cause CI failures in shared environments
 - Hide bugs (tests pass only if side effects succeed)
 
 **Testing checklist:**
+
 - [ ] All public functionality has tests
 - [ ] Use `testutil.MockApp` for command mocking (see `internal/testutil/`)
 - [ ] Verify no real commands executed: `testutil.VerifyNoRealCommands(t, mockApp.Base)`
@@ -192,17 +196,20 @@ Verify these before changing code in these areas:
 ## 8. Platform scope
 
 **Supported platforms:**
+
 - macOS 13+ (Ventura or newer) with Homebrew
 - Debian 12+ (Bookworm) and Ubuntu 24+ with APT
 - Architectures: amd64, arm64 (Apple Silicon)
 
 **Supported categories:**
+
 - Terminal tools (40+): shells, editors, utilities, runtime managers
 - Languages: Node.js, Python, Go, Rust, PHP (via Mise or native)
 - Databases: PostgreSQL, Redis, MySQL, MongoDB, SQLite
 - Desktop apps: Platform-specific GUIs (Docker, browsers, window managers, etc.)
 
 **Single-command installation:**
+
 - `dg install` — interactive full setup
 - `dg install --only <category>` — install specific category
 - `dg install --skip <category>` — install all except category
@@ -217,13 +224,14 @@ Devgita follows [Semantic Versioning](https://semver.org/) strictly: **`vMAJOR.M
 
 ### Which bump to use
 
-| Change type | Bump | Example |
-| --- | --- | --- |
-| Bug fix, typo, test fix, docs correction | **PATCH** `x.x.^` | `v0.10.2` -> `v0.10.3` |
-| New feature, new app installer, new command, new flag | **MINOR** `x.^.x` | `v0.10.3` -> `v0.11.0` |
-| Breaking change to CLI interface, config format change, removed platform support | **MAJOR** `^.x.x` | `v0.11.0` -> `v1.0.0` |
+| Change type                                                                      | Bump              | Example                |
+| -------------------------------------------------------------------------------- | ----------------- | ---------------------- |
+| Bug fix, typo, test fix, docs correction                                         | **PATCH** `x.x.^` | `v0.10.2` -> `v0.10.3` |
+| New feature, new app installer, new command, new flag                            | **MINOR** `x.^.x` | `v0.10.3` -> `v0.11.0` |
+| Breaking change to CLI interface, config format change, removed platform support | **MAJOR** `^.x.x` | `v0.11.0` -> `v1.0.0`  |
 
 **Rules:**
+
 - Tags always start with `v` (e.g., `v0.10.3`, not `0.10.3`)
 - PATCH resets to 0 on MINOR bump; MINOR and PATCH reset to 0 on MAJOR bump
 - Refactoring with no behavior change = PATCH (conservative)
@@ -403,18 +411,19 @@ Where to find and add code:
 
 Quick reference to where things live:
 
-| Topic                | Location                                           | Description                                           |
-| -------------------- | -------------------------------------------------- | ----------------------------------------------------- |
-| **Development Guides** | `docs/guides/README.md`                            | Index of all guides with quick-start by task          |
-| **Feature Spec**     | `docs/spec.md`                                     | What features exist, architecture, edge cases, testing strategy |
-| **Testing Patterns** | `docs/guides/testing-patterns.md`                  | Mocking, dependency injection, test isolation         |
-| **Error Handling**   | `docs/guides/error-handling.md`                    | Error patterns, user-facing messages                  |
-| **CLI Patterns**     | `docs/guides/cli-patterns.md`                      | Command structure, Cobra patterns, flags, subcommands |
-| **Cross-Platform**   | `docs/guides/cross-platform-installation.md`       | Strategy pattern, package mappings, Debian strategies |
-| **Releasing**        | `docs/guides/releasing.md`                         | GitHub releases workflow, versioning                  |
-| **Roadmap**          | `ROADMAP.md`                                       | Planned commands, future features, open questions     |
-| **Decisions**        | `docs/decisions/README.md`                         | Architectural decisions with rationale                |
-| **Contributing**     | `CONTRIBUTING.md`                                  | Dev setup, build, test, git workflow, release process |
+| Topic                  | Location                                     | Description                                                       |
+| ---------------------- | -------------------------------------------- | ----------------------------------------------------------------- |
+| **Development Guides** | `docs/guides/README.md`                      | Index of all guides with quick-start by task                      |
+| **Feature Spec**       | `docs/spec.md`                               | What features exist, architecture, edge cases, testing strategy   |
+| **Testing Patterns**   | `docs/guides/testing-patterns.md`            | Mocking, dependency injection, test isolation                     |
+| **Error Handling**     | `docs/guides/error-handling.md`              | Error patterns, user-facing messages                              |
+| **CLI Patterns**       | `docs/guides/cli-patterns.md`                | Command structure, Cobra patterns, flags, subcommands             |
+| **Cross-Platform**     | `docs/guides/cross-platform-installation.md` | Strategy pattern, package mappings, Debian strategies             |
+| **Claude Code app**    | `docs/apps/claude.md`                        | Claude config, format/lint hook (reuses neovim Mason), statusline |
+| **Releasing**          | `docs/guides/releasing.md`                   | GitHub releases workflow, versioning                              |
+| **Roadmap**            | `ROADMAP.md`                                 | Planned commands, future features, open questions                 |
+| **Decisions**          | `docs/decisions/README.md`                   | Architectural decisions with rationale                            |
+| **Contributing**       | `CONTRIBUTING.md`                            | Dev setup, build, test, git workflow, release process             |
 
 ---
 

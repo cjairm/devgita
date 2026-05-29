@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
-# PostToolUse hook: format the single file Claude just edited or wrote.
+# PostToolUse hook: format the file Claude just edited, then lint the result and
+# feed any findings back to Claude so it can self-correct.
 #
 # Claude Code delivers the hook payload as JSON on stdin; the edited file path
 # lives at `.tool_input.file_path`. (The old `$CLAUDE_FILE_PATHS` env var no
-# longer exists in Claude Code 2.x, which is why directory-wide formatting
-# silently stopped working.) We parse the path once and route to the relevant
-# formatters by extension so we only run tools that apply to the file.
+# longer exists in Claude Code 2.x.) On exit 0, Claude parses this hook's stdout
+# for JSON, so ONLY the final JSON may go to stdout — every formatter/linter's
+# own output is routed to /dev/null and lint findings are collected into a var,
+# then emitted once as hookSpecificOutput.additionalContext.
 input=$(cat)
 
 FILE=$(printf '%s' "$input" | jq -r '.tool_input.file_path // empty' 2>/dev/null)
@@ -14,40 +16,63 @@ FILE=$(printf '%s' "$input" | jq -r '.tool_input.file_path // empty' 2>/dev/null
 
 BIN="$HOME/.local/share/nvim/mason/bin"
 
-# run <tool> [args...] — invoke a Mason-installed tool only if it's executable,
-# never failing the hook (formatting is best-effort).
-run() {
-    local tool="$1"
-    shift
-    if [ -x "$tool" ]; then
-        "$tool" "$@" || true
-    fi
+# fmt <tool> [args...] — run an in-place formatter, discarding all its output
+# (its stdout must not pollute our JSON). Never fails the hook.
+fmt() {
+	local tool="$1"
+	shift
+	if [ -x "$tool" ]; then
+		"$tool" "$@" >/dev/null 2>&1 || true
+	fi
+}
+
+LINT_OUT=""
+# lint <label> <tool> [args...] — run a linter, capturing any output under a
+# labelled header so it can be surfaced to Claude. Never fails the hook.
+lint() {
+	local label="$1" tool="$2"
+	shift 2
+	[ -x "$tool" ] || return 0
+	local out
+	out=$("$tool" "$@" 2>&1) || true
+	[ -n "$out" ] && LINT_OUT="${LINT_OUT}[$label]"$'\n'"$out"$'\n\n'
 }
 
 case "$FILE" in
 *.js | *.jsx | *.ts | *.tsx | *.mjs | *.cjs)
-    run "$BIN/eslint_d" "$FILE" --fix
-    run "$BIN/prettier" "$FILE" --write
-    ;;
-*.json | *.css | *.scss | *.less | *.html | *.md | *.markdown | *.yaml | *.yml)
-    run "$BIN/prettier" "$FILE" --write
-    ;;
+	fmt "$BIN/eslint_d" "$FILE" --fix
+	fmt "$BIN/prettier" "$FILE" --write
+	lint "eslint" "$BIN/eslint_d" "$FILE"
+	;;
+*.json | *.css | *.scss | *.less | *.html | *.yaml | *.yml)
+	fmt "$BIN/prettier" "$FILE" --write
+	;;
+*.md | *.markdown)
+	fmt "$BIN/prettier" "$FILE" --write
+	;;
 *.py)
-    run "$BIN/isort" "$FILE"
-    run "$BIN/black" "$FILE"
-    run "$BIN/flake8" "$FILE"
-    ;;
+	fmt "$BIN/isort" "$FILE"
+	fmt "$BIN/black" "$FILE"
+	lint "flake8" "$BIN/flake8" "$FILE"
+	;;
 *.go)
-    run "$BIN/goimports" -w "$FILE"
-    run "$BIN/gofumpt" -w "$FILE"
-    run "$BIN/golines" -w "$FILE"
-    ;;
+	fmt "$BIN/goimports" -w "$FILE"
+	fmt "$BIN/gofumpt" -w "$FILE"
+	fmt "$BIN/golines" -w "$FILE"
+	lint "golangci-lint" "$BIN/golangci-lint" run "$FILE"
+	;;
 *.lua)
-    run "$BIN/stylua" "$FILE"
-    ;;
+	fmt "$BIN/stylua" "$FILE"
+	;;
 *.sh | *.bash)
-    run "$BIN/shfmt" -w "$FILE"
-    ;;
+	fmt "$BIN/shfmt" -w "$FILE"
+	;;
 esac
+
+# Surface lint findings (if any) as context Claude sees on its next turn.
+if [ -n "$LINT_OUT" ]; then
+	jq -n --arg ctx "Linter findings for $FILE — please fix:"$'\n'"$LINT_OUT" \
+		'{hookSpecificOutput: {hookEventName: "PostToolUse", additionalContext: $ctx}}'
+fi
 
 exit 0
