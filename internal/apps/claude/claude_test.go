@@ -155,6 +155,9 @@ func TestForceConfigure(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(appConfigDir, "statusline.sh"), []byte(`#!/bin/bash`), 0644); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(filepath.Join(appConfigDir, "format.sh"), []byte(`#!/bin/bash`), 0644); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.WriteFile(filepath.Join(appConfigDir, "themes", "default.json"), []byte(`{}`), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -192,14 +195,15 @@ func TestForceConfigure(t *testing.T) {
 		t.Errorf("Expected settings.json at %s: %v", userConfigDir, err)
 	}
 
-	// statusline.sh deployed and executable
-	statuslinePath := filepath.Join(userConfigDir, "statusline.sh")
-	info, err := os.Stat(statuslinePath)
-	if err != nil {
-		t.Fatalf("Expected statusline.sh: %v", err)
-	}
-	if info.Mode()&0111 == 0 {
-		t.Error("Expected statusline.sh to be executable")
+	// statusline.sh and format.sh deployed and executable
+	for _, script := range []string{"statusline.sh", "format.sh"} {
+		info, err := os.Stat(filepath.Join(userConfigDir, script))
+		if err != nil {
+			t.Fatalf("Expected %s: %v", script, err)
+		}
+		if info.Mode()&0111 == 0 {
+			t.Errorf("Expected %s to be executable", script)
+		}
 	}
 
 	// themes deployed

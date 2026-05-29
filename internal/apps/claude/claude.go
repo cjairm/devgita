@@ -94,15 +94,17 @@ func (c *Claude) ForceConfigure() error {
 		return fmt.Errorf("failed to copy claude settings: %w", err)
 	}
 
-	statuslineDst := filepath.Join(paths.Paths.Config.Claude, "statusline.sh")
-	if err := files.CopyFile(
-		filepath.Join(paths.Paths.App.Configs.Claude, "statusline.sh"),
-		statuslineDst,
-	); err != nil {
-		return fmt.Errorf("failed to copy claude statusline: %w", err)
-	}
-	if err := os.Chmod(statuslineDst, 0755); err != nil {
-		return fmt.Errorf("failed to chmod statusline.sh: %w", err)
+	for _, script := range []string{"statusline.sh", "format.sh"} {
+		dst := filepath.Join(paths.Paths.Config.Claude, script)
+		if err := files.CopyFile(
+			filepath.Join(paths.Paths.App.Configs.Claude, script),
+			dst,
+		); err != nil {
+			return fmt.Errorf("failed to copy claude %s: %w", script, err)
+		}
+		if err := os.Chmod(dst, 0755); err != nil {
+			return fmt.Errorf("failed to chmod %s: %w", script, err)
+		}
 	}
 
 	if err := files.CopyDir(
