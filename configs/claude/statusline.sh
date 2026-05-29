@@ -28,6 +28,11 @@ RED=$'\033[31m'
 MAGENTA=$'\033[35m'
 BLUE=$'\033[34m'
 
+# Base dir where `dg worktree` creates worktrees. Anything living under it gets
+# the compact "wt:<repo>" display, whether or not git treats it as a *linked*
+# worktree (devgita-created dirs may be standalone clones with a real .git dir).
+WT_BASE="${XDG_DATA_HOME:-$HOME/.local/share}/devgita/worktrees"
+
 TMP_DIR="${TMPDIR:-/tmp}"
 DIR_HASH=$(printf '%s' "$DIR" | cksum | awk '{print $1}')
 CACHE_FILE="${TMP_DIR%/}/cc-statusline-${SESSION_ID}-${DIR_HASH}"
@@ -48,7 +53,13 @@ if cache_stale; then
 		GU=$(git -C "$DIR" ls-files --others --exclude-standard 2>/dev/null | wc -l | tr -d ' ')
 		GIT_DIR=$(git -C "$DIR" rev-parse --git-dir 2>/dev/null)
 		GIT_COMMON=$(git -C "$DIR" rev-parse --git-common-dir 2>/dev/null)
-		if [ -n "$GIT_DIR" ] && [ "$GIT_DIR" != "$GIT_COMMON" ]; then IS_WT=1; else IS_WT=0; fi
+		# A linked worktree (git-dir != common-dir) OR any dir under WT_BASE.
+		if { [ -n "$GIT_DIR" ] && [ "$GIT_DIR" != "$GIT_COMMON" ]; } ||
+			[ "${DIR#"$WT_BASE"/}" != "$DIR" ]; then
+			IS_WT=1
+		else
+			IS_WT=0
+		fi
 		printf '%s|%s|%s|%s|%s\n' "$GB" "$GS" "$GM" "$GU" "$IS_WT" >"$CACHE_FILE"
 	else
 		printf '||||0\n' >"$CACHE_FILE"
