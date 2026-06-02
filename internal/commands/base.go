@@ -252,7 +252,7 @@ func (b *BaseCommand) ExecCommand(cmd CommandParams) (string, string, error) {
 	// Wait for command to complete
 	err = execCommand.Wait()
 	if err != nil {
-		logger.L().Errorw("command finished with error", "error", err, "stderr", stderrBuf.String())
+		logger.L().Debugw("command finished with error", "error", err, "stderr", stderrBuf.String())
 	}
 
 	if cmd.PostExecMsg != "" && err == nil {
