@@ -478,7 +478,7 @@ func TestRemoveWorktree(t *testing.T) {
 		if lastCall == nil {
 			t.Fatal("No ExecCommand call recorded")
 		}
-		expectedArgs := []string{"worktree", "remove", "/path/to/worktree"}
+		expectedArgs := []string{"-C", "/path/to/worktree", "worktree", "remove", "/path/to/worktree"}
 		if len(lastCall.Args) != len(expectedArgs) {
 			t.Fatalf("Expected %d args, got %d", len(expectedArgs), len(lastCall.Args))
 		}
@@ -825,8 +825,8 @@ func TestPruneWorktrees(t *testing.T) {
 		if err == nil {
 			t.Fatal("Expected error but got none")
 		}
-		if !strings.Contains(err.Error(), "failed to prune worktrees") {
-			t.Fatalf("Expected error message to contain 'failed to prune worktrees', got: %v", err)
+		if !strings.Contains(err.Error(), "failed to run git command") {
+			t.Fatalf("Expected error message to contain 'failed to run git command', got: %v", err)
 		}
 	})
 }

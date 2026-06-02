@@ -131,7 +131,7 @@ func (w *WorktreeManager) Create(name string, coder AICoder, force bool) error {
 		// Check if directory actually exists on disk
 		if _, err := os.Stat(wtPath); os.IsNotExist(err) {
 			// Directory missing but git still tracks it - auto-prune and continue
-			if pruneErr := w.Git.PruneWorktrees(); pruneErr != nil {
+			if pruneErr := w.Git.PruneWorktreesAt(filepath.Dir(wtPath)); pruneErr != nil {
 				return fmt.Errorf("stale worktree entry detected but failed to prune: %w", pruneErr)
 			}
 			// After pruning, continue with creation
@@ -164,7 +164,7 @@ func (w *WorktreeManager) Create(name string, coder AICoder, force bool) error {
 
 	if err := w.Git.CreateWorktree(wtPath, name); err != nil {
 		if strings.Contains(err.Error(), "is a missing but already registered") {
-			if pruneErr := w.Git.PruneWorktrees(); pruneErr == nil {
+			if pruneErr := w.Git.PruneWorktreesAt(filepath.Dir(wtPath)); pruneErr == nil {
 				if retryErr := w.Git.CreateWorktree(wtPath, name); retryErr == nil {
 					return w.createWindowAndLaunch(windowName, wtPath, coder)
 				}
@@ -375,11 +375,13 @@ func (w *WorktreeManager) Remove(name string, force bool) error {
 				return fmt.Errorf("failed to remove worktree: %w", err)
 			}
 		}
-		if err := w.Git.PruneWorktrees(); err != nil {
+		repoDir := filepath.Dir(wtPath)
+		if err := w.Git.PruneWorktreesAt(repoDir); err != nil {
 			// Log but don't fail
 		}
 	} else {
-		if err := w.Git.PruneWorktrees(); err != nil {
+		repoDir := filepath.Dir(wtPath)
+		if err := w.Git.PruneWorktreesAt(repoDir); err != nil {
 			// Log but don't fail
 		}
 	}
@@ -419,7 +421,7 @@ func (w *WorktreeManager) Repair(name string, coder AICoder) error {
 	// If directory doesn't exist on disk but git knows about it, prune and error
 	if _, err := os.Stat(wtPath); os.IsNotExist(err) {
 		// Prune stale worktree entries
-		if pruneErr := w.Git.PruneWorktrees(); pruneErr != nil {
+		if pruneErr := w.Git.PruneWorktreesAt(filepath.Dir(wtPath)); pruneErr != nil {
 			return fmt.Errorf("worktree '%s' directory missing and failed to prune: %w", name, pruneErr)
 		}
 		return fmt.Errorf("worktree '%s' directory was missing; pruned stale entry. Run `dg wt new %s` to recreate", name, name)
@@ -508,11 +510,14 @@ func (w *WorktreeManager) removeByRepo(repoSlug, name string, force bool) error 
 				return fmt.Errorf("failed to remove worktree: %w", err)
 			}
 		}
-		if err := w.Git.PruneWorktrees(); err != nil {
+		// Prune from repo base dir (parent of worktree dirs)
+		repoDir := filepath.Dir(wtPath)
+		if err := w.Git.PruneWorktreesAt(repoDir); err != nil {
 			// Log but don't fail
 		}
 	} else {
-		if err := w.Git.PruneWorktrees(); err != nil {
+		repoDir := filepath.Dir(wtPath)
+		if err := w.Git.PruneWorktreesAt(repoDir); err != nil {
 			// Log but don't fail
 		}
 	}

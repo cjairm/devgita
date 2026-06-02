@@ -120,6 +120,21 @@ func (g *Git) ExecuteCommand(args ...string) error {
 	return nil
 }
 
+// ExecuteCommandAt runs a git command with -C <dir> so it operates in the
+// given directory regardless of the process's current working directory.
+func (g *Git) ExecuteCommandAt(dir string, args ...string) error {
+	fullArgs := append([]string{"-C", dir}, args...)
+	execCommand := cmd.CommandParams{
+		IsSudo:  false,
+		Command: constants.Git,
+		Args:    fullArgs,
+	}
+	if _, _, err := g.Base.ExecCommand(execCommand); err != nil {
+		return fmt.Errorf("failed to run git command at %s: %w", dir, err)
+	}
+	return nil
+}
+
 func (g *Git) Clone(url, dstPath string) error {
 	return g.ExecuteCommand("clone", url, dstPath)
 }
@@ -262,18 +277,34 @@ func (g *Git) ListWorktreesAt(dir string) ([]WorktreeInfo, error) {
 	return parseWorktreeOutput(stdout), nil
 }
 
-// RemoveWorktree removes a worktree and optionally its associated branch
+// RemoveWorktree removes a worktree and optionally its associated branch.
+// Uses -C <path> to operate from the worktree's own directory context.
 func (g *Git) RemoveWorktree(path string, deleteBranch bool, branchName string) error {
-	// Remove the worktree directory
-	if err := g.ExecuteCommand("worktree", "remove", path); err != nil {
+	// Remove the worktree directory (run from the worktree path itself;
+	// git resolves the main worktree from there)
+	if err := g.ExecuteCommandAt(path, "worktree", "remove", path); err != nil {
 		return err
 	}
 
-	// Delete the branch if requested
+	// Delete the branch if requested — run from parent worktree via path's parent
 	if deleteBranch && branchName != "" {
-		// Use force delete (-D) to avoid issues with unmerged changes
+		// After removal, path no longer exists. Use worktree base to find another worktree.
+		// We use the parent of path (repo slug dir) to find a sibling worktree.
+		parentDir := filepath.Dir(path)
+		entries, dirErr := os.ReadDir(parentDir)
+		if dirErr == nil {
+			for _, e := range entries {
+				if e.IsDir() {
+					siblingPath := filepath.Join(parentDir, e.Name())
+					if err := g.ExecuteCommandAt(siblingPath, "branch", "-D", branchName); err != nil {
+						return fmt.Errorf("removed worktree but failed to delete branch '%s': %w", branchName, err)
+					}
+					return nil
+				}
+			}
+		}
+		// No sibling found — try from CWD as fallback
 		if err := g.DeleteBranch(branchName, true); err != nil {
-			// Log but don't fail - branch might not exist or might be current branch
 			return fmt.Errorf("removed worktree but failed to delete branch '%s': %w", branchName, err)
 		}
 	}
@@ -309,15 +340,12 @@ func (g *Git) IsWorktreeDirty(path string) (bool, error) {
 
 // PruneWorktrees removes stale worktree entries
 func (g *Git) PruneWorktrees() error {
-	execCommand := cmd.CommandParams{
-		Command: constants.Git,
-		Args:    []string{"worktree", "prune"},
-	}
-	_, _, err := g.Base.ExecCommand(execCommand)
-	if err != nil {
-		return fmt.Errorf("failed to prune worktrees: %w", err)
-	}
-	return nil
+	return g.ExecuteCommand("worktree", "prune")
+}
+
+// PruneWorktreesAt removes stale worktree entries, running from the given directory.
+func (g *Git) PruneWorktreesAt(dir string) error {
+	return g.ExecuteCommandAt(dir, "worktree", "prune")
 }
 
 // CheckHookCompatibility scans the repo's effective hooks directory for scripts
