@@ -320,73 +320,34 @@ func (w *WorktreeManager) findRepoForWorktree(name string) string {
 }
 
 // Remove removes a worktree and its tmux window.
-// When the named worktree is not in the current repo, it searches the
-// centralized base path so cross-repo removal works from any directory.
+// Works from any directory — first tries current repo, then searches the
+// centralized base path so cross-repo removal works from anywhere.
 func (w *WorktreeManager) Remove(name string, force bool) error {
+	var repoSlug string
+
+	// Try current repo first
 	repoRoot, err := w.Git.GetRepoRoot()
-	if err != nil {
-		return fmt.Errorf("not in a git repository: %w", err)
-	}
-
-	repoSlug := filepath.Base(repoRoot)
-	state, err := w.worktreeState(repoSlug, name)
-	if err != nil {
-		return err
-	}
-
-	// Not found in current repo — search centralized base path.
-	if !state.WtExists && !state.WindowExists {
-		if slug := w.findRepoForWorktree(name); slug != "" {
-			repoSlug = slug
-			state, err = w.worktreeState(repoSlug, name)
-			if err != nil {
-				return err
-			}
+	if err == nil {
+		repoSlug = filepath.Base(repoRoot)
+		state, stateErr := w.worktreeState(repoSlug, name)
+		if stateErr == nil && (state.WtExists || state.WindowExists) {
+			return w.removeByRepo(repoSlug, name, force)
 		}
 	}
 
-	wtPath := w.worktreePath(repoSlug, name)
+	// Not in a git repo or worktree not in current repo — search centralized base path.
+	if slug := w.findRepoForWorktree(name); slug != "" {
+		return w.removeByRepo(slug, name, force)
+	}
+
+	// Last resort: check if there's a tmux window matching
 	windowName := windowPrefix + flattenName(name)
-
-	if !state.WtExists && !state.WindowExists {
-		return fmt.Errorf("nothing to remove for worktree '%s'", name)
+	if w.Tmux.HasWindow(windowName) {
+		_ = w.Tmux.KillWindow(windowName)
+		return nil
 	}
 
-	if state.WtExists && !force {
-		dirty, err := w.Git.IsWorktreeDirty(wtPath)
-		// If the dirty check errors (e.g. stale/broken worktree not registered
-		// with git), allow removal rather than blocking on an unverifiable state.
-		if err == nil && dirty {
-			return fmt.Errorf("worktree '%s' has uncommitted changes; use --force to remove anyway", name)
-		}
-	}
-
-	if state.WindowExists {
-		if err := w.Tmux.KillWindow(windowName); err != nil {
-			// Log but don't fail
-		}
-	}
-
-	if state.WtExists {
-		if err := w.Git.RemoveWorktree(wtPath, true, name); err != nil {
-			// Fallback for stale worktrees: directory exists on disk but git
-			// doesn't know about it. Remove the directory directly then prune.
-			if rmErr := os.RemoveAll(wtPath); rmErr != nil {
-				return fmt.Errorf("failed to remove worktree: %w", err)
-			}
-		}
-		repoDir := filepath.Dir(wtPath)
-		if err := w.Git.PruneWorktreesAt(repoDir); err != nil {
-			// Log but don't fail
-		}
-	} else {
-		repoDir := filepath.Dir(wtPath)
-		if err := w.Git.PruneWorktreesAt(repoDir); err != nil {
-			// Log but don't fail
-		}
-	}
-
-	return nil
+	return fmt.Errorf("nothing to remove for worktree '%s'", name)
 }
 
 // Repair creates missing window for an existing worktree and re-sends the AI command

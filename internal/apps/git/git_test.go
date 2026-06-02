@@ -465,39 +465,45 @@ func TestRemoveWorktree(t *testing.T) {
 
 	t.Run("successful removal without branch deletion", func(t *testing.T) {
 		mockApp.Base.ResetExecCommand()
-		mockApp.Base.SetExecCommandResult("", "", nil)
+		// First call is getMainWorktree (worktree list), subsequent calls succeed with same output
+		mockApp.Base.SetExecCommandResult("worktree /main/repo\nHEAD abc123\nbranch refs/heads/main\n", "", nil)
 
 		if err := app.RemoveWorktree("/path/to/worktree", false, ""); err != nil {
 			t.Fatalf("RemoveWorktree failed: %v", err)
 		}
-		if mockApp.Base.GetExecCommandCallCount() != 1 {
-			t.Fatalf("Expected 1 call, got %d", mockApp.Base.GetExecCommandCallCount())
+		if mockApp.Base.GetExecCommandCallCount() != 2 {
+			t.Fatalf("Expected 2 calls, got %d", mockApp.Base.GetExecCommandCallCount())
 		}
 
-		lastCall := mockApp.Base.GetLastExecCommandCall()
-		if lastCall == nil {
-			t.Fatal("No ExecCommand call recorded")
+		// First call: getMainWorktree
+		firstCall := mockApp.Base.ExecCommandCalls[0]
+		expectedFirst := []string{"-C", "/path/to/worktree", "worktree", "list", "--porcelain"}
+		if len(firstCall.Args) != len(expectedFirst) {
+			t.Fatalf("Expected %d args for first call, got %d", len(expectedFirst), len(firstCall.Args))
 		}
-		expectedArgs := []string{"-C", "/path/to/worktree", "worktree", "remove", "/path/to/worktree"}
-		if len(lastCall.Args) != len(expectedArgs) {
-			t.Fatalf("Expected %d args, got %d", len(expectedArgs), len(lastCall.Args))
+
+		// Second call: worktree remove from main repo
+		secondCall := mockApp.Base.ExecCommandCalls[1]
+		expectedSecond := []string{"-C", "/main/repo", "worktree", "remove", "/path/to/worktree"}
+		if len(secondCall.Args) != len(expectedSecond) {
+			t.Fatalf("Expected %d args for second call, got %d: %v", len(expectedSecond), len(secondCall.Args), secondCall.Args)
 		}
-		for i, arg := range expectedArgs {
-			if lastCall.Args[i] != arg {
-				t.Fatalf("Expected arg[%d] to be %q, got %q", i, arg, lastCall.Args[i])
+		for i, arg := range expectedSecond {
+			if secondCall.Args[i] != arg {
+				t.Fatalf("Expected arg[%d] to be %q, got %q", i, arg, secondCall.Args[i])
 			}
 		}
 	})
 
 	t.Run("successful removal with branch deletion", func(t *testing.T) {
 		mockApp.Base.ResetExecCommand()
-		mockApp.Base.SetExecCommandResult("", "", nil)
+		mockApp.Base.SetExecCommandResult("worktree /main/repo\nHEAD abc123\nbranch refs/heads/main\n", "", nil)
 
 		if err := app.RemoveWorktree("/path/to/worktree", true, "feature-branch"); err != nil {
 			t.Fatalf("RemoveWorktree failed: %v", err)
 		}
-		if mockApp.Base.GetExecCommandCallCount() != 2 {
-			t.Fatalf("Expected 2 calls, got %d", mockApp.Base.GetExecCommandCallCount())
+		if mockApp.Base.GetExecCommandCallCount() != 3 {
+			t.Fatalf("Expected 3 calls, got %d", mockApp.Base.GetExecCommandCallCount())
 		}
 	})
 

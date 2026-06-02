@@ -278,38 +278,47 @@ func (g *Git) ListWorktreesAt(dir string) ([]WorktreeInfo, error) {
 }
 
 // RemoveWorktree removes a worktree and optionally its associated branch.
-// Uses -C <path> to operate from the worktree's own directory context.
+// Resolves the main worktree first so the remove command doesn't run from
+// within the worktree being deleted.
 func (g *Git) RemoveWorktree(path string, deleteBranch bool, branchName string) error {
-	// Remove the worktree directory (run from the worktree path itself;
-	// git resolves the main worktree from there)
-	if err := g.ExecuteCommandAt(path, "worktree", "remove", path); err != nil {
+	// Find the main worktree by resolving git-common-dir from the target path
+	mainWorktree, err := g.getMainWorktree(path)
+	if err != nil {
+		return fmt.Errorf("cannot resolve main worktree for %s: %w", path, err)
+	}
+
+	// Remove the worktree from the main worktree context
+	if err := g.ExecuteCommandAt(mainWorktree, "worktree", "remove", path); err != nil {
 		return err
 	}
 
-	// Delete the branch if requested — run from parent worktree via path's parent
+	// Delete the branch if requested
 	if deleteBranch && branchName != "" {
-		// After removal, path no longer exists. Use worktree base to find another worktree.
-		// We use the parent of path (repo slug dir) to find a sibling worktree.
-		parentDir := filepath.Dir(path)
-		entries, dirErr := os.ReadDir(parentDir)
-		if dirErr == nil {
-			for _, e := range entries {
-				if e.IsDir() {
-					siblingPath := filepath.Join(parentDir, e.Name())
-					if err := g.ExecuteCommandAt(siblingPath, "branch", "-D", branchName); err != nil {
-						return fmt.Errorf("removed worktree but failed to delete branch '%s': %w", branchName, err)
-					}
-					return nil
-				}
-			}
-		}
-		// No sibling found — try from CWD as fallback
-		if err := g.DeleteBranch(branchName, true); err != nil {
+		if err := g.ExecuteCommandAt(mainWorktree, "branch", "-D", branchName); err != nil {
 			return fmt.Errorf("removed worktree but failed to delete branch '%s': %w", branchName, err)
 		}
 	}
 
 	return nil
+}
+
+// getMainWorktree resolves the main worktree path from any worktree in the repo.
+func (g *Git) getMainWorktree(fromPath string) (string, error) {
+	execCommand := cmd.CommandParams{
+		Command: constants.Git,
+		Args:    []string{"-C", fromPath, "worktree", "list", "--porcelain"},
+	}
+	stdout, _, err := g.Base.ExecCommand(execCommand)
+	if err != nil {
+		return "", err
+	}
+	// First "worktree <path>" line is always the main worktree
+	for _, line := range strings.Split(stdout, "\n") {
+		if strings.HasPrefix(line, "worktree ") {
+			return strings.TrimPrefix(line, "worktree "), nil
+		}
+	}
+	return "", fmt.Errorf("could not find main worktree")
 }
 
 // GetRepoRoot returns the root directory of the current git repository
