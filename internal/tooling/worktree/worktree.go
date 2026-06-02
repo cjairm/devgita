@@ -499,7 +499,8 @@ func (w *WorktreeManager) confirmAndRemove(rows []string, repoSlug, name string)
 	// Set this worktree as pending delete
 	w.pendingDelete = &pendingDeleteInfo{repoSlug: repoSlug, name: name}
 
-	output, err := w.runFzfWithExpect(buildConfirmRows(rows, repoSlug, name))
+	confirmRows := buildConfirmRows(rows, repoSlug, name)
+	output, err := w.runFzfWithExpect(confirmRows)
 	if err != nil {
 		w.pendingDelete = nil // Clear pending on error/cancel
 		if err.Error() == "selection cancelled" {
@@ -780,11 +781,8 @@ func buildConfirmRows(rows []string, repoSlug, name string) []string {
 		parts := strings.SplitN(row, "\t", 2)
 		// Trim spaces from padded column before comparing
 		if strings.TrimSpace(parts[0]) == pendingKey {
-			rest := ""
-			if len(parts) == 2 {
-				rest = "\t" + parts[1]
-			}
-			pendingDisplayRow = "\033[41m" + parts[0] + "\033[0m" + rest
+			// Apply red background to entire row for visibility
+			pendingDisplayRow = "\033[41m" + row + "\033[0m"
 		} else {
 			displayRows = append(displayRows, row)
 		}
