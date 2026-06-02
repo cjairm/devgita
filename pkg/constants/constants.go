@@ -137,7 +137,7 @@ const (
 	Syntaxhighlighting = "zsh-syntax-highlighting"
 	Tldr               = "tldr"
 	Tmux               = "tmux"
-	TreeSitterCli      = "tree-sitter-cli" // Same name on both Homebrew and apt (trixie/sid)
+	TreeSitterCli      = "tree-sitter-cli"  // Same name on both Homebrew and apt (trixie/sid)
 	Markdownlint       = "markdownlint-cli" // Brew/npm package; binary is `markdownlint`
 	Flake8             = "flake8"
 	GolangciLint       = "golangci-lint"

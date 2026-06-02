@@ -32,6 +32,12 @@ const (
 	windowPrefix = "wt-"
 )
 
+// flattenName converts a branch-style name (with slashes) to a flat directory name.
+// e.g. "feat/search-specs" → "feat-search-specs"
+func flattenName(name string) string {
+	return strings.ReplaceAll(name, "/", "-")
+}
+
 // WorktreeStatus contains information about a worktree and its associated window
 type WorktreeStatus struct {
 	Name         string
@@ -79,9 +85,12 @@ func New() *WorktreeManager {
 	return wm
 }
 
-// worktreePath returns ~/.local/share/devgita/worktrees/<repo-slug>/<name>
+// worktreePath returns ~/.local/share/devgita/worktrees/<repo-slug>/<flat-name>
+// Slashes in the name are replaced with dashes to keep the worktree directory
+// directly under the repo slug. This ensures the parent directory is always
+// the repo slug (important for tools that display the parent dir, e.g. Claude Code).
 func (w *WorktreeManager) worktreePath(repoSlug, name string) string {
-	return filepath.Join(paths.Paths.Data.Root, "devgita", "worktrees", repoSlug, name)
+	return filepath.Join(paths.Paths.Data.Root, "devgita", "worktrees", repoSlug, flattenName(name))
 }
 
 // GetWorktreeBasePath returns the base path for all devgita worktrees
@@ -108,7 +117,7 @@ func (w *WorktreeManager) Create(name string, coder AICoder, force bool) error {
 
 	repoSlug := filepath.Base(repoRoot)
 	wtPath := w.worktreePath(repoSlug, name)
-	windowName := windowPrefix + name
+	windowName := windowPrefix + flattenName(name)
 
 	state, err := w.worktreeState(repoSlug, name)
 	if err != nil {
@@ -184,14 +193,14 @@ func (w *WorktreeManager) createWindowAndLaunch(windowName, wtPath string, coder
 func (w *WorktreeManager) worktreeState(repoSlug, name string) (WorktreeState, error) {
 	state := WorktreeState{
 		WtPath:     w.worktreePath(repoSlug, name),
-		WindowName: windowPrefix + name,
+		WindowName: windowPrefix + flattenName(name),
 	}
 
 	if _, err := os.Stat(state.WtPath); err == nil {
 		state.WtExists = true
 	}
 
-	worktrees, err := w.Git.ListWorktrees()
+	worktrees, err := w.Git.ListWorktreesAt(state.WtPath)
 	if err == nil {
 		for _, wt := range worktrees {
 			if wt.Path == state.WtPath {
@@ -248,10 +257,10 @@ func (w *WorktreeManager) List() ([]WorktreeStatus, error) {
 
 			name := wtEntry.Name()
 			wtPath := filepath.Join(repoDir, name)
-			windowName := windowPrefix + name
+			windowName := windowPrefix + flattenName(name)
 
 			branch := ""
-			worktrees, err := w.Git.ListWorktrees()
+			worktrees, err := w.Git.ListWorktreesAt(wtPath)
 			if err == nil {
 				for _, wt := range worktrees {
 					if wt.Path == wtPath {
@@ -300,7 +309,7 @@ func (w *WorktreeManager) findRepoForWorktree(name string) string {
 		if !e.IsDir() {
 			continue
 		}
-		if _, err := os.Stat(filepath.Join(GetWorktreeBasePath(), e.Name(), name)); err == nil {
+		if _, err := os.Stat(filepath.Join(GetWorktreeBasePath(), e.Name(), flattenName(name))); err == nil {
 			matches = append(matches, e.Name())
 		}
 	}
@@ -337,7 +346,7 @@ func (w *WorktreeManager) Remove(name string, force bool) error {
 	}
 
 	wtPath := w.worktreePath(repoSlug, name)
-	windowName := windowPrefix + name
+	windowName := windowPrefix + flattenName(name)
 
 	if !state.WtExists && !state.WindowExists {
 		return fmt.Errorf("nothing to remove for worktree '%s'", name)
@@ -395,7 +404,7 @@ func (w *WorktreeManager) Repair(name string, coder AICoder) error {
 
 	repoSlug := filepath.Base(repoRoot)
 	wtPath := w.worktreePath(repoSlug, name)
-	windowName := windowPrefix + name
+	windowName := windowPrefix + flattenName(name)
 
 	state, err := w.worktreeState(repoSlug, name)
 	if err != nil {
@@ -469,7 +478,7 @@ func (w *WorktreeManager) Prune() error {
 // Mirrors the same tolerant logic as Remove.
 func (w *WorktreeManager) removeByRepo(repoSlug, name string, force bool) error {
 	wtPath := w.worktreePath(repoSlug, name)
-	windowName := windowPrefix + name
+	windowName := windowPrefix + flattenName(name)
 
 	state, err := w.worktreeState(repoSlug, name)
 	if err != nil {
@@ -582,13 +591,23 @@ func (w *WorktreeManager) Jump(resolvedCoder string) error {
 		return fmt.Errorf("no worktrees found")
 	}
 
-	rows := make([]string, 0, len(statuses))
+	type rowData struct {
+		col1 string // repo/name or [win]
+		col2 string // branch or window name
+		col3 string // status
+	}
+
+	items := make([]rowData, 0, len(statuses))
 	for _, s := range statuses {
 		status := "active"
 		if !s.WindowActive {
 			status = "inactive"
 		}
-		rows = append(rows, formatJumpRow(s.Repo, s.Name, s.Branch, status))
+		items = append(items, rowData{
+			col1: fmt.Sprintf("%s/%s", s.Repo, s.Name),
+			col2: s.Branch,
+			col3: status,
+		})
 	}
 
 	isInTmux := os.Getenv("TMUX") != ""
@@ -597,9 +616,25 @@ func (w *WorktreeManager) Jump(resolvedCoder string) error {
 		windows, err := w.listNonWorktreeWindows()
 		if err == nil {
 			for _, win := range windows {
-				rows = append(rows, formatWindowRow(win))
+				items = append(items, rowData{col1: "[win]", col2: win, col3: ""})
 			}
 		}
+	}
+
+	// Calculate max column widths for alignment
+	maxCol1, maxCol2 := 0, 0
+	for _, item := range items {
+		if len(item.col1) > maxCol1 {
+			maxCol1 = len(item.col1)
+		}
+		if len(item.col2) > maxCol2 {
+			maxCol2 = len(item.col2)
+		}
+	}
+
+	rows := make([]string, 0, len(items))
+	for _, item := range items {
+		rows = append(rows, fmt.Sprintf("%-*s\t%-*s\t%s", maxCol1, item.col1, maxCol2, item.col2, item.col3))
 	}
 
 	if len(rows) == 0 {
@@ -632,7 +667,7 @@ func (w *WorktreeManager) Jump(resolvedCoder string) error {
 		if err != nil {
 			return err
 		}
-		windowName := windowPrefix + name
+		windowName := windowPrefix + flattenName(name)
 
 		switch key {
 		case "":
@@ -841,7 +876,7 @@ func (w *WorktreeManager) listNonWorktreeWindows() ([]string, error) {
 
 // GetWindowName returns the tmux window name for a given worktree name
 func GetWindowName(name string) string {
-	return windowPrefix + name
+	return windowPrefix + flattenName(name)
 }
 
 // GetWorktreeDir returns the worktree directory name (deprecated, use worktreePath instead)

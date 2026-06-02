@@ -248,6 +248,20 @@ func (g *Git) ListWorktrees() ([]WorktreeInfo, error) {
 	return parseWorktreeOutput(stdout), nil
 }
 
+// ListWorktreesAt lists worktrees for the git repository at the given directory.
+// This avoids depending on the current working directory.
+func (g *Git) ListWorktreesAt(dir string) ([]WorktreeInfo, error) {
+	execCommand := cmd.CommandParams{
+		Command: constants.Git,
+		Args:    []string{"-C", dir, "worktree", "list", "--porcelain"},
+	}
+	stdout, _, err := g.Base.ExecCommand(execCommand)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list worktrees at %s: %w", dir, err)
+	}
+	return parseWorktreeOutput(stdout), nil
+}
+
 // RemoveWorktree removes a worktree and optionally its associated branch
 func (g *Git) RemoveWorktree(path string, deleteBranch bool, branchName string) error {
 	// Remove the worktree directory
