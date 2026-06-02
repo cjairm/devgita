@@ -38,6 +38,12 @@ func flattenName(name string) string {
 	return strings.ReplaceAll(name, "/", "-")
 }
 
+// tmuxSessionName derives a valid tmux session name from a repo slug. tmux treats
+// "." and ":" as target separators, so they are replaced with "_".
+func tmuxSessionName(repoSlug string) string {
+	return strings.NewReplacer(".", "_", ":", "_").Replace(repoSlug)
+}
+
 // WorktreeStatus contains information about a worktree and its associated window
 type WorktreeStatus struct {
 	Name         string
@@ -125,7 +131,11 @@ func (w *WorktreeManager) Create(name string, coder AICoder, force bool) error {
 	}
 
 	if state.WtExists && state.WindowExists {
-		return fmt.Errorf("worktree '%s' already exists and has an active window; use `dg wt jump %s`", name, name)
+		return fmt.Errorf(
+			"worktree '%s' already exists and has an active window; use `dg wt jump %s`",
+			name,
+			name,
+		)
 	}
 	if state.WtExists && !state.WindowExists {
 		// Check if directory actually exists on disk
@@ -137,11 +147,19 @@ func (w *WorktreeManager) Create(name string, coder AICoder, force bool) error {
 			// After pruning, continue with creation
 		} else {
 			// Directory exists, suggest repair
-			return fmt.Errorf("worktree '%s' exists but has no active window; use `dg wt repair %s`", name, name)
+			return fmt.Errorf(
+				"worktree '%s' exists but has no active window; use `dg wt repair %s`",
+				name,
+				name,
+			)
 		}
 	}
 	if !state.WtExists && state.WindowExists {
-		return fmt.Errorf("orphan window '%s' exists; run `tmux kill-window -t %s` manually", windowName, windowName)
+		return fmt.Errorf(
+			"orphan window '%s' exists; run `tmux kill-window -t %s` manually",
+			windowName,
+			windowName,
+		)
 	}
 
 	if !force {
@@ -158,7 +176,7 @@ func (w *WorktreeManager) Create(name string, coder AICoder, force bool) error {
 		}
 	}
 
-	if err := os.MkdirAll(filepath.Dir(wtPath), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(wtPath), 0o755); err != nil {
 		return fmt.Errorf("failed to create worktree directory: %w", err)
 	}
 
@@ -210,7 +228,7 @@ func (w *WorktreeManager) worktreeState(repoSlug, name string) (WorktreeState, e
 		}
 	}
 
-	if w.Tmux.HasWindow(state.WindowName) {
+	if _, ok := w.Tmux.WindowSession(state.WindowName); ok {
 		state.WindowExists = true
 	}
 
@@ -270,12 +288,13 @@ func (w *WorktreeManager) List() ([]WorktreeStatus, error) {
 				}
 			}
 
+			_, windowActive := w.Tmux.WindowSession(windowName)
 			statuses = append(statuses, WorktreeStatus{
 				Name:         name,
 				Path:         wtPath,
 				Branch:       branch,
 				TmuxWindow:   windowName,
-				WindowActive: w.Tmux.HasWindow(windowName),
+				WindowActive: windowActive,
 				Repo:         repoSlug,
 			})
 		}
@@ -309,7 +328,9 @@ func (w *WorktreeManager) findRepoForWorktree(name string) string {
 		if !e.IsDir() {
 			continue
 		}
-		if _, err := os.Stat(filepath.Join(GetWorktreeBasePath(), e.Name(), flattenName(name))); err == nil {
+		if _, err := os.Stat(
+			filepath.Join(GetWorktreeBasePath(), e.Name(), flattenName(name)),
+		); err == nil {
 			matches = append(matches, e.Name())
 		}
 	}
@@ -340,9 +361,9 @@ func (w *WorktreeManager) Remove(name string, force bool) error {
 		return w.removeByRepo(slug, name, force)
 	}
 
-	// Last resort: check if there's a tmux window matching
+	// Last resort: check if there's a tmux window matching in any session
 	windowName := windowPrefix + flattenName(name)
-	if w.Tmux.HasWindow(windowName) {
+	if _, ok := w.Tmux.WindowSession(windowName); ok {
 		_ = w.Tmux.KillWindow(windowName)
 		return nil
 	}
@@ -350,7 +371,23 @@ func (w *WorktreeManager) Remove(name string, force bool) error {
 	return fmt.Errorf("nothing to remove for worktree '%s'", name)
 }
 
-// Repair creates missing window for an existing worktree and re-sends the AI command
+// repoSlugForWorktree resolves the repo slug that owns a worktree, first trying
+// the current repo (if cwd is inside one) and falling back to a search of the
+// centralized base path so it works from any directory or session.
+func (w *WorktreeManager) repoSlugForWorktree(name string) string {
+	if repoRoot, err := w.Git.GetRepoRoot(); err == nil {
+		candidate := filepath.Base(repoRoot)
+		if _, statErr := os.Stat(w.worktreePath(candidate, name)); statErr == nil {
+			return candidate
+		}
+	}
+	return w.findRepoForWorktree(name)
+}
+
+// Repair recreates the missing window for an existing worktree and re-sends the
+// AI command. The window is created in a tmux session named after the worktree's
+// parent folder (the repo slug), creating that session if it does not exist.
+// Works from any directory or session.
 func (w *WorktreeManager) Repair(name string, coder AICoder) error {
 	if coder == nil {
 		return fmt.Errorf("AI coder is required")
@@ -360,41 +397,54 @@ func (w *WorktreeManager) Repair(name string, coder AICoder) error {
 		return err
 	}
 
-	repoRoot, err := w.Git.GetRepoRoot()
-	if err != nil {
-		return fmt.Errorf("not in a git repository: %w", err)
-	}
-
-	repoSlug := filepath.Base(repoRoot)
-	wtPath := w.worktreePath(repoSlug, name)
-	windowName := windowPrefix + flattenName(name)
-
-	state, err := w.worktreeState(repoSlug, name)
-	if err != nil {
-		return err
-	}
-
-	// If worktree doesn't exist at all (neither on disk nor in git), error out
-	if !state.WtExists {
+	repoSlug := w.repoSlugForWorktree(name)
+	if repoSlug == "" {
 		return fmt.Errorf("no worktree '%s' to repair", name)
 	}
+
+	wtPath := w.worktreePath(repoSlug, name)
+	windowName := windowPrefix + flattenName(name)
 
 	// If directory doesn't exist on disk but git knows about it, prune and error
 	if _, err := os.Stat(wtPath); os.IsNotExist(err) {
 		// Prune stale worktree entries
 		if pruneErr := w.Git.PruneWorktreesAt(filepath.Dir(wtPath)); pruneErr != nil {
-			return fmt.Errorf("worktree '%s' directory missing and failed to prune: %w", name, pruneErr)
+			return fmt.Errorf(
+				"worktree '%s' directory missing and failed to prune: %w",
+				name,
+				pruneErr,
+			)
 		}
-		return fmt.Errorf("worktree '%s' directory was missing; pruned stale entry. Run `dg wt new %s` to recreate", name, name)
+		return fmt.Errorf(
+			"worktree '%s' directory was missing; pruned stale entry. Run `dg wt new %s` to recreate",
+			name,
+			name,
+		)
 	}
 
-	if !w.Tmux.HasWindow(windowName) {
-		if err := w.Tmux.CreateWindow(windowName, wtPath); err != nil {
-			return fmt.Errorf("failed to create tmux window: %w", err)
+	return w.ensureWindow(repoSlug, windowName, wtPath, coder)
+}
+
+// ensureWindow guarantees a tmux window for the worktree exists and launches the
+// AI coder in it. If the window already lives in some session, it is reused; if
+// not, it is created in the worktree's repo-slug session (creating that session
+// when absent).
+func (w *WorktreeManager) ensureWindow(repoSlug, windowName, wtPath string, coder AICoder) error {
+	session, exists := w.Tmux.WindowSession(windowName)
+	if !exists {
+		session = tmuxSessionName(repoSlug)
+		if w.Tmux.HasSession(session) {
+			if err := w.Tmux.CreateWindowInSession(session, windowName, wtPath); err != nil {
+				return fmt.Errorf("failed to create tmux window: %w", err)
+			}
+		} else {
+			if err := w.Tmux.CreateSessionWithWindow(session, windowName, wtPath); err != nil {
+				return fmt.Errorf("failed to create tmux session: %w", err)
+			}
 		}
 	}
 
-	if err := w.Tmux.SendKeysToWindow(windowName, coder.Command()); err != nil {
+	if err := w.Tmux.SendKeysToWindowInSession(session, windowName, coder.Command()); err != nil {
 		return fmt.Errorf("failed to launch %s: %w", coder.Name(), err)
 	}
 
@@ -455,15 +505,16 @@ func (w *WorktreeManager) removeByRepo(repoSlug, name string, force bool) error 
 	if state.WtExists && !force {
 		dirty, err := w.Git.IsWorktreeDirty(wtPath)
 		if err == nil && dirty {
-			return fmt.Errorf("worktree '%s' has uncommitted changes; use --force to remove anyway", name)
+			return fmt.Errorf(
+				"worktree '%s' has uncommitted changes; use --force to remove anyway",
+				name,
+			)
 		}
 	}
 
-	if state.WindowExists {
-		if err := w.Tmux.KillWindow(windowName); err != nil {
-			// Log but don't fail
-		}
-	}
+	// Always try to kill the window, even if state check didn't find it
+	// (state check may fail if not in tmux or window detection is unreliable)
+	_ = w.Tmux.KillWindow(windowName)
 
 	if state.WtExists {
 		if err := w.Git.RemoveWorktree(wtPath, true, name); err != nil {
@@ -490,10 +541,14 @@ func (w *WorktreeManager) removeByRepo(repoSlug, name string, force bool) error 
 // First ctrl-d highlights the row red (inline) and moves it to the top so the
 // cursor lands on it; second ctrl-d on the same row actually deletes.
 func (w *WorktreeManager) confirmAndRemove(rows []string, repoSlug, name string) error {
-	// If there's already a pending delete for this worktree, execute it
-	if w.pendingDelete != nil && w.pendingDelete.repoSlug == repoSlug && w.pendingDelete.name == name {
+	// If there's already a pending delete for this worktree, execute it.
+	// The double-confirm (arm + confirm) IS the destructive confirmation, so
+	// force through the dirty guard — worktrees with a running AI coder are
+	// almost always dirty, and the user has explicitly confirmed twice.
+	if w.pendingDelete != nil && w.pendingDelete.repoSlug == repoSlug &&
+		w.pendingDelete.name == name {
 		w.pendingDelete = nil
-		return w.removeByRepo(repoSlug, name, false)
+		return w.removeByRepo(repoSlug, name, true)
 	}
 
 	// Set this worktree as pending delete
@@ -522,7 +577,7 @@ func (w *WorktreeManager) confirmAndRemove(rows []string, repoSlug, name string)
 
 	if key == "ctrl-d" && newRepoSlug == repoSlug && newName == name {
 		w.pendingDelete = nil
-		return w.removeByRepo(newRepoSlug, newName, false)
+		return w.removeByRepo(newRepoSlug, newName, true)
 	}
 
 	// If user pressed ctrl-d on a different worktree, start over with that one
@@ -559,8 +614,8 @@ func (w *WorktreeManager) Jump(resolvedCoder string) error {
 	}
 
 	type rowData struct {
-		col1 string // repo/name or [win]
-		col2 string // branch or window name
+		col1 string // repo/name
+		col2 string // branch
 		col3 string // status
 	}
 
@@ -579,15 +634,6 @@ func (w *WorktreeManager) Jump(resolvedCoder string) error {
 
 	isInTmux := os.Getenv("TMUX") != ""
 
-	if isInTmux {
-		windows, err := w.listNonWorktreeWindows()
-		if err == nil {
-			for _, win := range windows {
-				items = append(items, rowData{col1: "[win]", col2: win, col3: ""})
-			}
-		}
-	}
-
 	// Calculate max column widths for alignment
 	maxCol1, maxCol2 := 0, 0
 	for _, item := range items {
@@ -601,7 +647,10 @@ func (w *WorktreeManager) Jump(resolvedCoder string) error {
 
 	rows := make([]string, 0, len(items))
 	for _, item := range items {
-		rows = append(rows, fmt.Sprintf("%-*s\t%-*s\t%s", maxCol1, item.col1, maxCol2, item.col2, item.col3))
+		rows = append(
+			rows,
+			fmt.Sprintf("%-*s\t%-*s\t%s", maxCol1, item.col1, maxCol2, item.col2, item.col3),
+		)
 	}
 
 	if len(rows) == 0 {
@@ -619,17 +668,6 @@ func (w *WorktreeManager) Jump(resolvedCoder string) error {
 	}
 
 	if isInTmux {
-		if strings.HasPrefix(row, "[win]") {
-			if key == "" {
-				parts := strings.SplitN(row, "\t", 3)
-				if len(parts) >= 2 {
-					windowName := strings.TrimSpace(parts[1])
-					return w.Tmux.SelectWindow(windowName)
-				}
-			}
-			return nil
-		}
-
 		repoSlug, name, err := parseRepoAndName(row)
 		if err != nil {
 			return err
@@ -638,10 +676,22 @@ func (w *WorktreeManager) Jump(resolvedCoder string) error {
 
 		switch key {
 		case "":
-			if w.Tmux.HasWindow(windowName) {
-				return w.Tmux.SelectWindow(windowName)
+			// Jump to the window wherever it lives. If it's gone, recreate it
+			// (repair drops it into the worktree's repo session) and jump there,
+			// so enter always lands you on the worktree regardless of session.
+			if session, ok := w.Tmux.WindowSession(windowName); ok {
+				return w.Tmux.SwitchToWindow(session, windowName)
 			}
-			fmt.Printf("Window '%s' not found. Use 'dg wt repair %s' to recreate it.\n", windowName, name)
+			coder, err := ResolveAICoder(resolvedCoder)
+			if err != nil {
+				return err
+			}
+			if err := w.Repair(name, coder); err != nil {
+				return err
+			}
+			if session, ok := w.Tmux.WindowSession(windowName); ok {
+				return w.Tmux.SwitchToWindow(session, windowName)
+			}
 			return nil
 		case "ctrl-d":
 			return w.confirmAndRemove(rows, repoSlug, name)
@@ -684,11 +734,6 @@ func (w *WorktreeManager) Jump(resolvedCoder string) error {
 // formatJumpRow formats a worktree row for fzf display
 func formatJumpRow(repo, name, branch, status string) string {
 	return fmt.Sprintf("%s/%s\t%s\t%s", repo, name, branch, status)
-}
-
-// formatWindowRow formats a tmux window row for fzf display
-func formatWindowRow(name string) string {
-	return fmt.Sprintf("[win]\t%s\t", name)
 }
 
 // parseJumpRow parses a worktree row back into its components
@@ -742,7 +787,8 @@ func (w *WorktreeManager) runFzfWithExpect(rows []string, header ...string) (str
 // fzf renders its UI to /dev/tty and writes the selection to stdout,
 // which Output() captures.
 func (w *WorktreeManager) execFzf(rows []string, header string) (string, error) {
-	fzfCmd := exec.Command("fzf",
+	fzfCmd := exec.Command(
+		"fzf",
 		"--height=60%",
 		"--reverse",
 		"--ansi",
@@ -813,30 +859,6 @@ func parseJumpOutput(output string) (key, row string, err error) {
 	}
 
 	return lines[0], stripANSI(lines[1]), nil
-}
-
-// listNonWorktreeWindows returns tmux windows that are not worktree-owned
-func (w *WorktreeManager) listNonWorktreeWindows() ([]string, error) {
-	execCommand := cmd.CommandParams{
-		Command: "tmux",
-		Args:    []string{"list-windows", "-F", "#{window_name}"},
-	}
-
-	stdout, _, err := w.Base.ExecCommand(execCommand)
-	if err != nil {
-		return nil, err
-	}
-
-	var windows []string
-	scanner := bufio.NewScanner(strings.NewReader(stdout))
-	for scanner.Scan() {
-		name := strings.TrimSpace(scanner.Text())
-		if name != "" && !strings.HasPrefix(name, windowPrefix) {
-			windows = append(windows, name)
-		}
-	}
-
-	return windows, nil
 }
 
 // GetWindowName returns the tmux window name for a given worktree name

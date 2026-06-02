@@ -131,6 +131,55 @@ func (t *Tmux) CreateSession(name, workdir string) error {
 	return t.ExecuteCommand("new-session", "-d", "-s", name, "-c", workdir)
 }
 
+// CreateSessionWithWindow creates a new detached session whose first (and only)
+// window is named windowName, rooted at workdir. Used when a worktree's session
+// does not yet exist, so the session starts with the worktree window directly
+// instead of a stray default window.
+func (t *Tmux) CreateSessionWithWindow(session, windowName, workdir string) error {
+	return t.ExecuteCommand("new-session", "-d", "-s", session, "-n", windowName, "-c", workdir)
+}
+
+// CreateWindowInSession creates a window inside a specific session.
+func (t *Tmux) CreateWindowInSession(session, name, workdir string) error {
+	return t.ExecuteCommand("new-window", "-t", session+":", "-n", name, "-c", workdir)
+}
+
+// WindowSession returns the session that contains a window with the given name,
+// searching across all sessions on the tmux server (not just the attached one).
+// Returns ("", false) when no such window exists or no server is reachable.
+func (t *Tmux) WindowSession(name string) (string, bool) {
+	execCommand := cmd.CommandParams{
+		Command: constants.Tmux,
+		Args:    []string{"list-windows", "-a", "-F", "#{session_name}\t#{window_name}"},
+	}
+	stdout, _, err := t.Base.ExecCommand(execCommand)
+	if err != nil {
+		return "", false
+	}
+	scanner := bufio.NewScanner(strings.NewReader(stdout))
+	for scanner.Scan() {
+		parts := strings.SplitN(strings.TrimSpace(scanner.Text()), "\t", 2)
+		if len(parts) == 2 && parts[1] == name {
+			return parts[0], true
+		}
+	}
+	return "", false
+}
+
+// SwitchToWindow moves the attached client to the given session and selects the
+// window, so it works no matter which session the client is currently on.
+func (t *Tmux) SwitchToWindow(session, name string) error {
+	if err := t.ExecuteCommand("switch-client", "-t", session); err != nil {
+		return err
+	}
+	return t.ExecuteCommand("select-window", "-t", session+":"+name)
+}
+
+// SendKeysToWindowInSession sends keystrokes to a window in a specific session.
+func (t *Tmux) SendKeysToWindowInSession(session, window, keys string) error {
+	return t.ExecuteCommand("send-keys", "-t", session+":"+window, keys, "Enter")
+}
+
 // KillSession terminates a tmux session
 func (t *Tmux) KillSession(name string) error {
 	return t.ExecuteCommand("kill-session", "-t", name)
@@ -174,8 +223,13 @@ func (t *Tmux) HasWindow(name string) bool {
 	return false
 }
 
-// KillWindow closes a specific window by name
+// KillWindow closes a specific window by name. It resolves the window's session
+// first so windows living in a session other than the attached one are still
+// killed; falls back to a bare name target if the lookup finds nothing.
 func (t *Tmux) KillWindow(name string) error {
+	if session, ok := t.WindowSession(name); ok {
+		return t.ExecuteCommand("kill-window", "-t", session+":"+name)
+	}
 	return t.ExecuteCommand("kill-window", "-t", name)
 }
 

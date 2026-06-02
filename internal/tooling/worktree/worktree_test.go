@@ -59,7 +59,9 @@ func TestGetWindowName(t *testing.T) {
 }
 
 func TestSelectWorktreeInteractively(t *testing.T) {
-	t.Skip("Skipping: SelectFromList uses exec.Command which requires actual fzf binary and would block in CI")
+	t.Skip(
+		"Skipping: SelectFromList uses exec.Command which requires actual fzf binary and would block in CI",
+	)
 }
 
 func TestGetWorktreeDir(t *testing.T) {
@@ -202,8 +204,14 @@ func TestRemove(t *testing.T) {
 		mockTmuxBase.SetExecCommandResult("", "", nil)
 
 		repoSlug := filepath.Base(tempDir)
-		wtPath := filepath.Join(paths.Paths.Data.Root, "devgita", "worktrees", repoSlug, "feature-test")
-		if err := os.MkdirAll(wtPath, 0755); err != nil {
+		wtPath := filepath.Join(
+			paths.Paths.Data.Root,
+			"devgita",
+			"worktrees",
+			repoSlug,
+			"feature-test",
+		)
+		if err := os.MkdirAll(wtPath, 0o755); err != nil {
 			t.Fatalf("Failed to create worktree dir: %v", err)
 		}
 		defer os.RemoveAll(filepath.Dir(wtPath))
@@ -246,8 +254,14 @@ func TestRemove(t *testing.T) {
 		mockTmuxBase.SetExecCommandResult("", "window not found", os.ErrNotExist)
 
 		repoSlug := filepath.Base(tempDir)
-		wtPath := filepath.Join(paths.Paths.Data.Root, "devgita", "worktrees", repoSlug, "feature-test")
-		if err := os.MkdirAll(wtPath, 0755); err != nil {
+		wtPath := filepath.Join(
+			paths.Paths.Data.Root,
+			"devgita",
+			"worktrees",
+			repoSlug,
+			"feature-test",
+		)
+		if err := os.MkdirAll(wtPath, 0o755); err != nil {
 			t.Fatalf("Failed to create worktree dir: %v", err)
 		}
 		defer os.RemoveAll(filepath.Dir(wtPath))
@@ -340,14 +354,6 @@ func TestParseJumpRow(t *testing.T) {
 				}
 			}
 		})
-	}
-}
-
-func TestFormatWindowRow(t *testing.T) {
-	result := formatWindowRow("main")
-	expected := "[win]\tmain\t"
-	if result != expected {
-		t.Errorf("Expected %q, got %q", expected, result)
 	}
 }
 
@@ -467,7 +473,7 @@ func TestRemoveByRepoUsesCorrectPath(t *testing.T) {
 	t.Run("wrong repoSlug leaves directory intact", func(t *testing.T) {
 		wm, repoSlug := newWM()
 		wtPath := filepath.Join(paths.Paths.Data.Root, "devgita", "worktrees", repoSlug, wtName)
-		if err := os.MkdirAll(wtPath, 0755); err != nil {
+		if err := os.MkdirAll(wtPath, 0o755); err != nil {
 			t.Fatalf("setup: %v", err)
 		}
 		defer os.RemoveAll(filepath.Dir(wtPath))
@@ -485,7 +491,7 @@ func TestRemoveByRepoUsesCorrectPath(t *testing.T) {
 	t.Run("correct repoSlug removes directory via fallback", func(t *testing.T) {
 		wm, repoSlug := newWM()
 		wtPath := filepath.Join(paths.Paths.Data.Root, "devgita", "worktrees", repoSlug, wtName)
-		if err := os.MkdirAll(wtPath, 0755); err != nil {
+		if err := os.MkdirAll(wtPath, 0o755); err != nil {
 			t.Fatalf("setup: %v", err)
 		}
 		defer os.RemoveAll(filepath.Dir(wtPath))
@@ -572,7 +578,13 @@ func TestRepairStaleWorktree(t *testing.T) {
 	}
 
 	repoSlug := filepath.Base(tempDir)
-	wtPath := filepath.Join(paths.Paths.Data.Root, "devgita", "worktrees", repoSlug, "stale-feature")
+	wtPath := filepath.Join(
+		paths.Paths.Data.Root,
+		"devgita",
+		"worktrees",
+		repoSlug,
+		"stale-feature",
+	)
 
 	// First call: GetRepoRoot
 	mockGitBase.SetExecCommandResult(tempDir+"\n", "", nil)
@@ -600,7 +612,7 @@ func TestRepairStaleWorktree(t *testing.T) {
 
 	// Now test the case where directory is found in git list but missing on disk
 	// Create directory first, then remove it after checking state
-	if err := os.MkdirAll(wtPath, 0755); err != nil {
+	if err := os.MkdirAll(wtPath, 0o755); err != nil {
 		t.Fatalf("Failed to create test directory: %v", err)
 	}
 	defer os.RemoveAll(filepath.Dir(wtPath))
@@ -620,7 +632,9 @@ func TestRepairStaleWorktree(t *testing.T) {
 // TestCreateStaleWorktree verifies that Create auto-prunes stale worktrees
 // and continues with creation
 func TestCreateStaleWorktree(t *testing.T) {
-	t.Skip("This test requires complex mock setup to simulate git worktree list output with stale entries")
+	t.Skip(
+		"This test requires complex mock setup to simulate git worktree list output with stale entries",
+	)
 }
 
 type fzfCall struct {
@@ -643,7 +657,8 @@ func uniqueSlug(t *testing.T) string {
 func newMockWM(results []struct {
 	out string
 	err error
-}) (*WorktreeManager, *[]fzfCall) {
+},
+) (*WorktreeManager, *[]fzfCall) {
 	calls := &[]fzfCall{}
 	idx := 0
 	wm := &WorktreeManager{
