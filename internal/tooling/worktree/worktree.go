@@ -778,7 +778,8 @@ func buildConfirmRows(rows []string, repoSlug, name string) []string {
 	var pendingDisplayRow string
 	for _, row := range rows {
 		parts := strings.SplitN(row, "\t", 2)
-		if parts[0] == pendingKey {
+		// Trim spaces from padded column before comparing
+		if strings.TrimSpace(parts[0]) == pendingKey {
 			rest := ""
 			if len(parts) == 2 {
 				rest = "\t" + parts[1]

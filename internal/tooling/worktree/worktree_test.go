@@ -898,4 +898,24 @@ func TestBuildConfirmRows(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("handles padded columns from alignment formatting", func(t *testing.T) {
+		// Rows with padding spaces (like %-*s formatting produces)
+		paddedRows := []string{
+			"myrepo/feature-a       \tbranch-a\tactive",
+			"myrepo/feature-b       \tbranch-b\tinactive",
+			"otherrepo/long-name    \tmain    \tactive",
+		}
+		result := buildConfirmRows(paddedRows, "myrepo", "feature-b")
+		if len(result) != 3 {
+			t.Fatalf("Expected 3 rows, got %d", len(result))
+		}
+		// First row should be the pending item with red background
+		if !strings.Contains(result[0], "\033[41m") {
+			t.Errorf("Expected red background on pending row with padding, got %q", result[0])
+		}
+		if !strings.Contains(stripANSI(result[0]), "myrepo/feature-b") {
+			t.Errorf("Expected pending item first, got %q", result[0])
+		}
+	})
 }
