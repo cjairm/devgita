@@ -702,11 +702,11 @@ func parseRepoAndName(row string) (repoSlug, name string, err error) {
 	if len(parts) < 1 {
 		return "", "", fmt.Errorf("invalid selection")
 	}
-	combined := strings.SplitN(parts[0], "/", 2)
+	combined := strings.SplitN(strings.TrimSpace(parts[0]), "/", 2)
 	if len(combined) < 2 {
 		return "", "", fmt.Errorf("invalid selection: expected repo/name format, got %q", parts[0])
 	}
-	return combined[0], combined[1], nil
+	return strings.TrimSpace(combined[0]), strings.TrimSpace(combined[1]), nil
 }
 
 // confirmFromTTY reads a y/n answer directly from /dev/tty so it works even
