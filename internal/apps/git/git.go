@@ -114,7 +114,10 @@ func (g *Git) ExecuteCommand(args ...string) error {
 		Command: constants.Git,
 		Args:    args,
 	}
-	if _, _, err := g.Base.ExecCommand(execCommand); err != nil {
+	if _, stderr, err := g.Base.ExecCommand(execCommand); err != nil {
+		if stderr != "" {
+			return fmt.Errorf("git: %s", stderr)
+		}
 		return fmt.Errorf("failed to run git command: %w", err)
 	}
 	return nil
@@ -129,7 +132,10 @@ func (g *Git) ExecuteCommandAt(dir string, args ...string) error {
 		Command: constants.Git,
 		Args:    fullArgs,
 	}
-	if _, _, err := g.Base.ExecCommand(execCommand); err != nil {
+	if _, stderr, err := g.Base.ExecCommand(execCommand); err != nil {
+		if stderr != "" {
+			return fmt.Errorf("git: %s", stderr)
+		}
 		return fmt.Errorf("failed to run git command at %s: %w", dir, err)
 	}
 	return nil

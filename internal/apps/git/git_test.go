@@ -278,8 +278,8 @@ func TestExecuteCommand(t *testing.T) {
 		if err == nil {
 			t.Fatal("Expected ExecuteCommand to return error")
 		}
-		if !strings.Contains(err.Error(), "failed to run git command") {
-			t.Fatalf("Expected error to contain 'failed to run git command', got: %v", err)
+		if !strings.Contains(err.Error(), "git: command not found") {
+			t.Fatalf("Expected error to contain 'git: command not found', got: %v", err)
 		}
 	})
 
@@ -831,8 +831,8 @@ func TestPruneWorktrees(t *testing.T) {
 		if err == nil {
 			t.Fatal("Expected error but got none")
 		}
-		if !strings.Contains(err.Error(), "failed to run git command") {
-			t.Fatalf("Expected error message to contain 'failed to run git command', got: %v", err)
+		if !strings.Contains(err.Error(), "git: fatal: not a git repository") {
+			t.Fatalf("Expected error message to contain 'git: fatal: not a git repository', got: %v", err)
 		}
 	})
 }
