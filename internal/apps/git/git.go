@@ -366,6 +366,11 @@ func (g *Git) PruneWorktreesAt(dir string) error {
 // CheckHookCompatibility scans the repo's effective hooks directory for scripts
 // that use `[ -d .git ]` or `test -d .git`. In a git worktree the .git entry is
 // a FILE, not a directory, so those checks always fail and block git commit.
+//
+// Also detects Affiance hooks which have a known bug where the .git file regex
+// fails to match due to trailing newlines, causing "no .git directory found".
+// See: https://github.com/mariusbutuc/affiance/issues/XXX
+//
 // Returns one warning string per offending hook file, or nil if all clear.
 func (g *Git) CheckHookCompatibility(repoRoot string) []string {
 	hooksDir := g.hooksDir(repoRoot)
@@ -374,6 +379,15 @@ func (g *Git) CheckHookCompatibility(repoRoot string) []string {
 	incompatiblePatterns := []string{"[ -d .git", "test -d .git"}
 
 	var warnings []string
+
+	// Check for Affiance hooks (known worktree incompatibility)
+	affianceHook := filepath.Join(hooksDir, "affiance-hook")
+	if _, err := os.Stat(affianceHook); err == nil {
+		warnings = append(warnings, "affiance-hook (Affiance has a bug parsing .git files in worktrees; use --no-verify to bypass)")
+		// If Affiance is present, all hooks delegate to it, so skip individual checks
+		return warnings
+	}
+
 	for _, hookFile := range hookFiles {
 		content, err := os.ReadFile(filepath.Join(hooksDir, hookFile))
 		if err != nil {

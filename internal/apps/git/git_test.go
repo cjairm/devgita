@@ -794,6 +794,41 @@ func TestCheckHookCompatibility(t *testing.T) {
 			t.Errorf("Expected 2 warnings, got %d: %v", len(warnings), warnings)
 		}
 	})
+
+	t.Run("affiance hooks trigger warning and skip other checks", func(t *testing.T) {
+		mockApp := testutil.NewMockApp()
+		app := &Git{Cmd: mockApp.Cmd, Base: mockApp.Base}
+		mockApp.Base.SetExecCommandResult("", "exit status 1", fmt.Errorf("exit status 1"))
+
+		tmpDir := t.TempDir()
+		hooksDir := filepath.Join(tmpDir, ".git", "hooks")
+		if err := os.MkdirAll(hooksDir, 0755); err != nil {
+			t.Fatal(err)
+		}
+
+		// Create affiance-hook file (indicates Affiance is installed)
+		affianceContent := "#!/bin/bash\nhook=`basename \"$0\"`\nnode $DIR/affiance-hook.js \"$hook\" \"$@\"\n"
+		if err := os.WriteFile(filepath.Join(hooksDir, "affiance-hook"), []byte(affianceContent), 0755); err != nil {
+			t.Fatal(err)
+		}
+
+		// Also create a pre-commit with bad pattern - should be ignored when Affiance is present
+		badHook := "#!/bin/bash\n[ -d .git ] || exit 1\n"
+		if err := os.WriteFile(filepath.Join(hooksDir, "pre-commit"), []byte(badHook), 0755); err != nil {
+			t.Fatal(err)
+		}
+
+		warnings := app.CheckHookCompatibility(tmpDir)
+		if len(warnings) != 1 {
+			t.Fatalf("Expected 1 warning for Affiance, got %d: %v", len(warnings), warnings)
+		}
+		if !strings.Contains(warnings[0], "affiance") {
+			t.Errorf("Expected warning to mention affiance, got %q", warnings[0])
+		}
+		if !strings.Contains(warnings[0], "--no-verify") {
+			t.Errorf("Expected warning to suggest --no-verify, got %q", warnings[0])
+		}
+	})
 }
 
 func TestPruneWorktrees(t *testing.T) {
