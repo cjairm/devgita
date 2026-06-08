@@ -10,6 +10,7 @@ import (
 
 	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/internal/tooling/worktree"
+	tuiworktree "github.com/cjairm/devgita/internal/tui/worktree"
 	"github.com/cjairm/devgita/pkg/utils"
 	"github.com/spf13/cobra"
 )
@@ -31,7 +32,7 @@ Examples:
   dg worktree create feature-login --ai claude  # Create with Claude Code
   dg wt c feature-login                         # Same, using short form
   dg wt l                                       # List all worktrees
-  dg wt j                                       # Jump to worktree (fzf selection)
+  dg wt ui                                      # Open the TUI dashboard
   dg wt rm                                      # Remove worktree (fzf selection)
   dg wt repair feature-login                    # Repair missing window
   dg wt prune                                   # Remove all worktrees`,
@@ -112,17 +113,16 @@ Shows worktrees from all repos in ~/.local/share/devgita/worktrees/ along with:
 		}
 
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "REPO\tWORKTREE\tBRANCH\tWINDOW\tSTATUS")
+		_, _ = fmt.Fprintln(w, "REPO\tWORKTREE\tBRANCH\tWINDOW\tSTATUS")
 		for _, s := range statuses {
 			status := "No window"
 			if s.WindowActive {
 				status = "Active"
 			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
+			_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
 				s.Repo, s.Name, s.Branch, s.TmuxWindow, status)
 		}
-		w.Flush()
-		return nil
+		return w.Flush()
 	},
 }
 
@@ -176,42 +176,13 @@ Warning: Any uncommitted changes in the worktree will be lost.`,
 	},
 }
 
-var worktreeJumpCmd = &cobra.Command{
-	Use:     "jump",
-	Aliases: []string{"j"},
-	Short:   "Jump to a worktree's tmux window",
-	Long: `Jump to a worktree's tmux window using fzf selection (alias: j).
-
-Opens an interactive fzf picker showing all worktrees across all repos.
-
-Inside tmux:
-  - enter: jump to selected worktree window
-  - ctrl-x: delete worktree (with confirmation)
-  - ctrl-r: repair worktree (recreate window and launch AI)
-
-Outside tmux:
-  - enter: print worktree path to stdout
-  - ctrl-x: delete worktree (with confirmation)
-  - ctrl-r: repair worktree (warning: tmux not running)
-
-The fzf dialog also shows non-worktree tmux windows when inside a tmux session.
-Non-worktree windows can only be jumped to (enter); delete/repair are no-op.
-
-Example:
-  dg wt j    # Opens fzf picker, then switches to selected window`,
-	Args: cobra.NoArgs,
-	ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-		names, err := worktree.New().ListNames()
-		if err != nil {
-			return nil, cobra.ShellCompDirectiveError
-		}
-		return names, cobra.ShellCompDirectiveNoFileComp
-	},
+var worktreeUICmd = &cobra.Command{
+	Use:     "ui",
+	Aliases: []string{"dash", "dashboard"},
+	Short:   "Open the worktree dashboard (TUI)",
+	Args:    cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		wm := worktree.New()
-		aiAlias := resolveAIAlias("", &globalConfig)
-
-		return wm.Jump(aiAlias)
+		return tuiworktree.Run()
 	},
 }
 
@@ -246,7 +217,9 @@ AI coder selection follows the same precedence as create:
 		}
 
 		utils.PrintSuccess(fmt.Sprintf("Repaired worktree: %s", name))
-		utils.PrintSuccess(fmt.Sprintf("Launched AI coder in window: %s", worktree.GetWindowName(name)))
+		utils.PrintSuccess(
+			fmt.Sprintf("Launched AI coder in window: %s", worktree.GetWindowName(name)),
+		)
 		return nil
 	},
 }
@@ -289,29 +262,24 @@ func init() {
 	worktreeCmd.AddCommand(worktreeCreateCmd)
 	worktreeCmd.AddCommand(worktreeListCmd)
 	worktreeCmd.AddCommand(worktreeRemoveCmd)
-	worktreeCmd.AddCommand(worktreeJumpCmd)
+	worktreeCmd.AddCommand(worktreeUICmd)
 	worktreeCmd.AddCommand(worktreeRepairCmd)
 	worktreeCmd.AddCommand(worktreePruneCmd)
 
-	worktreeCreateCmd.Flags().StringVarP(&aiFlag, "ai", "a", "", "AI coder to launch (opencode, oc, claude, cc, claudecode)")
-	worktreeCreateCmd.Flags().BoolVarP(&forceFlag, "force", "f", false, "Skip hook compatibility check")
-	worktreeRepairCmd.Flags().StringVarP(&aiFlag, "ai", "a", "", "AI coder to launch (opencode, oc, claude, cc, claudecode)")
-	worktreeRemoveCmd.Flags().BoolVarP(&forceFlag, "force", "f", false, "Force removal even if worktree has uncommitted changes")
+	worktreeCreateCmd.Flags().
+		StringVarP(&aiFlag, "ai", "a", "", "AI coder to launch (opencode, oc, claude, cc, claudecode)")
+	worktreeCreateCmd.Flags().
+		BoolVarP(&forceFlag, "force", "f", false, "Skip hook compatibility check")
+	worktreeRepairCmd.Flags().
+		StringVarP(&aiFlag, "ai", "a", "", "AI coder to launch (opencode, oc, claude, cc, claudecode)")
+	worktreeRemoveCmd.Flags().
+		BoolVarP(&forceFlag, "force", "f", false, "Force removal even if worktree has uncommitted changes")
 }
 
 var globalConfig config.GlobalConfig
 
 func resolveAIAlias(flagValue string, gc *config.GlobalConfig) string {
-	if flagValue != "" {
-		return flagValue
-	}
-	if env := os.Getenv("DEVGITA_WORKTREE_AI"); env != "" {
-		return env
-	}
-	if gc.Worktree.DefaultAI != "" {
-		return gc.Worktree.DefaultAI
-	}
-	return "opencode"
+	return worktree.ResolveAIAlias(flagValue, gc)
 }
 
 func findLastSlash(s string) int {

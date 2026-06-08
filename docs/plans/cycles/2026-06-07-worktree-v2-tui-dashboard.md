@@ -8,7 +8,7 @@ for nice-to-haves. This is realistically a **~2-cycle chunk** because Phase 1 no
 replaces the fzf popup (jump + delete + repair parity) before deleting it, and adds the
 rendering-robustness work surfaced in review. Consider splitting the nice-to-haves (or
 the whole removal/Step 8b) into a Phase 1b if time is tight.
-**Status:** Draft
+**Status:** Done
 
 ---
 
@@ -176,62 +176,62 @@ dashboard. All other `dg wt` subcommands (`create`, `list`, `remove`, `repair`,
 
 ### In Scope
 
-- [ ] **API prep (Step 0):** export repo-scoped `RemoveInRepo`/`RepairInRepo` and a
+- [x] **API prep (Step 0):** export repo-scoped `RemoveInRepo`/`RepairInRepo` and a
       shared `ResolveAIAlias` in `internal/tooling/worktree` so the TUI can reuse the
       business logic across the package boundary (the unexported `removeByRepo`/
       `resolveAIAlias` are unreachable, and name-only `Remove`/`Repair` are ambiguous
       across repos).
-- [ ] Add `charm.land/bubbletea/v2` + `charm.land/lipgloss/v2` + `charm.land/x/ansi` to
+- [x] Add `charm.land/bubbletea/v2` + `charm.land/lipgloss/v2` + `charm.land/x/ansi` to
       `go.mod`/`go.sum`.
-- [ ] New `internal/tui/worktree/` package: Bubble Tea model, tree rendering,
+- [x] New `internal/tui/worktree/` package: Bubble Tea model, tree rendering,
       styles, and a `Run()` entrypoint.
-- [ ] Left pane: worktree tree grouped by repo (T1), status glyphs
+- [x] Left pane: worktree tree grouped by repo (T1), status glyphs
       (`●` running/has-window, `○` no session) and dirty indicator `+A/-R` from
       `DiffStat` (e.g., `+12/-5`). Falls back to glyph-only if `DiffStat` fails.
-- [ ] Left pane is **mouse-resizable**: drag the vertical divider left/right to
+- [x] Left pane is **mouse-resizable**: drag the vertical divider left/right to
       change `leftPaneWidth`; clamp between `minLeftPaneWidth` (e.g. 20 cols) and
       `maxLeftPaneWidth` (60% of terminal width). **Always starts at
       `minLeftPaneWidth`** so the right (Agent/Diff) pane is maximized by default.
-- [ ] Tree nav: `j/k` move cursor over **worktree rows only** (skip repo headers),
+- [x] Tree nav: `j/k` move cursor over **worktree rows only** (skip repo headers),
       `h/l` collapse/expand current repo node, `z` toggle collapse-all, wrap-around
       within visible worktree rows.
-- [ ] Right pane: underline tabs `Agent` and `Diff`; `Tab` switches; Agent shows
+- [x] Right pane: underline tabs `Agent` and `Diff`; `Tab` switches; Agent shows
       `tmux capture-pane` of the selected worktree's window **pane 0** (the agent's pane),
       ANSI-truncated to the pane width; Diff shows colored `git diff HEAD` **plus
       untracked files**, in a scrollable viewport. (See Steps 2/3/6 for the rendering and
       untracked-file handling that make these correct.)
-- [ ] `Enter` = attach (parity with fzf Enter): when inside tmux, `SwitchToWindow` to
+- [x] `Enter` = attach (parity with fzf Enter): when inside tmux, `SwitchToWindow` to
       the worktree's window and quit; **if the window is missing, auto-repair it**
       (`Repair` → recreate window + launch the resolved AI coder) then switch — matching
       the current fzf jump behavior. When **not** inside tmux, show an inline status
       message (no crash; read-only browsing still works).
-- [ ] `d` = delete (parity with fzf `ctrl-d`): **double-confirm** — first `d` arms the
+- [x] `d` = delete (parity with fzf `ctrl-d`): **double-confirm** — first `d` arms the
       selected row (highlight + inline "press d again to delete"), second `d` calls the
       shared `Remove`/`removeByRepo` (force) and drops the row from the tree. Any other
       key cancels the pending delete. Reuses existing business logic, not a new path.
-- [ ] `r` = repair (parity with fzf `ctrl-r`): call `Repair(name, coder)` for the
+- [x] `r` = repair (parity with fzf `ctrl-r`): call `Repair(name, coder)` for the
       selected worktree, then refresh its row/glyph. Resolve the coder the same way
       `dg wt create`/`repair` do.
-- [ ] **Remove the fzf jump flow** (Step 8b): delete `Jump`, `confirmAndRemove`,
+- [x] **Remove the fzf jump flow** (Step 8b): delete `Jump`, `confirmAndRemove`,
       `buildConfirmRows`, the jump row encode/decode helpers, `runFzfWithExpect`,
       `execFzf`, the `fzfRun` field, and `pendingDelete`/`pendingDeleteInfo` from
       `worktree.go`; delete `worktreeJumpCmd` + its registration + the `dg wt j` doc
       lines from `cmd/worktree.go`; and delete the now-orphaned fzf-jump unit tests.
       Keep `SelectWorktreeInteractively`/`Fzf` (still used by `dg wt rm`).
-- [ ] `/` filter: type to filter worktrees by `repo/name` substring; `Esc` **clears
+- [x] `/` filter: type to filter worktrees by `repo/name` substring; `Esc` **clears
       filter and exits** filter mode; `Enter` **keeps filter and exits** filter mode.
-- [ ] Persistent hint bar (K1) at the bottom showing the active keys.
-- [ ] Selected-row refresh (**must-have**): re-capture Agent on a timer tick (~1.5s)
+- [x] Persistent hint bar (K1) at the bottom showing the active keys.
+- [x] Selected-row refresh (**must-have**): re-capture Agent on a timer tick (~1.5s)
       and recompute Diff on selection change. Pause refresh while the user is actively
       navigating. The **hash-based blink reduction** refinement — diffing captured
       content and skipping the viewport update when it is unchanged — is a
       **nice-to-have** (see Priority Split); without it the basic refresh still works,
       just with possible flicker.
-- [ ] `tmux.CapturePane(session, window) (string, error)` helper + test.
-- [ ] `git.Diff(path) (string, error)` and `git.DiffStat(path) (files, added, removed int, error)` helpers + tests.
-- [ ] `dg wt ui` Cobra subcommand (aliases `dash`, `dashboard`) registered in `cmd/worktree.go`.
-- [ ] Update `configs/tmux/tmux.conf:113` to launch `devgita wt ui` in the popup.
-- [ ] Unit tests for the model's `Update` transitions (nav, fold, tab switch, filter).
+- [x] `tmux.CapturePane(session, window) (string, error)` helper + test.
+- [x] `git.Diff(path) (string, error)` and `git.DiffStat(path) (files, added, removed int, error)` helpers + tests.
+- [x] `dg wt ui` Cobra subcommand (aliases `dash`, `dashboard`) registered in `cmd/worktree.go`.
+- [x] Update `configs/tmux/tmux.conf:113` to launch `devgita wt ui` in the popup.
+- [x] Unit tests for the model's `Update` transitions (nav, fold, tab switch, filter).
 
 ### Explicitly Out of Scope
 

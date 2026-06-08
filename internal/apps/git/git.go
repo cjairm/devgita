@@ -39,7 +39,7 @@ import (
 
 var _ apps.App = (*Git)(nil)
 
-// WorktreeInfo contains information about a git worktree
+// WorktreeInfo contains information about a git worktree.
 type WorktreeInfo struct {
 	Path   string
 	Branch string
@@ -224,11 +224,9 @@ func (g *Git) RemoteBranchExists(branch string) (bool, error) {
 // 2. Remote branch exists: create tracking branch (after fetch)
 // 3. Neither exists: create new branch from HEAD
 func (g *Git) CreateWorktree(path, branch string) error {
-	// Fetch latest remote refs to ensure we see recent branches
-	if err := g.FetchOrigin(); err != nil {
-		// Log but don't fail - user might be offline or not have a remote
-		// Continue with local/cached refs
-	}
+	// Fetch latest remote refs to ensure we see recent branches.
+	// Best-effort: ignore errors (user may be offline or have no remote).
+	_ = g.FetchOrigin()
 
 	// Check if local branch already exists
 	localExists, err := g.BranchExists(branch)
@@ -301,7 +299,11 @@ func (g *Git) RemoveWorktree(path string, deleteBranch bool, branchName string) 
 	// Delete the branch if requested
 	if deleteBranch && branchName != "" {
 		if err := g.ExecuteCommandAt(mainWorktree, "branch", "-D", branchName); err != nil {
-			return fmt.Errorf("removed worktree but failed to delete branch '%s': %w", branchName, err)
+			return fmt.Errorf(
+				"removed worktree but failed to delete branch '%s': %w",
+				branchName,
+				err,
+			)
 		}
 	}
 
@@ -319,9 +321,9 @@ func (g *Git) getMainWorktree(fromPath string) (string, error) {
 		return "", err
 	}
 	// First "worktree <path>" line is always the main worktree
-	for _, line := range strings.Split(stdout, "\n") {
-		if strings.HasPrefix(line, "worktree ") {
-			return strings.TrimPrefix(line, "worktree "), nil
+	for line := range strings.SplitSeq(stdout, "\n") {
+		if path, ok := strings.CutPrefix(line, "worktree "); ok {
+			return path, nil
 		}
 	}
 	return "", fmt.Errorf("could not find main worktree")
@@ -353,6 +355,100 @@ func (g *Git) IsWorktreeDirty(path string) (bool, error) {
 	return strings.TrimSpace(stdout) != "", nil
 }
 
+// Diff returns the colored diff for a worktree (HEAD vs working tree + untracked files).
+func (g *Git) Diff(path string) (string, error) {
+	// Tracked changes: diff HEAD (covers both staged + unstaged)
+	execCommand := cmd.CommandParams{
+		Command: constants.Git,
+		Args:    []string{"-C", path, "diff", "--color=always", "HEAD"},
+	}
+	stdout, _, err := g.Base.ExecCommand(execCommand)
+	if err != nil {
+		// Fallback for repos with no commits
+		execCommand2 := cmd.CommandParams{
+			Command: constants.Git,
+			Args:    []string{"-C", path, "diff", "--color=always"},
+		}
+		stdout, _, err = g.Base.ExecCommand(execCommand2)
+		if err != nil {
+			return "", fmt.Errorf("git diff failed: %w", err)
+		}
+	}
+
+	// Untracked files from status --porcelain
+	statusCmd := cmd.CommandParams{
+		Command: constants.Git,
+		Args:    []string{"-C", path, "status", "--porcelain"},
+	}
+	statusOut, _, _ := g.Base.ExecCommand(statusCmd)
+	var untracked []string
+	for line := range strings.SplitSeq(statusOut, "\n") {
+		if path, ok := strings.CutPrefix(line, "?? "); ok {
+			untracked = append(untracked, path)
+		}
+	}
+	if len(untracked) > 0 {
+		stdout += "\nUntracked files:\n"
+		for _, f := range untracked {
+			stdout += "  " + f + "\n"
+		}
+	}
+	return stdout, nil
+}
+
+// DiffStat returns aggregate stats: files changed, lines added, lines removed.
+// Untracked files are counted in files but their line counts are 0.
+func (g *Git) DiffStat(path string) (files, added, removed int, err error) {
+	execCommand := cmd.CommandParams{
+		Command: constants.Git,
+		Args:    []string{"-C", path, "diff", "--numstat", "HEAD"},
+	}
+	stdout, _, execErr := g.Base.ExecCommand(execCommand)
+	if execErr != nil {
+		execCommand2 := cmd.CommandParams{
+			Command: constants.Git,
+			Args:    []string{"-C", path, "diff", "--numstat"},
+		}
+		stdout, _, execErr = g.Base.ExecCommand(execCommand2)
+		if execErr != nil {
+			return 0, 0, 0, fmt.Errorf("git diff --numstat failed: %w", execErr)
+		}
+	}
+	for line := range strings.SplitSeq(strings.TrimSpace(stdout), "\n") {
+		if line == "" {
+			continue
+		}
+		parts := strings.Fields(line)
+		if len(parts) < 2 {
+			continue
+		}
+		files++
+		if parts[0] != "-" {
+			var a int
+			_, _ = fmt.Sscanf(parts[0], "%d", &a)
+			added += a
+		}
+		if parts[1] != "-" {
+			var r int
+			_, _ = fmt.Sscanf(parts[1], "%d", &r)
+			removed += r
+		}
+	}
+
+	// Count untracked files
+	statusCmd := cmd.CommandParams{
+		Command: constants.Git,
+		Args:    []string{"-C", path, "status", "--porcelain"},
+	}
+	statusOut, _, _ := g.Base.ExecCommand(statusCmd)
+	for line := range strings.SplitSeq(statusOut, "\n") {
+		if _, ok := strings.CutPrefix(line, "?? "); ok {
+			files++
+		}
+	}
+	return files, added, removed, nil
+}
+
 // PruneWorktrees removes stale worktree entries
 func (g *Git) PruneWorktrees() error {
 	return g.ExecuteCommand("worktree", "prune")
@@ -375,7 +471,13 @@ func (g *Git) PruneWorktreesAt(dir string) error {
 func (g *Git) CheckHookCompatibility(repoRoot string) []string {
 	hooksDir := g.hooksDir(repoRoot)
 
-	hookFiles := []string{"pre-commit", "commit-msg", "prepare-commit-msg", "post-commit", "pre-push"}
+	hookFiles := []string{
+		"pre-commit",
+		"commit-msg",
+		"prepare-commit-msg",
+		"post-commit",
+		"pre-push",
+	}
 	incompatiblePatterns := []string{"[ -d .git", "test -d .git"}
 
 	var warnings []string
@@ -383,7 +485,10 @@ func (g *Git) CheckHookCompatibility(repoRoot string) []string {
 	// Check for Affiance hooks (known worktree incompatibility)
 	affianceHook := filepath.Join(hooksDir, "affiance-hook")
 	if _, err := os.Stat(affianceHook); err == nil {
-		warnings = append(warnings, "affiance-hook (Affiance has a bug parsing .git files in worktrees; use --no-verify to bypass)")
+		warnings = append(
+			warnings,
+			"affiance-hook (Affiance has a bug parsing .git files in worktrees; use --no-verify to bypass)",
+		)
 		// If Affiance is present, all hooks delegate to it, so skip individual checks
 		return warnings
 	}
@@ -428,8 +533,7 @@ func parseWorktreeOutput(output string) []WorktreeInfo {
 	var worktrees []WorktreeInfo
 	var current WorktreeInfo
 
-	lines := strings.Split(output, "\n")
-	for _, line := range lines {
+	for line := range strings.SplitSeq(output, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" {
 			if current.Path != "" {
@@ -439,15 +543,14 @@ func parseWorktreeOutput(output string) []WorktreeInfo {
 			continue
 		}
 
-		if strings.HasPrefix(line, "worktree ") {
-			current.Path = strings.TrimPrefix(line, "worktree ")
-		} else if strings.HasPrefix(line, "HEAD ") {
-			current.Commit = strings.TrimPrefix(line, "HEAD ")
-		} else if strings.HasPrefix(line, "branch ") {
-			branch := strings.TrimPrefix(line, "branch ")
-			// Remove refs/heads/ prefix if present
-			branch = strings.TrimPrefix(branch, "refs/heads/")
-			current.Branch = branch
+		switch {
+		case strings.HasPrefix(line, "worktree "):
+			current.Path, _ = strings.CutPrefix(line, "worktree ")
+		case strings.HasPrefix(line, "HEAD "):
+			current.Commit, _ = strings.CutPrefix(line, "HEAD ")
+		case strings.HasPrefix(line, "branch "):
+			branchRef, _ := strings.CutPrefix(line, "branch ")
+			current.Branch = strings.TrimPrefix(branchRef, "refs/heads/")
 		}
 	}
 

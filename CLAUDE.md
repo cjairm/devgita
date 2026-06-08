@@ -99,6 +99,20 @@ Hard constraints that override all other considerations:
 - Comments explain WHY, not WHAT (code should be self-documenting)
 - Never ignore errors; always handle or return them explicitly
 
+### Lint issues
+
+**Fix lint issues — never suppress them with `//nolint` comments.**
+
+`//nolint` bypasses the linter without addressing the problem; it is never acceptable.
+
+| Issue                                              | Correct fix                                                                                                                                                                            |
+| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Unchecked error (`errcheck`)                       | Handle the error: `if err := f(); err != nil { ... }`. Use `_ = f()` only when the error is genuinely non-actionable (e.g. closing a read-only file) and add a comment explaining why. |
+| Empty branch (`SA9003`)                            | Replace the empty `if err != nil {}` with `_ = call()` and a comment if the ignore is intentional.                                                                                     |
+| De Morgan's law (`QF1001`)                         | Rewrite: `!(a && b)` → `!a \|\| !b`.                                                                                                                                                   |
+| Unchecked `defer` cleanup in tests                 | Use `t.Cleanup(func() { if err := os.RemoveAll(...); err != nil { t.Logf(...) } })` instead of a bare `defer`.                                                                         |
+| Cross-file "undefined" from the per-file lint hook | These are false positives — the hook lints a single file and cannot see other files in the same package. Verify with `go build ./...`; if it passes, the issue is not real.            |
+
 ### Logger usage
 
 - Initialize once at startup: `logger.Init(verbose)` in cmd/root.go
@@ -116,6 +130,17 @@ Key principles:
 - Provide actionable error messages: tell users what went wrong and how to fix it
 - Never expose raw Go errors to users; wrap and clarify
 
+### Feature workflow (implement → verify → test → commit)
+
+Follow this order for every non-trivial change:
+
+1. **Implement** the feature or fix.
+2. **Verify manually** that it works end-to-end (run the binary, use the UI, confirm the golden path).
+3. **Add or update tests** — only after the feature is confirmed working. Tests written against a broken feature encode the wrong behavior.
+4. **Commit** once both manual verification and `go test ./...` pass.
+
+> Before committing, always ask: _"Does this change have tests? Should it?"_ If the answer is yes and tests are missing, write them first. A working feature without tests is a regression waiting to happen.
+
 ### Testing requirements
 
 **CRITICAL: Always use mocks. Never execute real commands in tests.**
@@ -129,11 +154,17 @@ Accidental real command execution is a common mistake. It can:
 - Cause CI failures in shared environments
 - Hide bugs (tests pass only if side effects succeed)
 
-**Testing checklist:**
+**Common mock-safety traps to avoid:**
+
+- Using `foo.New()` in a test that calls state-changing methods — always use `&foo.Foo{Cmd: mockApp.Cmd, Base: mockApp.Base}` instead.
+- Calling `testutil.VerifyNoRealCommands(t, tc.MockApp.Base)` after creating a separate `app := foo.New()` — the check targets the wrong base and silently passes even when real commands run.
+- Not setting `t.Setenv("TMUX", "")` (or similar env vars) in tests that don't intend to exercise an env-triggered path.
+
+**Testing checklist** (full patterns and examples → [docs/guides/testing-patterns.md](docs/guides/testing-patterns.md)):
 
 - [ ] All public functionality has tests
-- [ ] Use `testutil.MockApp` for command mocking (see `internal/testutil/`)
-- [ ] Verify no real commands executed: `testutil.VerifyNoRealCommands(t, mockApp.Base)`
+- [ ] Use `testutil.MockApp` for command mocking — never call `foo.New()` in a test that invokes state-changing methods
+- [ ] Verify no real commands executed: `testutil.VerifyNoRealCommands(t, mockApp.Base)` — confirm it's checking the **same** base the app uses
 - [ ] **Call `testutil.IsolateXDGDirs(t)` in any test that calls Uninstall, ForceInstall, ForceConfigure, or SoftConfigure — prevents deleting real user data**
 - [ ] **Save and restore every `paths.Paths.*` mutation via `t.Cleanup` — prevents cross-test state leakage**
 - [ ] Use `t.Helper()` in test helper functions

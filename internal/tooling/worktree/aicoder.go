@@ -2,8 +2,11 @@ package worktree
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
+
+	"github.com/cjairm/devgita/internal/config"
 )
 
 // AICoder represents an AI coding assistant that can be launched in a worktree window
@@ -48,6 +51,24 @@ func ResolveAICoder(alias string) (AICoder, error) {
 	case "claude", "cc", "claudecode":
 		return &ClaudeCoder{}, nil
 	default:
-		return nil, fmt.Errorf("unknown AI coder alias %q. Valid aliases: opencode, oc, claude, cc, claudecode", alias)
+		return nil, fmt.Errorf(
+			"unknown AI coder alias %q. Valid aliases: opencode, oc, claude, cc, claudecode",
+			alias,
+		)
 	}
+}
+
+// ResolveAIAlias applies precedence: flag → DEVGITA_WORKTREE_AI → global_config → opencode.
+// This is the shared resolver used by both cmd and the TUI.
+func ResolveAIAlias(flag string, gc *config.GlobalConfig) string {
+	if flag != "" {
+		return flag
+	}
+	if env := os.Getenv("DEVGITA_WORKTREE_AI"); env != "" {
+		return env
+	}
+	if gc != nil && gc.Worktree.DefaultAI != "" {
+		return gc.Worktree.DefaultAI
+	}
+	return "opencode"
 }

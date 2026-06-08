@@ -86,14 +86,15 @@ dg install --only neovim --only docker    # neovim (terminal) + docker (desktop)
 
 **Individually targetable apps** (registry-managed, 18 apps):
 
-| Coordinator | Apps |
-|---|---|
-| terminal | claude, fastfetch, git, lazydocker, lazygit, mise, neovim, opencode, tmux |
-| desktop | aerospace, alacritty, brave, docker, flameshot, gimp, i3, raycast, ulauncher |
+| Coordinator | Apps                                                                         |
+| ----------- | ---------------------------------------------------------------------------- |
+| terminal    | claude, fastfetch, git, lazydocker, lazygit, mise, neovim, opencode, tmux    |
+| desktop     | aerospace, alacritty, brave, docker, flameshot, gimp, i3, raycast, ulauncher |
 
 **Note on alacritty:** `alacritty` has `KindTerminal` in the registry but is installed by the desktop coordinator. Use `--only alacritty` (not `--only terminal`) to target it specifically.
 
 **Not individually targetable** (no registry entry):
+
 - Core libs: autoconf, bison, ncurses, openssl, etc.
 - Dev tools: bat, fzf, ripgrep, zoxide, etc.
 - Languages: node, python, go, rust, php (use interactive selection)
@@ -233,7 +234,7 @@ dg completion [bash|zsh|fish|powershell]
 
 - Prints the completion script to stdout; source it or add to your shell config.
 - Example: `dg completion zsh > ~/.zsh/completions/_dg`
-- Tab completion is pre-wired for `dg worktree remove <name>` and `dg worktree jump`.
+- Tab completion is pre-wired for `dg worktree remove <name>`.
 
 #### `dg worktree`
 
@@ -246,14 +247,14 @@ dg wt <subcommand> [flags]     # alias
 
 **Subcommands**:
 
-| Subcommand      | Description                                            |
-| --------------- | ------------------------------------------------------ |
-| `create <name>` | Create a new worktree + tmux window                    |
-| `list`          | List all managed worktrees                             |
-| `remove [name]` | Remove a worktree (interactive picker if name omitted) |
-| `jump`          | fzf-powered picker to switch between worktree windows  |
-| `repair <name>` | Recreate the tmux window for an existing worktree      |
-| `prune`         | Remove **all** managed worktrees after confirmation    |
+| Subcommand      | Description                                                                         |
+| --------------- | ----------------------------------------------------------------------------------- |
+| `create <name>` | Create a new worktree + tmux window                                                 |
+| `list`          | List all managed worktrees                                                          |
+| `remove [name]` | Remove a worktree (interactive picker if name omitted)                              |
+| `ui` / `dash`   | Full-screen TUI dashboard (NERDTree-style tree + Agent/Diff panes); replaces `jump` |
+| `repair <name>` | Recreate the tmux window for an existing worktree                                   |
+| `prune`         | Remove **all** managed worktrees after confirmation                                 |
 
 **Flags for `create` and `repair`**:
 
@@ -268,8 +269,8 @@ dg wt <subcommand> [flags]     # alias
 ```
 dg wt create feature-login                  # Create worktree, use default AI
 dg wt create feature-login --ai claude      # Create with Claude Code
+dg wt ui                                    # Open TUI dashboard (j/k nav, Enter attach, d delete, r repair)
 dg wt repair feature-login                  # Recreate missing tmux window
-dg wt jump                                  # fzf picker (ctrl-d delete, ctrl-r repair)
 dg wt prune                                 # Remove all worktrees (prompts for confirmation)
 ```
 

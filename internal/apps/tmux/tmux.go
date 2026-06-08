@@ -67,10 +67,18 @@ func (t *Tmux) ForceConfigure() error {
 	if err := enableFeature(gc); err != nil {
 		return fmt.Errorf("failed to enable tmux feature: %w", err)
 	}
-	return files.CopyFile(
+	configDest := filepath.Join(paths.Paths.Home.Root, configFileName)
+	if err := files.CopyFile(
 		filepath.Join(paths.Paths.App.Configs.Tmux, "tmux.conf"),
-		filepath.Join(paths.Paths.Home.Root, configFileName),
-	)
+		configDest,
+	); err != nil {
+		return err
+	}
+	// Reload the running tmux server if we're inside a session (best-effort).
+	if os.Getenv("TMUX") != "" {
+		_ = t.ExecuteCommand("source-file", configDest)
+	}
+	return nil
 }
 
 func (t *Tmux) SoftConfigure() error {
@@ -236,6 +244,24 @@ func (t *Tmux) KillWindow(name string) error {
 // SendKeysToWindow sends keystrokes to a specific window
 func (t *Tmux) SendKeysToWindow(window, keys string) error {
 	return t.ExecuteCommand("send-keys", "-t", window, keys, "Enter")
+}
+
+// CapturePane returns the visible content of pane 0 (the agent's pane) for the
+// given tmux window. The result includes ANSI color escapes (-e).
+func (t *Tmux) CapturePane(session, window string) (string, error) {
+	target := session + ":" + window + ".0"
+	execCommand := cmd.CommandParams{
+		Command: constants.Tmux,
+		Args:    []string{"capture-pane", "-p", "-e", "-t", target},
+	}
+	stdout, stderr, err := t.Base.ExecCommand(execCommand)
+	if err != nil {
+		if stderr != "" {
+			return "", fmt.Errorf("capture-pane: %s", stderr)
+		}
+		return "", fmt.Errorf("failed to capture pane %s: %w", target, err)
+	}
+	return stdout, nil
 }
 
 // SelectWindow switches focus to a specific window by name

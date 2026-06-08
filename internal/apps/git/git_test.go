@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/cjairm/devgita/internal/apps"
+	"github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/internal/testutil"
 	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/paths"
@@ -83,7 +84,11 @@ func TestSoftInstall(t *testing.T) {
 		t.Fatalf("SoftInstall error: %v", err)
 	}
 	if mockApp.Cmd.MaybeInstalled != constants.Git {
-		t.Fatalf("expected MaybeInstallPackage(%s), got %q", constants.Git, mockApp.Cmd.MaybeInstalled)
+		t.Fatalf(
+			"expected MaybeInstallPackage(%s), got %q",
+			constants.Git,
+			mockApp.Cmd.MaybeInstalled,
+		)
 	}
 
 	testutil.VerifyNoRealCommands(t, mockApp.Base)
@@ -109,7 +114,11 @@ func TestUninstall(t *testing.T) {
 		t.Fatalf("Uninstall error: %v", err)
 	}
 	if tc.MockApp.Cmd.UninstalledPkg != constants.Git {
-		t.Errorf("expected UninstallPackage(%s), got %q", constants.Git, tc.MockApp.Cmd.UninstalledPkg)
+		t.Errorf(
+			"expected UninstallPackage(%s), got %q",
+			constants.Git,
+			tc.MockApp.Cmd.UninstalledPkg,
+		)
 	}
 
 	testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
@@ -137,7 +146,7 @@ func TestForceConfigure(t *testing.T) {
 
 	src := filepath.Join(tc.AppDir, "git-src")
 	dst := filepath.Join(tc.ConfigDir, "git")
-	if err := os.MkdirAll(src, 0755); err != nil {
+	if err := os.MkdirAll(src, 0o755); err != nil {
 		t.Fatal(err)
 	}
 
@@ -148,7 +157,11 @@ func TestForceConfigure(t *testing.T) {
 	paths.Paths.App.Configs.Git, paths.Paths.Config.Git = src, dst
 
 	originalContent := "[user]\n\tname = Test User"
-	if err := os.WriteFile(filepath.Join(src, ".gitconfig"), []byte(originalContent), 0o644); err != nil {
+	if err := os.WriteFile(
+		filepath.Join(src, ".gitconfig"),
+		[]byte(originalContent),
+		0o644,
+	); err != nil {
 		t.Fatal(err)
 	}
 
@@ -185,7 +198,11 @@ func TestForceConfigure(t *testing.T) {
 		t.Fatalf("failed to read file after second configure: %v", err)
 	}
 	if string(finalContent) == string(modifiedContent) {
-		t.Fatalf("ForceConfigure did not overwrite: expected %q, got %q", originalContent, string(finalContent))
+		t.Fatalf(
+			"ForceConfigure did not overwrite: expected %q, got %q",
+			originalContent,
+			string(finalContent),
+		)
 	}
 
 	testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
@@ -204,7 +221,11 @@ func TestSoftConfigure(t *testing.T) {
 	})
 
 	originalContent := "[user]\n\tname = Test User"
-	if err := os.WriteFile(filepath.Join(src, ".gitconfig"), []byte(originalContent), 0o644); err != nil {
+	if err := os.WriteFile(
+		filepath.Join(src, ".gitconfig"),
+		[]byte(originalContent),
+		0o644,
+	); err != nil {
 		t.Fatal(err)
 	}
 
@@ -234,7 +255,11 @@ func TestSoftConfigure(t *testing.T) {
 		t.Fatalf("failed to read file after second configure: %v", err)
 	}
 	if string(finalContent) == string(originalContent) {
-		t.Fatalf("SoftConfigure overwrote existing file: expected %q, got %q", modifiedContent, string(finalContent))
+		t.Fatalf(
+			"SoftConfigure overwrote existing file: expected %q, got %q",
+			modifiedContent,
+			string(finalContent),
+		)
 	}
 
 	testutil.VerifyNoRealCommands(t, mockApp.Base)
@@ -272,7 +297,11 @@ func TestExecuteCommand(t *testing.T) {
 
 	t.Run("command execution error", func(t *testing.T) {
 		mockApp.Base.ResetExecCommand()
-		mockApp.Base.SetExecCommandResult("", "command not found", fmt.Errorf("command not found: git"))
+		mockApp.Base.SetExecCommandResult(
+			"",
+			"command not found",
+			fmt.Errorf("command not found: git"),
+		)
 
 		err := app.ExecuteCommand("--invalid-flag")
 		if err == nil {
@@ -300,6 +329,138 @@ func TestExecuteCommand(t *testing.T) {
 			if lastCall.Args[i] != arg {
 				t.Fatalf("Expected arg[%d] to be %q, got %q", i, arg, lastCall.Args[i])
 			}
+		}
+	})
+}
+
+func TestBranchExists(t *testing.T) {
+	mockApp := testutil.NewMockApp()
+	app := &Git{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+	t.Run("branch exists returns true", func(t *testing.T) {
+		mockApp.Base.ResetExecCommand()
+		mockApp.Base.SetExecCommandResult("  feature-a\n", "", nil)
+
+		exists, err := app.BranchExists("feature-a")
+		if err != nil {
+			t.Fatalf("BranchExists failed: %v", err)
+		}
+		if !exists {
+			t.Error("expected branch to exist")
+		}
+		last := mockApp.Base.GetLastExecCommandCall()
+		if last == nil {
+			t.Fatal("no ExecCommand call recorded")
+		}
+		expectedArgs := []string{"branch", "--list", "feature-a"}
+		if len(last.Args) != len(expectedArgs) {
+			t.Fatalf("expected args %v, got %v", expectedArgs, last.Args)
+		}
+	})
+
+	t.Run("branch does not exist returns false", func(t *testing.T) {
+		mockApp.Base.ResetExecCommand()
+		mockApp.Base.SetExecCommandResult("", "", nil)
+
+		exists, err := app.BranchExists("no-such-branch")
+		if err != nil {
+			t.Fatalf("BranchExists failed: %v", err)
+		}
+		if exists {
+			t.Error("expected branch to not exist")
+		}
+	})
+
+	t.Run("exec error propagates", func(t *testing.T) {
+		mockApp.Base.ResetExecCommand()
+		mockApp.Base.SetExecCommandResult("", "fatal: error", fmt.Errorf("git error"))
+
+		_, err := app.BranchExists("any")
+		if err == nil {
+			t.Error("expected error to propagate")
+		}
+	})
+}
+
+func TestListWorktreesAt(t *testing.T) {
+	const porcelain = "worktree /repo\nHEAD abc123\nbranch refs/heads/main\n\n" +
+		"worktree /repo/.worktrees/feature-a\nHEAD def456\nbranch refs/heads/feature-a\n\n"
+
+	t.Run("lists worktrees from given directory", func(t *testing.T) {
+		mockApp := testutil.NewMockApp()
+		mockApp.Base.SetExecCommandResult(porcelain, "", nil)
+		app := &Git{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+		worktrees, err := app.ListWorktreesAt("/repo")
+		if err != nil {
+			t.Fatalf("ListWorktreesAt failed: %v", err)
+		}
+		if len(worktrees) != 2 {
+			t.Fatalf("expected 2 worktrees, got %d", len(worktrees))
+		}
+		if worktrees[1].Branch != "feature-a" {
+			t.Errorf("expected branch 'feature-a', got %q", worktrees[1].Branch)
+		}
+
+		last := mockApp.Base.GetLastExecCommandCall()
+		if last == nil {
+			t.Fatal("no ExecCommand call recorded")
+		}
+		// Must use -C flag with the given directory
+		if len(last.Args) < 2 || last.Args[0] != "-C" || last.Args[1] != "/repo" {
+			t.Errorf("expected -C /repo as first args, got %v", last.Args)
+		}
+	})
+
+	t.Run("exec error returns error", func(t *testing.T) {
+		mockApp := testutil.NewMockApp()
+		mockApp.Base.SetExecCommandResult("", "fatal", fmt.Errorf("not a git repo"))
+		app := &Git{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+		_, err := app.ListWorktreesAt("/not-a-repo")
+		if err == nil {
+			t.Error("expected error for non-git directory")
+		}
+	})
+}
+
+func TestPruneWorktreesAt(t *testing.T) {
+	t.Run("runs prune in given directory", func(t *testing.T) {
+		mockApp := testutil.NewMockApp()
+		mockApp.Base.SetExecCommandResult("", "", nil)
+		app := &Git{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+		if err := app.PruneWorktreesAt("/repo"); err != nil {
+			t.Fatalf("PruneWorktreesAt failed: %v", err)
+		}
+
+		last := mockApp.Base.GetLastExecCommandCall()
+		if last == nil {
+			t.Fatal("no ExecCommand call recorded")
+		}
+		if len(last.Args) < 2 || last.Args[0] != "-C" || last.Args[1] != "/repo" {
+			t.Errorf("expected -C /repo as first args, got %v", last.Args)
+		}
+		// Must include worktree prune
+		found := false
+		for _, arg := range last.Args {
+			if arg == "prune" {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("expected 'prune' in args, got %v", last.Args)
+		}
+	})
+
+	t.Run("returns error on failure", func(t *testing.T) {
+		mockApp := testutil.NewMockApp()
+		mockApp.Base.SetExecCommandResult("", "error", fmt.Errorf("not a git repo"))
+		app := &Git{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+		if err := app.PruneWorktreesAt("/bad"); err == nil {
+			t.Error("expected error")
 		}
 	})
 }
@@ -391,7 +552,11 @@ func TestCreateWorktree(t *testing.T) {
 
 	t.Run("creation error on worktree add", func(t *testing.T) {
 		mockApp.Base.ResetExecCommand()
-		mockApp.Base.SetExecCommandResult("", "fatal: worktree exists", fmt.Errorf("worktree exists"))
+		mockApp.Base.SetExecCommandResult(
+			"",
+			"fatal: worktree exists",
+			fmt.Errorf("worktree exists"),
+		)
 
 		err := app.CreateWorktree("/path/to/worktree", "existing-branch")
 		if err == nil {
@@ -438,7 +603,10 @@ branch refs/heads/feature
 		}
 
 		if worktrees[1].Path != "/Users/test/repo/.worktrees/feature" {
-			t.Errorf("Expected path '/Users/test/repo/.worktrees/feature', got %q", worktrees[1].Path)
+			t.Errorf(
+				"Expected path '/Users/test/repo/.worktrees/feature', got %q",
+				worktrees[1].Path,
+			)
 		}
 		if worktrees[1].Branch != "feature" {
 			t.Errorf("Expected branch 'feature', got %q", worktrees[1].Branch)
@@ -447,7 +615,11 @@ branch refs/heads/feature
 
 	t.Run("list error", func(t *testing.T) {
 		mockApp.Base.ResetExecCommand()
-		mockApp.Base.SetExecCommandResult("", "fatal: not a git repository", fmt.Errorf("not a repo"))
+		mockApp.Base.SetExecCommandResult(
+			"",
+			"fatal: not a git repository",
+			fmt.Errorf("not a repo"),
+		)
 
 		_, err := app.ListWorktrees()
 		if err == nil {
@@ -466,7 +638,11 @@ func TestRemoveWorktree(t *testing.T) {
 	t.Run("successful removal without branch deletion", func(t *testing.T) {
 		mockApp.Base.ResetExecCommand()
 		// First call is getMainWorktree (worktree list), subsequent calls succeed with same output
-		mockApp.Base.SetExecCommandResult("worktree /main/repo\nHEAD abc123\nbranch refs/heads/main\n", "", nil)
+		mockApp.Base.SetExecCommandResult(
+			"worktree /main/repo\nHEAD abc123\nbranch refs/heads/main\n",
+			"",
+			nil,
+		)
 
 		if err := app.RemoveWorktree("/path/to/worktree", false, ""); err != nil {
 			t.Fatalf("RemoveWorktree failed: %v", err)
@@ -479,14 +655,23 @@ func TestRemoveWorktree(t *testing.T) {
 		firstCall := mockApp.Base.ExecCommandCalls[0]
 		expectedFirst := []string{"-C", "/path/to/worktree", "worktree", "list", "--porcelain"}
 		if len(firstCall.Args) != len(expectedFirst) {
-			t.Fatalf("Expected %d args for first call, got %d", len(expectedFirst), len(firstCall.Args))
+			t.Fatalf(
+				"Expected %d args for first call, got %d",
+				len(expectedFirst),
+				len(firstCall.Args),
+			)
 		}
 
 		// Second call: worktree remove from main repo
 		secondCall := mockApp.Base.ExecCommandCalls[1]
 		expectedSecond := []string{"-C", "/main/repo", "worktree", "remove", "/path/to/worktree"}
 		if len(secondCall.Args) != len(expectedSecond) {
-			t.Fatalf("Expected %d args for second call, got %d: %v", len(expectedSecond), len(secondCall.Args), secondCall.Args)
+			t.Fatalf(
+				"Expected %d args for second call, got %d: %v",
+				len(expectedSecond),
+				len(secondCall.Args),
+				secondCall.Args,
+			)
 		}
 		for i, arg := range expectedSecond {
 			if secondCall.Args[i] != arg {
@@ -497,7 +682,11 @@ func TestRemoveWorktree(t *testing.T) {
 
 	t.Run("successful removal with branch deletion", func(t *testing.T) {
 		mockApp.Base.ResetExecCommand()
-		mockApp.Base.SetExecCommandResult("worktree /main/repo\nHEAD abc123\nbranch refs/heads/main\n", "", nil)
+		mockApp.Base.SetExecCommandResult(
+			"worktree /main/repo\nHEAD abc123\nbranch refs/heads/main\n",
+			"",
+			nil,
+		)
 
 		if err := app.RemoveWorktree("/path/to/worktree", true, "feature-branch"); err != nil {
 			t.Fatalf("RemoveWorktree failed: %v", err)
@@ -547,7 +736,11 @@ func TestGetRepoRoot(t *testing.T) {
 
 	t.Run("not a git repo", func(t *testing.T) {
 		mockApp.Base.ResetExecCommand()
-		mockApp.Base.SetExecCommandResult("", "fatal: not a git repository", fmt.Errorf("not a repo"))
+		mockApp.Base.SetExecCommandResult(
+			"",
+			"fatal: not a git repository",
+			fmt.Errorf("not a repo"),
+		)
 
 		_, err := app.GetRepoRoot()
 		if err == nil {
@@ -683,11 +876,15 @@ func TestCheckHookCompatibility(t *testing.T) {
 
 		tmpDir := t.TempDir()
 		hooksDir := filepath.Join(tmpDir, ".git", "hooks")
-		if err := os.MkdirAll(hooksDir, 0755); err != nil {
+		if err := os.MkdirAll(hooksDir, 0o755); err != nil {
 			t.Fatal(err)
 		}
 		hookContent := "#!/bin/bash\n[ -d .git ] || { echo 'no .git directory found'; exit 1; }\n"
-		if err := os.WriteFile(filepath.Join(hooksDir, "pre-commit"), []byte(hookContent), 0755); err != nil {
+		if err := os.WriteFile(
+			filepath.Join(hooksDir, "pre-commit"),
+			[]byte(hookContent),
+			0o755,
+		); err != nil {
 			t.Fatal(err)
 		}
 
@@ -710,11 +907,15 @@ func TestCheckHookCompatibility(t *testing.T) {
 
 		tmpDir := t.TempDir()
 		hooksDir := filepath.Join(tmpDir, ".git", "hooks")
-		if err := os.MkdirAll(hooksDir, 0755); err != nil {
+		if err := os.MkdirAll(hooksDir, 0o755); err != nil {
 			t.Fatal(err)
 		}
 		hookContent := "#!/bin/bash\ntest -d .git || exit 1\n"
-		if err := os.WriteFile(filepath.Join(hooksDir, "commit-msg"), []byte(hookContent), 0755); err != nil {
+		if err := os.WriteFile(
+			filepath.Join(hooksDir, "commit-msg"),
+			[]byte(hookContent),
+			0o755,
+		); err != nil {
 			t.Fatal(err)
 		}
 
@@ -734,11 +935,15 @@ func TestCheckHookCompatibility(t *testing.T) {
 
 		tmpDir := t.TempDir()
 		hooksDir := filepath.Join(tmpDir, ".git", "hooks")
-		if err := os.MkdirAll(hooksDir, 0755); err != nil {
+		if err := os.MkdirAll(hooksDir, 0o755); err != nil {
 			t.Fatal(err)
 		}
 		hookContent := "#!/bin/bash\ngit_dir=$(git rev-parse --git-dir)\necho \"git dir: $git_dir\"\n"
-		if err := os.WriteFile(filepath.Join(hooksDir, "pre-commit"), []byte(hookContent), 0755); err != nil {
+		if err := os.WriteFile(
+			filepath.Join(hooksDir, "pre-commit"),
+			[]byte(hookContent),
+			0o755,
+		); err != nil {
 			t.Fatal(err)
 		}
 
@@ -754,11 +959,15 @@ func TestCheckHookCompatibility(t *testing.T) {
 
 		tmpDir := t.TempDir()
 		huskyDir := filepath.Join(tmpDir, ".husky")
-		if err := os.MkdirAll(huskyDir, 0755); err != nil {
+		if err := os.MkdirAll(huskyDir, 0o755); err != nil {
 			t.Fatal(err)
 		}
 		hookContent := "#!/bin/sh\n[ -d .git ] || exit 1\n"
-		if err := os.WriteFile(filepath.Join(huskyDir, "pre-commit"), []byte(hookContent), 0755); err != nil {
+		if err := os.WriteFile(
+			filepath.Join(huskyDir, "pre-commit"),
+			[]byte(hookContent),
+			0o755,
+		); err != nil {
 			t.Fatal(err)
 		}
 		mockApp.Base.SetExecCommandResult(".husky\n", "", nil)
@@ -779,12 +988,16 @@ func TestCheckHookCompatibility(t *testing.T) {
 
 		tmpDir := t.TempDir()
 		hooksDir := filepath.Join(tmpDir, ".git", "hooks")
-		if err := os.MkdirAll(hooksDir, 0755); err != nil {
+		if err := os.MkdirAll(hooksDir, 0o755); err != nil {
 			t.Fatal(err)
 		}
 		badHook := "#!/bin/bash\n[ -d .git ] || exit 1\n"
 		for _, name := range []string{"pre-commit", "commit-msg"} {
-			if err := os.WriteFile(filepath.Join(hooksDir, name), []byte(badHook), 0755); err != nil {
+			if err := os.WriteFile(
+				filepath.Join(hooksDir, name),
+				[]byte(badHook),
+				0o755,
+			); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -802,19 +1015,27 @@ func TestCheckHookCompatibility(t *testing.T) {
 
 		tmpDir := t.TempDir()
 		hooksDir := filepath.Join(tmpDir, ".git", "hooks")
-		if err := os.MkdirAll(hooksDir, 0755); err != nil {
+		if err := os.MkdirAll(hooksDir, 0o755); err != nil {
 			t.Fatal(err)
 		}
 
 		// Create affiance-hook file (indicates Affiance is installed)
 		affianceContent := "#!/bin/bash\nhook=`basename \"$0\"`\nnode $DIR/affiance-hook.js \"$hook\" \"$@\"\n"
-		if err := os.WriteFile(filepath.Join(hooksDir, "affiance-hook"), []byte(affianceContent), 0755); err != nil {
+		if err := os.WriteFile(
+			filepath.Join(hooksDir, "affiance-hook"),
+			[]byte(affianceContent),
+			0o755,
+		); err != nil {
 			t.Fatal(err)
 		}
 
 		// Also create a pre-commit with bad pattern - should be ignored when Affiance is present
 		badHook := "#!/bin/bash\n[ -d .git ] || exit 1\n"
-		if err := os.WriteFile(filepath.Join(hooksDir, "pre-commit"), []byte(badHook), 0755); err != nil {
+		if err := os.WriteFile(
+			filepath.Join(hooksDir, "pre-commit"),
+			[]byte(badHook),
+			0o755,
+		); err != nil {
 			t.Fatal(err)
 		}
 
@@ -860,14 +1081,172 @@ func TestPruneWorktrees(t *testing.T) {
 
 	t.Run("prune error", func(t *testing.T) {
 		mockApp.Base.ResetExecCommand()
-		mockApp.Base.SetExecCommandResult("", "fatal: not a git repository", fmt.Errorf("not a repo"))
+		mockApp.Base.SetExecCommandResult(
+			"",
+			"fatal: not a git repository",
+			fmt.Errorf("not a repo"),
+		)
 
 		err := app.PruneWorktrees()
 		if err == nil {
 			t.Fatal("Expected error but got none")
 		}
 		if !strings.Contains(err.Error(), "git: fatal: not a git repository") {
-			t.Fatalf("Expected error message to contain 'git: fatal: not a git repository', got: %v", err)
+			t.Fatalf(
+				"Expected error message to contain 'git: fatal: not a git repository', got: %v",
+				err,
+			)
 		}
 	})
+}
+
+func TestDiff(t *testing.T) {
+	t.Run("diff HEAD succeeds returns content", func(t *testing.T) {
+		mockApp := testutil.NewMockApp()
+		// The mock returns the same value for every call.
+		mockApp.Base.SetExecCommandResult("diff --git a/foo.go b/foo.go\n+added line\n", "", nil)
+
+		app := &Git{Cmd: mockApp.Cmd, Base: mockApp.Base}
+		content, err := app.Diff("/tmp/repo")
+		if err != nil {
+			t.Fatalf("Expected no error, got: %v", err)
+		}
+		if !strings.Contains(content, "+added line") {
+			t.Errorf("Expected diff content, got %q", content)
+		}
+	})
+
+	t.Run("diff HEAD fails returns error", func(t *testing.T) {
+		mockApp := testutil.NewMockApp()
+		// Both diff HEAD and fallback diff fail
+		mockApp.Base.SetExecCommandResult("", "fatal: bad revision 'HEAD'", fmt.Errorf("git error"))
+
+		app := &Git{Cmd: mockApp.Cmd, Base: mockApp.Base}
+		_, err := app.Diff("/tmp/repo")
+		if err == nil {
+			t.Fatal("Expected error but got none")
+		}
+	})
+}
+
+func TestDiffStat(t *testing.T) {
+	t.Run("numstat parses tracked changes", func(t *testing.T) {
+		mockApp := testutil.NewMockApp()
+		// Mock returns same value for all calls. DiffStat calls numstat then status --porcelain.
+		// Since the mock returns "5\t2\tfoo.go\n3\t1\tbar.go\n" for both calls, the status
+		// call returns no "?? " lines, so only tracked file counts apply.
+		mockApp.Base.SetExecCommandResult("5\t2\tfoo.go\n3\t1\tbar.go\n", "", nil)
+
+		app := &Git{Cmd: mockApp.Cmd, Base: mockApp.Base}
+		files, added, removed, err := app.DiffStat("/tmp/repo")
+		if err != nil {
+			t.Fatalf("Expected no error, got: %v", err)
+		}
+		if files < 2 {
+			t.Errorf("Expected at least 2 files, got %d", files)
+		}
+		if added < 8 {
+			t.Errorf("Expected at least 8 added lines, got %d", added)
+		}
+		if removed < 3 {
+			t.Errorf("Expected at least 3 removed lines, got %d", removed)
+		}
+	})
+
+	t.Run("numstat fails returns error", func(t *testing.T) {
+		mockApp := testutil.NewMockApp()
+		// Both numstat HEAD and fallback fail
+		mockApp.Base.SetExecCommandResult("", "", fmt.Errorf("git error"))
+
+		app := &Git{Cmd: mockApp.Cmd, Base: mockApp.Base}
+		_, _, _, err := app.DiffStat("/tmp/repo")
+		if err == nil {
+			t.Fatal("Expected error but got none")
+		}
+	})
+
+	t.Run("empty output returns zero stats", func(t *testing.T) {
+		mockApp := testutil.NewMockApp()
+		mockApp.Base.SetExecCommandResult("", "", nil)
+
+		app := &Git{Cmd: mockApp.Cmd, Base: mockApp.Base}
+		files, added, removed, err := app.DiffStat("/tmp/repo")
+		if err != nil {
+			t.Fatalf("Expected no error, got: %v", err)
+		}
+		if files != 0 || added != 0 || removed != 0 {
+			t.Errorf("Expected 0/0/0, got %d/%d/%d", files, added, removed)
+		}
+	})
+
+	t.Run("untracked files increment file count", func(t *testing.T) {
+		mockApp := testutil.NewMockApp()
+		// Call 1: numstat HEAD — two tracked files
+		// Call 2: status --porcelain — one untracked file
+		mockApp.Base.SetExecCommandResults(
+			commands.ExecCommandResult("3\t1\tfoo.go\n", "", nil),
+			commands.ExecCommandResult("?? newfile.go\n", "", nil),
+		)
+
+		app := &Git{Cmd: mockApp.Cmd, Base: mockApp.Base}
+		files, added, removed, err := app.DiffStat("/tmp/repo")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if files != 2 {
+			t.Errorf("expected 2 files (1 tracked + 1 untracked), got %d", files)
+		}
+		if added != 3 {
+			t.Errorf("expected 3 added lines, got %d", added)
+		}
+		if removed != 1 {
+			t.Errorf("expected 1 removed line, got %d", removed)
+		}
+	})
+
+	t.Run("binary files counted but contribute zero lines", func(t *testing.T) {
+		mockApp := testutil.NewMockApp()
+		// Binary files show as "-\t-\tfile" in numstat
+		mockApp.Base.SetExecCommandResults(
+			commands.ExecCommandResult("-\t-\timage.png\n5\t2\tfoo.go\n", "", nil),
+			commands.ExecCommandResult("", "", nil),
+		)
+
+		app := &Git{Cmd: mockApp.Cmd, Base: mockApp.Base}
+		files, added, removed, err := app.DiffStat("/tmp/repo")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if files != 2 {
+			t.Errorf("expected 2 files (1 binary + 1 text), got %d", files)
+		}
+		if added != 5 {
+			t.Errorf("expected 5 added (binary contributes 0), got %d", added)
+		}
+		if removed != 2 {
+			t.Errorf("expected 2 removed (binary contributes 0), got %d", removed)
+		}
+	})
+}
+
+func TestDiffIncludesUntrackedFiles(t *testing.T) {
+	mockApp := testutil.NewMockApp()
+	// Call 1: diff --color=always HEAD — some tracked diff
+	// Call 2: status --porcelain — one untracked file
+	mockApp.Base.SetExecCommandResults(
+		commands.ExecCommandResult("+added line\n", "", nil),
+		commands.ExecCommandResult("?? brand_new.go\n", "", nil),
+	)
+
+	app := &Git{Cmd: mockApp.Cmd, Base: mockApp.Base}
+	content, err := app.Diff("/tmp/repo")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(content, "brand_new.go") {
+		t.Errorf("expected untracked file 'brand_new.go' in diff output, got:\n%s", content)
+	}
+	if !strings.Contains(content, "Untracked files:") {
+		t.Errorf("expected 'Untracked files:' section in diff output")
+	}
 }

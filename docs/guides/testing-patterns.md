@@ -159,6 +159,19 @@ mockBase.SetExecCommandResult("", "error", fmt.Errorf("failed"))
 mockBase.IsPackagePresentResult = true
 ```
 
+### Pattern 2b: Per-call mock results
+
+When a function makes **multiple** `ExecCommand` calls that should return different outputs, use `SetExecCommandResults` so each call gets its own canned response. Once the list is exhausted, the last entry repeats.
+
+```go
+mockBase.SetExecCommandResults(
+    commands.ExecCommandResult("numstat-output\n", "", nil), // first call
+    commands.ExecCommandResult("?? untracked.go\n", "", nil), // second call
+)
+```
+
+Use the `commands.ExecCommandResult(stdout, stderr, err)` constructor for readability. Falls back to the single `SetExecCommandResult` value when the list is empty, so existing tests are unaffected.
+
 ### Pattern 3: Call Verification
 
 ```go
@@ -341,6 +354,41 @@ func TestForceConfigure(t *testing.T) {
 
 ---
 
+## ⚠️ Mock Safety Traps
+
+These are the most common mistakes that let real commands slip through even when mocks are in place.
+
+### Trap 1 — Real constructor in a state-changing test
+
+```go
+// WRONG — app uses a real Base; real commands run
+app := tmux.New()
+err := app.ForceConfigure()
+testutil.VerifyNoRealCommands(t, tc.MockApp.Base) // checks the wrong base!
+
+// CORRECT — inject the mock so commands go through it
+app := &tmux.Tmux{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
+err := app.ForceConfigure()
+testutil.VerifyNoRealCommands(t, tc.MockApp.Base) // now checks the right base
+```
+
+### Trap 2 — `VerifyNoRealCommands` checking the wrong base
+
+If you create `app := foo.New()` but verify `tc.MockApp.Base`, the check always passes — the real `app.Base` ran commands but nobody is watching it. Always verify the **same** base that the app under test uses.
+
+### Trap 3 — Unguarded env-triggered paths
+
+Some functions check `os.Getenv("TMUX")`, `os.Getenv("HOME")`, etc. and take different paths. If your test runs inside tmux (or any specific environment), the env var triggers a code path you didn't intend to test.
+
+```go
+// Guard paths that should not fire in this test
+t.Setenv("TMUX", "") // prevent source-file reload from firing
+```
+
+Add a positive test separately that sets the env var and asserts the triggered path via the mock.
+
+---
+
 ## 🎯 Testing Best Practices
 
 ### 1. Always Initialize Logger
@@ -484,6 +532,9 @@ This test is only meaningful because `baseapp.Reinstall` skips a "not supported"
 
 - [ ] Initialize logger: `testutil.InitLogger()` in `init()`
 - [ ] Use appropriate isolation level (Simple Mock / Isolated Paths / Complete)
+- [ ] **Never use `foo.New()` in a test that calls state-changing methods** — inject `&foo.Foo{Cmd: mockApp.Cmd, Base: mockApp.Base}`
+- [ ] **`VerifyNoRealCommands` checks the same base the app uses** — not a different mock from `SetupCompleteTest`
+- [ ] **Guard env-triggered paths** with `t.Setenv("VAR", "")` when they shouldn't fire; add a separate positive test for the triggered path
 - [ ] **Call `testutil.IsolateXDGDirs(t)` in any test that calls Uninstall, ForceInstall, ForceConfigure, or SoftConfigure**
 - [ ] **Save and restore every `paths.Paths.*` mutation via `t.Cleanup`**
 - [ ] Test `Install()`, `SoftInstall()`, `ExecuteCommand()`

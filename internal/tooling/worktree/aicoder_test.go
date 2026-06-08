@@ -1,7 +1,10 @@
 package worktree
 
 import (
+	"os"
 	"testing"
+
+	"github.com/cjairm/devgita/internal/config"
 )
 
 func TestResolveAICoder(t *testing.T) {
@@ -54,4 +57,56 @@ func TestClaudeCoderCommand(t *testing.T) {
 	if coder.Command() != "CLAUDE_CODE_NO_FLICKER=1 claude" {
 		t.Errorf("expected command 'CLAUDE_CODE_NO_FLICKER=1 claude', got %q", coder.Command())
 	}
+}
+
+func TestResolveAIAlias(t *testing.T) {
+	// Ensure a clean env for every sub-test.
+	t.Cleanup(func() { os.Unsetenv("DEVGITA_WORKTREE_AI") })
+
+	t.Run("flag takes highest priority", func(t *testing.T) {
+		os.Setenv("DEVGITA_WORKTREE_AI", "claude")
+		gc := &config.GlobalConfig{}
+		gc.Worktree.DefaultAI = "claude"
+		got := ResolveAIAlias("opencode", gc)
+		if got != "opencode" {
+			t.Errorf("expected flag value 'opencode', got %q", got)
+		}
+	})
+
+	t.Run("env var used when no flag", func(t *testing.T) {
+		os.Setenv("DEVGITA_WORKTREE_AI", "claude")
+		gc := &config.GlobalConfig{}
+		gc.Worktree.DefaultAI = "opencode"
+		got := ResolveAIAlias("", gc)
+		if got != "claude" {
+			t.Errorf("expected env value 'claude', got %q", got)
+		}
+	})
+
+	t.Run("global config used when no flag or env", func(t *testing.T) {
+		os.Unsetenv("DEVGITA_WORKTREE_AI")
+		gc := &config.GlobalConfig{}
+		gc.Worktree.DefaultAI = "claude"
+		got := ResolveAIAlias("", gc)
+		if got != "claude" {
+			t.Errorf("expected config value 'claude', got %q", got)
+		}
+	})
+
+	t.Run("defaults to opencode when nothing set", func(t *testing.T) {
+		os.Unsetenv("DEVGITA_WORKTREE_AI")
+		gc := &config.GlobalConfig{}
+		got := ResolveAIAlias("", gc)
+		if got != "opencode" {
+			t.Errorf("expected default 'opencode', got %q", got)
+		}
+	})
+
+	t.Run("nil gc falls back to default", func(t *testing.T) {
+		os.Unsetenv("DEVGITA_WORKTREE_AI")
+		got := ResolveAIAlias("", nil)
+		if got != "opencode" {
+			t.Errorf("expected default 'opencode' with nil gc, got %q", got)
+		}
+	})
 }

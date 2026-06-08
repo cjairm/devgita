@@ -169,10 +169,14 @@ Follow the [Effective Go](https://golang.org/doc/effective_go) conventions:
 
 ### Before You Submit
 
+**Workflow: implement → verify manually → add tests → commit.**
+Never commit before the feature is confirmed working end-to-end — tests written against broken behavior encode bugs, not correctness.
+
+- [ ] Feature verified manually (run the binary, exercise the golden path)
+- [ ] Tests added or updated — ask _"does this change need tests?"_ and write them before committing
+- [ ] `go test ./...` passes
 - [ ] Code builds without errors: `make build`
-- [ ] Tests pass: `make test`
 - [ ] Lint passes: `make lint`
-- [ ] Tested on target platform (macOS or Linux)
 - [ ] Commit messages are clear and descriptive
 - [ ] Your changes follow the style guide
 

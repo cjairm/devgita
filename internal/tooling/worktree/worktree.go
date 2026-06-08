@@ -12,12 +12,9 @@
 package worktree
 
 import (
-	"bufio"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/cjairm/devgita/internal/apps/git"
@@ -63,32 +60,22 @@ type WorktreeState struct {
 	BranchExists bool
 }
 
-type pendingDeleteInfo struct {
-	repoSlug string
-	name     string
-}
-
 // WorktreeManager coordinates git worktrees with tmux windows
 type WorktreeManager struct {
-	Git           *git.Git
-	Tmux          *tmux.Tmux
-	Fzf           *fzf.Fzf
-	Base          cmd.BaseCommandExecutor
-	pendingDelete *pendingDeleteInfo
-	fzfRun        func(rows []string, header string) (string, error)
+	Git  *git.Git
+	Tmux *tmux.Tmux
+	Fzf  *fzf.Fzf
+	Base cmd.BaseCommandExecutor
 }
 
 // New creates a new WorktreeManager instance
 func New() *WorktreeManager {
-	wm := &WorktreeManager{
-		Git:           git.New(),
-		Tmux:          tmux.New(),
-		Fzf:           fzf.New(),
-		Base:          cmd.NewBaseCommand(),
-		pendingDelete: nil,
+	return &WorktreeManager{
+		Git:  git.New(),
+		Tmux: tmux.New(),
+		Fzf:  fzf.New(),
+		Base: cmd.NewBaseCommand(),
 	}
-	wm.fzfRun = wm.execFzf
-	return wm
 }
 
 // worktreePath returns ~/.local/share/devgita/worktrees/<repo-slug>/<flat-name>
@@ -132,8 +119,7 @@ func (w *WorktreeManager) Create(name string, coder AICoder, force bool) error {
 
 	if state.WtExists && state.WindowExists {
 		return fmt.Errorf(
-			"worktree '%s' already exists and has an active window; use `dg wt jump %s`",
-			name,
+			"worktree '%s' already exists and has an active window; use `dg wt ui`",
 			name,
 		)
 	}
@@ -425,6 +411,38 @@ func (w *WorktreeManager) Repair(name string, coder AICoder) error {
 	return w.ensureWindow(repoSlug, windowName, wtPath, coder)
 }
 
+// RemoveInRepo deletes a worktree disambiguated by repo slug.
+func (w *WorktreeManager) RemoveInRepo(repoSlug, name string, force bool) error {
+	return w.removeByRepo(repoSlug, name, force)
+}
+
+// RepairInRepo repairs a worktree in a specific repo, bypassing the slug-search ambiguity.
+func (w *WorktreeManager) RepairInRepo(repoSlug, name string, coder AICoder) error {
+	if coder == nil {
+		return fmt.Errorf("AI coder is required")
+	}
+	if err := coder.EnsureInstalled(); err != nil {
+		return err
+	}
+	wtPath := w.worktreePath(repoSlug, name)
+	windowName := windowPrefix + flattenName(name)
+	if _, err := os.Stat(wtPath); os.IsNotExist(err) {
+		if pruneErr := w.Git.PruneWorktreesAt(filepath.Dir(wtPath)); pruneErr != nil {
+			return fmt.Errorf(
+				"worktree '%s' directory missing and failed to prune: %w",
+				name,
+				pruneErr,
+			)
+		}
+		return fmt.Errorf(
+			"worktree '%s' directory was missing; pruned stale entry. Run `dg wt new %s` to recreate",
+			name,
+			name,
+		)
+	}
+	return w.ensureWindow(repoSlug, windowName, wtPath, coder)
+}
+
 // ensureWindow guarantees a tmux window for the worktree exists and launches the
 // AI coder in it. If the window already lives in some session, it is reused; if
 // not, it is created in the worktree's repo-slug session (creating that session
@@ -523,236 +541,12 @@ func (w *WorktreeManager) removeByRepo(repoSlug, name string, force bool) error 
 			}
 		}
 		// Prune from repo base dir (parent of worktree dirs)
-		repoDir := filepath.Dir(wtPath)
-		if err := w.Git.PruneWorktreesAt(repoDir); err != nil {
-			// Log but don't fail
-		}
+		_ = w.Git.PruneWorktreesAt(filepath.Dir(wtPath))
 	} else {
-		repoDir := filepath.Dir(wtPath)
-		if err := w.Git.PruneWorktreesAt(repoDir); err != nil {
-			// Log but don't fail
-		}
+		_ = w.Git.PruneWorktreesAt(filepath.Dir(wtPath))
 	}
 
 	return nil
-}
-
-// confirmAndRemove implements double-confirm delete pattern (like opencode).
-// First ctrl-d highlights the row red (inline) and moves it to the top so the
-// cursor lands on it; second ctrl-d on the same row actually deletes.
-func (w *WorktreeManager) confirmAndRemove(rows []string, repoSlug, name string) error {
-	// If there's already a pending delete for this worktree, execute it.
-	// The double-confirm (arm + confirm) IS the destructive confirmation, so
-	// force through the dirty guard — worktrees with a running AI coder are
-	// almost always dirty, and the user has explicitly confirmed twice.
-	if w.pendingDelete != nil && w.pendingDelete.repoSlug == repoSlug &&
-		w.pendingDelete.name == name {
-		w.pendingDelete = nil
-		return w.removeByRepo(repoSlug, name, true)
-	}
-
-	// Set this worktree as pending delete
-	w.pendingDelete = &pendingDeleteInfo{repoSlug: repoSlug, name: name}
-
-	confirmRows := buildConfirmRows(rows, repoSlug, name)
-	output, err := w.runFzfWithExpect(confirmRows)
-	if err != nil {
-		w.pendingDelete = nil // Clear pending on error/cancel
-		if err.Error() == "selection cancelled" {
-			return nil
-		}
-		return err
-	}
-
-	key, row, err := parseJumpOutput(output)
-	if err != nil {
-		w.pendingDelete = nil
-		return err
-	}
-
-	newRepoSlug, newName, err := parseRepoAndName(row)
-	if err != nil {
-		return err
-	}
-
-	if key == "ctrl-d" && newRepoSlug == repoSlug && newName == name {
-		w.pendingDelete = nil
-		return w.removeByRepo(newRepoSlug, newName, true)
-	}
-
-	// If user pressed ctrl-d on a different worktree, start over with that one
-	if key == "ctrl-d" {
-		// Recursively handle the new pending delete
-		w.pendingDelete = nil
-		return w.confirmAndRemove(rows, newRepoSlug, newName)
-	}
-
-	// If user pressed ctrl-r, repair the worktree
-	if key == "ctrl-r" {
-		w.pendingDelete = nil
-		coder, err := ResolveAICoder("")
-		if err != nil {
-			return err
-		}
-		return w.Repair(newName, coder)
-	}
-
-	// Any other action (enter, etc.) cancels the pending delete
-	w.pendingDelete = nil
-	return nil
-}
-
-// Jump presents an fzf dialog to jump to a worktree
-func (w *WorktreeManager) Jump(resolvedCoder string) error {
-	statuses, err := w.List()
-	if err != nil {
-		return err
-	}
-
-	if len(statuses) == 0 {
-		return fmt.Errorf("no worktrees found")
-	}
-
-	type rowData struct {
-		col1 string // repo/name
-		col2 string // branch
-		col3 string // status
-	}
-
-	items := make([]rowData, 0, len(statuses))
-	for _, s := range statuses {
-		status := "active"
-		if !s.WindowActive {
-			status = "inactive"
-		}
-		items = append(items, rowData{
-			col1: fmt.Sprintf("%s/%s", s.Repo, s.Name),
-			col2: s.Branch,
-			col3: status,
-		})
-	}
-
-	isInTmux := os.Getenv("TMUX") != ""
-
-	// Calculate max column widths for alignment
-	maxCol1, maxCol2 := 0, 0
-	for _, item := range items {
-		if len(item.col1) > maxCol1 {
-			maxCol1 = len(item.col1)
-		}
-		if len(item.col2) > maxCol2 {
-			maxCol2 = len(item.col2)
-		}
-	}
-
-	rows := make([]string, 0, len(items))
-	for _, item := range items {
-		rows = append(
-			rows,
-			fmt.Sprintf("%-*s\t%-*s\t%s", maxCol1, item.col1, maxCol2, item.col2, item.col3),
-		)
-	}
-
-	if len(rows) == 0 {
-		return fmt.Errorf("no worktrees found")
-	}
-
-	output, err := w.runFzfWithExpect(rows)
-	if err != nil {
-		return err
-	}
-
-	key, row, err := parseJumpOutput(output)
-	if err != nil {
-		return err
-	}
-
-	if isInTmux {
-		repoSlug, name, err := parseRepoAndName(row)
-		if err != nil {
-			return err
-		}
-		windowName := windowPrefix + flattenName(name)
-
-		switch key {
-		case "":
-			// Jump to the window wherever it lives. If it's gone, recreate it
-			// (repair drops it into the worktree's repo session) and jump there,
-			// so enter always lands you on the worktree regardless of session.
-			if session, ok := w.Tmux.WindowSession(windowName); ok {
-				return w.Tmux.SwitchToWindow(session, windowName)
-			}
-			coder, err := ResolveAICoder(resolvedCoder)
-			if err != nil {
-				return err
-			}
-			if err := w.Repair(name, coder); err != nil {
-				return err
-			}
-			if session, ok := w.Tmux.WindowSession(windowName); ok {
-				return w.Tmux.SwitchToWindow(session, windowName)
-			}
-			return nil
-		case "ctrl-d":
-			return w.confirmAndRemove(rows, repoSlug, name)
-		case "ctrl-r":
-			coder, err := ResolveAICoder(resolvedCoder)
-			if err != nil {
-				return err
-			}
-			return w.Repair(name, coder)
-		default:
-			return nil
-		}
-	}
-
-	repoSlug, name, err := parseRepoAndName(row)
-	if err != nil {
-		return err
-	}
-
-	switch key {
-	case "":
-		fmt.Println(w.worktreePath(repoSlug, name))
-		return nil
-	case "ctrl-d":
-		return w.confirmAndRemove(rows, repoSlug, name)
-	case "ctrl-r":
-		coder, err := ResolveAICoder(resolvedCoder)
-		if err != nil {
-			return err
-		}
-		if os.Getenv("TMUX") == "" {
-			fmt.Println("Warning: tmux not running, window not created")
-		}
-		return w.Repair(name, coder)
-	default:
-		return nil
-	}
-}
-
-// formatJumpRow formats a worktree row for fzf display
-func formatJumpRow(repo, name, branch, status string) string {
-	return fmt.Sprintf("%s/%s\t%s\t%s", repo, name, branch, status)
-}
-
-// parseJumpRow parses a worktree row back into its components
-func parseJumpRow(row string) []string {
-	return strings.SplitN(row, "\t", 3)
-}
-
-// parseRepoAndName extracts repoSlug and worktree name from a jump row.
-// Row format is "repo/name\tbranch\tstatus"; parts[0] is the combined "repo/name".
-func parseRepoAndName(row string) (repoSlug, name string, err error) {
-	parts := parseJumpRow(row)
-	if len(parts) < 1 {
-		return "", "", fmt.Errorf("invalid selection")
-	}
-	combined := strings.SplitN(strings.TrimSpace(parts[0]), "/", 2)
-	if len(combined) < 2 {
-		return "", "", fmt.Errorf("invalid selection: expected repo/name format, got %q", parts[0])
-	}
-	return strings.TrimSpace(combined[0]), strings.TrimSpace(combined[1]), nil
 }
 
 // confirmFromTTY reads a y/n answer directly from /dev/tty so it works even
@@ -765,100 +559,15 @@ func confirmFromTTY() bool {
 	tty, err := os.Open("/dev/tty")
 	if err != nil {
 		var response string
-		fmt.Scanln(&response) //nolint:errcheck
+		if _, scanErr := fmt.Scanln(&response); scanErr != nil {
+			return false
+		}
 		return strings.ToLower(strings.TrimSpace(response)) == "y"
 	}
-	defer tty.Close()
 	var response string
-	fmt.Fscan(tty, &response)
+	_, _ = fmt.Fscan(tty, &response)
+	_ = tty.Close()
 	return strings.ToLower(strings.TrimSpace(response)) == "y"
-}
-
-// runFzfWithExpect delegates to w.fzfRun so tests can inject a mock.
-func (w *WorktreeManager) runFzfWithExpect(rows []string, header ...string) (string, error) {
-	h := "enter: jump | ctrl-d: delete | ctrl-r: repair"
-	if len(header) > 0 && header[0] != "" {
-		h = header[0]
-	}
-	return w.fzfRun(rows, h)
-}
-
-// execFzf is the real fzf execution assigned to fzfRun in New().
-// fzf renders its UI to /dev/tty and writes the selection to stdout,
-// which Output() captures.
-func (w *WorktreeManager) execFzf(rows []string, header string) (string, error) {
-	fzfCmd := exec.Command(
-		"fzf",
-		"--height=60%",
-		"--reverse",
-		"--ansi",
-		"--header", header,
-		"--expect", "ctrl-d,ctrl-r",
-		"--with-nth", "1,2,3",
-		"--delimiter", "\t",
-	)
-	fzfCmd.Stdin = strings.NewReader(strings.Join(rows, "\n"))
-
-	output, err := fzfCmd.Output()
-	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 130 {
-			return "", fmt.Errorf("selection cancelled")
-		}
-		return "", fmt.Errorf("fzf failed: %w", err)
-	}
-
-	return string(output), nil
-}
-
-var ansiEscape = regexp.MustCompile(`\x1b\[[0-9;]*m`)
-
-func stripANSI(s string) string {
-	return ansiEscape.ReplaceAllString(s, "")
-}
-
-// buildConfirmRows returns display rows for the delete-confirmation step.
-// The pending item's name column is highlighted red and placed first so that
-// fzf's cursor lands on it when it reopens (--reverse shows item 0 at top).
-func buildConfirmRows(rows []string, repoSlug, name string) []string {
-	pendingKey := repoSlug + "/" + name
-	displayRows := make([]string, 0, len(rows))
-	var pendingDisplayRow string
-	for _, row := range rows {
-		parts := strings.SplitN(row, "\t", 2)
-		// Trim spaces from padded column before comparing
-		if strings.TrimSpace(parts[0]) == pendingKey {
-			// Apply red background to entire row for visibility
-			pendingDisplayRow = "\033[41m" + row + "\033[0m"
-		} else {
-			displayRows = append(displayRows, row)
-		}
-	}
-	if pendingDisplayRow != "" {
-		displayRows = append([]string{pendingDisplayRow}, displayRows...)
-	}
-	return displayRows
-}
-
-// parseJumpOutput parses the fzf output into key and row
-func parseJumpOutput(output string) (key, row string, err error) {
-	scanner := bufio.NewScanner(strings.NewReader(output))
-	lines := []string{}
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line != "" {
-			lines = append(lines, line)
-		}
-	}
-
-	if len(lines) == 0 {
-		return "", "", fmt.Errorf("no selection made")
-	}
-
-	if len(lines) == 1 {
-		return "", stripANSI(lines[0]), nil
-	}
-
-	return lines[0], stripANSI(lines[1]), nil
 }
 
 // GetWindowName returns the tmux window name for a given worktree name

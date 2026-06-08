@@ -150,16 +150,27 @@ func (m *MockCommand) SetError(operation string, err error) {
 	}
 }
 
+// execResult holds a single canned response for ExecCommand.
+type execResult struct {
+	Stdout, Stderr string
+	Err            error
+}
+
 // MockBaseCommand provides a mock implementation for BaseCommand methods
 // This allows tests to avoid running actual system commands
 type MockBaseCommand struct {
 	// Tracks all ExecCommand calls for verification
 	ExecCommandCalls []CommandParams
 
-	// Return values for ExecCommand
+	// Return values for ExecCommand (single fixed result — used when execResults is empty)
 	ExecCommandStdout string
 	ExecCommandStderr string
 	ExecCommandError  error
+
+	// Per-call results: when non-empty, each call pops the next entry.
+	// After all entries are consumed the last one is repeated.
+	execResults []execResult
+	execCallIdx int
 
 	// Return values for presence checks
 	IsDesktopAppPresentResult bool
@@ -199,10 +210,32 @@ func (m *MockBaseCommand) IsMac() bool {
 	return m.IsMacResult
 }
 
-// ExecCommand mocks the BaseCommand.ExecCommand method
-// It records the call parameters and returns the configured mock values
+// SetExecCommandResults configures a per-call sequence of results. Each call
+// to ExecCommand returns the next entry; once exhausted the last entry repeats.
+// Falls back to the single ExecCommandStdout/Stderr/Error fields when empty.
+func (m *MockBaseCommand) SetExecCommandResults(results ...execResult) {
+	m.execResults = results
+	m.execCallIdx = 0
+}
+
+// ExecCommandResult is a convenience constructor for SetExecCommandResults.
+func ExecCommandResult(stdout, stderr string, err error) execResult {
+	return execResult{Stdout: stdout, Stderr: stderr, Err: err}
+}
+
+// ExecCommand mocks the BaseCommand.ExecCommand method.
+// It records the call and returns the next canned result (or the fixed result).
 func (m *MockBaseCommand) ExecCommand(cmd CommandParams) (string, string, error) {
 	m.ExecCommandCalls = append(m.ExecCommandCalls, cmd)
+	if len(m.execResults) > 0 {
+		idx := m.execCallIdx
+		if idx >= len(m.execResults) {
+			idx = len(m.execResults) - 1
+		}
+		m.execCallIdx++
+		r := m.execResults[idx]
+		return r.Stdout, r.Stderr, r.Err
+	}
 	return m.ExecCommandStdout, m.ExecCommandStderr, m.ExecCommandError
 }
 

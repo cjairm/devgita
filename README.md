@@ -180,6 +180,13 @@ dg install --skip databases,desktop
   - `--only <categories>` - Install only specified categories (terminal, languages, databases, desktop)
   - `--skip <categories>` - Install everything except specified categories
   - `--verbose` - Enable verbose logging
+- `dg worktree` (alias: `dg wt`) - Manage git worktrees with tmux windows and AI coders
+  - `dg wt create <name> [--ai claude|opencode]` - Create a worktree + tmux window + launch AI
+  - `dg wt ui` (alias: `dash`, `dashboard`) - Open full-screen TUI dashboard (`j/k` nav, `Enter` attach, `d` delete, `r` repair, `/` filter, `q` quit)
+  - `dg wt list` - List all managed worktrees
+  - `dg wt remove [name]` - Remove a worktree (fzf picker if name omitted)
+  - `dg wt repair <name>` - Recreate the tmux window for an existing worktree
+  - `dg wt prune` - Remove all managed worktrees
 - `dg --version` - Show version information
 - `dg --help` - Show help message
 

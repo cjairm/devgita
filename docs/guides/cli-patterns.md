@@ -229,7 +229,7 @@ Examples:
   dg worktree create feature-x       # Create worktree + window
   dg wt c feature-x                  # Same, using short form
   dg wt l                            # List all worktrees
-  dg wt j                            # Jump to worktree`,
+  dg wt ui                           # Open TUI dashboard`,
 }
 
 func init() {

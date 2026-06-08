@@ -9,6 +9,7 @@ import (
 
 	"github.com/cjairm/devgita/internal/apps"
 	"github.com/cjairm/devgita/internal/apps/tmux"
+	"github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/internal/testutil"
 	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/paths"
@@ -186,7 +187,11 @@ func TestUninstall(t *testing.T) {
 		t.Fatalf("Uninstall error: %v", err)
 	}
 	if tc.MockApp.Cmd.UninstalledPkg != constants.Tmux {
-		t.Errorf("expected UninstallPackage(%s), got %q", constants.Tmux, tc.MockApp.Cmd.UninstalledPkg)
+		t.Errorf(
+			"expected UninstallPackage(%s), got %q",
+			constants.Tmux,
+			tc.MockApp.Cmd.UninstalledPkg,
+		)
 	}
 
 	testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
@@ -217,19 +222,20 @@ func TestForceConfigure(t *testing.T) {
 
 	// Create source directory with tmux config
 	sourceDir := filepath.Join(tc.AppDir, "tmux")
-	err := os.MkdirAll(sourceDir, 0755)
+	err := os.MkdirAll(sourceDir, 0o755)
 	if err != nil {
 		t.Fatalf("Failed to create source directory: %v", err)
 	}
 
 	// Create destination directory
 	destDir := tc.ConfigDir
-	err = os.MkdirAll(destDir, 0755)
+	err = os.MkdirAll(destDir, 0o755)
 	if err != nil {
 		t.Fatalf("Failed to create destination directory: %v", err)
 	}
 
 	testutil.IsolateXDGDirs(t)
+	t.Setenv("TMUX", "") // ensure source-file reload is not triggered in this test
 
 	oldTmux := paths.Paths.App.Configs.Tmux
 	t.Cleanup(func() { paths.Paths.App.Configs.Tmux = oldTmux })
@@ -242,12 +248,12 @@ func TestForceConfigure(t *testing.T) {
 	// Create source tmux.conf file (without leading dot in source)
 	sourceConfig := filepath.Join(sourceDir, "tmux.conf")
 	configContent := "# Test tmux configuration\nset -g default-terminal \"screen-256color\""
-	err = os.WriteFile(sourceConfig, []byte(configContent), 0644)
+	err = os.WriteFile(sourceConfig, []byte(configContent), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to create source config: %v", err)
 	}
 
-	app := tmux.New()
+	app := &tmux.Tmux{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
 
 	err = app.ForceConfigure()
 	if err != nil {
@@ -282,6 +288,49 @@ func TestForceConfigure(t *testing.T) {
 	testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
 }
 
+func TestForceConfigureReloadsInsideTmux(t *testing.T) {
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
+
+	sourceDir := filepath.Join(tc.AppDir, "tmux")
+	if err := os.MkdirAll(sourceDir, 0o750); err != nil {
+		t.Fatalf("Failed to create source directory: %v", err)
+	}
+
+	testutil.IsolateXDGDirs(t)
+	t.Setenv("TMUX", "test-session") // simulate being inside a tmux session
+
+	oldTmux := paths.Paths.App.Configs.Tmux
+	t.Cleanup(func() { paths.Paths.App.Configs.Tmux = oldTmux })
+	paths.Paths.App.Configs.Tmux = sourceDir
+
+	oldHome := paths.Paths.Home.Root
+	t.Cleanup(func() { paths.Paths.Home.Root = oldHome })
+	paths.Paths.Home.Root = tc.ConfigDir
+
+	sourceConfig := filepath.Join(sourceDir, "tmux.conf")
+	if err := os.WriteFile(sourceConfig, []byte("# test"), 0o600); err != nil {
+		t.Fatalf("Failed to create source config: %v", err)
+	}
+
+	app := &tmux.Tmux{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
+	if err := app.ForceConfigure(); err != nil {
+		t.Fatalf("ForceConfigure returned error: %v", err)
+	}
+
+	// Verify source-file was called via the mock (not real tmux)
+	last := tc.MockApp.Base.GetLastExecCommandCall()
+	if last == nil {
+		t.Fatal("expected a mock ExecCommand call for source-file reload")
+	}
+	if last.Command != constants.Tmux {
+		t.Errorf("expected tmux command, got %q", last.Command)
+	}
+	if len(last.Args) < 1 || last.Args[0] != "source-file" {
+		t.Errorf("expected source-file arg, got %v", last.Args)
+	}
+}
+
 func TestSoftConfigure(t *testing.T) {
 	t.Helper()
 
@@ -292,7 +341,7 @@ func TestSoftConfigure(t *testing.T) {
 
 		// Create source directory with tmux config
 		sourceDir := filepath.Join(tc.AppDir, "tmux")
-		err := os.MkdirAll(sourceDir, 0755)
+		err := os.MkdirAll(sourceDir, 0o755)
 		if err != nil {
 			t.Fatalf("Failed to create source directory: %v", err)
 		}
@@ -300,6 +349,7 @@ func TestSoftConfigure(t *testing.T) {
 		destDir := tc.ConfigDir
 
 		testutil.IsolateXDGDirs(t)
+		t.Setenv("TMUX", "") // ensure source-file reload is not triggered in this test
 
 		oldTmux := paths.Paths.App.Configs.Tmux
 		t.Cleanup(func() { paths.Paths.App.Configs.Tmux = oldTmux })
@@ -312,7 +362,7 @@ func TestSoftConfigure(t *testing.T) {
 		// Create source tmux.conf file (without leading dot in source)
 		sourceConfig := filepath.Join(sourceDir, "tmux.conf")
 		configContent := "# Test tmux configuration\nset -g default-terminal \"screen-256color\""
-		err = os.WriteFile(sourceConfig, []byte(configContent), 0644)
+		err = os.WriteFile(sourceConfig, []byte(configContent), 0o644)
 		if err != nil {
 			t.Fatalf("Failed to create source config: %v", err)
 		}
@@ -320,7 +370,7 @@ func TestSoftConfigure(t *testing.T) {
 		// Mock the HOME environment variable since SoftConfigure uses os.UserHomeDir()
 		t.Setenv("HOME", destDir)
 
-		app := tmux.New()
+		app := &tmux.Tmux{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
 
 		err = app.SoftConfigure()
 		if err != nil {
@@ -372,14 +422,14 @@ func TestSoftConfigure(t *testing.T) {
 
 		existingConfig := filepath.Join(homeDir, ".tmux.conf")
 		existingContent := "# Existing tmux configuration\nset -g mouse on"
-		err := os.WriteFile(existingConfig, []byte(existingContent), 0644)
+		err := os.WriteFile(existingConfig, []byte(existingContent), 0o644)
 		if err != nil {
 			t.Fatalf("Failed to create existing config: %v", err)
 		}
 
 		// Create source directory (though it shouldn't be used for file copy)
 		sourceDir := filepath.Join(tc.AppDir, "tmux")
-		err = os.MkdirAll(sourceDir, 0755)
+		err = os.MkdirAll(sourceDir, 0o755)
 		if err != nil {
 			t.Fatalf("Failed to create source directory: %v", err)
 		}
@@ -390,7 +440,7 @@ func TestSoftConfigure(t *testing.T) {
 		// Create a different source config to prove it's not copied (without leading dot in source)
 		sourceConfig := filepath.Join(sourceDir, "tmux.conf")
 		sourceContent := "# Different config that should not be copied"
-		err = os.WriteFile(sourceConfig, []byte(sourceContent), 0644)
+		err = os.WriteFile(sourceConfig, []byte(sourceContent), 0o644)
 		if err != nil {
 			t.Fatalf("Failed to create source config: %v", err)
 		}
@@ -398,7 +448,7 @@ func TestSoftConfigure(t *testing.T) {
 		// Mock the UserHomeDir for this test by temporarily setting HOME env var
 		t.Setenv("HOME", homeDir)
 
-		app := tmux.New()
+		app := &tmux.Tmux{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
 
 		err = app.SoftConfigure()
 		if err != nil {
@@ -486,7 +536,10 @@ func TestExecuteCommand(t *testing.T) {
 
 			// Verify the command was called
 			if mockApp.Base.GetExecCommandCallCount() != 1 {
-				t.Errorf("Expected 1 ExecCommand call, got %d", mockApp.Base.GetExecCommandCallCount())
+				t.Errorf(
+					"Expected 1 ExecCommand call, got %d",
+					mockApp.Base.GetExecCommandCallCount(),
+				)
 			}
 
 			lastCall := mockApp.Base.GetLastExecCommandCall()
@@ -840,5 +893,344 @@ func TestSelectWindow(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestCapturePane(t *testing.T) {
+	t.Helper()
+
+	tests := []struct {
+		name        string
+		session     string
+		window      string
+		stdout      string
+		stderr      string
+		execErr     error
+		shouldError bool
+		wantContent string
+	}{
+		{
+			name:        "successful capture",
+			session:     "my-session",
+			window:      "wt-feature",
+			stdout:      "agent output line 1\nline 2\n",
+			execErr:     nil,
+			shouldError: false,
+			wantContent: "agent output line 1\nline 2\n",
+		},
+		{
+			name:        "capture failure with stderr",
+			session:     "my-session",
+			window:      "wt-feature",
+			stderr:      "can't find pane",
+			execErr:     errors.New("exit status 1"),
+			shouldError: true,
+		},
+		{
+			name:        "capture failure without stderr",
+			session:     "my-session",
+			window:      "wt-feature",
+			execErr:     errors.New("tmux not running"),
+			shouldError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Helper()
+
+			mockApp := testutil.NewMockApp()
+			mockApp.Base.SetExecCommandResult(tt.stdout, tt.stderr, tt.execErr)
+
+			app := &tmux.Tmux{
+				Cmd:  mockApp.Cmd,
+				Base: mockApp.Base,
+			}
+
+			content, err := app.CapturePane(tt.session, tt.window)
+
+			if tt.shouldError && err == nil {
+				t.Error("Expected error but got none")
+			}
+			if !tt.shouldError && err != nil {
+				t.Errorf("Expected no error but got: %v", err)
+			}
+			if !tt.shouldError && content != tt.wantContent {
+				t.Errorf("Expected content %q, got %q", tt.wantContent, content)
+			}
+
+			lastCall := mockApp.Base.GetLastExecCommandCall()
+			if lastCall == nil {
+				t.Fatal("No ExecCommand call recorded")
+			}
+			if lastCall.Command != constants.Tmux {
+				t.Errorf("Expected command %q, got %q", constants.Tmux, lastCall.Command)
+			}
+			expectedTarget := tt.session + ":" + tt.window + ".0"
+			found := false
+			for _, arg := range lastCall.Args {
+				if arg == expectedTarget {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Errorf("Expected target %q in args %v", expectedTarget, lastCall.Args)
+			}
+		})
+	}
+}
+
+func TestWindowSession(t *testing.T) {
+	t.Run("window found returns session", func(t *testing.T) {
+		mockApp := testutil.NewMockApp()
+		mockApp.Base.SetExecCommandResult(
+			"my-session\twt-feature-a\nmy-session\twt-feature-b\n",
+			"",
+			nil,
+		)
+		app := &tmux.Tmux{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+		session, ok := app.WindowSession("wt-feature-a")
+		if !ok {
+			t.Fatal("expected window to be found")
+		}
+		if session != "my-session" {
+			t.Errorf("expected session 'my-session', got %q", session)
+		}
+	})
+
+	t.Run("window not found returns empty and false", func(t *testing.T) {
+		mockApp := testutil.NewMockApp()
+		mockApp.Base.SetExecCommandResult("my-session\twt-other\n", "", nil)
+		app := &tmux.Tmux{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+		_, ok := app.WindowSession("wt-missing")
+		if ok {
+			t.Error("expected window not to be found")
+		}
+	})
+
+	t.Run("exec error returns false", func(t *testing.T) {
+		mockApp := testutil.NewMockApp()
+		mockApp.Base.SetExecCommandResult("", "error", errors.New("no server"))
+		app := &tmux.Tmux{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+		_, ok := app.WindowSession("wt-any")
+		if ok {
+			t.Error("expected false on exec error")
+		}
+	})
+}
+
+func TestSwitchToWindow(t *testing.T) {
+	t.Run("calls switch-client then select-window", func(t *testing.T) {
+		mockApp := testutil.NewMockApp()
+		mockApp.Base.SetExecCommandResult("", "", nil)
+		app := &tmux.Tmux{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+		err := app.SwitchToWindow("my-session", "wt-feature")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		calls := mockApp.Base.GetExecCommandCallCount()
+		if calls != 2 {
+			t.Fatalf("expected 2 calls (switch-client + select-window), got %d", calls)
+		}
+	})
+
+	t.Run("returns error when switch-client fails", func(t *testing.T) {
+		mockApp := testutil.NewMockApp()
+		mockApp.Base.SetExecCommandResult("", "error", errors.New("no client"))
+		app := &tmux.Tmux{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+		err := app.SwitchToWindow("bad-session", "wt-feature")
+		if err == nil {
+			t.Error("expected error when switch-client fails")
+		}
+	})
+}
+
+func TestKillWindow(t *testing.T) {
+	t.Run("resolves session then kills window", func(t *testing.T) {
+		mockApp := testutil.NewMockApp()
+		// First call: list-windows for WindowSession lookup
+		// Second call: kill-window
+		mockApp.Base.SetExecCommandResults(
+			commands.ExecCommandResult("my-session\twt-feature\n", "", nil),
+			commands.ExecCommandResult("", "", nil),
+		)
+		app := &tmux.Tmux{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+		err := app.KillWindow("wt-feature")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		last := mockApp.Base.GetLastExecCommandCall()
+		if last == nil || last.Args[0] != "kill-window" {
+			t.Errorf("expected kill-window call, got %v", last)
+		}
+		// Target should be session:name
+		found := false
+		for _, arg := range last.Args {
+			if arg == "my-session:wt-feature" {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("expected target 'my-session:wt-feature' in args %v", last.Args)
+		}
+	})
+
+	t.Run("falls back to bare name when session lookup fails", func(t *testing.T) {
+		mockApp := testutil.NewMockApp()
+		// WindowSession fails, then kill-window with bare name
+		mockApp.Base.SetExecCommandResults(
+			commands.ExecCommandResult("", "error", errors.New("no server")),
+			commands.ExecCommandResult("", "", nil),
+		)
+		app := &tmux.Tmux{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+		err := app.KillWindow("wt-feature")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		last := mockApp.Base.GetLastExecCommandCall()
+		if last == nil || last.Args[0] != "kill-window" {
+			t.Errorf("expected kill-window call, got %v", last)
+		}
+	})
+}
+
+func TestCreateWindow(t *testing.T) {
+	mockApp := testutil.NewMockApp()
+	mockApp.Base.SetExecCommandResult("", "", nil)
+	app := &tmux.Tmux{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+	if err := app.CreateWindow("wt-feature", "/tmp/repo"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	last := mockApp.Base.GetLastExecCommandCall()
+	if last == nil {
+		t.Fatal("no ExecCommand call recorded")
+	}
+	if last.Args[0] != "new-window" {
+		t.Errorf("expected 'new-window', got %q", last.Args[0])
+	}
+}
+
+func TestCreateWindowInSession(t *testing.T) {
+	mockApp := testutil.NewMockApp()
+	mockApp.Base.SetExecCommandResult("", "", nil)
+	app := &tmux.Tmux{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+	if err := app.CreateWindowInSession("my-session", "wt-feature", "/tmp/repo"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	last := mockApp.Base.GetLastExecCommandCall()
+	if last == nil || last.Args[0] != "new-window" {
+		t.Errorf("expected 'new-window', got %v", last)
+	}
+	// Target should include session
+	found := false
+	for _, arg := range last.Args {
+		if arg == "my-session:" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected session target 'my-session:' in args %v", last.Args)
+	}
+}
+
+func TestCreateSessionWithWindow(t *testing.T) {
+	mockApp := testutil.NewMockApp()
+	mockApp.Base.SetExecCommandResult("", "", nil)
+	app := &tmux.Tmux{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+	if err := app.CreateSessionWithWindow("my-session", "wt-feature", "/tmp/repo"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	last := mockApp.Base.GetLastExecCommandCall()
+	if last == nil || last.Args[0] != "new-session" {
+		t.Errorf("expected 'new-session', got %v", last)
+	}
+}
+
+func TestHasWindow(t *testing.T) {
+	t.Run("returns false outside tmux without calling exec", func(t *testing.T) {
+		t.Setenv("TMUX", "")
+		mockApp := testutil.NewMockApp()
+		app := &tmux.Tmux{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+		if app.HasWindow("wt-feature") {
+			t.Error("expected false outside tmux")
+		}
+		if mockApp.Base.GetExecCommandCallCount() != 0 {
+			t.Error("expected no exec calls outside tmux")
+		}
+	})
+
+	t.Run("returns true when window found inside tmux", func(t *testing.T) {
+		t.Setenv("TMUX", "test-session")
+		mockApp := testutil.NewMockApp()
+		mockApp.Base.SetExecCommandResult("wt-feature\nwt-other\n", "", nil)
+		app := &tmux.Tmux{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+		if !app.HasWindow("wt-feature") {
+			t.Error("expected window to be found")
+		}
+	})
+
+	t.Run("returns false when window not in list", func(t *testing.T) {
+		t.Setenv("TMUX", "test-session")
+		mockApp := testutil.NewMockApp()
+		mockApp.Base.SetExecCommandResult("wt-other\n", "", nil)
+		app := &tmux.Tmux{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+		if app.HasWindow("wt-missing") {
+			t.Error("expected window not to be found")
+		}
+	})
+}
+
+func TestSendKeysToWindow(t *testing.T) {
+	mockApp := testutil.NewMockApp()
+	mockApp.Base.SetExecCommandResult("", "", nil)
+	app := &tmux.Tmux{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+	if err := app.SendKeysToWindow("wt-feature", "opencode"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	last := mockApp.Base.GetLastExecCommandCall()
+	if last == nil || last.Args[0] != "send-keys" {
+		t.Errorf("expected 'send-keys', got %v", last)
+	}
+}
+
+func TestSendKeysToWindowInSession(t *testing.T) {
+	mockApp := testutil.NewMockApp()
+	mockApp.Base.SetExecCommandResult("", "", nil)
+	app := &tmux.Tmux{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+	if err := app.SendKeysToWindowInSession("my-session", "wt-feature", "claude"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	last := mockApp.Base.GetLastExecCommandCall()
+	if last == nil || last.Args[0] != "send-keys" {
+		t.Errorf("expected 'send-keys', got %v", last)
+	}
+	// Verify target includes session:window
+	found := false
+	for _, arg := range last.Args {
+		if arg == "my-session:wt-feature" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected target 'my-session:wt-feature' in args %v", last.Args)
 	}
 }

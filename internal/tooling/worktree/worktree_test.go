@@ -1,7 +1,6 @@
 package worktree
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -214,7 +213,11 @@ func TestRemove(t *testing.T) {
 		if err := os.MkdirAll(wtPath, 0o755); err != nil {
 			t.Fatalf("Failed to create worktree dir: %v", err)
 		}
-		defer os.RemoveAll(filepath.Dir(wtPath))
+		t.Cleanup(func() {
+			if err := os.RemoveAll(filepath.Dir(wtPath)); err != nil {
+				t.Logf("cleanup: %v", err)
+			}
+		})
 
 		err := wm.Remove("feature-test", true)
 		if err != nil {
@@ -264,7 +267,11 @@ func TestRemove(t *testing.T) {
 		if err := os.MkdirAll(wtPath, 0o755); err != nil {
 			t.Fatalf("Failed to create worktree dir: %v", err)
 		}
-		defer os.RemoveAll(filepath.Dir(wtPath))
+		t.Cleanup(func() {
+			if err := os.RemoveAll(filepath.Dir(wtPath)); err != nil {
+				t.Logf("cleanup: %v", err)
+			}
+		})
 
 		err := wm.Remove("feature-test", true)
 		if err != nil {
@@ -300,154 +307,6 @@ func TestRemove(t *testing.T) {
 	})
 }
 
-func TestFormatJumpRow(t *testing.T) {
-	tests := []struct {
-		name     string
-		repo     string
-		wtName   string
-		branch   string
-		status   string
-		expected string
-	}{
-		{
-			name:     "basic row",
-			repo:     "myrepo",
-			wtName:   "feature-a",
-			branch:   "feature-a",
-			status:   "active",
-			expected: "myrepo/feature-a\tfeature-a\tactive",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := formatJumpRow(tt.repo, tt.wtName, tt.branch, tt.status)
-			if result != tt.expected {
-				t.Errorf("Expected %q, got %q", tt.expected, result)
-			}
-		})
-	}
-}
-
-func TestParseJumpRow(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    string
-		expected []string
-	}{
-		{
-			name:     "basic row",
-			input:    "myrepo/feature-a\tfeature-a\tactive",
-			expected: []string{"myrepo/feature-a", "feature-a", "active"},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := parseJumpRow(tt.input)
-			if len(result) != len(tt.expected) {
-				t.Fatalf("Expected %d parts, got %d", len(tt.expected), len(result))
-			}
-			for i, part := range tt.expected {
-				if result[i] != part {
-					t.Errorf("Expected part[%d] %q, got %q", i, part, result[i])
-				}
-			}
-		})
-	}
-}
-
-func TestParseJumpOutput(t *testing.T) {
-	t.Run("enter key (no special key)", func(t *testing.T) {
-		output := "myrepo/feature-a\tfeature-a\tactive"
-		key, row, err := parseJumpOutput(output)
-		if err != nil {
-			t.Fatalf("Unexpected error: %v", err)
-		}
-		if key != "" {
-			t.Errorf("Expected empty key, got %q", key)
-		}
-		if row != "myrepo/feature-a\tfeature-a\tactive" {
-			t.Errorf("Expected row %q, got %q", "myrepo/feature-a\tfeature-a\tactive", row)
-		}
-	})
-
-	t.Run("ctrl-d key", func(t *testing.T) {
-		output := "ctrl-d\nmyrepo/feature-a\tfeature-a\tactive"
-		key, row, err := parseJumpOutput(output)
-		if err != nil {
-			t.Fatalf("Unexpected error: %v", err)
-		}
-		if key != "ctrl-d" {
-			t.Errorf("Expected key 'ctrl-d', got %q", key)
-		}
-		if row != "myrepo/feature-a\tfeature-a\tactive" {
-			t.Errorf("Expected row %q, got %q", "myrepo/feature-a\tfeature-a\tactive", row)
-		}
-	})
-
-	t.Run("empty output", func(t *testing.T) {
-		_, _, err := parseJumpOutput("")
-		if err == nil {
-			t.Fatal("Expected error for empty output")
-		}
-	})
-}
-
-func TestParseRepoAndName(t *testing.T) {
-	tests := []struct {
-		name     string
-		row      string
-		wantRepo string
-		wantName string
-		wantErr  bool
-	}{
-		{
-			name:     "standard row",
-			row:      "myrepo/feature-a\tfeature-a\tactive",
-			wantRepo: "myrepo",
-			wantName: "feature-a",
-		},
-		{
-			name:     "inactive status",
-			row:      "devgita/fix-123\tfix-123\tinactive",
-			wantRepo: "devgita",
-			wantName: "fix-123",
-		},
-		{
-			name:    "empty row",
-			row:     "",
-			wantErr: true,
-		},
-		{
-			name:    "no slash in first column",
-			row:     "noslash\tbranch\tactive",
-			wantErr: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			repo, name, err := parseRepoAndName(tt.row)
-			if tt.wantErr {
-				if err == nil {
-					t.Fatal("Expected error, got nil")
-				}
-				return
-			}
-			if err != nil {
-				t.Fatalf("Unexpected error: %v", err)
-			}
-			if repo != tt.wantRepo {
-				t.Errorf("repo: expected %q, got %q", tt.wantRepo, repo)
-			}
-			if name != tt.wantName {
-				t.Errorf("name: expected %q, got %q", tt.wantName, name)
-			}
-		})
-	}
-}
-
 // TestRemoveByRepoUsesCorrectPath verifies that the worktree path constructed in
 // removeByRepo matches the path that List() would discover, catching the bug where
 // Jump() passed "repo/name" as repoSlug instead of just "repo".
@@ -476,7 +335,11 @@ func TestRemoveByRepoUsesCorrectPath(t *testing.T) {
 		if err := os.MkdirAll(wtPath, 0o755); err != nil {
 			t.Fatalf("setup: %v", err)
 		}
-		defer os.RemoveAll(filepath.Dir(wtPath))
+		t.Cleanup(func() {
+			if err := os.RemoveAll(filepath.Dir(wtPath)); err != nil {
+				t.Logf("cleanup: %v", err)
+			}
+		})
 
 		// "repo/name" was the broken slug Jump() used to pass.
 		wrongSlug := repoSlug + "/" + wtName
@@ -494,7 +357,11 @@ func TestRemoveByRepoUsesCorrectPath(t *testing.T) {
 		if err := os.MkdirAll(wtPath, 0o755); err != nil {
 			t.Fatalf("setup: %v", err)
 		}
-		defer os.RemoveAll(filepath.Dir(wtPath))
+		t.Cleanup(func() {
+			if err := os.RemoveAll(filepath.Dir(wtPath)); err != nil {
+				t.Logf("cleanup: %v", err)
+			}
+		})
 
 		if err := wm.removeByRepo(repoSlug, wtName, true); err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -503,32 +370,6 @@ func TestRemoveByRepoUsesCorrectPath(t *testing.T) {
 			t.Error("expected directory to be removed with correct repoSlug")
 		}
 	})
-}
-
-// TestParseRepoAndNameRoundTrip confirms that a row produced by formatJumpRow
-// round-trips through parseRepoAndName back to the original repo and name.
-func TestParseRepoAndNameRoundTrip(t *testing.T) {
-	wm := &WorktreeManager{}
-	repo, name := "devgita", "my-feature"
-	row := formatJumpRow(repo, name, name, "inactive")
-
-	gotRepo, gotName, err := parseRepoAndName(row)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if gotRepo != repo {
-		t.Errorf("repo: want %q got %q", repo, gotRepo)
-	}
-	if gotName != name {
-		t.Errorf("name: want %q got %q", name, gotName)
-	}
-
-	// The path built from parsed values must match the direct call.
-	want := wm.worktreePath(repo, name)
-	got := wm.worktreePath(gotRepo, gotName)
-	if want != got {
-		t.Errorf("worktreePath mismatch: want %q got %q", want, got)
-	}
 }
 
 func TestWorktreePath(t *testing.T) {
@@ -615,13 +456,19 @@ func TestRepairStaleWorktree(t *testing.T) {
 	if err := os.MkdirAll(wtPath, 0o755); err != nil {
 		t.Fatalf("Failed to create test directory: %v", err)
 	}
-	defer os.RemoveAll(filepath.Dir(wtPath))
+	t.Cleanup(func() {
+		if err := os.RemoveAll(filepath.Dir(wtPath)); err != nil {
+			t.Logf("cleanup: %v", err)
+		}
+	})
 
 	// Mock git worktree list to return our test worktree
 	mockGitBase.SetExecCommandResult(tempDir+"\n"+staleWorktreeOutput, "", nil)
 
 	// Remove the directory to simulate stale state
-	os.RemoveAll(wtPath)
+	if err := os.RemoveAll(wtPath); err != nil {
+		t.Fatalf("failed to remove test directory: %v", err)
+	}
 
 	// Now call Repair - it should detect the missing directory
 	// Note: This requires the mock to properly return the worktree list
@@ -635,302 +482,4 @@ func TestCreateStaleWorktree(t *testing.T) {
 	t.Skip(
 		"This test requires complex mock setup to simulate git worktree list output with stale entries",
 	)
-}
-
-type fzfCall struct {
-	rows   []string
-	header string
-}
-
-// uniqueSlug returns a repoSlug guaranteed not to collide with any real
-// worktree on disk, by deriving it from t.TempDir(). Use this for any test
-// that drives confirmAndRemove down the delete path, since that path
-// resolves wtPath against the real filesystem.
-func uniqueSlug(t *testing.T) string {
-	t.Helper()
-	return filepath.Base(t.TempDir())
-}
-
-// newMockWM builds a WorktreeManager with mocked git/tmux and a controllable
-// fzfRun. Each fzf call appends to the returned slice; the closure returns
-// the next (out, err) pair from results, repeating the last pair after exhaustion.
-func newMockWM(results []struct {
-	out string
-	err error
-},
-) (*WorktreeManager, *[]fzfCall) {
-	calls := &[]fzfCall{}
-	idx := 0
-	wm := &WorktreeManager{
-		Git:  &git.Git{Cmd: commands.NewMockCommand(), Base: commands.NewMockBaseCommand()},
-		Tmux: &tmux.Tmux{Cmd: commands.NewMockCommand(), Base: commands.NewMockBaseCommand()},
-		Base: commands.NewMockBaseCommand(),
-	}
-	wm.fzfRun = func(rows []string, header string) (string, error) {
-		*calls = append(*calls, fzfCall{rows: rows, header: header})
-		r := results[idx]
-		if idx < len(results)-1 {
-			idx++
-		}
-		return r.out, r.err
-	}
-	return wm, calls
-}
-
-func TestConfirmAndRemovePendingItemIsFirstWithRedBackground(t *testing.T) {
-	slug := uniqueSlug(t)
-	rows := []string{
-		slug + "/feature-a\tbranch-a\tactive",
-		slug + "/feature-b\tbranch-b\tinactive",
-		slug + "/feature-c\tbranch-c\tactive",
-	}
-
-	wm, calls := newMockWM([]struct {
-		out string
-		err error
-	}{
-		{out: "", err: fmt.Errorf("selection cancelled")},
-	})
-
-	_ = wm.confirmAndRemove(rows, slug, "feature-c")
-
-	if len(*calls) != 1 {
-		t.Fatalf("Expected 1 fzf call, got %d", len(*calls))
-	}
-	first := (*calls)[0].rows[0]
-	if !strings.Contains(stripANSI(first), slug+"/feature-c") {
-		t.Errorf("Expected feature-c first, got %q", first)
-	}
-	if !strings.Contains(first, "\033[41m") {
-		t.Errorf("Expected red ANSI background in first row, got %q", first)
-	}
-	if wm.pendingDelete != nil {
-		t.Error("Expected pendingDelete cleared after cancel")
-	}
-}
-
-func TestConfirmAndRemoveDeleteExecutedOnSecondCtrlD(t *testing.T) {
-	slug := uniqueSlug(t)
-	rows := []string{slug + "/feature-a\tbranch-a\tactive"}
-
-	wm, calls := newMockWM([]struct {
-		out string
-		err error
-	}{
-		{out: "ctrl-d\n" + slug + "/feature-a\tbranch-a\tactive", err: nil},
-	})
-
-	err := wm.confirmAndRemove(rows, slug, "feature-a")
-	// removeByRepo runs but state.WtExists is false (slug is unique to TempDir,
-	// so no real path exists), so it returns nil without touching the filesystem.
-	_ = err
-
-	if len(*calls) != 1 {
-		t.Errorf("Expected 1 fzf call, got %d", len(*calls))
-	}
-	if wm.pendingDelete != nil {
-		t.Error("Expected pendingDelete nil after confirmed delete")
-	}
-}
-
-func TestConfirmAndRemoveCancelClearsPending(t *testing.T) {
-	slug := uniqueSlug(t)
-	rows := []string{slug + "/feature-a\tbranch-a\tactive"}
-
-	wm, _ := newMockWM([]struct {
-		out string
-		err error
-	}{
-		{out: "", err: fmt.Errorf("selection cancelled")},
-	})
-
-	err := wm.confirmAndRemove(rows, slug, "feature-a")
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
-	if wm.pendingDelete != nil {
-		t.Error("Expected pendingDelete nil after cancel")
-	}
-}
-
-func TestConfirmAndRemoveDifferentItemRedirectsConfirm(t *testing.T) {
-	slug := uniqueSlug(t)
-	rows := []string{
-		slug + "/feature-a\tbranch-a\tactive",
-		slug + "/feature-b\tbranch-b\tinactive",
-	}
-
-	callIdx := 0
-	calls := &[]fzfCall{}
-	wm := &WorktreeManager{
-		Git:  &git.Git{Cmd: commands.NewMockCommand(), Base: commands.NewMockBaseCommand()},
-		Tmux: &tmux.Tmux{Cmd: commands.NewMockCommand(), Base: commands.NewMockBaseCommand()},
-		Base: commands.NewMockBaseCommand(),
-	}
-	wm.fzfRun = func(r []string, h string) (string, error) {
-		*calls = append(*calls, fzfCall{rows: r, header: h})
-		callIdx++
-		if callIdx == 1 {
-			return "ctrl-d\n" + slug + "/feature-b\tbranch-b\tinactive", nil
-		}
-		return "", fmt.Errorf("selection cancelled")
-	}
-
-	_ = wm.confirmAndRemove(rows, slug, "feature-a")
-
-	// Should have launched fzf twice: once for feature-a, once for feature-b
-	if len(*calls) != 2 {
-		t.Errorf("Expected 2 fzf calls (redirect), got %d", len(*calls))
-	}
-	secondFirst := (*calls)[1].rows[0]
-	if !strings.Contains(stripANSI(secondFirst), slug+"/feature-b") {
-		t.Errorf("Expected feature-b first in second call, got %q", secondFirst)
-	}
-}
-
-func TestStripANSI(t *testing.T) {
-	tests := []struct {
-		name  string
-		input string
-		want  string
-	}{
-		{
-			name:  "no codes",
-			input: "plain text",
-			want:  "plain text",
-		},
-		{
-			name:  "red background around name column",
-			input: "\033[41mmyrepo/feature-a\033[0m\tbranch\tactive",
-			want:  "myrepo/feature-a\tbranch\tactive",
-		},
-		{
-			name:  "multiple codes",
-			input: "\033[1m\033[31mbold red\033[0m",
-			want:  "bold red",
-		},
-		{
-			name:  "empty string",
-			input: "",
-			want:  "",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := stripANSI(tt.input)
-			if got != tt.want {
-				t.Errorf("stripANSI(%q) = %q, want %q", tt.input, got, tt.want)
-			}
-		})
-	}
-}
-
-func TestParseJumpOutputStripsANSI(t *testing.T) {
-	t.Run("row with red background ANSI is stripped", func(t *testing.T) {
-		output := "ctrl-d\n\033[41mmyrepo/feature-a\033[0m\tbranch\tactive"
-		key, row, err := parseJumpOutput(output)
-		if err != nil {
-			t.Fatalf("Unexpected error: %v", err)
-		}
-		if key != "ctrl-d" {
-			t.Errorf("Expected key 'ctrl-d', got %q", key)
-		}
-		want := "myrepo/feature-a\tbranch\tactive"
-		if row != want {
-			t.Errorf("Expected stripped row %q, got %q", want, row)
-		}
-	})
-
-	t.Run("plain row without ANSI is unchanged", func(t *testing.T) {
-		output := "ctrl-d\nmyrepo/fix-123\tfix-123\tinactive"
-		_, row, err := parseJumpOutput(output)
-		if err != nil {
-			t.Fatalf("Unexpected error: %v", err)
-		}
-		want := "myrepo/fix-123\tfix-123\tinactive"
-		if row != want {
-			t.Errorf("Expected row %q, got %q", want, row)
-		}
-	})
-}
-
-func TestBuildConfirmRows(t *testing.T) {
-	rows := []string{
-		"myrepo/feature-a\tbranch-a\tactive",
-		"myrepo/feature-b\tbranch-b\tinactive",
-		"myrepo/feature-c\tbranch-c\tactive",
-	}
-
-	t.Run("pending item is moved to position 0", func(t *testing.T) {
-		result := buildConfirmRows(rows, "myrepo", "feature-c")
-		if len(result) != 3 {
-			t.Fatalf("Expected 3 rows, got %d", len(result))
-		}
-		// First row must contain the pending item's key after stripping ANSI
-		if !strings.Contains(stripANSI(result[0]), "myrepo/feature-c") {
-			t.Errorf("Expected pending item first, got %q", result[0])
-		}
-	})
-
-	t.Run("pending item's name column has red background ANSI", func(t *testing.T) {
-		result := buildConfirmRows(rows, "myrepo", "feature-b")
-		pendingRow := result[0]
-		if !strings.Contains(pendingRow, "\033[41m") {
-			t.Errorf("Expected red background escape in pending row, got %q", pendingRow)
-		}
-		if !strings.Contains(pendingRow, "\033[0m") {
-			t.Errorf("Expected reset escape in pending row, got %q", pendingRow)
-		}
-	})
-
-	t.Run("non-pending rows are unchanged", func(t *testing.T) {
-		result := buildConfirmRows(rows, "myrepo", "feature-a")
-		// result[0] is pending (feature-a); result[1] and result[2] are the others
-		for _, row := range result[1:] {
-			if strings.Contains(row, "\033[") {
-				t.Errorf("Non-pending row should not contain ANSI codes, got %q", row)
-			}
-		}
-	})
-
-	t.Run("pending item data is preserved after stripping ANSI", func(t *testing.T) {
-		result := buildConfirmRows(rows, "myrepo", "feature-b")
-		cleaned := stripANSI(result[0])
-		if cleaned != "myrepo/feature-b\tbranch-b\tinactive" {
-			t.Errorf("Stripped pending row should equal original, got %q", cleaned)
-		}
-	})
-
-	t.Run("unknown repoSlug/name returns rows unchanged and in original order", func(t *testing.T) {
-		result := buildConfirmRows(rows, "other", "unknown")
-		if len(result) != 3 {
-			t.Fatalf("Expected 3 rows, got %d", len(result))
-		}
-		for i, row := range result {
-			if row != rows[i] {
-				t.Errorf("row[%d] should be unchanged: want %q, got %q", i, rows[i], row)
-			}
-		}
-	})
-
-	t.Run("handles padded columns from alignment formatting", func(t *testing.T) {
-		// Rows with padding spaces (like %-*s formatting produces)
-		paddedRows := []string{
-			"myrepo/feature-a       \tbranch-a\tactive",
-			"myrepo/feature-b       \tbranch-b\tinactive",
-			"otherrepo/long-name    \tmain    \tactive",
-		}
-		result := buildConfirmRows(paddedRows, "myrepo", "feature-b")
-		if len(result) != 3 {
-			t.Fatalf("Expected 3 rows, got %d", len(result))
-		}
-		// First row should be the pending item with red background
-		if !strings.Contains(result[0], "\033[41m") {
-			t.Errorf("Expected red background on pending row with padding, got %q", result[0])
-		}
-		if !strings.Contains(stripANSI(result[0]), "myrepo/feature-b") {
-			t.Errorf("Expected pending item first, got %q", result[0])
-		}
-	})
 }
