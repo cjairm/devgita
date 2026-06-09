@@ -39,17 +39,26 @@ func TestNew(t *testing.T) {
 func TestGetWindowName(t *testing.T) {
 	tests := []struct {
 		name     string
+		repoSlug string
 		input    string
 		expected string
 	}{
-		{"simple name", "feature", "wt-feature"},
-		{"hyphenated name", "feature-login", "wt-feature-login"},
-		{"with numbers", "fix-123", "wt-fix-123"},
+		{"simple name", "myrepo", "feature", "wt-myrepo-feature"},
+		{"hyphenated name", "myrepo", "feature-login", "wt-myrepo-feature-login"},
+		{"with numbers", "myrepo", "fix-123", "wt-myrepo-fix-123"},
+		{
+			"ticket id shared across repos",
+			"jobvite_TalentNetwork",
+			"CXE-35",
+			"wt-jobvite_TalentNetwork-CXE-35",
+		},
+		{"slashes in name flattened", "myrepo", "feat/search", "wt-myrepo-feat-search"},
+		{"dots and colons in repo sanitized", "my.repo:x", "CXE-35", "wt-my_repo_x-CXE-35"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := GetWindowName(tt.input)
+			result := GetWindowName(tt.repoSlug, tt.input)
 			if result != tt.expected {
 				t.Errorf("Expected %q, got %q", tt.expected, result)
 			}

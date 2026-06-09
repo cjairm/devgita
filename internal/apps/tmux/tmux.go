@@ -174,6 +174,33 @@ func (t *Tmux) WindowSession(name string) (string, bool) {
 	return "", false
 }
 
+// FindWindowsBySuffix returns the names of all windows whose name ends with the
+// given suffix, searching across all sessions on the tmux server. It is used to
+// locate an orphaned worktree window when the owning repo can no longer be
+// determined (worktree windows are named "wt-<repo>-<flat-name>", so a suffix like
+// "-<flat-name>" still finds them). Returns nil when none match or no server is
+// reachable. Callers must handle multiple matches — the same worktree name can
+// exist across repos — to avoid killing the wrong window.
+func (t *Tmux) FindWindowsBySuffix(suffix string) []string {
+	execCommand := cmd.CommandParams{
+		Command: constants.Tmux,
+		Args:    []string{"list-windows", "-a", "-F", "#{window_name}"},
+	}
+	stdout, _, err := t.Base.ExecCommand(execCommand)
+	if err != nil {
+		return nil
+	}
+	var matches []string
+	scanner := bufio.NewScanner(strings.NewReader(stdout))
+	for scanner.Scan() {
+		name := strings.TrimSpace(scanner.Text())
+		if strings.HasSuffix(name, suffix) {
+			matches = append(matches, name)
+		}
+	}
+	return matches
+}
+
 // SwitchToWindow moves the attached client to the given session and selects the
 // window, so it works no matter which session the client is currently on.
 func (t *Tmux) SwitchToWindow(session, name string) error {

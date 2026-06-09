@@ -168,7 +168,7 @@ func (m Model) tickCmd() tea.Cmd {
 }
 
 func (m Model) captureAgentCmd(s worktree.WorktreeStatus) tea.Cmd {
-	window := worktree.GetWindowName(s.Name)
+	window := worktree.GetWindowName(s.Repo, s.Name)
 	if m.tmuxApp == nil {
 		return func() tea.Msg { return agentOfflineMsg{} }
 	}
@@ -556,7 +556,7 @@ func (m Model) handleAttach() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	window := worktree.GetWindowName(sel.Name)
+	window := worktree.GetWindowName(sel.Repo, sel.Name)
 	attachFn := m.attachFn
 	repairFn := m.repairFn
 	tmuxApp := m.tmuxApp

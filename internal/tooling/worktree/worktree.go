@@ -110,7 +110,7 @@ func (w *WorktreeManager) Create(name string, coder AICoder, force bool) error {
 
 	repoSlug := filepath.Base(repoRoot)
 	wtPath := w.worktreePath(repoSlug, name)
-	windowName := windowPrefix + flattenName(name)
+	windowName := GetWindowName(repoSlug, name)
 
 	state, err := w.worktreeState(repoSlug, name)
 	if err != nil {
@@ -197,7 +197,7 @@ func (w *WorktreeManager) createWindowAndLaunch(windowName, wtPath string, coder
 func (w *WorktreeManager) worktreeState(repoSlug, name string) (WorktreeState, error) {
 	state := WorktreeState{
 		WtPath:     w.worktreePath(repoSlug, name),
-		WindowName: windowPrefix + flattenName(name),
+		WindowName: GetWindowName(repoSlug, name),
 	}
 
 	if _, err := os.Stat(state.WtPath); err == nil {
@@ -261,7 +261,7 @@ func (w *WorktreeManager) List() ([]WorktreeStatus, error) {
 
 			name := wtEntry.Name()
 			wtPath := filepath.Join(repoDir, name)
-			windowName := windowPrefix + flattenName(name)
+			windowName := GetWindowName(repoSlug, name)
 
 			branch := ""
 			worktrees, err := w.Git.ListWorktreesAt(wtPath)
@@ -347,14 +347,30 @@ func (w *WorktreeManager) Remove(name string, force bool) error {
 		return w.removeByRepo(slug, name, force)
 	}
 
-	// Last resort: check if there's a tmux window matching in any session
-	windowName := windowPrefix + flattenName(name)
-	if _, ok := w.Tmux.WindowSession(windowName); ok {
-		_ = w.Tmux.KillWindow(windowName)
-		return nil
+	// Last resort: the repo could not be determined, so we don't know the full
+	// window name (wt-<repo>-<flat-name>). Match orphan windows by their trailing
+	// "-<flat-name>" segment, keeping only those with the wt- prefix.
+	var orphans []string
+	for _, window := range w.Tmux.FindWindowsBySuffix("-" + flattenName(name)) {
+		if strings.HasPrefix(window, windowPrefix) {
+			orphans = append(orphans, window)
+		}
 	}
-
-	return fmt.Errorf("nothing to remove for worktree '%s'", name)
+	switch len(orphans) {
+	case 0:
+		return fmt.Errorf("nothing to remove for worktree '%s'", name)
+	case 1:
+		_ = w.Tmux.KillWindow(orphans[0])
+		return nil
+	default:
+		// Same worktree name across repos — killing an arbitrary match could
+		// destroy the wrong active window. Require the caller to disambiguate.
+		return fmt.Errorf(
+			"multiple windows match '%s' (%s); run `dg wt remove` from the repo that owns it",
+			name,
+			strings.Join(orphans, ", "),
+		)
+	}
 }
 
 // repoSlugForWorktree resolves the repo slug that owns a worktree, first trying
@@ -389,7 +405,7 @@ func (w *WorktreeManager) Repair(name string, coder AICoder) error {
 	}
 
 	wtPath := w.worktreePath(repoSlug, name)
-	windowName := windowPrefix + flattenName(name)
+	windowName := GetWindowName(repoSlug, name)
 
 	// If directory doesn't exist on disk but git knows about it, prune and error
 	if _, err := os.Stat(wtPath); os.IsNotExist(err) {
@@ -425,7 +441,7 @@ func (w *WorktreeManager) RepairInRepo(repoSlug, name string, coder AICoder) err
 		return err
 	}
 	wtPath := w.worktreePath(repoSlug, name)
-	windowName := windowPrefix + flattenName(name)
+	windowName := GetWindowName(repoSlug, name)
 	if _, err := os.Stat(wtPath); os.IsNotExist(err) {
 		if pruneErr := w.Git.PruneWorktreesAt(filepath.Dir(wtPath)); pruneErr != nil {
 			return fmt.Errorf(
@@ -509,7 +525,7 @@ func (w *WorktreeManager) Prune() error {
 // Mirrors the same tolerant logic as Remove.
 func (w *WorktreeManager) removeByRepo(repoSlug, name string, force bool) error {
 	wtPath := w.worktreePath(repoSlug, name)
-	windowName := windowPrefix + flattenName(name)
+	windowName := GetWindowName(repoSlug, name)
 
 	state, err := w.worktreeState(repoSlug, name)
 	if err != nil {
@@ -570,9 +586,25 @@ func confirmFromTTY() bool {
 	return strings.ToLower(strings.TrimSpace(response)) == "y"
 }
 
-// GetWindowName returns the tmux window name for a given worktree name
-func GetWindowName(name string) string {
-	return windowPrefix + flattenName(name)
+// GetWindowName returns the tmux window name for a worktree, scoped by repo slug.
+//
+// Worktree directories are already namespaced per repo
+// (…/worktrees/<repo-slug>/<flat-name>), but tmux window names live in a single
+// server-wide namespace. Without the repo scope, a worktree named after a shared
+// ticket ID (e.g. "CXE-35") collides across repos: a leftover window from one repo
+// makes `dg wt new CXE-35` in another repo fail with a false "orphan window" error.
+//
+// The repo prefix is sanitized with tmuxSessionName so it matches the session name
+// used in ensureWindow, keeping window and session naming consistent.
+func GetWindowName(repoSlug, name string) string {
+	return windowPrefix + tmuxSessionName(repoSlug) + "-" + flattenName(name)
+}
+
+// WindowNameFor resolves the repo that owns the given worktree and returns its
+// repo-scoped tmux window name. It is for callers (e.g. the `dg wt repair`
+// command) that have only the worktree name and need the window name for display.
+func (w *WorktreeManager) WindowNameFor(name string) string {
+	return GetWindowName(w.repoSlugForWorktree(name), name)
 }
 
 // GetWorktreeDir returns the worktree directory name (deprecated, use worktreePath instead)

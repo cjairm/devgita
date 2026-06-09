@@ -81,7 +81,9 @@ After creation, switch to the window with:
 			repoSlug = repoRoot[findLastSlash(repoRoot)+1:]
 		}
 		utils.PrintSuccess(fmt.Sprintf("Created worktree: %s/%s", repoSlug, name))
-		utils.PrintSuccess(fmt.Sprintf("Created tmux window: %s", worktree.GetWindowName(name)))
+		utils.PrintSuccess(
+			fmt.Sprintf("Created tmux window: %s", worktree.GetWindowName(repoSlug, name)),
+		)
 		utils.PrintInfo("Switch to window with: <prefix> + w")
 		return nil
 	},
@@ -133,7 +135,7 @@ var worktreeRemoveCmd = &cobra.Command{
 	Long: `Remove a git worktree and kill its associated tmux window (aliases: rm, r).
 
 This command:
-  1. Kills the tmux window wt-<name> if it exists
+  1. Kills the tmux window wt-<repo>-<name> if it exists
   2. Removes the git worktree
   3. Deletes the branch (force delete with -D)
 
@@ -218,7 +220,7 @@ AI coder selection follows the same precedence as create:
 
 		utils.PrintSuccess(fmt.Sprintf("Repaired worktree: %s", name))
 		utils.PrintSuccess(
-			fmt.Sprintf("Launched AI coder in window: %s", worktree.GetWindowName(name)),
+			fmt.Sprintf("Launched AI coder in window: %s", wm.WindowNameFor(name)),
 		)
 		return nil
 	},

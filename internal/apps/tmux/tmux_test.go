@@ -1023,6 +1023,46 @@ func TestWindowSession(t *testing.T) {
 	})
 }
 
+func TestFindWindowsBySuffix(t *testing.T) {
+	t.Run("returns all windows matching suffix across repos", func(t *testing.T) {
+		mockApp := testutil.NewMockApp()
+		mockApp.Base.SetExecCommandResult(
+			"wt-repo-a-CXE-35\nwt-repo-b-CXE-35\nwt-repo-a-other\n",
+			"",
+			nil,
+		)
+		app := &tmux.Tmux{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+		matches := app.FindWindowsBySuffix("-CXE-35")
+		if len(matches) != 2 {
+			t.Fatalf("expected 2 matches, got %d: %v", len(matches), matches)
+		}
+		if matches[0] != "wt-repo-a-CXE-35" || matches[1] != "wt-repo-b-CXE-35" {
+			t.Errorf("unexpected matches: %v", matches)
+		}
+	})
+
+	t.Run("no match returns nil", func(t *testing.T) {
+		mockApp := testutil.NewMockApp()
+		mockApp.Base.SetExecCommandResult("wt-repo-a-other\n", "", nil)
+		app := &tmux.Tmux{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+		if matches := app.FindWindowsBySuffix("-CXE-35"); matches != nil {
+			t.Errorf("expected nil, got %v", matches)
+		}
+	})
+
+	t.Run("exec error returns nil", func(t *testing.T) {
+		mockApp := testutil.NewMockApp()
+		mockApp.Base.SetExecCommandResult("", "error", errors.New("no server"))
+		app := &tmux.Tmux{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+		if matches := app.FindWindowsBySuffix("-CXE-35"); matches != nil {
+			t.Errorf("expected nil on exec error, got %v", matches)
+		}
+	})
+}
+
 func TestSwitchToWindow(t *testing.T) {
 	t.Run("calls switch-client then select-window", func(t *testing.T) {
 		mockApp := testutil.NewMockApp()
