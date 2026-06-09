@@ -69,11 +69,3 @@ func worktreeIndices(rows []row) []int {
 	}
 	return out
 }
-
-// glyphFor returns a status glyph for a worktree status.
-func glyphFor(s worktree.WorktreeStatus) string {
-	if s.WindowActive {
-		return "●"
-	}
-	return "○"
-}

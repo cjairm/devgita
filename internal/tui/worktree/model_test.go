@@ -9,6 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/cjairm/devgita/internal/testutil"
 	"github.com/cjairm/devgita/internal/tooling/worktree"
+	tuicomponents "github.com/cjairm/devgita/internal/tui/components"
 )
 
 func init() { testutil.InitLogger() }
@@ -16,7 +17,7 @@ func init() { testutil.InitLogger() }
 func makeTestModel(statuses []worktree.WorktreeStatus) Model {
 	m := Model{
 		collapsed:     map[string]bool{},
-		styles:        newStyles(),
+		palette:       tuicomponents.NewPalette(),
 		leftPaneWidth: minLeftPaneWidth,
 		width:         120,
 		height:        40,
@@ -98,6 +99,68 @@ func TestFoldHide(t *testing.T) {
 	// Should have: repo-a header, repo-b header, feature-x
 	if len(m.rows) != 3 {
 		t.Fatalf("expected 3 rows after collapse, got %d", len(m.rows))
+	}
+}
+
+func TestFoldUnfold(t *testing.T) {
+	m := makeTestModel(testStatuses())
+	// Start on a worktree in repo-a
+	if m.rows[m.cursor].kind != rowWorktree || m.rows[m.cursor].status.Repo != "repo-a" {
+		t.Fatal("expected initial cursor on repo-a worktree")
+	}
+
+	// h collapses the repo and lands cursor on the repo header
+	m2, _ := m.Update(tea.KeyPressMsg{Code: 'h'})
+	m3 := m2.(Model)
+	if m3.rows[m3.cursor].kind != rowRepo {
+		t.Fatalf("after h, cursor should be on repo header, got kind=%d", m3.rows[m3.cursor].kind)
+	}
+	if m3.rows[m3.cursor].repo != "repo-a" {
+		t.Errorf("cursor should be on repo-a header, got %q", m3.rows[m3.cursor].repo)
+	}
+
+	// l expands it and returns cursor to a worktree inside repo-a
+	m4, _ := m3.Update(tea.KeyPressMsg{Code: 'l'})
+	m5 := m4.(Model)
+	if m5.rows[m5.cursor].kind != rowWorktree {
+		t.Fatal("after l, cursor should be on a worktree row")
+	}
+	if m5.rows[m5.cursor].status.Repo != "repo-a" {
+		t.Errorf("after l, cursor should be in repo-a, got %q", m5.rows[m5.cursor].status.Repo)
+	}
+}
+
+func TestCollapsedHeaderReachableAfterNavAway(t *testing.T) {
+	m := makeTestModel(testStatuses())
+
+	// Collapse repo-a — cursor lands on repo-a header
+	m2, _ := m.Update(tea.KeyPressMsg{Code: 'h'})
+	m3 := m2.(Model)
+	if m3.rows[m3.cursor].kind != rowRepo || m3.rows[m3.cursor].repo != "repo-a" {
+		t.Fatal("after h, cursor should be on repo-a header")
+	}
+
+	// Navigate away with j — should reach feature-x in repo-b
+	m4, _ := m3.Update(tea.KeyPressMsg{Code: 'j'})
+	m5 := m4.(Model)
+	if m5.rows[m5.cursor].kind != rowWorktree || m5.rows[m5.cursor].status.Repo != "repo-b" {
+		t.Fatalf("after j from collapsed header, expected repo-b worktree, got kind=%d repo=%q",
+			m5.rows[m5.cursor].kind, m5.rows[m5.cursor].status.Repo)
+	}
+
+	// Navigate back with j — should wrap to repo-a header (collapsed, navigable)
+	m6, _ := m5.Update(tea.KeyPressMsg{Code: 'j'})
+	m7 := m6.(Model)
+	if m7.rows[m7.cursor].kind != rowRepo || m7.rows[m7.cursor].repo != "repo-a" {
+		t.Fatalf("after wrap, expected repo-a header, got kind=%d repo=%q",
+			m7.rows[m7.cursor].kind, m7.rows[m7.cursor].repo)
+	}
+
+	// l from repo-a header should expand and land on worktree in repo-a
+	m8, _ := m7.Update(tea.KeyPressMsg{Code: 'l'})
+	m9 := m8.(Model)
+	if m9.rows[m9.cursor].kind != rowWorktree || m9.rows[m9.cursor].status.Repo != "repo-a" {
+		t.Error("after l on re-reached header, cursor should be in repo-a worktree")
 	}
 }
 

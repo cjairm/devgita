@@ -15,6 +15,7 @@ import (
 	"github.com/cjairm/devgita/internal/apps/tmux"
 	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/internal/tooling/worktree"
+	tuicomponents "github.com/cjairm/devgita/internal/tui/components"
 )
 
 const (
@@ -84,7 +85,8 @@ type Model struct {
 
 	width  int
 	height int
-	styles Styles
+
+	palette *tuicomponents.Palette
 
 	lastNavTime time.Time
 
@@ -117,7 +119,7 @@ func newModel(
 		gitApp:        gitApp,
 		gc:            gc,
 		collapsed:     map[string]bool{},
-		styles:        newStyles(),
+		palette:       tuicomponents.NewPalette(),
 		leftPaneWidth: defaultLeftPaneWidth,
 	}
 	m.captureFn = func(session, window string) (string, error) {
@@ -234,21 +236,52 @@ func (m *Model) rebuildRows() {
 	}
 }
 
+// navigableIndices returns row indices that j/k visit: all worktree rows plus
+// collapsed repo header rows (so the user can reach a collapsed header and press l).
+func (m *Model) navigableIndices() []int {
+	var out []int
+	for i, r := range m.rows {
+		if r.kind == rowWorktree || (r.kind == rowRepo && m.collapsed[r.repo]) {
+			out = append(out, i)
+		}
+	}
+	return out
+}
+
 func (m *Model) moveCursor(delta int) {
-	indices := worktreeIndices(m.rows)
+	indices := m.navigableIndices()
 	if len(indices) == 0 {
 		return
 	}
-	// Find current position in indices
-	cur := 0
+	cur := -1
 	for i, idx := range indices {
 		if idx == m.cursor {
 			cur = i
 			break
 		}
 	}
+	if cur == -1 {
+		// Cursor is on an expanded repo header — jump to nearest navigable row.
+		if delta > 0 {
+			for _, idx := range indices {
+				if idx > m.cursor {
+					m.cursor = idx
+					return
+				}
+			}
+			m.cursor = indices[0]
+		} else {
+			for i := len(indices) - 1; i >= 0; i-- {
+				if indices[i] < m.cursor {
+					m.cursor = indices[i]
+					return
+				}
+			}
+			m.cursor = indices[len(indices)-1]
+		}
+		return
+	}
 	cur += delta
-	// Wrap around
 	cur = ((cur % len(indices)) + len(indices)) % len(indices)
 	m.cursor = indices[cur]
 }
@@ -417,16 +450,47 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case "h":
+		var collapseRepo string
 		if sel, ok := m.selectedStatus(); ok {
-			m.collapsed[sel.Repo] = true
+			collapseRepo = sel.Repo
+		} else if m.cursor >= 0 && m.cursor < len(m.rows) && m.rows[m.cursor].kind == rowRepo {
+			collapseRepo = m.rows[m.cursor].repo
+		}
+		if collapseRepo != "" {
+			m.collapsed[collapseRepo] = true
 			m.rebuildRows()
+			// Land cursor on the just-collapsed repo header so l can re-expand it.
+			for i, r := range m.rows {
+				if r.kind == rowRepo && r.repo == collapseRepo {
+					m.cursor = i
+					break
+				}
+			}
 		}
 		return m, nil
 
 	case "l":
+		var expandRepo string
+		wasCollapsed := false
 		if sel, ok := m.selectedStatus(); ok {
-			m.collapsed[sel.Repo] = false
+			expandRepo = sel.Repo
+			wasCollapsed = m.collapsed[expandRepo]
+		} else if m.cursor >= 0 && m.cursor < len(m.rows) && m.rows[m.cursor].kind == rowRepo {
+			expandRepo = m.rows[m.cursor].repo
+			wasCollapsed = m.collapsed[expandRepo]
+		}
+		if expandRepo != "" {
+			m.collapsed[expandRepo] = false
 			m.rebuildRows()
+			if wasCollapsed {
+				// Move cursor to first worktree of the just-expanded repo.
+				for i, r := range m.rows {
+					if r.kind == rowWorktree && r.repo == expandRepo {
+						m.cursor = i
+						break
+					}
+				}
+			}
 		}
 		return m, nil
 
@@ -436,6 +500,9 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.collapsed[s.Repo] = m.allCollapsed
 		}
 		m.rebuildRows()
+		if m.allCollapsed && len(m.rows) > 0 {
+			m.cursor = 0 // first visible row is a repo header when all collapsed
+		}
 		return m, nil
 
 	case "tab":
@@ -648,6 +715,22 @@ func (m Model) renderContent() string {
 }
 
 func (m Model) renderLeft(width int) string {
+	// isLastChild reports whether row i is the last worktree under its repo header.
+	isLastChild := func(i int) bool {
+		repo := m.rows[i].status.Repo
+		for j := i + 1; j < len(m.rows); j++ {
+			if m.rows[j].kind == rowRepo {
+				return true
+			}
+			if m.rows[j].kind == rowWorktree && m.rows[j].status.Repo == repo {
+				return false
+			}
+		}
+		return true
+	}
+
+	const branchChar = "∕" // U+2215 DIVISION SLASH — branch glyph (1 display col)
+
 	var sb strings.Builder
 	for i, r := range m.rows {
 		var line string
@@ -657,31 +740,39 @@ func (m Model) renderLeft(width int) string {
 				collapse = "▶"
 			}
 			text := collapse + " " + r.repo
-			line = m.styles.RepoHeader.Render(
-				text,
-			) + strings.Repeat(
-				" ",
-				max(0, width-ansi.StringWidth(text)),
-			)
+			pad := strings.Repeat(" ", max(0, width-ansi.StringWidth(text)))
+			if i == m.cursor {
+				// Cursor landed here after h — show repo header with selection highlight.
+				line = m.palette.Selected.Render(text + pad)
+			} else {
+				line = m.palette.RepoHeader.Render(text) + pad
+			}
 		} else {
-			g := glyphFor(r.status)
-			name := ansi.Truncate(r.status.Name, width-4, "")
+			state := tuicomponents.SessionStateFromWorktree(r.status, false, 0)
+			// Tree connector: "└ " for last child, "  " otherwise (both 2 display cols).
+			connectorRaw := "  "
+			connectorStyled := "  "
+			if isLastChild(i) {
+				connectorRaw = "└ "
+				connectorStyled = m.palette.Divider.Render("└") + " "
+			}
+			// prefix = connector(2) + dot(1) + branchChar(1) + space(1) = 5 display cols
+			name := ansi.Truncate(r.status.Name, max(0, width-5), "")
 			pendingKey := r.status.Repo + "/" + r.status.Name
-			plainText := "  " + g + " " + name
-			padding := strings.Repeat(" ", max(0, width-ansi.StringWidth(plainText)))
+			padding := strings.Repeat(" ", max(0, width-5-ansi.StringWidth(name)))
 
 			if i == m.cursor {
+				g := m.palette.StatusGlyph(state)
+				plainText := connectorRaw + g + branchChar + " " + name
 				if m.pendingDelete == pendingKey {
-					line = m.styles.ArmedRow.Render(plainText + padding)
+					line = m.palette.Armed.Render(plainText + padding)
 				} else {
-					line = m.styles.SelectedRow.Render(plainText + padding)
+					line = m.palette.Selected.Render(plainText + padding)
 				}
 			} else {
-				glyphStyle := m.styles.InactiveGlyph
-				if r.status.WindowActive {
-					glyphStyle = m.styles.ActiveGlyph
-				}
-				line = "  " + glyphStyle.Render(g) + " " + name + padding
+				line = connectorStyled + m.palette.StatusDot(
+					state,
+				) + m.palette.BranchLabel() + " " + name + padding
 			}
 		}
 		sb.WriteString(line)
@@ -691,7 +782,7 @@ func (m Model) renderLeft(width int) string {
 }
 
 func (m Model) renderDivider(height int) string {
-	divChar := m.styles.Divider.Render("│")
+	divChar := m.palette.Divider.Render("│")
 	lines := make([]string, height)
 	for i := range lines {
 		lines[i] = divChar
@@ -700,23 +791,17 @@ func (m Model) renderDivider(height int) string {
 }
 
 func (m Model) renderRight(width int) string {
-	// Tab bar
-	agentLabel := "Agent"
-	diffLabel := "Diff"
-	if m.activeTab == tabAgent {
-		agentLabel = m.styles.ActiveTab.Render(agentLabel)
-		diffLabel = m.styles.InactiveTab.Render(diffLabel)
-	} else {
-		agentLabel = m.styles.InactiveTab.Render(agentLabel)
-		diffLabel = m.styles.ActiveTab.Render(diffLabel)
+	tabs := []tuicomponents.Tab{
+		{Label: "Agent"},
+		{Label: "Diff"},
 	}
-	tabBar := agentLabel + "  " + diffLabel
+	tabBar := m.palette.TabBar(tabs, int(m.activeTab))
 	contentHeight := max(m.height-4, 0) // height minus hint, status, tabbar, blank line
 
 	var content string
 	if m.activeTab == tabAgent {
 		if m.agentOffline {
-			content = m.styles.OfflinePlaceholder.Render("⟂ window offline — press r to repair")
+			content = m.palette.Inactive.Render("⟂ window offline — press r to repair")
 		} else {
 			content = m.renderAgentContent(width, contentHeight)
 		}
@@ -729,7 +814,7 @@ func (m Model) renderRight(width int) string {
 
 func (m Model) renderAgentContent(width, height int) string {
 	if m.agentContent == "" {
-		return m.styles.InactiveGlyph.Render("(loading...)")
+		return m.palette.Inactive.Render("(loading...)")
 	}
 	lines := strings.Split(m.agentContent, "\n")
 	var truncated []string
@@ -745,7 +830,7 @@ func (m Model) renderAgentContent(width, height int) string {
 
 func (m Model) renderDiffContent(width, height int) string {
 	if m.diffContent == "" {
-		return m.styles.InactiveGlyph.Render("(no changes)")
+		return m.palette.Inactive.Render("(no changes)")
 	}
 	lines := strings.Split(m.diffContent, "\n")
 	// Apply scroll
@@ -767,20 +852,32 @@ func (m Model) renderHint(width int) string {
 			name = parts[1]
 		}
 		hint := "press d again to delete " + name + " · any other key cancels"
-		return m.styles.HintBar.Render(ansi.Truncate(hint, width, ""))
+		return m.palette.HintDesc.Render(ansi.Truncate(hint, width, ""))
 	}
-	hint := "↵ attach · j/k move · h/l fold · z all · ⇥ tab · d del · r repair · / filter · ? help · q quit"
 	if m.filtering {
-		hint = "filter: " + m.filter + "█  · esc: clear · enter: keep"
+		hint := "filter: " + m.filter + "█  · esc: clear · enter: keep"
+		return m.palette.HintDesc.Render(ansi.Truncate(hint, width, ""))
 	}
-	return m.styles.HintBar.Render(ansi.Truncate(hint, width, ""))
+	hints := []tuicomponents.KeyHint{
+		{Key: "↵", Desc: "attach"},
+		{Key: "j/k", Desc: "move"},
+		{Key: "h/l", Desc: "fold"},
+		{Key: "z", Desc: "all"},
+		{Key: "⇥", Desc: "tab"},
+		{Key: "d", Desc: "del"},
+		{Key: "r", Desc: "repair"},
+		{Key: "/", Desc: "filter"},
+		{Key: "?", Desc: "help"},
+		{Key: "q", Desc: "quit"},
+	}
+	return m.palette.HintBar(hints, width)
 }
 
 func (m Model) renderStatus(width int) string {
 	if m.status == "" {
 		return ""
 	}
-	return m.styles.StatusMsg.Render(ansi.Truncate(m.status, width, ""))
+	return m.palette.StatusMsg.Render(ansi.Truncate(m.status, width, ""))
 }
 
 func (m Model) renderHelpOverlay() string {
@@ -809,11 +906,11 @@ func (m Model) renderHelpOverlay() string {
 		boxInnerW = boxW - 2
 	}
 
-	b := m.styles.HelpBorder.Render
+	b := m.palette.PaletteBorder.Render
 	sep := strings.Repeat("─", boxInnerW)
 
 	title := "Keybindings"
-	titleStyled := m.styles.RepoHeader.Render(title)
+	titleStyled := m.palette.RepoHeader.Render(title)
 	lpad := max((boxInnerW-len(title))/2, 0)
 	rpad := max(boxInnerW-lpad-len(title), 0)
 
@@ -835,7 +932,7 @@ func (m Model) renderHelpOverlay() string {
 	sb.WriteString(b("├"+sep+"┤") + "\n")
 
 	for _, e := range entries {
-		keyStyled := m.styles.HelpKey.Render(e.key)
+		keyStyled := m.palette.HintKey.Render(e.key)
 		keyPad := strings.Repeat(" ", max(0, keyColW-ansi.StringWidth(e.key)))
 		desc := ansi.Truncate(e.desc, descColW, "")
 		descPad := strings.Repeat(" ", max(0, descColW-ansi.StringWidth(desc)))
@@ -845,7 +942,7 @@ func (m Model) renderHelpOverlay() string {
 	}
 
 	sb.WriteString(b("└"+sep+"┘") + "\n")
-	sb.WriteString(m.styles.HintBar.Render("press any key to close"))
+	sb.WriteString(m.palette.HintDesc.Render("press any key to close"))
 
 	boxLines := strings.Split(strings.TrimRight(sb.String(), "\n"), "\n")
 	topPad := max((m.height-len(boxLines))/2, 0)

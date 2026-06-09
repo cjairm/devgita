@@ -1,0 +1,69 @@
+package tuicomponents
+
+import "github.com/cjairm/devgita/internal/tooling/worktree"
+
+type SessionState int
+
+const (
+	StateRunning     SessionState = iota
+	StateNeedsReview              // session finished, fired by Stop hook
+	StateDirty                    // uncommitted changes, no active session
+	StateNoSession                // worktree exists, no tmux window
+)
+
+// SessionStateFromWorktree derives state from WorktreeStatus.
+// needsReview and dirtyCount are zero-valued until WorktreeStatus gains those fields.
+func SessionStateFromWorktree(
+	s worktree.WorktreeStatus,
+	needsReview bool,
+	dirtyCount int,
+) SessionState {
+	if s.WindowActive {
+		if needsReview {
+			return StateNeedsReview
+		}
+		return StateRunning
+	}
+	if dirtyCount > 0 {
+		return StateDirty
+	}
+	return StateNoSession
+}
+
+// StatusDot returns a styled glyph string with ANSI color codes.
+// Use in standalone contexts (non-selected rows, status bars).
+// Do NOT nest inside a parent style.Render() — use StatusGlyph instead.
+func (p *Palette) StatusDot(state SessionState) string {
+	g := p.StatusGlyph(state)
+	switch state {
+	case StateRunning:
+		return p.Running.Render(g)
+	case StateNeedsReview:
+		return p.NeedsReview.Render(g)
+	case StateDirty:
+		return p.Dirty.Render(g)
+	default:
+		return p.NoSession.Render(g)
+	}
+}
+
+// StatusGlyph returns the raw glyph character with no ANSI styling.
+// Use when the caller wraps the result in a parent style (e.g. Selected.Render(...)).
+// StateRunning and StateDirty intentionally share "●" — color is the differentiator.
+func (p *Palette) StatusGlyph(state SessionState) string {
+	switch state {
+	case StateRunning:
+		return "●"
+	case StateNeedsReview:
+		return "◆"
+	case StateDirty:
+		return "●"
+	default:
+		return "○"
+	}
+}
+
+// BranchLabel returns the styled ∕ branch glyph.
+func (p *Palette) BranchLabel() string {
+	return p.BranchGlyph.Render("∕")
+}
