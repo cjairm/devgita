@@ -40,6 +40,7 @@
       "Bash(cd *)",
       "Bash(source *)",
       "Bash(cat *)",
+      "Bash(awk *)",
       "Read",
       "Edit"
     ],
