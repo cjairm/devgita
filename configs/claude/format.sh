@@ -44,8 +44,16 @@ case "$FILE" in
 	fmt "$BIN/prettier" "$FILE" --write
 	lint "eslint" "$BIN/eslint_d" "$FILE"
 	;;
-*.json | *.css | *.scss | *.less | *.html | *.yaml | *.yml)
+*.json | *.css | *.scss | *.less | *.yaml | *.yml)
 	fmt "$BIN/prettier" "$FILE" --write
+	;;
+*.html)
+	# TODO: remove hire2 exception once the repo is public
+	HIRE2_WT="${XDG_DATA_HOME:-$HOME/.local/share}/devgita/worktrees/hire2"
+	case "$FILE" in
+	"$HOME/lever/hire2"/* | "$HIRE2_WT"/*) ;;
+	*) fmt "$BIN/prettier" "$FILE" --write ;;
+	esac
 	;;
 *.md | *.markdown)
 	fmt "$BIN/prettier" "$FILE" --write
