@@ -101,3 +101,51 @@ git merge --squash origin/<source-branch>
 git commit -m "feat: combined description"
 git push -u origin <branch>
 ```
+
+## Diagnosing Branch Divergence
+
+Symptom: `git pull` fails or says "Already up to date" but the expected files
+(e.g. a PR's content) aren't present. Usually the local branch and the remote
+branch **share a name but have different histories** — the local one is often
+just a copy of `main` under a different name.
+
+### 1. Compare the two tips
+
+```bash
+git rev-parse HEAD                  # local tip
+git rev-parse origin/<branch>       # remote tip (after fetch)
+```
+
+Different hashes → divergent histories.
+
+### 2. Check for unique commits on each side
+
+```bash
+git fetch origin <branch>
+git log --oneline origin/main..HEAD              # unique LOCAL commits
+git log --oneline HEAD..origin/<branch>          # unique REMOTE commits
+```
+
+If "unique local commits" is empty, the local branch has no work of its own —
+it's safe to point it at the remote.
+
+### 3. Check upstream tracking
+
+```bash
+git branch -vv                      # lists tracking branch per local branch
+git rev-parse --abbrev-ref @{upstream}   # errors if no upstream is set
+```
+
+No upstream explains why a bare `git pull` fails. `git pull origin HEAD`
+resolves `origin/HEAD` (usually `main`), which is why it pulls the wrong ref
+and reports "Already up to date."
+
+### 4. Align local branch to the real remote branch
+
+Only when step 2 confirms no unique local work:
+
+```bash
+git fetch origin <branch>
+git reset --hard origin/<branch>                 # adopt the remote history
+git branch --set-upstream-to=origin/<branch>     # future `git pull` just works
+```
