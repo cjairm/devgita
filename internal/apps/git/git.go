@@ -218,11 +218,33 @@ func (g *Git) RemoteBranchExists(branch string) (bool, error) {
 	return strings.TrimSpace(stdout) != "", nil
 }
 
+// DefaultBranch returns the repository's default branch name (e.g. "main").
+// It resolves origin/HEAD when available and falls back to "main" so callers
+// always get a usable branch name even on repos where origin/HEAD is unset.
+func (g *Git) DefaultBranch() string {
+	execCommand := cmd.CommandParams{
+		Command: constants.Git,
+		Args:    []string{"symbolic-ref", "--short", "refs/remotes/origin/HEAD"},
+	}
+	stdout, _, err := g.Base.ExecCommand(execCommand)
+	if err == nil {
+		// Output looks like "origin/main"; strip the remote prefix.
+		ref := strings.TrimSpace(stdout)
+		if i := strings.LastIndex(ref, "/"); i != -1 {
+			ref = ref[i+1:]
+		}
+		if ref != "" {
+			return ref
+		}
+	}
+	return "main"
+}
+
 // CreateWorktree creates a new worktree with a branch
 // Handles three cases:
 // 1. Local branch exists: checkout that branch
 // 2. Remote branch exists: create tracking branch (after fetch)
-// 3. Neither exists: create new branch from HEAD
+// 3. Neither exists: create new branch from the freshly-fetched default branch
 func (g *Git) CreateWorktree(path, branch string) error {
 	// Fetch latest remote refs to ensure we see recent branches.
 	// Best-effort: ignore errors (user may be offline or have no remote).
@@ -234,9 +256,13 @@ func (g *Git) CreateWorktree(path, branch string) error {
 		return fmt.Errorf("failed to check if local branch exists: %w", err)
 	}
 
-	// If local branch exists, checkout that branch
+	// If local branch exists, check it out in the worktree, then bring it up to
+	// date with its remote counterpart.
 	if localExists {
-		return g.ExecuteCommand("worktree", "add", path, branch)
+		if err := g.ExecuteCommand("worktree", "add", path, branch); err != nil {
+			return err
+		}
+		return g.syncExistingBranch(path, branch)
 	}
 
 	// Check if remote branch exists
@@ -250,8 +276,49 @@ func (g *Git) CreateWorktree(path, branch string) error {
 		return g.ExecuteCommand("worktree", "add", path, branch)
 	}
 
-	// Neither local nor remote exists, create new branch from HEAD
+	// Neither local nor remote exists: create a new branch. Prefer basing it on
+	// the freshly-fetched default branch (origin/<default>) so new worktrees are
+	// deterministic and never inherit a stale or unrelated HEAD. Fall back to
+	// HEAD when the remote default isn't available (e.g. offline, no origin).
+	defaultBranch := g.DefaultBranch()
+	baseExists, err := g.RemoteBranchExists(defaultBranch)
+	if err != nil {
+		return fmt.Errorf("failed to check if remote default branch exists: %w", err)
+	}
+	if baseExists {
+		base := fmt.Sprintf("origin/%s", defaultBranch)
+		return g.ExecuteCommand("worktree", "add", path, "-b", branch, base)
+	}
 	return g.ExecuteCommand("worktree", "add", path, "-b", branch)
+}
+
+// syncExistingBranch brings a worktree's already-existing local branch up to
+// date with its remote counterpart. It only fast-forwards, so unpushed local
+// commits are never discarded. When there is no remote counterpart there is
+// nothing to sync. When histories have diverged the fast-forward fails; we
+// leave the branch untouched and warn the user how to reconcile manually
+// (logger is suppressed below ERROR in normal runs, so we print directly).
+func (g *Git) syncExistingBranch(path, branch string) error {
+	remoteExists, err := g.RemoteBranchExists(branch)
+	if err != nil {
+		return fmt.Errorf("failed to check if remote branch exists: %w", err)
+	}
+	if !remoteExists {
+		return nil
+	}
+
+	base := fmt.Sprintf("origin/%s", branch)
+	if ffErr := g.ExecuteCommandAt(path, "merge", "--ff-only", base); ffErr != nil {
+		fmt.Printf(
+			"Warning: local branch %q diverged from %s and was not updated.\n"+
+				"  The worktree was created at the branch's current local state.\n"+
+				"  If the local branch has no unique work, sync it with:\n"+
+				"    git -C %s fetch origin %s\n"+
+				"    git -C %s reset --hard %s\n",
+			branch, base, path, branch, path, base,
+		)
+	}
+	return nil
 }
 
 // ListWorktrees returns parsed worktree information

@@ -287,6 +287,8 @@ func (m *MockBaseCommand) ResetExecCommand() {
 	m.ExecCommandStdout = ""
 	m.ExecCommandStderr = ""
 	m.ExecCommandError = nil
+	m.execResults = nil
+	m.execCallIdx = 0
 }
 
 // SetExecCommandResult configures the return values for ExecCommand

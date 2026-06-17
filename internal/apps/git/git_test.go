@@ -550,6 +550,156 @@ func TestCreateWorktree(t *testing.T) {
 		}
 	})
 
+	t.Run("new branch bases off origin default branch when available", func(t *testing.T) {
+		mockApp.Base.ResetExecCommand()
+		// Call sequence inside CreateWorktree:
+		// 1. fetch origin
+		// 2. BranchExists(branch)        -> none (empty)
+		// 3. RemoteBranchExists(branch)  -> none (empty)
+		// 4. DefaultBranch symbolic-ref  -> "origin/main"
+		// 5. RemoteBranchExists("main")  -> exists
+		// 6. worktree add ... -b ... origin/main
+		mockApp.Base.SetExecCommandResults(
+			commands.ExecCommandResult("", "", nil),
+			commands.ExecCommandResult("", "", nil),
+			commands.ExecCommandResult("", "", nil),
+			commands.ExecCommandResult("origin/main\n", "", nil),
+			commands.ExecCommandResult("  origin/main\n", "", nil),
+			commands.ExecCommandResult("", "", nil),
+		)
+
+		if err := app.CreateWorktree("/path/to/worktree", "feature-branch"); err != nil {
+			t.Fatalf("CreateWorktree failed: %v", err)
+		}
+
+		lastCall := mockApp.Base.GetLastExecCommandCall()
+		if lastCall == nil {
+			t.Fatal("Expected a worktree add call")
+		}
+		if lastCall.Args[len(lastCall.Args)-1] != "origin/main" {
+			t.Fatalf("Expected new branch to base off 'origin/main', got args: %v", lastCall.Args)
+		}
+		hasNewBranchFlag := false
+		for _, arg := range lastCall.Args {
+			if arg == "-b" {
+				hasNewBranchFlag = true
+			}
+		}
+		if !hasNewBranchFlag {
+			t.Fatalf("Expected -b flag for creating new branch, got args: %v", lastCall.Args)
+		}
+	})
+
+	t.Run("new branch falls back to HEAD when origin default missing", func(t *testing.T) {
+		mockApp.Base.ResetExecCommand()
+		// origin/main does not exist (offline / no remote): all checks empty.
+		mockApp.Base.SetExecCommandResults(
+			commands.ExecCommandResult("", "", nil),
+		)
+
+		if err := app.CreateWorktree("/path/to/worktree", "feature-branch"); err != nil {
+			t.Fatalf("CreateWorktree failed: %v", err)
+		}
+
+		lastCall := mockApp.Base.GetLastExecCommandCall()
+		if lastCall == nil {
+			t.Fatal("Expected a worktree add call")
+		}
+		// Should end at "-b feature-branch" with no base ref appended.
+		last := lastCall.Args[len(lastCall.Args)-1]
+		if last != "feature-branch" {
+			t.Fatalf("Expected fallback to HEAD (no base ref), got args: %v", lastCall.Args)
+		}
+	})
+
+	t.Run("existing local branch is fast-forwarded to remote", func(t *testing.T) {
+		mockApp.Base.ResetExecCommand()
+		// 1. fetch origin
+		// 2. BranchExists(branch)        -> exists
+		// 3. worktree add path branch
+		// 4. RemoteBranchExists(branch)  -> exists
+		// 5. merge --ff-only origin/branch
+		mockApp.Base.SetExecCommandResults(
+			commands.ExecCommandResult("", "", nil),
+			commands.ExecCommandResult("  feature-branch\n", "", nil),
+			commands.ExecCommandResult("", "", nil),
+			commands.ExecCommandResult("  origin/feature-branch\n", "", nil),
+			commands.ExecCommandResult("Updating abc..def\n", "", nil),
+		)
+
+		if err := app.CreateWorktree("/path/to/worktree", "feature-branch"); err != nil {
+			t.Fatalf("CreateWorktree failed: %v", err)
+		}
+
+		lastCall := mockApp.Base.GetLastExecCommandCall()
+		if lastCall == nil {
+			t.Fatal("Expected a merge call")
+		}
+		joined := strings.Join(lastCall.Args, " ")
+		if !strings.Contains(joined, "merge --ff-only origin/feature-branch") {
+			t.Fatalf(
+				"Expected ff-only merge against origin/feature-branch, got args: %v",
+				lastCall.Args,
+			)
+		}
+	})
+
+	t.Run("diverged local branch warns but still succeeds", func(t *testing.T) {
+		mockApp.Base.ResetExecCommand()
+		mockApp.Base.SetExecCommandResults(
+			commands.ExecCommandResult("", "", nil), // fetch
+			commands.ExecCommandResult(
+				"  feature-branch\n",
+				"",
+				nil,
+			), // BranchExists -> exists
+			commands.ExecCommandResult("", "", nil), // worktree add
+			commands.ExecCommandResult(
+				"  origin/feature-branch\n",
+				"",
+				nil,
+			), // RemoteBranchExists -> exists
+			commands.ExecCommandResult(
+				"",
+				"fatal: Not possible to fast-forward",
+				fmt.Errorf("diverged"),
+			),
+		)
+
+		// Diverged ff-merge must not fail the operation: the worktree was created.
+		if err := app.CreateWorktree("/path/to/worktree", "feature-branch"); err != nil {
+			t.Fatalf("Expected success despite divergence, got: %v", err)
+		}
+	})
+
+	t.Run("existing local branch with no remote skips sync", func(t *testing.T) {
+		mockApp.Base.ResetExecCommand()
+		mockApp.Base.SetExecCommandResults(
+			commands.ExecCommandResult("", "", nil),               // fetch
+			commands.ExecCommandResult("  local-only\n", "", nil), // BranchExists -> exists
+			commands.ExecCommandResult("", "", nil),               // worktree add
+			commands.ExecCommandResult("", "", nil),               // RemoteBranchExists -> none
+		)
+
+		if err := app.CreateWorktree("/path/to/worktree", "local-only"); err != nil {
+			t.Fatalf("CreateWorktree failed: %v", err)
+		}
+
+		// No merge should have been attempted (last call is RemoteBranchExists).
+		lastCall := mockApp.Base.GetLastExecCommandCall()
+		if lastCall == nil {
+			t.Fatal("Expected at least one call")
+		}
+		for _, arg := range lastCall.Args {
+			if arg == "merge" {
+				t.Fatalf(
+					"Expected no merge for a branch with no remote, got args: %v",
+					lastCall.Args,
+				)
+			}
+		}
+	})
+
 	t.Run("creation error on worktree add", func(t *testing.T) {
 		mockApp.Base.ResetExecCommand()
 		mockApp.Base.SetExecCommandResult(
@@ -564,6 +714,31 @@ func TestCreateWorktree(t *testing.T) {
 		}
 		if !strings.Contains(err.Error(), "worktree exists") {
 			t.Errorf("Expected error to contain 'worktree exists', got: %v", err)
+		}
+	})
+}
+
+func TestDefaultBranch(t *testing.T) {
+	mockApp := testutil.NewMockApp()
+	app := &Git{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+	t.Run("resolves origin/HEAD", func(t *testing.T) {
+		mockApp.Base.ResetExecCommand()
+		mockApp.Base.SetExecCommandResults(
+			commands.ExecCommandResult("origin/develop\n", "", nil),
+		)
+		if got := app.DefaultBranch(); got != "develop" {
+			t.Fatalf("Expected 'develop', got %q", got)
+		}
+	})
+
+	t.Run("falls back to main when origin/HEAD unset", func(t *testing.T) {
+		mockApp.Base.ResetExecCommand()
+		mockApp.Base.SetExecCommandResults(
+			commands.ExecCommandResult("", "fatal: ref not found", fmt.Errorf("no origin/HEAD")),
+		)
+		if got := app.DefaultBranch(); got != "main" {
+			t.Fatalf("Expected fallback 'main', got %q", got)
 		}
 	})
 }
