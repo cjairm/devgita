@@ -44,6 +44,7 @@ Read these **in order** before starting work:
 4. **Configuration persistence** — User edits to configs are never overwritten; new installs preserve existing customizations
 5. **Modular architecture** — Each app is independent; failures in one app don't cascade to others
 6. **Transparent state** — All installation state tracked in `~/.config/devgita/global_config.yaml`; users can inspect what was installed
+7. **Visual consistency** — Alacritty, tmux, Neovim, and the AI-coder configs share one palette (Gruvbox dark) and a transparency convention; a color/theme change in one must be mirrored in the others. See [docs/guides/theming.md](docs/guides/theming.md)
 
 ---
 
@@ -442,19 +443,20 @@ Where to find and add code:
 
 Quick reference to where things live:
 
-| Topic                  | Location                                     | Description                                                       |
-| ---------------------- | -------------------------------------------- | ----------------------------------------------------------------- |
-| **Development Guides** | `docs/guides/README.md`                      | Index of all guides with quick-start by task                      |
-| **Feature Spec**       | `docs/spec.md`                               | What features exist, architecture, edge cases, testing strategy   |
-| **Testing Patterns**   | `docs/guides/testing-patterns.md`            | Mocking, dependency injection, test isolation                     |
-| **Error Handling**     | `docs/guides/error-handling.md`              | Error patterns, user-facing messages                              |
-| **CLI Patterns**       | `docs/guides/cli-patterns.md`                | Command structure, Cobra patterns, flags, subcommands             |
-| **Cross-Platform**     | `docs/guides/cross-platform-installation.md` | Strategy pattern, package mappings, Debian strategies             |
-| **Claude Code app**    | `docs/apps/claude.md`                        | Claude config, format/lint hook (reuses neovim Mason), statusline |
-| **Releasing**          | `docs/guides/releasing.md`                   | GitHub releases workflow, versioning                              |
-| **Roadmap**            | `ROADMAP.md`                                 | Planned commands, future features, open questions                 |
-| **Decisions**          | `docs/decisions/README.md`                   | Architectural decisions with rationale                            |
-| **Contributing**       | `CONTRIBUTING.md`                            | Dev setup, build, test, git workflow, release process             |
+| Topic                  | Location                                     | Description                                                                                 |
+| ---------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| **Development Guides** | `docs/guides/README.md`                      | Index of all guides with quick-start by task                                                |
+| **Feature Spec**       | `docs/spec.md`                               | What features exist, architecture, edge cases, testing strategy                             |
+| **Testing Patterns**   | `docs/guides/testing-patterns.md`            | Mocking, dependency injection, test isolation                                               |
+| **Error Handling**     | `docs/guides/error-handling.md`              | Error patterns, user-facing messages                                                        |
+| **CLI Patterns**       | `docs/guides/cli-patterns.md`                | Command structure, Cobra patterns, flags, subcommands                                       |
+| **Cross-Platform**     | `docs/guides/cross-platform-installation.md` | Strategy pattern, package mappings, Debian strategies                                       |
+| **Theming**            | `docs/guides/theming.md`                     | Shared Gruvbox palette, `.Theme` flow, transparency convention, the "match the others" rule |
+| **Claude Code app**    | `docs/apps/claude.md`                        | Claude config, format/lint hook (reuses neovim Mason), statusline                           |
+| **Releasing**          | `docs/guides/releasing.md`                   | GitHub releases workflow, versioning                                                        |
+| **Roadmap**            | `ROADMAP.md`                                 | Planned commands, future features, open questions                                           |
+| **Decisions**          | `docs/decisions/README.md`                   | Architectural decisions with rationale                                                      |
+| **Contributing**       | `CONTRIBUTING.md`                            | Dev setup, build, test, git workflow, release process                                       |
 
 ---
 

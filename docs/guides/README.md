@@ -73,6 +73,22 @@ Technical deep dive into cross-platform installation:
 
 ---
 
+### [Theming & Visual Consistency](theming.md) — Shared palette and transparency convention
+
+How the visual layer stays cohesive across tools:
+
+- The "match the others" rule for color/theme changes
+- Which configs are templated (`.Theme`) vs. hardcoded (tmux, Neovim)
+- The shared Gruvbox dark palette (and the classic vs. Material mismatch)
+- Transparency convention — no opaque backgrounds over Alacritty's blur
+- Known gaps to converge (`current_theme` is unwired, etc.)
+
+**When to read:** Before changing any color, font, or theme behavior in Alacritty, tmux, Neovim, OpenCode, or Claude configs.
+
+**Referenced by:** CLAUDE.md section 3 (product principles)
+
+---
+
 ### [App Interface](app-interface.md) — The `App` contract every app must satisfy
 
 The formal interface all apps implement:
