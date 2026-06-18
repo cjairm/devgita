@@ -193,6 +193,18 @@ dg install --skip databases,desktop
   - `dg task delete-branch [target]` - Checkout target, fetch, pick a branch via fzf to force-delete
   - `dg task reinstall-libraries` - Clean ignored files, remove `node_modules/`, run `npm install`
   - `dg task reinstall-library <name>` - Remove `node_modules/<name>`, run `npm install`
+  - **Pull request tasks (via `gh`, formatted for agents):**
+    - `dg task review-threads [--pr N] [--state unresolved|resolved|all]` - Show PR review threads as compact markdown
+    - `dg task resolve-thread <id>` / `unresolve-thread <id>` - Resolve/reopen a review thread
+    - `dg task reply-thread <id> <body>` - Reply to a review thread
+    - `dg task create-pr --title T [--body B] [--base main]` - Open a PR from the current branch
+    - `dg task update-pr-description [--pr N] --body B` - Replace a PR description
+    - `dg task approve-pr [--pr N] [--body B]` - Approve a PR
+    - `dg task request-changes-pr [--pr N] --body B` - Request changes on a PR
+    - `dg task comment-pr [--pr N] --body B` - Post a top-level PR comment
+    - `dg task merge-pr [--pr N] [--method squash|merge|rebase]` - Merge a PR
+    - `dg task pr-view [--pr N]` / `pr-checks [--pr N]` - Compact PR summary / CI check status
+    - `dg task current-pr` / `current-repo` - Resolve the current branch's PR number / `owner/name`
 - `dg --version` - Show version information
 - `dg --help` - Show help message
 

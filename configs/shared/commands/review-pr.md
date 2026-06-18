@@ -1,354 +1,168 @@
 ---
-description: Post review feedback to PR as a single review with inline comments
+description: Review a PR and post one cohesive review with inline comments — apply findings already in context (from a code/doc reviewer agent or another model) or review directly, dedup against existing threads, and submit a single verdict. Use for "review this PR", code review, or doc review.
 temperature: 0.1
 permission:
-  write: deny
+  write: allow
   edit: deny
   bash:
     "*": deny
-    "gh auth status": allow
-    "gh auth status *": allow
-    "gh pr view*": allow
-    "gh pr view *": allow
-    "gh pr diff*": allow
-    "gh pr diff *": allow
-    "gh api*": allow
-    "gh api *": allow
-    "jq *": allow
-    "dge fetch-pr-comments *": allow
+    "devgita task *": allow
+    "git diff*": allow
+    "git log*": allow
+    "git branch*": allow
 ---
 
-Post review feedback from conversation context to a PR as a **single cohesive review** with inline comments attached.
+Post review feedback to a PR as **one cohesive review**. Findings often already sit in the conversation — produced by a `code-reviewer`/`document-reviewer` agent or another model (gpt, qwen, kimi, …). Use those; if context is thin, review directly with the lens below. The repo is the current working directory.
 
-**Prerequisite**: You should already have review feedback in the conversation (from document-reviewer, code-reviewer agents, or prior analysis). This command posts that feedback to GitHub.
+## Usage
+
+```
+/review-pr [PR_NUMBER]
+```
+
+The PR is resolved from the current branch unless you pass a number.
 
 ## Process
 
-### 1. Validate Environment
+### 1. Find the PR
+
+If a `PR_NUMBER` was given, use it (pass `--pr PR_NUMBER` below). Otherwise:
 
 ```bash
-gh auth status
+devgita task current-pr
 ```
 
-If not authenticated, stop and tell user to run `gh auth login`.
+If it prints "No pull request found for the current branch.", stop and tell the user this branch has no PR.
 
-### 2. Get PR Context
+### 2. Load context
 
 ```bash
-gh pr view --json number,headRefOid,title,url,headRepository
+devgita task pr-view          # add --pr PR_NUMBER if you have one
 ```
 
-If $ARGUMENTS contains a PR number, use: `gh pr view $ARGUMENTS --json number,headRefOid,title,url,headRepository`
+Read the PR's purpose first — the description and linked ticket — before any code. Gather the findings already in the conversation. If there are none, review the change yourself with the lens in step 4 (`git diff main...` for a locally checked-out branch).
 
-Extract:
-- `PR_NUM`: The PR number
-- `COMMIT_SHA`: The headRefOid (HEAD commit SHA)
-- `OWNER`: From headRepository.owner.login
-- `REPO`: From headRepository.name
-
-### 3. Download Existing PR Comments (Avoid Duplications)
-
-Before posting new comments, download existing review comments to avoid duplicating feedback:
+### 3. Fetch existing threads and dedup — never repeat addressed feedback
 
 ```bash
-dge fetch-pr-comments "$OWNER/$REPO" $PR_NUM existing_comments.json
+devgita task review-threads --state all
 ```
 
-This fetches all existing review thread comments and saves them to `existing_comments.json`. The file contains:
+This returns **resolved and unresolved** threads. Before posting, drop any finding that:
+
+- targets the same `path:line` as an existing thread making substantially the same point, or
+- is already **resolved** — a resolved thread is handled; re-raising it is noise.
+
+Keep a count of what you skipped for the summary.
+
+### 4. The review lens (high-leverage first — order matters)
+
+Governing principle: **approve when the PR leaves the codebase healthier than without it**, not when it's "perfect". The question is "is the codebase better merged than not?", not "would I have written it this way?". If the PR is huge, the first finding is to split it — small PRs get genuinely reviewed; large ones get rubber-stamped.
+
+Work the passes in this order so design problems surface before you nitpick code that shouldn't exist:
+
+1. **Design** — does it belong here, fit existing patterns, sit at the right abstraction? Flag over-engineering (generality/features not needed now).
+2. **Functionality** — does it do what it claims on the unhappy paths too? Edge cases, nulls, empty inputs, boundaries, downstream failures, concurrency.
+3. **Complexity** — too complex = can't be understood quickly, or invites bugs on the next edit. If you can't follow it, others won't either.
+4. **Tests** — real coverage of the new logic and edge cases; would they fail if the logic broke?
+5. **Naming / comments / docs** — names convey intent; comments explain _why_; update READMEs when behavior changes.
+6. **Style** — last and lightest. Prefix optional style points with `Nit:`; never block on personal preference.
+
+Across every pass, a **security lens** for anything touching data, auth, or external input: input validation, authz, injection (SQL/XSS), committed secrets, and the safety of new dependencies.
+
+For a **doc review**, swap passes 2–4 for: accuracy, completeness, structure, and clarity.
+
+Severity tags drive the verdict: `[CRITICAL]` (data loss, security, correctness — a blocker), `[IMPORTANT]`, `[MINOR]`/`[Nit]`. Anchor disagreement on engineering principle, not authority — and call out what's genuinely good, especially well-addressed prior feedback.
+
+### 5. Compose the review — a summary body plus inline comments
+
+Findings that point at a specific line become **inline comments** anchored to the diff; everything else goes in the summary **body**.
+
+**Body** — GitHub-Flavored Markdown, written to a scratch file (`/tmp/review.md`); pass it with `--body-file` so backticks and apostrophes survive:
+
+```markdown
+## Summary
+
+<!-- 1–2 lines: does this improve code health? -->
+
+## Strengths
+
+<!-- What's done well. Don't skip this. -->
+
+## General notes
+
+<!-- Findings with no single line to anchor to, and any cross-cutting concern. -->
+
+## Questions
+
+<!-- Anything you need the author to clarify. -->
+
+---
+
+<!-- footer when applicable: "Skipped N finding(s) already covered by existing threads." -->
+```
+
+**Inline comments** — write a JSON array to a scratch file (`/tmp/comments.json`). Each entry anchors to a diff line; only lines present in the diff can carry one. Lead the body with the severity tag:
+
 ```json
 [
   {
-    "path": "docs/plan.md",
-    "line": 15,
-    "body": "Comment text...",
-    "author": "username",
-    "is_resolved": false
+    "path": "internal/client.go",
+    "line": 42,
+    "body": "**[CRITICAL]** Missing error handling — a nil response here panics. Guard before dereferencing."
+  },
+  {
+    "path": "internal/client.go",
+    "start_line": 60,
+    "line": 65,
+    "body": "**[Nit]** This block reads more clearly as an early return."
   }
 ]
 ```
 
-**Check for duplicates** by comparing:
-- Same `path` and `line` combination
-- Similar comment `body` content (fuzzy match for substantial overlap)
+`line` is the line in the file (right side of the diff); add `start_line` for a multi-line range. Drop any finding already covered by an existing thread (step 3).
 
-**Actions:**
-- Skip posting comments that already exist (same location + similar content)
-- Include in review body a note like: "Note: Skipped 2 comments already posted by previous reviews"
-- Only post NEW comments that don't duplicate existing feedback
+### 6. Submit one review
 
-### 4. Get the PR Diff
+Post the body and the inline comments together as a single review, choosing the verdict:
 
-To post inline comments, we need to know which lines are in the diff. Get the diff:
-
-```bash
-gh pr diff $PR_NUM
-```
-
-Parse this to understand:
-- Which files are changed
-- Which line numbers are part of the diff (new lines on RIGHT side)
-- The "position" in the diff for each line (needed for API)
-
-**Important**: The `line` parameter in the API refers to the line number in the file, but only lines that are part of the diff can receive comments.
-
-### 5. Parse Review Feedback from Context
-
-Look at the conversation history for review feedback. Extract:
-
-**For inline comments**, identify items with specific file paths and line numbers:
-- `path/to/file.ext:123` - Issue description
-- Items under "Concerns / Gaps" or "CRITICAL/IMPORTANT/MINOR" sections that reference specific locations
-
-**Cross-check with existing comments** (from step 3):
-- For each inline comment, check if similar feedback already exists at same location
-- Skip duplicate comments
-- Track skipped count for summary
-
-**For general summary**, use:
-- Summary section
-- Strengths section  
-- Overall recommendation/risk rating
-- Questions for author
-
-### 6. Determine Review Event Type
-
-Based on review feedback:
-- **APPROVE**: Low risk, no critical/blocking issues
-- **REQUEST_CHANGES**: High risk, critical issues, or blocking problems
-- **COMMENT**: Medium risk, suggestions but no blockers
-
-### 7. Post Review with Inline Comments (Single API Call)
-
-Use `gh api` to post the review with all **NEW** inline comments in one atomic request (excluding duplicates found in step 3):
+| Verdict         | When                                       | `--event`         |
+| --------------- | ------------------------------------------ | ----------------- |
+| Request changes | Any `[CRITICAL]` / blocking issue          | `request-changes` |
+| Approve         | No blockers; leaves the codebase healthier | `approve`         |
+| Comment         | Suggestions only, nothing blocking         | `comment`         |
 
 ```bash
-gh api \
-  --method POST \
-  -H "Accept: application/vnd.github+json" \
-  "/repos/OWNER/REPO/pulls/PR_NUM/reviews" \
-  -f commit_id="COMMIT_SHA" \
-  -f event="REQUEST_CHANGES" \
-  -f body="## Review Summary
-
-### Overview
-[Summary from review]
-
-### Strengths
-[Strengths from review]
-
-### General Concerns
-[Concerns without specific line references]
-
-### Questions
-[Questions for author]
-
-### Risk Assessment
-[Risk rating and reasoning]
-
----
-*Review includes X inline comments on specific locations*
-*Note: Skipped Y duplicate comments from existing reviews*" \
-  --input - <<'EOF'
-{
-  "comments": [
-    {
-      "path": "docs/plan.md",
-      "line": 15,
-      "body": "**[CRITICAL]** Missing rollback strategy\n\nThis section defines deployment steps but doesn't address what happens if deployment fails.\n\n**Suggestion:** Add a rollback section with specific steps."
-    },
-    {
-      "path": "docs/plan.md", 
-      "line": 42,
-      "body": "**[IMPORTANT]** Success criteria unclear\n\nThe success criteria should be measurable and specific."
-    }
-  ]
-}
-EOF
+devgita task submit-review \
+  --event request-changes \
+  --body-file /tmp/review.md \
+  --comments-file /tmp/comments.json      # omit when there are no inline findings
 ```
 
-**Comment Parameters:**
-- `path`: File path relative to repo root
-- `line`: Line number in the file (must be part of the diff)
-- `body`: Comment text with severity and suggestion
-- `side`: Optional, defaults to "RIGHT" (new/modified lines)
-- `start_line`: Optional, for multi-line comments
+Add `--pr PR_NUMBER` when you resolved a number in step 1. The review posts atomically — one notification, all inline comments grouped under it.
 
-**For line ranges** (e.g., `file.ext:40-45`), add `start_line`:
-```json
-{
-  "path": "docs/plan.md",
-  "start_line": 40,
-  "line": 45,
-  "body": "Comment spanning multiple lines"
-}
-```
-
-### Alternative: Using jq to build JSON
-
-If you have many comments, build the JSON dynamically:
-
-```bash
-# Build comments array
-COMMENTS=$(jq -n '[
-  {path: "docs/plan.md", line: 15, body: "**[CRITICAL]** Issue 1"},
-  {path: "docs/plan.md", line: 42, body: "**[IMPORTANT]** Issue 2"}
-]')
-
-# Post review
-gh api \
-  --method POST \
-  -H "Accept: application/vnd.github+json" \
-  "/repos/OWNER/REPO/pulls/PR_NUM/reviews" \
-  -f commit_id="$COMMIT_SHA" \
-  -f event="REQUEST_CHANGES" \
-  -f body="Review summary here" \
-  --input <(echo "{\"comments\": $COMMENTS}")
-```
+If you have **nothing new** to add (everything is already covered or addressed), don't post an empty review — post one short `comment-pr` saying so. Likewise, if existing **unresolved** threads remain unaddressed and that's the main issue, flag it in a brief comment rather than re-listing each thread.
 
 ## Output
 
-After posting, confirm to user:
+Return a terse summary to the user:
 
 ```
-## Review Posted to PR #123
+## Review posted to PR #<num> — <request changes | approve | comment>
 
-**Review Status:** REQUEST_CHANGES
+- findings: <N posted>
+- skipped: <M already covered by existing threads>
 
-**Inline Comments:** 4 new comments attached to review
-- docs/plan.md:15 - [CRITICAL] Missing rollback strategy
-- docs/plan.md:42 - [IMPORTANT] Unclear success criteria
-- docs/plan.md:78 - [MINOR] Consider adding diagram
-- docs/plan.md:95 - [MINOR] Typo in section header
-
-**Skipped Duplicates:** 2 comments already exist from previous reviews
-- docs/plan.md:30 - Similar feedback already posted
-- docs/plan.md:55 - Already addressed in existing comments
-
-**PR URL:** https://github.com/org/repo/pull/123
-
-All new comments posted as a single cohesive review.
+<PR URL>
 ```
 
-## Mapping Review Output to PR Comments
+## Notes
 
-| Review Section | Where it Goes |
-|----------------|---------------|
-| Issues with `file:line` references | `comments` array (inline) |
-| Summary | Review `body` |
-| Strengths | Review `body` |
-| Concerns (no line ref) | Review `body` |
-| Questions | Review `body` |
-| Risk Rating | Review `body` + determines `event` |
+- This command never edits code. It reads, then posts exactly one review.
+- **Dedup is mandatory**: never duplicate a finding already raised, and treat a resolved thread as handled.
+- A line that isn't part of the diff can't take an inline comment — move that finding to the body's "General notes" instead.
 
-## Error Handling
+## References
 
-### Duplicate Comment Detection
-
-Compare new comments against existing comments from step 3:
-
-1. **Exact match**: Same path, line, and substantially similar body text → Skip
-2. **Location match**: Same path and line, different body → Consider if it adds new value
-3. **Keep statistics**: Track skipped count to report to user
-
-**Similarity threshold**: Consider 70%+ text overlap as duplicate
-
-### Lines Not in Diff
-
-If a line is not in the diff, the entire API call will fail. To handle this:
-
-1. First, check which lines are in the diff
-2. Only include comments for lines that are in the diff
-3. Move comments for lines NOT in diff to the general review body
-
-```
-Note: Could not post inline comment for docs/plan.md:15 (line not in diff)
-Including in general review body instead.
-```
-
-## Example
-
-**Given this review feedback in context:**
-```
-## Summary
-The plan is well-structured but missing critical rollback strategy.
-
-## Strengths
-- Clear problem definition
-- Good task breakdown
-
-## Concerns / Gaps
-- Missing rollback strategy at `docs/plan.md:15-20`
-- Success criteria unclear at `docs/plan.md:42`
-- No monitoring plan mentioned
-
-## Risk Rating
-Medium - rollback gap is significant
-```
-
-**Posts single review with:**
-
-**Review body:**
-> ## Review Summary
-> 
-> ### Overview
-> The plan is well-structured but missing critical rollback strategy.
-> 
-> ### Strengths
-> - Clear problem definition
-> - Good task breakdown
-> 
-> ### General Concerns
-> - No monitoring plan mentioned
-> 
-> ### Risk Assessment
-> **Medium** - rollback gap is significant
-> 
-> ---
-> *Review includes 2 inline comments on specific locations*
-
-**Inline comments attached:**
-1. `docs/plan.md:15` - **[CRITICAL]** Missing rollback strategy
-2. `docs/plan.md:42` - **[IMPORTANT]** Success criteria unclear
-
-**Event:** `REQUEST_CHANGES`
-
-## Benefits of Single Review API
-
-1. **One notification** instead of many separate comment notifications
-2. **Atomic operation** - all comments posted together or none
-3. **Proper review status** - can set APPROVE/REQUEST_CHANGES with comments
-4. **Better UX** - comments appear as part of a cohesive review in GitHub UI
-5. **Threaded** - all inline comments are grouped under one review
-6. **No duplicates** - existing comments checked before posting to avoid redundancy
-
-## Duplicate Detection Logic
-
-### Fetching Existing Comments
-
-The `dge fetch-pr-comments` command uses GitHub GraphQL API to fetch:
-- All review thread comments (first 100 threads)
-- For each thread: path, line, body, author, resolution status
-- Filters out URL-only comments (auto-generated references)
-
-### Comparison Algorithm
-
-For each new comment candidate:
-
-```bash
-# Pseudocode for duplicate detection
-for new_comment in new_comments:
-  for existing in existing_comments:
-    if new_comment.path == existing.path and new_comment.line == existing.line:
-      similarity = calculate_text_similarity(new_comment.body, existing.body)
-      if similarity > 0.70:  # 70% threshold
-        mark_as_duplicate(new_comment)
-        break
-```
-
-**Text similarity**: Use simple word overlap or Levenshtein distance to compare comment bodies.
-
-### Handling Duplicates
-
-- **Skip**: Don't include in `comments` array for API call
-- **Report**: Include in review body summary
-- **Log**: Show user which comments were skipped and why
+- Google Engineering Practices — the standard of code review & what to look for: https://google.github.io/eng-practices/review/reviewer/
+- "Software Engineering at Google", Code Review chapter: https://abseil.io/resources/swe-book/html/ch09.html

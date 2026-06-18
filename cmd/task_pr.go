@@ -1,0 +1,379 @@
+/*
+ * Copyright © 2025 Carlos Mendez <carlos@hadaelectronics.com> | https://cjairm.me/
+ */
+package cmd
+
+import (
+	"fmt"
+	"os"
+	"strings"
+
+	"github.com/cjairm/devgita/internal/tooling/task"
+	"github.com/spf13/cobra"
+)
+
+// prRunner is the interface used by the PR task subcommands, enabling injection
+// in tests. It mirrors task.PRManager.
+type prRunner interface {
+	ReviewThreads(prNumber, state string) (string, error)
+	ResolveThread(threadID string) (string, error)
+	UnresolveThread(threadID string) (string, error)
+	ReplyThread(threadID, body string) (string, error)
+	SubmitReview(prNumber, verdict, body, commentsJSON string) (string, error)
+	CreatePR(title, body, base string) (string, error)
+	UpdatePRDescription(prNumber, body string) (string, error)
+	ApprovePR(prNumber, body string) (string, error)
+	RequestChangesPR(prNumber, body string) (string, error)
+	CommentPR(prNumber, body string) (string, error)
+	MergePR(prNumber, method string) (string, error)
+	PRView(prNumber string) (string, error)
+	PRChecks(prNumber string) (string, error)
+	CurrentPR() (string, error)
+	CurrentRepo() (string, error)
+}
+
+// newPRTasks is the factory used by the PR subcommands; overridden in tests.
+var newPRTasks = func() prRunner { return task.NewPR() }
+
+// Shared flags for the PR subcommands. Only one subcommand runs per invocation,
+// so sharing these package-level vars is safe.
+var (
+	prFlag         string
+	prStateFlag    string
+	prBodyFlag     string
+	prBodyFileFlag string
+	prTitleFlag    string
+	prBaseFlag     string
+	prMethodFlag   string
+	prEventFlag    string
+	prCommentsFile string
+)
+
+// resolveBody returns the body text to use, preferring --body-file over --body.
+// The file contents are passed through verbatim, so GitHub-Flavored Markdown
+// (headings, lists, fenced code, multi-line) renders as written. Passing both
+// flags is an error.
+func resolveBody(body, bodyFile string) (string, error) {
+	if bodyFile != "" {
+		if body != "" {
+			return "", fmt.Errorf("pass either --body or --body-file, not both")
+		}
+		data, err := os.ReadFile(bodyFile)
+		if err != nil {
+			return "", fmt.Errorf("failed to read --body-file %q: %w", bodyFile, err)
+		}
+		return string(data), nil
+	}
+	return body, nil
+}
+
+// emitPRResult prints a task's output (when non-empty) and returns its error.
+func emitPRResult(cmd *cobra.Command, out string, err error) error {
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(out) != "" {
+		fmt.Fprintln(cmd.OutOrStdout(), out)
+	}
+	return nil
+}
+
+var taskReviewThreadsCmd = &cobra.Command{
+	Use:   "review-threads",
+	Short: "Show PR review threads as compact markdown (for agents)",
+	Long: `Fetch a pull request's review threads and render them as compact markdown.
+
+--state filters by resolution: unresolved (default), resolved, or all.
+--pr targets a PR number; omit it to use the current branch's PR.
+
+Each thread renders as "## file:line (thread <id>)", an optional diff hunk, and
+one line per comment "**author** (<id>): body". Thread and comment ids feed the
+resolve-thread / reply-thread commands.`,
+	Example: `  dg task review-threads                 # unresolved on the current branch's PR
+  dg task review-threads --state all
+  dg task review-threads --pr 42 --state resolved`,
+	Args: cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		out, err := newPRTasks().ReviewThreads(prFlag, prStateFlag)
+		return emitPRResult(cmd, out, err)
+	},
+}
+
+var taskResolveThreadCmd = &cobra.Command{
+	Use:   "resolve-thread <thread-id>",
+	Short: "Mark a PR review thread as resolved",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		out, err := newPRTasks().ResolveThread(args[0])
+		return emitPRResult(cmd, out, err)
+	},
+}
+
+var taskUnresolveThreadCmd = &cobra.Command{
+	Use:   "unresolve-thread <thread-id>",
+	Short: "Reopen a resolved PR review thread",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		out, err := newPRTasks().UnresolveThread(args[0])
+		return emitPRResult(cmd, out, err)
+	},
+}
+
+var taskReplyThreadCmd = &cobra.Command{
+	Use:   "reply-thread <thread-id> [body]",
+	Short: "Reply to a PR review thread (body inline or via --body-file)",
+	Long: `Reply to a PR review thread. Provide the body inline as the second argument
+or via --body-file (Markdown is rendered by GitHub). Pass exactly one.`,
+	Args: cobra.RangeArgs(1, 2),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		inline := ""
+		if len(args) > 1 {
+			inline = args[1]
+		}
+		body, err := resolveBody(inline, prBodyFileFlag)
+		if err != nil {
+			return err
+		}
+		if strings.TrimSpace(body) == "" {
+			return fmt.Errorf("reply-thread requires a body (inline arg or --body-file)")
+		}
+		out, err := newPRTasks().ReplyThread(args[0], body)
+		return emitPRResult(cmd, out, err)
+	},
+}
+
+var taskSubmitReviewCmd = &cobra.Command{
+	Use:   "submit-review",
+	Short: "Post one PR review with optional inline comments (--event approve|request-changes|comment)",
+	Long: `Submit a pull request review in a single call: a verdict, an optional Markdown
+summary body, and optional inline comments anchored to diff lines.
+
+--event selects the verdict: approve, request-changes, or comment (required).
+--body / --body-file supply the review summary (Markdown).
+--comments-file points to a JSON file holding an array of inline comments, each
+{"path","line","body"} (optionally "start_line" and "side"); they are posted as
+line-anchored review comments in the same submission.
+--pr targets a PR number; omit it to use the current branch's PR.
+
+A request-changes or comment review needs a body or inline comments; approve may
+have neither.`,
+	Example: `  devgita task submit-review --event approve --body "LGTM"
+  devgita task submit-review --event request-changes --body-file review.md --comments-file comments.json
+  devgita task submit-review --pr 42 --event comment --comments-file comments.json`,
+	Args: cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		body, err := resolveBody(prBodyFlag, prBodyFileFlag)
+		if err != nil {
+			return err
+		}
+		comments := ""
+		if prCommentsFile != "" {
+			data, err := os.ReadFile(prCommentsFile)
+			if err != nil {
+				return fmt.Errorf("failed to read --comments-file %q: %w", prCommentsFile, err)
+			}
+			comments = string(data)
+		}
+		out, err := newPRTasks().SubmitReview(prFlag, prEventFlag, body, comments)
+		return emitPRResult(cmd, out, err)
+	},
+}
+
+var taskCreatePRCmd = &cobra.Command{
+	Use:   "create-pr",
+	Short: "Open a pull request from the current branch",
+	Example: `  dg task create-pr --title "Add task command" --body "Implements **dg task**"
+  dg task create-pr --title "Add task command" --body-file pr.md --base main`,
+	Args: cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		body, err := resolveBody(prBodyFlag, prBodyFileFlag)
+		if err != nil {
+			return err
+		}
+		out, err := newPRTasks().CreatePR(prTitleFlag, body, prBaseFlag)
+		return emitPRResult(cmd, out, err)
+	},
+}
+
+var taskUpdatePRDescriptionCmd = &cobra.Command{
+	Use:   "update-pr-description",
+	Short: "Replace a pull request's description/body",
+	Args:  cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		body, err := resolveBody(prBodyFlag, prBodyFileFlag)
+		if err != nil {
+			return err
+		}
+		out, err := newPRTasks().UpdatePRDescription(prFlag, body)
+		return emitPRResult(cmd, out, err)
+	},
+}
+
+var taskApprovePRCmd = &cobra.Command{
+	Use:   "approve-pr",
+	Short: "Approve a pull request",
+	Args:  cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		body, err := resolveBody(prBodyFlag, prBodyFileFlag)
+		if err != nil {
+			return err
+		}
+		out, err := newPRTasks().ApprovePR(prFlag, body)
+		return emitPRResult(cmd, out, err)
+	},
+}
+
+var taskRequestChangesPRCmd = &cobra.Command{
+	Use:   "request-changes-pr",
+	Short: "Request changes on a pull request (body required)",
+	Example: `  dg task request-changes-pr --pr 42 --body "Please add tests"
+  dg task request-changes-pr --pr 42 --body-file review.md`,
+	Args: cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		body, err := resolveBody(prBodyFlag, prBodyFileFlag)
+		if err != nil {
+			return err
+		}
+		out, err := newPRTasks().RequestChangesPR(prFlag, body)
+		return emitPRResult(cmd, out, err)
+	},
+}
+
+var taskCommentPRCmd = &cobra.Command{
+	Use:   "comment-pr",
+	Short: "Post a top-level comment on a pull request (body required)",
+	Args:  cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		body, err := resolveBody(prBodyFlag, prBodyFileFlag)
+		if err != nil {
+			return err
+		}
+		out, err := newPRTasks().CommentPR(prFlag, body)
+		return emitPRResult(cmd, out, err)
+	},
+}
+
+var taskMergePRCmd = &cobra.Command{
+	Use:     "merge-pr",
+	Short:   "Merge a pull request (--method squash|merge|rebase)",
+	Example: `  dg task merge-pr --method squash      # current branch's PR`,
+	Args:    cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		out, err := newPRTasks().MergePR(prFlag, prMethodFlag)
+		return emitPRResult(cmd, out, err)
+	},
+}
+
+var taskPRViewCmd = &cobra.Command{
+	Use:   "pr-view",
+	Short: "Show a compact summary of a pull request",
+	Args:  cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		out, err := newPRTasks().PRView(prFlag)
+		return emitPRResult(cmd, out, err)
+	},
+}
+
+var taskPRChecksCmd = &cobra.Command{
+	Use:   "pr-checks",
+	Short: "Show CI check status for a pull request",
+	Args:  cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		out, err := newPRTasks().PRChecks(prFlag)
+		return emitPRResult(cmd, out, err)
+	},
+}
+
+var taskCurrentPRCmd = &cobra.Command{
+	Use:   "current-pr",
+	Short: "Print the PR number for the current branch",
+	Args:  cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		out, err := newPRTasks().CurrentPR()
+		return emitPRResult(cmd, out, err)
+	},
+}
+
+var taskCurrentRepoCmd = &cobra.Command{
+	Use:   "current-repo",
+	Short: "Print the current repository as owner/name",
+	Args:  cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		out, err := newPRTasks().CurrentRepo()
+		return emitPRResult(cmd, out, err)
+	},
+}
+
+func init() {
+	taskCmd.AddCommand(taskReviewThreadsCmd)
+	taskCmd.AddCommand(taskResolveThreadCmd)
+	taskCmd.AddCommand(taskUnresolveThreadCmd)
+	taskCmd.AddCommand(taskReplyThreadCmd)
+	taskCmd.AddCommand(taskSubmitReviewCmd)
+	taskCmd.AddCommand(taskCreatePRCmd)
+	taskCmd.AddCommand(taskUpdatePRDescriptionCmd)
+	taskCmd.AddCommand(taskApprovePRCmd)
+	taskCmd.AddCommand(taskRequestChangesPRCmd)
+	taskCmd.AddCommand(taskCommentPRCmd)
+	taskCmd.AddCommand(taskMergePRCmd)
+	taskCmd.AddCommand(taskPRViewCmd)
+	taskCmd.AddCommand(taskPRChecksCmd)
+	taskCmd.AddCommand(taskCurrentPRCmd)
+	taskCmd.AddCommand(taskCurrentRepoCmd)
+
+	taskReviewThreadsCmd.Flags().StringVar(&prFlag, "pr", "", "PR number (default: current branch)")
+	taskReviewThreadsCmd.Flags().
+		StringVar(&prStateFlag, "state", "unresolved", "Filter: unresolved, resolved, or all")
+
+	// bodyFileUsage documents the markdown-from-file alternative shared by the
+	// body-bearing commands.
+	const bodyFileUsage = "Read the body from a file (Markdown; alternative to --body)"
+
+	taskReplyThreadCmd.Flags().StringVar(&prBodyFileFlag, "body-file", "", bodyFileUsage)
+
+	taskSubmitReviewCmd.Flags().StringVar(&prFlag, "pr", "", "PR number (default: current branch)")
+	taskSubmitReviewCmd.Flags().
+		StringVar(&prEventFlag, "event", "", "Verdict: approve, request-changes, or comment (required)")
+	taskSubmitReviewCmd.Flags().
+		StringVar(&prBodyFlag, "body", "", "Review summary body (Markdown)")
+	taskSubmitReviewCmd.Flags().StringVar(&prBodyFileFlag, "body-file", "", bodyFileUsage)
+	taskSubmitReviewCmd.Flags().
+		StringVar(&prCommentsFile, "comments-file", "", "JSON file: array of inline comments ({path,line,body})")
+	_ = taskSubmitReviewCmd.MarkFlagRequired("event")
+
+	taskUpdatePRDescriptionCmd.Flags().
+		StringVar(&prFlag, "pr", "", "PR number (default: current branch)")
+	taskUpdatePRDescriptionCmd.Flags().
+		StringVar(&prBodyFlag, "body", "", "New PR description (Markdown)")
+	taskUpdatePRDescriptionCmd.Flags().StringVar(&prBodyFileFlag, "body-file", "", bodyFileUsage)
+
+	taskCreatePRCmd.Flags().StringVar(&prTitleFlag, "title", "", "PR title (required)")
+	taskCreatePRCmd.Flags().StringVar(&prBodyFlag, "body", "", "PR body (Markdown)")
+	taskCreatePRCmd.Flags().StringVar(&prBodyFileFlag, "body-file", "", bodyFileUsage)
+	taskCreatePRCmd.Flags().
+		StringVar(&prBaseFlag, "base", "", "Base branch (default: repo default)")
+	_ = taskCreatePRCmd.MarkFlagRequired("title")
+
+	taskApprovePRCmd.Flags().StringVar(&prFlag, "pr", "", "PR number (default: current branch)")
+	taskApprovePRCmd.Flags().
+		StringVar(&prBodyFlag, "body", "", "Optional approval comment (Markdown)")
+	taskApprovePRCmd.Flags().StringVar(&prBodyFileFlag, "body-file", "", bodyFileUsage)
+
+	taskRequestChangesPRCmd.Flags().
+		StringVar(&prFlag, "pr", "", "PR number (default: current branch)")
+	taskRequestChangesPRCmd.Flags().
+		StringVar(&prBodyFlag, "body", "", "Review comment, Markdown (required)")
+	taskRequestChangesPRCmd.Flags().StringVar(&prBodyFileFlag, "body-file", "", bodyFileUsage)
+
+	taskCommentPRCmd.Flags().StringVar(&prFlag, "pr", "", "PR number (default: current branch)")
+	taskCommentPRCmd.Flags().
+		StringVar(&prBodyFlag, "body", "", "Comment body, Markdown (required)")
+	taskCommentPRCmd.Flags().StringVar(&prBodyFileFlag, "body-file", "", bodyFileUsage)
+
+	taskMergePRCmd.Flags().StringVar(&prFlag, "pr", "", "PR number (default: current branch)")
+	taskMergePRCmd.Flags().
+		StringVar(&prMethodFlag, "method", "squash", "Merge method: squash, merge, or rebase")
+
+	taskPRViewCmd.Flags().StringVar(&prFlag, "pr", "", "PR number (default: current branch)")
+	taskPRChecksCmd.Flags().StringVar(&prFlag, "pr", "", "PR number (default: current branch)")
+}

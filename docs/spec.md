@@ -295,6 +295,29 @@ dg t <subcommand> [args]   # alias
 | `reinstall-libraries` | —          | `git clean -Xdf`, remove `node_modules/`, `npm install`, remove `tsconfig.tsbuildinfo` |
 | `reinstall-library`   | `<name>`   | Remove `node_modules/<name>`, run `npm install`                                        |
 
+**Pull request subcommands** (via `gh`; data-returning ones are formatted by `jq`
+into compact, LLM-oriented output — `gh` fetches/acts, `jq` renders):
+
+| Subcommand              | Args / Flags                                  | Description                                                          |
+| ----------------------- | --------------------------------------------- | -------------------------------------------------------------------- |
+| `review-threads`        | `--pr N`, `--state unresolved\|resolved\|all` | Render PR review threads as compact markdown (default: unresolved)   |
+| `resolve-thread`        | `<id>`                                        | Mark a review thread resolved                                        |
+| `unresolve-thread`      | `<id>`                                        | Reopen a resolved review thread                                      |
+| `reply-thread`          | `<id> <body>`                                 | Reply to a review thread                                             |
+| `create-pr`             | `--title` (req), `--body`, `--base`           | Open a PR from the current branch; prints the URL                    |
+| `update-pr-description` | `--pr N`, `--body` (req)                      | Replace a PR's description                                           |
+| `approve-pr`            | `--pr N`, `--body`                            | Approve a PR                                                         |
+| `request-changes-pr`    | `--pr N`, `--body` (req)                      | Request changes on a PR                                              |
+| `comment-pr`            | `--pr N`, `--body` (req)                      | Post a top-level PR comment                                          |
+| `merge-pr`              | `--pr N`, `--method squash\|merge\|rebase`    | Merge a PR (default: squash)                                         |
+| `pr-view`               | `--pr N`                                      | Compact PR summary (number, title, state, mergeable, review, branch) |
+| `pr-checks`             | `--pr N`                                      | CI check status, one line per check (returns data even when red)     |
+| `current-pr`            | —                                             | PR number for the current branch                                     |
+| `current-repo`          | —                                             | Current repository as `owner/name`                                   |
+
+For every PR subcommand, `--pr` defaults to the current branch's PR when omitted.
+Review-thread output is paginated across all threads (`gh api graphql --paginate`).
+
 `dge` (the shell function in `devgita.zsh`) is now a thin wrapper that forwards to `dg task`:
 
 ```sh

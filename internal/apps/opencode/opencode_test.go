@@ -18,11 +18,52 @@ func init() {
 	testutil.InitLogger()
 }
 
+func TestForceConfigureParts(t *testing.T) {
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
+	testutil.IsolateXDGDirs(t)
+
+	src := t.TempDir()
+	for _, f := range []string{"skills/demo/SKILL.md", "commands/x.md"} {
+		p := filepath.Join(src, f)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte("content"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	oldShared := paths.Paths.App.Configs.Shared
+	t.Cleanup(func() { paths.Paths.App.Configs.Shared = oldShared })
+	paths.Paths.App.Configs.Shared = src
+
+	ocDir := filepath.Join(tc.ConfigDir, "opencode")
+	oldOC := paths.Paths.Config.OpenCode
+	t.Cleanup(func() { paths.Paths.Config.OpenCode = oldOC })
+	paths.Paths.Config.OpenCode = ocDir
+
+	app := &OpenCode{}
+	if err := app.ForceConfigureParts([]string{"skills"}); err != nil {
+		t.Fatalf("ForceConfigureParts error: %v", err)
+	}
+
+	if _, err := os.Stat(filepath.Join(ocDir, "skills", "demo", "SKILL.md")); err != nil {
+		t.Fatalf("expected skills synced: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(ocDir, "commands")); !os.IsNotExist(err) {
+		t.Error("commands should not be synced when only skills was requested")
+	}
+	// The --only path must not regenerate opencode.json.
+	if _, err := os.Stat(filepath.Join(ocDir, "opencode.json")); !os.IsNotExist(err) {
+		t.Error("ForceConfigureParts should not write opencode.json")
+	}
+}
+
 func setupSharedDir(t *testing.T, baseDir string) {
 	t.Helper()
 	sharedDir := filepath.Join(baseDir, "configs", "shared")
 	for _, sub := range []string{"skills", "commands", "agents"} {
-		if err := os.MkdirAll(filepath.Join(sharedDir, sub), 0755); err != nil {
+		if err := os.MkdirAll(filepath.Join(sharedDir, sub), 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -62,7 +103,11 @@ func TestInstall(t *testing.T) {
 		t.Fatalf("Install error: %v", err)
 	}
 	if mockApp.Cmd.InstalledPkg != constants.OpenCode {
-		t.Fatalf("expected InstallPackage(%s), got %q", constants.OpenCode, mockApp.Cmd.InstalledPkg)
+		t.Fatalf(
+			"expected InstallPackage(%s), got %q",
+			constants.OpenCode,
+			mockApp.Cmd.InstalledPkg,
+		)
 	}
 
 	testutil.VerifyNoRealCommands(t, mockApp.Base)
@@ -98,7 +143,11 @@ func TestSoftInstall(t *testing.T) {
 		t.Fatalf("SoftInstall error: %v", err)
 	}
 	if mockApp.Cmd.MaybeInstalled != constants.OpenCode {
-		t.Fatalf("expected MaybeInstallPackage(%s), got %q", constants.OpenCode, mockApp.Cmd.MaybeInstalled)
+		t.Fatalf(
+			"expected MaybeInstallPackage(%s), got %q",
+			constants.OpenCode,
+			mockApp.Cmd.MaybeInstalled,
+		)
 	}
 
 	testutil.VerifyNoRealCommands(t, mockApp.Base)
@@ -110,7 +159,7 @@ func TestUninstall(t *testing.T) {
 	defer tc.Cleanup()
 
 	userConfigDir := filepath.Join(tc.ConfigDir, "opencode")
-	if err := os.MkdirAll(userConfigDir, 0755); err != nil {
+	if err := os.MkdirAll(userConfigDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
 	oldOpenCodeDir := paths.Paths.Config.OpenCode
@@ -123,7 +172,11 @@ func TestUninstall(t *testing.T) {
 		t.Fatalf("Uninstall error: %v", err)
 	}
 	if tc.MockApp.Cmd.UninstalledPkg != constants.OpenCode {
-		t.Errorf("expected UninstallPackage(%s), got %q", constants.OpenCode, tc.MockApp.Cmd.UninstalledPkg)
+		t.Errorf(
+			"expected UninstallPackage(%s), got %q",
+			constants.OpenCode,
+			tc.MockApp.Cmd.UninstalledPkg,
+		)
 	}
 
 	testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
@@ -153,10 +206,10 @@ func TestForceConfigure(t *testing.T) {
 		appConfigDir := filepath.Join(tc.AppDir, "configs", "opencode")
 		userConfigDir := filepath.Join(tc.ConfigDir, "opencode")
 
-		if err := os.MkdirAll(appConfigDir, 0755); err != nil {
+		if err := os.MkdirAll(appConfigDir, 0o755); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.MkdirAll(filepath.Join(appConfigDir, "themes"), 0755); err != nil {
+		if err := os.MkdirAll(filepath.Join(appConfigDir, "themes"), 0o755); err != nil {
 			t.Fatal(err)
 		}
 
@@ -169,13 +222,13 @@ func TestForceConfigure(t *testing.T) {
   }
 }`
 		templatePath := filepath.Join(appConfigDir, "opencode.json.tmpl")
-		if err := os.WriteFile(templatePath, []byte(templateContent), 0644); err != nil {
+		if err := os.WriteFile(templatePath, []byte(templateContent), 0o644); err != nil {
 			t.Fatal(err)
 		}
 
 		themeContent := `{"name": "Devgita Gruvbox", "type": "dark"}`
 		themeSourcePath := filepath.Join(appConfigDir, "themes", "default.json")
-		if err := os.WriteFile(themeSourcePath, []byte(themeContent), 0644); err != nil {
+		if err := os.WriteFile(themeSourcePath, []byte(themeContent), 0o644); err != nil {
 			t.Fatal(err)
 		}
 
@@ -236,27 +289,31 @@ func TestForceConfigure(t *testing.T) {
 		appConfigDir := filepath.Join(tc.AppDir, "configs", "opencode")
 		userConfigDir := filepath.Join(tc.ConfigDir, "opencode")
 
-		if err := os.MkdirAll(appConfigDir, 0755); err != nil {
+		if err := os.MkdirAll(appConfigDir, 0o755); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.MkdirAll(filepath.Join(appConfigDir, "themes"), 0755); err != nil {
+		if err := os.MkdirAll(filepath.Join(appConfigDir, "themes"), 0o755); err != nil {
 			t.Fatal(err)
 		}
 
 		templatePath := filepath.Join(appConfigDir, "opencode.json.tmpl")
-		if err := os.WriteFile(templatePath, []byte(`{"theme": "{{ .Theme }}"}`), 0644); err != nil {
+		if err := os.WriteFile(
+			templatePath,
+			[]byte(`{"theme": "{{ .Theme }}"}`),
+			0o644,
+		); err != nil {
 			t.Fatal(err)
 		}
 		themeSourcePath := filepath.Join(appConfigDir, "themes", "default.json")
-		if err := os.WriteFile(themeSourcePath, []byte(`{"name": "test"}`), 0644); err != nil {
+		if err := os.WriteFile(themeSourcePath, []byte(`{"name": "test"}`), 0o644); err != nil {
 			t.Fatal(err)
 		}
 
-		if err := os.MkdirAll(userConfigDir, 0755); err != nil {
+		if err := os.MkdirAll(userConfigDir, 0o755); err != nil {
 			t.Fatal(err)
 		}
 		oldFilePath := filepath.Join(userConfigDir, "old-file.json")
-		if err := os.WriteFile(oldFilePath, []byte("old content"), 0644); err != nil {
+		if err := os.WriteFile(oldFilePath, []byte("old content"), 0o644); err != nil {
 			t.Fatal(err)
 		}
 
@@ -296,11 +353,11 @@ func TestSoftConfigure(t *testing.T) {
 		defer tc.Cleanup()
 
 		userConfigDir := filepath.Join(tc.ConfigDir, "opencode")
-		if err := os.MkdirAll(userConfigDir, 0755); err != nil {
+		if err := os.MkdirAll(userConfigDir, 0o755); err != nil {
 			t.Fatal(err)
 		}
 		markerPath := filepath.Join(userConfigDir, "opencode.json")
-		if err := os.WriteFile(markerPath, []byte(`{"theme": "existing"}`), 0644); err != nil {
+		if err := os.WriteFile(markerPath, []byte(`{"theme": "existing"}`), 0o644); err != nil {
 			t.Fatal(err)
 		}
 
@@ -333,19 +390,23 @@ func TestSoftConfigure(t *testing.T) {
 		appConfigDir := filepath.Join(tc.AppDir, "configs", "opencode")
 		userConfigDir := filepath.Join(tc.ConfigDir, "opencode")
 
-		if err := os.MkdirAll(appConfigDir, 0755); err != nil {
+		if err := os.MkdirAll(appConfigDir, 0o755); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.MkdirAll(filepath.Join(appConfigDir, "themes"), 0755); err != nil {
+		if err := os.MkdirAll(filepath.Join(appConfigDir, "themes"), 0o755); err != nil {
 			t.Fatal(err)
 		}
 
 		templatePath := filepath.Join(appConfigDir, "opencode.json.tmpl")
-		if err := os.WriteFile(templatePath, []byte(`{"theme": "{{ .Theme }}"}`), 0644); err != nil {
+		if err := os.WriteFile(
+			templatePath,
+			[]byte(`{"theme": "{{ .Theme }}"}`),
+			0o644,
+		); err != nil {
 			t.Fatal(err)
 		}
 		themeSourcePath := filepath.Join(appConfigDir, "themes", "default.json")
-		if err := os.WriteFile(themeSourcePath, []byte(`{"name": "test"}`), 0644); err != nil {
+		if err := os.WriteFile(themeSourcePath, []byte(`{"name": "test"}`), 0o644); err != nil {
 			t.Fatal(err)
 		}
 
@@ -386,26 +447,34 @@ installed:
 shell:
   mise: false
 `
-		globalConfigPath := filepath.Join(tc.ConfigDir, constants.App.Name, constants.App.File.GlobalConfig)
-		if err := os.WriteFile(globalConfigPath, []byte(globalConfigContent), 0644); err != nil {
+		globalConfigPath := filepath.Join(
+			tc.ConfigDir,
+			constants.App.Name,
+			constants.App.File.GlobalConfig,
+		)
+		if err := os.WriteFile(globalConfigPath, []byte(globalConfigContent), 0o644); err != nil {
 			t.Fatal(err)
 		}
 
 		appConfigDir := filepath.Join(tc.AppDir, "configs", "opencode")
 		userConfigDir := filepath.Join(tc.ConfigDir, "opencode")
 
-		if err := os.MkdirAll(appConfigDir, 0755); err != nil {
+		if err := os.MkdirAll(appConfigDir, 0o755); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.MkdirAll(filepath.Join(appConfigDir, "themes"), 0755); err != nil {
+		if err := os.MkdirAll(filepath.Join(appConfigDir, "themes"), 0o755); err != nil {
 			t.Fatal(err)
 		}
 		templatePath := filepath.Join(appConfigDir, "opencode.json.tmpl")
-		if err := os.WriteFile(templatePath, []byte(`{"theme": "{{ .Theme }}"}`), 0644); err != nil {
+		if err := os.WriteFile(
+			templatePath,
+			[]byte(`{"theme": "{{ .Theme }}"}`),
+			0o644,
+		); err != nil {
 			t.Fatal(err)
 		}
 		themeSourcePath := filepath.Join(appConfigDir, "themes", "default.json")
-		if err := os.WriteFile(themeSourcePath, []byte(`{"name": "test"}`), 0644); err != nil {
+		if err := os.WriteFile(themeSourcePath, []byte(`{"name": "test"}`), 0o644); err != nil {
 			t.Fatal(err)
 		}
 

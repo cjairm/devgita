@@ -87,13 +87,56 @@ func TestForceInstall(t *testing.T) {
 	}
 }
 
+func TestForceConfigureParts(t *testing.T) {
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
+	testutil.IsolateXDGDirs(t)
+
+	// Stand up an embedded shared source with a skill and a command.
+	src := t.TempDir()
+	for _, f := range []string{"skills/demo/SKILL.md", "commands/x.md"} {
+		p := filepath.Join(src, f)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte("content"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	oldShared := paths.Paths.App.Configs.Shared
+	t.Cleanup(func() { paths.Paths.App.Configs.Shared = oldShared })
+	paths.Paths.App.Configs.Shared = src
+
+	claudeDir := filepath.Join(tc.ConfigDir, ".claude")
+	oldClaude := paths.Paths.Config.Claude
+	t.Cleanup(func() { paths.Paths.Config.Claude = oldClaude })
+	paths.Paths.Config.Claude = claudeDir
+
+	app := &Claude{}
+	if err := app.ForceConfigureParts([]string{"skills"}); err != nil {
+		t.Fatalf("ForceConfigureParts error: %v", err)
+	}
+
+	// Only the requested part is synced.
+	if _, err := os.Stat(filepath.Join(claudeDir, "skills", "demo", "SKILL.md")); err != nil {
+		t.Fatalf("expected skills synced: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(claudeDir, "commands")); !os.IsNotExist(err) {
+		t.Error("commands should not be synced when only skills was requested")
+	}
+	// The --only path must not write general config.
+	if _, err := os.Stat(filepath.Join(claudeDir, "settings.json")); !os.IsNotExist(err) {
+		t.Error("ForceConfigureParts should not write settings.json")
+	}
+}
+
 func TestUninstall(t *testing.T) {
 	tc := testutil.SetupCompleteTest(t)
 	defer tc.Cleanup()
 	testutil.IsolateXDGDirs(t)
 
 	claudeConfigDir := filepath.Join(tc.ConfigDir, ".claude")
-	if err := os.MkdirAll(claudeConfigDir, 0755); err != nil {
+	if err := os.MkdirAll(claudeConfigDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
 	oldClaudeDir := paths.Paths.Config.Claude
@@ -111,7 +154,8 @@ func TestUninstall(t *testing.T) {
 	if last == nil || last.Command != "sh" {
 		t.Fatalf("expected sh uninstall command, got %v", last)
 	}
-	if len(last.Args) < 2 || last.Args[1] != "rm -f ~/.local/bin/claude && rm -rf ~/.local/share/claude" {
+	if len(last.Args) < 2 ||
+		last.Args[1] != "rm -f ~/.local/bin/claude && rm -rf ~/.local/share/claude" {
 		t.Errorf("expected sh -c rm uninstall command, got args %v", last.Args)
 	}
 
@@ -145,27 +189,43 @@ func TestForceConfigure(t *testing.T) {
 
 	// Create source structure
 	for _, sub := range []string{"themes"} {
-		if err := os.MkdirAll(filepath.Join(appConfigDir, sub), 0755); err != nil {
+		if err := os.MkdirAll(filepath.Join(appConfigDir, sub), 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := os.WriteFile(filepath.Join(appConfigDir, "settings.json"), []byte(`{"theme":"default"}`), 0644); err != nil {
+	if err := os.WriteFile(
+		filepath.Join(appConfigDir, "settings.json"),
+		[]byte(`{"theme":"default"}`),
+		0o644,
+	); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(appConfigDir, "statusline.sh"), []byte(`#!/bin/bash`), 0644); err != nil {
+	if err := os.WriteFile(
+		filepath.Join(appConfigDir, "statusline.sh"),
+		[]byte(`#!/bin/bash`),
+		0o644,
+	); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(appConfigDir, "format.sh"), []byte(`#!/bin/bash`), 0644); err != nil {
+	if err := os.WriteFile(
+		filepath.Join(appConfigDir, "format.sh"),
+		[]byte(`#!/bin/bash`),
+		0o644,
+	); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(appConfigDir, "themes", "default.json"), []byte(`{}`), 0644); err != nil {
+	if err := os.WriteFile(
+		filepath.Join(appConfigDir, "themes", "default.json"),
+		[]byte(`{}`),
+		0o644,
+	); err != nil {
 		t.Fatal(err)
 	}
 
 	// Create shared dirs
 	sharedDir := filepath.Join(tc.AppDir, "configs", "shared")
 	for _, sub := range []string{"skills", "commands", "agents"} {
-		if err := os.MkdirAll(filepath.Join(sharedDir, sub), 0755); err != nil {
+		if err := os.MkdirAll(filepath.Join(sharedDir, sub), 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -201,7 +261,7 @@ func TestForceConfigure(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Expected %s: %v", script, err)
 		}
-		if info.Mode()&0111 == 0 {
+		if info.Mode()&0o111 == 0 {
 			t.Errorf("Expected %s to be executable", script)
 		}
 	}
@@ -234,10 +294,14 @@ func TestSoftConfigure_AlreadyConfigured(t *testing.T) {
 	paths.Paths.Config.Claude = userConfigDir
 
 	// Pre-create marker file so SoftConfigure skips
-	if err := os.MkdirAll(userConfigDir, 0755); err != nil {
+	if err := os.MkdirAll(userConfigDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(userConfigDir, "settings.json"), []byte(`{}`), 0644); err != nil {
+	if err := os.WriteFile(
+		filepath.Join(userConfigDir, "settings.json"),
+		[]byte(`{}`),
+		0o644,
+	); err != nil {
 		t.Fatal(err)
 	}
 

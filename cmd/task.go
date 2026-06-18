@@ -8,6 +8,23 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// taskHelpFunc restores standard Cobra help for the task subtree. The root sets
+// a branded help func (utils.PrompCustomHelp) that prints only Use+Long and is
+// inherited by children — which hides subcommands and flags. Agents re-reading
+// `dg task --help` or `dg task <sub> --help` need the full listing, so this
+// renders the long/short description followed by the default usage block
+// (Available Commands, Flags, Examples).
+func taskHelpFunc(cmd *cobra.Command, args []string) {
+	if cmd.Long != "" {
+		cmd.Println(cmd.Long)
+		cmd.Println()
+	} else if cmd.Short != "" {
+		cmd.Println(cmd.Short)
+		cmd.Println()
+	}
+	cmd.Print(cmd.UsageString())
+}
+
 // taskRunner is the interface used by task subcommands, enabling injection in tests.
 type taskRunner interface {
 	RefreshBranch(target string) error
@@ -23,19 +40,22 @@ var newTaskManager = func() taskRunner { return task.New() }
 var taskCmd = &cobra.Command{
 	Use:     "task",
 	Aliases: []string{"t"},
-	Short:   "Developer utilities (git, npm) callable by agents and humans",
-	Long: `Developer utility commands for git branch management and npm dependency management.
+	Short:   "Developer utilities (git, npm, GitHub PRs) callable by agents and humans",
+	Long: `Developer utility commands callable by agents (Claude Code, CI, any
+non-interactive process) and humans (via the dge() shell wrapper or directly).
 
-These commands mirror the dge() shell function but live in the dg binary, making
-them callable by agents (Claude Code, CI, any non-interactive process) as well as
-from the dge() shell wrapper.
+Three families:
+  - git branch:  refresh-branch, reset-main-branch, delete-branch
+  - npm deps:    reinstall-libraries, reinstall-library
+  - GitHub PRs:  review-threads, resolve/unresolve/reply-thread, submit-review,
+                 create-pr, update-pr-description, approve-pr, request-changes-pr,
+                 comment-pr, merge-pr, pr-view, pr-checks, current-pr, current-repo
 
-Examples:
+PR data commands return compact, LLM-oriented output (gh fetches, jq renders).
+Run "dg task <subcommand> --help" for flags and examples.`,
+	Example: `  dg task review-threads --state unresolved
+  dg task pr-view
   dg task refresh-branch
-  dg task refresh-branch feature-xyz
-  dg task reset-main-branch
-  dg task delete-branch
-  dg task reinstall-libraries
   dg task reinstall-library lodash`,
 }
 
@@ -114,6 +134,10 @@ This is equivalent to the dge reinstall-library shell utility.`,
 
 func init() {
 	rootCmd.AddCommand(taskCmd)
+	// Standard Cobra help for the whole task subtree (overrides the branded
+	// root help func, which children would otherwise inherit and which hides
+	// subcommands/flags). Children inherit this from taskCmd.
+	taskCmd.SetHelpFunc(taskHelpFunc)
 	taskCmd.AddCommand(taskRefreshBranchCmd)
 	taskCmd.AddCommand(taskResetMainBranchCmd)
 	taskCmd.AddCommand(taskDeleteBranchCmd)

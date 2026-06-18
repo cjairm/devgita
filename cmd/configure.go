@@ -5,6 +5,9 @@ package cmd
 
 import (
 	"errors"
+	"fmt"
+	"slices"
+	"strings"
 
 	"github.com/cjairm/devgita/internal/apps"
 	"github.com/cjairm/devgita/internal/apps/devgita"
@@ -13,7 +16,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var configureForce bool
+var (
+	configureForce bool
+	configureOnly  []string
+)
 
 // getAppFn is the registry lookup; overridden in tests.
 var getAppFn = func(name string) (apps.App, error) {
@@ -34,10 +40,16 @@ var configureCmd = &cobra.Command{
 By default (soft mode), configuration is only applied if files do not already exist.
 Use --force to overwrite existing configuration files.
 
+For the AI coders (claude, opencode), --only refreshes just the named shared
+subtrees (skills, commands, agents) and must be combined with --force. It
+overwrites only those folders, leaving settings, themes, and other config you
+may have edited untouched.
+
 Examples:
-  dg configure git            # Apply git config if not already present
-  dg configure neovim --force # Overwrite existing neovim config
-  dg configure tmux           # Apply tmux config if not already present
+  dg configure git                              # Apply git config if not already present
+  dg configure neovim --force                   # Overwrite existing neovim config
+  dg configure claude --force --only=skills     # Refresh only the skills folder
+  dg configure opencode --force --only=skills,commands
 `,
 	Args: cobra.ExactArgs(1),
 	RunE: runConfigure,
@@ -48,6 +60,8 @@ func init() {
 
 	configureCmd.Flags().
 		BoolVar(&configureForce, "force", false, "Overwrite existing configuration files")
+	configureCmd.Flags().
+		StringSliceVar(&configureOnly, "only", nil, "Refresh only these shared config folders (skills,commands,agents); requires --force; claude/opencode only")
 }
 
 func runConfigure(cmd *cobra.Command, args []string) error {
@@ -63,6 +77,35 @@ func runConfigure(cmd *cobra.Command, args []string) error {
 	app, err := getAppFn(appName)
 	if err != nil {
 		return err
+	}
+
+	// --only refreshes just the named shared subtrees. It's overwrite-only (so
+	// it never silently no-ops in soft mode) and limited to apps that expose
+	// separately-refreshable parts (the AI coders).
+	if len(configureOnly) > 0 {
+		if !configureForce {
+			return fmt.Errorf("--only requires --force (it overwrites the named config folders)")
+		}
+		sc, ok := app.(apps.SelectiveConfigurer)
+		if !ok {
+			return fmt.Errorf("--only is not supported for %s", appName)
+		}
+		allowed := sc.ConfigurableParts()
+		for _, part := range configureOnly {
+			if !slices.Contains(allowed, part) {
+				return fmt.Errorf(
+					"unknown --only value %q for %s (valid: %s)",
+					part, appName, strings.Join(allowed, ", "),
+				)
+			}
+		}
+		if err := sc.ForceConfigureParts(configureOnly); err != nil {
+			return err
+		}
+		utils.PrintSuccess(
+			fmt.Sprintf("configured %s (%s)", appName, strings.Join(configureOnly, ", ")),
+		)
+		return nil
 	}
 
 	if configureForce {

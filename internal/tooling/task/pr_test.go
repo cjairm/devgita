@@ -1,0 +1,357 @@
+package task
+
+import (
+	"encoding/json"
+	"strings"
+	"testing"
+
+	gitcli "github.com/cjairm/devgita/internal/tooling/terminal/dev_tools/githubcli"
+	"github.com/cjairm/devgita/internal/tooling/terminal/dev_tools/jq"
+
+	"github.com/cjairm/devgita/internal/commands"
+)
+
+// newPRSetup builds a PRManager whose gh and jq calls go through separate mock
+// bases so each side can be scripted independently.
+func newPRSetup() (pm *PRManager, ghBase, jqBase *commands.MockBaseCommand) {
+	ghBase = commands.NewMockBaseCommand()
+	jqBase = commands.NewMockBaseCommand()
+	pm = &PRManager{
+		Gh: &gitcli.GithubCli{Cmd: commands.NewMockCommand(), Base: ghBase},
+		Jq: &jq.Jq{Cmd: commands.NewMockCommand(), Base: jqBase},
+	}
+	return
+}
+
+func TestResolvedPtrForState(t *testing.T) {
+	cases := []struct {
+		state   string
+		wantNil bool
+		wantVal bool
+		wantErr bool
+	}{
+		{"", false, false, false},
+		{"unresolved", false, false, false},
+		{"resolved", false, true, false},
+		{"all", true, false, false},
+		{"bogus", false, false, true},
+	}
+	for _, c := range cases {
+		t.Run(c.state, func(t *testing.T) {
+			got, err := resolvedPtrForState(c.state)
+			if c.wantErr {
+				if err == nil {
+					t.Fatal("expected error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if c.wantNil {
+				if got != nil {
+					t.Fatalf("expected nil, got %v", *got)
+				}
+				return
+			}
+			if got == nil || *got != c.wantVal {
+				t.Fatalf("expected %v, got %v", c.wantVal, got)
+			}
+		})
+	}
+}
+
+func TestReviewThreads(t *testing.T) {
+	t.Run("explicit pr renders jq output", func(t *testing.T) {
+		pm, ghBase, jqBase := newPRSetup()
+		// gh: CurrentRepo, then FetchReviewThreads (pr given, so no CurrentPRNumber)
+		ghBase.SetExecCommandResults(
+			commands.ExecCommandResult("octocat/hello", "", nil),
+			commands.ExecCommandResult(`{"data":{}}`, "", nil),
+		)
+		jqBase.SetExecCommandResult("## a.go:1 (thread T1)", "", nil)
+
+		out, err := pm.ReviewThreads("42", "all")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if out != "## a.go:1 (thread T1)" {
+			t.Fatalf("unexpected output: %q", out)
+		}
+
+		// gh fetch must carry the resolved owner/name/pr
+		fetch := ghBase.ExecCommandCalls[len(ghBase.ExecCommandCalls)-1]
+		joined := strings.Join(fetch.Args, " ")
+		if !strings.Contains(joined, "owner=octocat") || !strings.Contains(joined, "name=hello") ||
+			!strings.Contains(joined, "pr=42") {
+			t.Fatalf("fetch missing resolved vars: %v", fetch.Args)
+		}
+	})
+
+	t.Run("empty output yields friendly message", func(t *testing.T) {
+		pm, ghBase, jqBase := newPRSetup()
+		ghBase.SetExecCommandResults(
+			commands.ExecCommandResult("octocat/hello", "", nil),
+			commands.ExecCommandResult(`{"data":{}}`, "", nil),
+		)
+		jqBase.SetExecCommandResult("", "", nil)
+
+		out, err := pm.ReviewThreads("42", "")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if out != "No unresolved review threads." {
+			t.Fatalf("unexpected message: %q", out)
+		}
+	})
+
+	t.Run("no pr for branch errors", func(t *testing.T) {
+		pm, ghBase, _ := newPRSetup()
+		// CurrentRepo ok, CurrentPRNumber returns empty (no PR)
+		ghBase.SetExecCommandResults(
+			commands.ExecCommandResult("octocat/hello", "", nil),
+			commands.ExecCommandResult("", "", nil),
+		)
+
+		_, err := pm.ReviewThreads("", "unresolved")
+		if err == nil {
+			t.Fatal("expected error when no PR is found")
+		}
+		if !strings.Contains(err.Error(), "no pull request found") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("bad state errors before any gh call", func(t *testing.T) {
+		pm, ghBase, _ := newPRSetup()
+
+		if _, err := pm.ReviewThreads("42", "bogus"); err == nil {
+			t.Fatal("expected error for bad state")
+		}
+		if ghBase.GetExecCommandCallCount() != 0 {
+			t.Fatal("expected no gh call when state is invalid")
+		}
+	})
+}
+
+func TestPRViewAndChecks(t *testing.T) {
+	t.Run("pr-view formats via jq", func(t *testing.T) {
+		pm, ghBase, jqBase := newPRSetup()
+		ghBase.SetExecCommandResult(`{"number":42}`, "", nil)
+		jqBase.SetExecCommandResult("PR #42: Title", "", nil)
+
+		out, err := pm.PRView("42")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if out != "PR #42: Title" {
+			t.Fatalf("unexpected output: %q", out)
+		}
+	})
+
+	t.Run("pr-checks formats via jq", func(t *testing.T) {
+		pm, ghBase, jqBase := newPRSetup()
+		ghBase.SetExecCommandResult(`[{"name":"build","state":"SUCCESS"}]`, "", nil)
+		jqBase.SetExecCommandResult("SUCCESS\tbuild", "", nil)
+
+		out, err := pm.PRChecks("")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if out != "SUCCESS\tbuild" {
+			t.Fatalf("unexpected output: %q", out)
+		}
+	})
+}
+
+func TestPRConfirmations(t *testing.T) {
+	t.Run("resolve thread", func(t *testing.T) {
+		pm, ghBase, _ := newPRSetup()
+		ghBase.SetExecCommandResult(`{"data":{}}`, "", nil)
+
+		out, err := pm.ResolveThread("PRRT_x")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if out != "Resolved thread PRRT_x" {
+			t.Fatalf("unexpected confirmation: %q", out)
+		}
+	})
+
+	t.Run("approve with explicit pr", func(t *testing.T) {
+		pm, ghBase, _ := newPRSetup()
+		ghBase.SetExecCommandResult("", "", nil)
+
+		out, err := pm.ApprovePR("7", "LGTM")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if out != "Approved PR #7" {
+			t.Fatalf("unexpected confirmation: %q", out)
+		}
+	})
+
+	t.Run("merge current branch pr", func(t *testing.T) {
+		pm, ghBase, _ := newPRSetup()
+		ghBase.SetExecCommandResult("", "", nil)
+
+		out, err := pm.MergePR("", "squash")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if out != "Merged the current branch's PR" {
+			t.Fatalf("unexpected confirmation: %q", out)
+		}
+	})
+}
+
+func TestCurrentPR(t *testing.T) {
+	t.Run("returns number", func(t *testing.T) {
+		pm, ghBase, _ := newPRSetup()
+		ghBase.SetExecCommandResult("42", "", nil)
+
+		out, err := pm.CurrentPR()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if out != "42" {
+			t.Fatalf("unexpected output: %q", out)
+		}
+	})
+
+	t.Run("no pr friendly message", func(t *testing.T) {
+		pm, ghBase, _ := newPRSetup()
+		ghBase.SetExecCommandResult("", `no pull requests found for branch "feat"`, commandsErr())
+
+		out, err := pm.CurrentPR()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !strings.Contains(out, "No pull request found") {
+			t.Fatalf("unexpected message: %q", out)
+		}
+	})
+}
+
+func TestReviewEventForVerdict(t *testing.T) {
+	cases := map[string]string{
+		"approve":         "APPROVE",
+		"request-changes": "REQUEST_CHANGES",
+		"request_changes": "REQUEST_CHANGES",
+		"COMMENT":         "COMMENT",
+		"  Approve  ":     "APPROVE",
+	}
+	for in, want := range cases {
+		got, err := reviewEventForVerdict(in)
+		if err != nil {
+			t.Fatalf("%q: unexpected error: %v", in, err)
+		}
+		if got != want {
+			t.Fatalf("%q: want %q, got %q", in, want, got)
+		}
+	}
+	if _, err := reviewEventForVerdict("bogus"); err == nil {
+		t.Fatal("expected error for unknown verdict")
+	}
+}
+
+func TestBuildReviewPayload(t *testing.T) {
+	t.Run("embeds comments array and body", func(t *testing.T) {
+		out, err := buildReviewPayload(
+			"REQUEST_CHANGES",
+			"Please fix",
+			`[{"path":"a.go","line":1,"body":"x"}]`,
+		)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		var got struct {
+			Body     string           `json:"body"`
+			Event    string           `json:"event"`
+			Comments []map[string]any `json:"comments"`
+		}
+		if err := json.Unmarshal([]byte(out), &got); err != nil {
+			t.Fatalf("payload is not valid JSON: %v\n%s", err, out)
+		}
+		if got.Event != "REQUEST_CHANGES" || got.Body != "Please fix" || len(got.Comments) != 1 {
+			t.Fatalf("unexpected payload: %s", out)
+		}
+	})
+
+	t.Run("approve allows empty body and no comments", func(t *testing.T) {
+		if _, err := buildReviewPayload("APPROVE", "", ""); err != nil {
+			t.Fatalf("approve with empty body should be allowed: %v", err)
+		}
+	})
+
+	t.Run("comment without body or comments errors", func(t *testing.T) {
+		if _, err := buildReviewPayload("COMMENT", "", ""); err == nil {
+			t.Fatal("expected error: a comment review needs a body or comments")
+		}
+	})
+
+	t.Run("invalid comments json errors", func(t *testing.T) {
+		if _, err := buildReviewPayload("COMMENT", "ok", "{not json"); err == nil {
+			t.Fatal("expected error for malformed comments json")
+		}
+	})
+}
+
+func TestSubmitReview(t *testing.T) {
+	t.Run("posts review to the resolved endpoint with inline comments", func(t *testing.T) {
+		pm, ghBase, _ := newPRSetup()
+		ghBase.SetExecCommandResults(
+			commands.ExecCommandResult("octocat/hello", "", nil), // CurrentRepo
+			commands.ExecCommandResult(`{"id":1}`, "", nil),      // CreateReview
+		)
+
+		out, err := pm.SubmitReview(
+			"42",
+			"request-changes",
+			"Please fix",
+			`[{"path":"a.go","line":10,"body":"fix"}]`,
+		)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !strings.Contains(out, "request-changes") || !strings.Contains(out, "PR #42") {
+			t.Fatalf("unexpected confirmation: %q", out)
+		}
+
+		call := ghBase.ExecCommandCalls[len(ghBase.ExecCommandCalls)-1]
+		joined := strings.Join(call.Args, " ")
+		if !strings.Contains(joined, "/repos/octocat/hello/pulls/42/reviews") {
+			t.Fatalf("missing reviews endpoint: %v", call.Args)
+		}
+		if !strings.Contains(joined, "--input") {
+			t.Fatalf("expected payload passed via --input: %v", call.Args)
+		}
+	})
+
+	t.Run("invalid verdict errors before any gh call", func(t *testing.T) {
+		pm, ghBase, _ := newPRSetup()
+		if _, err := pm.SubmitReview("42", "bogus", "x", ""); err == nil {
+			t.Fatal("expected error for invalid verdict")
+		}
+		if ghBase.GetExecCommandCallCount() != 0 {
+			t.Fatal("expected no gh call when the verdict is invalid")
+		}
+	})
+
+	t.Run("malformed comments error before any gh call", func(t *testing.T) {
+		pm, ghBase, _ := newPRSetup()
+		if _, err := pm.SubmitReview("42", "comment", "body", "{bad"); err == nil {
+			t.Fatal("expected error for malformed comments")
+		}
+		if ghBase.GetExecCommandCallCount() != 0 {
+			t.Fatal("expected no gh call when comments are malformed")
+		}
+	})
+}
+
+// commandsErr returns a non-nil error for simulating gh's non-zero exit.
+func commandsErr() error { return &execErr{} }
+
+type execErr struct{}
+
+func (e *execErr) Error() string { return "exit 1" }

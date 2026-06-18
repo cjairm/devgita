@@ -32,6 +32,20 @@ type App interface {
 	ExecuteCommand(args ...string) error
 }
 
+// SelectiveConfigurer is an optional interface for apps whose configuration
+// includes discrete, separately-refreshable subtrees — the shared
+// skills/commands/agents trees for the AI coders (claude, opencode). It backs
+// `dg configure <app> --force --only=...`, letting a user overwrite just those
+// subtrees without disturbing general config they may have edited (settings,
+// themes, generated files). Apps that don't implement it reject --only.
+type SelectiveConfigurer interface {
+	// ConfigurableParts lists the part names accepted by --only.
+	ConfigurableParts() []string
+	// ForceConfigureParts overwrites only the named parts, leaving all other
+	// configuration in place.
+	ForceConfigureParts(parts []string) error
+}
+
 // FontInstaller is the contract for the Fonts module, which installs named fonts
 // rather than a single application.
 type FontInstaller interface {

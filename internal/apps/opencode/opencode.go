@@ -23,7 +23,10 @@ import (
 	"github.com/cjairm/devgita/pkg/paths"
 )
 
-var _ apps.App = (*OpenCode)(nil)
+var (
+	_ apps.App                 = (*OpenCode)(nil)
+	_ apps.SelectiveConfigurer = (*OpenCode)(nil)
+)
 
 const DEFAULT_THEME_NAME = "default"
 
@@ -76,7 +79,7 @@ func (o *OpenCode) ForceConfigure() error {
 	}
 	// Directory permissions should be 0755 not 0644. Directories need execute
 	// permission to be entered.
-	if err := os.MkdirAll(paths.Paths.Config.OpenCode, 0755); err != nil {
+	if err := os.MkdirAll(paths.Paths.Config.OpenCode, 0o755); err != nil {
 		return err
 	}
 	gc := &config.GlobalConfig{}
@@ -97,11 +100,15 @@ func (o *OpenCode) ForceConfigure() error {
 	)
 	if theme == DEFAULT_THEME_NAME {
 		themesDir := filepath.Join(paths.Paths.Config.OpenCode, "themes")
-		if err := os.MkdirAll(themesDir, 0755); err != nil {
+		if err := os.MkdirAll(themesDir, 0o755); err != nil {
 			return fmt.Errorf("failed to create themes directory: %w", err)
 		}
 		if err := files.CopyFile(
-			filepath.Join(paths.Paths.App.Configs.OpenCode, "themes", fmt.Sprintf("%s.json", DEFAULT_THEME_NAME)),
+			filepath.Join(
+				paths.Paths.App.Configs.OpenCode,
+				"themes",
+				fmt.Sprintf("%s.json", DEFAULT_THEME_NAME),
+			),
 			filepath.Join(themesDir, fmt.Sprintf("%s.json", DEFAULT_THEME_NAME)),
 		); err != nil {
 			return fmt.Errorf("failed to copy opencode config theme: %w", err)
@@ -112,12 +119,11 @@ func (o *OpenCode) ForceConfigure() error {
 	}); err != nil {
 		return fmt.Errorf("failed to generate opencode configuration: %w", err)
 	}
-	for _, dir := range []string{"skills", "commands", "agents"} {
-		src := filepath.Join(paths.Paths.App.Configs.Shared, dir)
-		dst := filepath.Join(paths.Paths.Config.OpenCode, dir)
-		if err := files.CopyDir(src, dst); err != nil {
-			return fmt.Errorf("failed to copy opencode %s: %w", dir, err)
-		}
+	if err := baseapp.SyncSharedParts(
+		paths.Paths.Config.OpenCode,
+		baseapp.SharedConfigParts,
+	); err != nil {
+		return fmt.Errorf("failed to copy opencode shared config: %w", err)
 	}
 	gc.ReconcileShellFeatures()
 	gc.AddToInstalled(constants.OpenCode, "package")
@@ -157,6 +163,20 @@ func (o *OpenCode) SoftConfigure() error {
 		return nil
 	}
 	return o.ForceConfigure()
+}
+
+// ConfigurableParts lists the shared config subtrees that --only can refresh.
+func (o *OpenCode) ConfigurableParts() []string { return baseapp.SharedConfigParts }
+
+// ForceConfigureParts overwrites only the named shared subtrees (skills,
+// commands, agents) under the OpenCode config dir. Unlike full ForceConfigure
+// it does not remove or regenerate opencode.json or themes, so a hand-edited
+// config survives. This is the `--force --only=...` path.
+func (o *OpenCode) ForceConfigureParts(parts []string) error {
+	if err := os.MkdirAll(paths.Paths.Config.OpenCode, 0o755); err != nil {
+		return err
+	}
+	return baseapp.SyncSharedParts(paths.Paths.Config.OpenCode, parts)
 }
 
 func (o *OpenCode) ExecuteCommand(args ...string) error {

@@ -15,7 +15,10 @@ import (
 	"github.com/cjairm/devgita/pkg/paths"
 )
 
-var _ apps.App = (*Claude)(nil)
+var (
+	_ apps.App                 = (*Claude)(nil)
+	_ apps.SelectiveConfigurer = (*Claude)(nil)
+)
 
 type Claude struct {
 	Cmd  cmd.Command
@@ -75,7 +78,7 @@ func (c *Claude) Uninstall() error {
 }
 
 func (c *Claude) ForceConfigure() error {
-	if err := os.MkdirAll(paths.Paths.Config.Claude, 0755); err != nil {
+	if err := os.MkdirAll(paths.Paths.Config.Claude, 0o755); err != nil {
 		return err
 	}
 
@@ -102,7 +105,7 @@ func (c *Claude) ForceConfigure() error {
 		); err != nil {
 			return fmt.Errorf("failed to copy claude %s: %w", script, err)
 		}
-		if err := os.Chmod(dst, 0755); err != nil {
+		if err := os.Chmod(dst, 0o755); err != nil {
 			return fmt.Errorf("failed to chmod %s: %w", script, err)
 		}
 	}
@@ -114,15 +117,11 @@ func (c *Claude) ForceConfigure() error {
 		return fmt.Errorf("failed to copy claude themes: %w", err)
 	}
 
-	for _, dir := range []string{"skills", "commands", "agents"} {
-		src := filepath.Join(paths.Paths.App.Configs.Shared, dir)
-		dst := filepath.Join(paths.Paths.Config.Claude, dir)
-		if err := os.MkdirAll(dst, 0755); err != nil {
-			return fmt.Errorf("failed to create claude %s dir: %w", dir, err)
-		}
-		if err := files.CopyDir(src, dst); err != nil {
-			return fmt.Errorf("failed to copy claude %s: %w", dir, err)
-		}
+	if err := baseapp.SyncSharedParts(
+		paths.Paths.Config.Claude,
+		baseapp.SharedConfigParts,
+	); err != nil {
+		return fmt.Errorf("failed to copy claude shared config: %w", err)
 	}
 
 	gc.ReconcileShellFeatures()
@@ -162,6 +161,19 @@ func (c *Claude) SoftConfigure() error {
 	return c.ForceConfigure()
 }
 
+// ConfigurableParts lists the shared config subtrees that --only can refresh.
+func (c *Claude) ConfigurableParts() []string { return baseapp.SharedConfigParts }
+
+// ForceConfigureParts overwrites only the named shared subtrees (skills,
+// commands, agents) under the Claude config dir, leaving settings.json, the
+// scripts, and themes untouched. This is the `--force --only=...` path.
+func (c *Claude) ForceConfigureParts(parts []string) error {
+	if err := os.MkdirAll(paths.Paths.Config.Claude, 0o755); err != nil {
+		return err
+	}
+	return baseapp.SyncSharedParts(paths.Paths.Config.Claude, parts)
+}
+
 func (c *Claude) ExecuteCommand(args ...string) error {
 	params := cmd.CommandParams{
 		Command: constants.Claude,
@@ -175,5 +187,8 @@ func (c *Claude) ExecuteCommand(args ...string) error {
 }
 
 func (c *Claude) Update() error {
-	return fmt.Errorf("%w — re-run: curl -fsSL https://claude.ai/install.sh | bash", apps.ErrUpdateNotSupported)
+	return fmt.Errorf(
+		"%w — re-run: curl -fsSL https://claude.ai/install.sh | bash",
+		apps.ErrUpdateNotSupported,
+	)
 }
