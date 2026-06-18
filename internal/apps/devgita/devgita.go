@@ -166,6 +166,8 @@ func (dg *Devgita) ForceConfigure() error {
 	if err := dg.Base.MaybeSetup(devgitaConfigLine, getZshConfigPath()); err != nil {
 		return err
 	}
+	logger.L().Infow("Shell config regenerated", "path", getZshConfigPath())
+	fmt.Printf("Run `source %s` to apply shell changes.\n", getZshConfigPath())
 	return nil
 }
 
