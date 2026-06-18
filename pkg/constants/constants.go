@@ -99,6 +99,7 @@ const (
 	BraveBrowser = "brave-browser"
 	Btop         = "btop"
 	Curl         = "curl"
+	Jq           = "jq"
 	// TODO: Rename this to `Devgita` and update current Devgita graphic to match the new name. (This is to avoid confusion between the app and the repository)
 	DevgitaApp         = "devgita"
 	Docker             = "docker"

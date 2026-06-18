@@ -38,6 +38,7 @@ import (
 	"github.com/cjairm/devgita/internal/tooling/terminal/dev_tools/fdfind"
 	"github.com/cjairm/devgita/internal/tooling/terminal/dev_tools/fzf"
 	"github.com/cjairm/devgita/internal/tooling/terminal/dev_tools/githubcli"
+	"github.com/cjairm/devgita/internal/tooling/terminal/dev_tools/jq"
 	"github.com/cjairm/devgita/internal/tooling/terminal/dev_tools/powerlevel10k"
 	"github.com/cjairm/devgita/internal/tooling/terminal/dev_tools/ripgrep"
 	"github.com/cjairm/devgita/internal/tooling/terminal/dev_tools/syntaxhighlighting"
@@ -150,7 +151,10 @@ func (t *Terminal) InstallAndConfigure(appFilter, skipFilter map[string]bool) {
 }
 
 // InstallTerminalApps installs registry-managed terminal apps with optional filtering.
-func (t *Terminal) InstallTerminalApps(summary *InstallationSummary, appFilter, skipFilter map[string]bool) {
+func (t *Terminal) InstallTerminalApps(
+	summary *InstallationSummary,
+	appFilter, skipFilter map[string]bool,
+) {
 	for _, entry := range t.getApps() {
 		if skipFilter[entry.name] {
 			continue
@@ -179,6 +183,7 @@ func (t *Terminal) InstallDevTools(summary *InstallationSummary) {
 	// - fd-find
 	// - fzf
 	// - gh
+	// - jq
 	// - powerlevel10k
 	// - plocate (Debian only - replaces locate)
 	// - apache2-utils (Debian only)
@@ -201,6 +206,7 @@ func (t *Terminal) InstallDevTools(summary *InstallationSummary) {
 		{constants.FdFind, fdfind.New()},
 		{constants.Fzf, fzf.New()},
 		{constants.GithubCli, githubcli.New()},
+		{constants.Jq, jq.New()},
 		{constants.Powerlevel10k, powerlevel10k.New()},
 		{constants.Ripgrep, ripgrep.New()},
 		{constants.Syntaxhighlighting, syntaxhighlighting.New()},
@@ -366,7 +372,7 @@ func displayMessage(err error, name string, displayOnlyErrors ...bool) {
 			),
 		)
 	} else {
-		if displayOnlyErrors != nil && displayOnlyErrors[0] == true {
+		if displayOnlyErrors != nil && displayOnlyErrors[0] {
 			return
 		}
 		msg := fmt.Sprintf("Installing %s (if no previously installed)...", name)
