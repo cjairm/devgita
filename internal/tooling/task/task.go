@@ -1,0 +1,134 @@
+// Package task provides developer utility commands for git branch management
+// and npm dependency management, callable by both agents (as a real executable)
+// and humans (via the dge shell wrapper).
+package task
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+
+	git_app "github.com/cjairm/devgita/internal/apps/git"
+	cmd "github.com/cjairm/devgita/internal/commands"
+	"github.com/cjairm/devgita/internal/tooling/terminal/dev_tools/fzf"
+)
+
+// TaskManager executes developer utility tasks.
+// Git operations go through the Git app; npm operations go through Base.
+type TaskManager struct {
+	Git  *git_app.Git
+	Base cmd.BaseCommandExecutor
+	Fzf  *fzf.Fzf
+}
+
+// New creates a TaskManager with real executors.
+func New() *TaskManager {
+	return &TaskManager{
+		Git:  git_app.New(),
+		Base: cmd.NewBaseCommand(),
+		Fzf:  fzf.New(),
+	}
+}
+
+// RefreshBranch checks out target (default "main"), pulls, returns to the previous
+// branch, and merges target into it — equivalent to the dge refresh-branch shell task.
+func (tm *TaskManager) RefreshBranch(target string) error {
+	if target == "" {
+		target = "main"
+	}
+	if err := tm.Git.SwitchBranch(target); err != nil {
+		return fmt.Errorf("refresh-branch: %w", err)
+	}
+	if err := tm.Git.Pull(target); err != nil {
+		return fmt.Errorf("refresh-branch: %w", err)
+	}
+	if err := tm.Git.SwitchBranch("-"); err != nil {
+		return fmt.Errorf("refresh-branch: %w", err)
+	}
+	if err := tm.Git.ExecuteCommand("merge", target); err != nil {
+		return fmt.Errorf("refresh-branch: %w", err)
+	}
+	return nil
+}
+
+// ResetMainBranch checks out main and hard-resets to origin/main.
+func (tm *TaskManager) ResetMainBranch() error {
+	if err := tm.Git.SwitchBranch("main"); err != nil {
+		return fmt.Errorf("reset-main-branch: %w", err)
+	}
+	if err := tm.Git.ExecuteCommand("reset", "--hard", "origin/main"); err != nil {
+		return fmt.Errorf("reset-main-branch: %w", err)
+	}
+	return nil
+}
+
+// ReinstallLibraries removes all cached/ignored build artifacts and node_modules,
+// then runs npm install — equivalent to the dge reinstall-libraries shell task.
+func (tm *TaskManager) ReinstallLibraries() error {
+	if err := tm.Git.ExecuteCommand("clean", "-Xdf"); err != nil {
+		return fmt.Errorf("reinstall-libraries: %w", err)
+	}
+	if err := os.RemoveAll("node_modules"); err != nil {
+		return fmt.Errorf("reinstall-libraries: failed to remove node_modules: %w", err)
+	}
+	if _, _, err := tm.Base.ExecCommand(cmd.CommandParams{
+		Command: "npm",
+		Args:    []string{"install"},
+	}); err != nil {
+		return fmt.Errorf("reinstall-libraries: npm install failed: %w", err)
+	}
+	_ = os.Remove("tsconfig.tsbuildinfo")
+	return nil
+}
+
+// ReinstallLibrary removes a single package from node_modules and re-runs npm install.
+func (tm *TaskManager) ReinstallLibrary(name string) error {
+	if name == "" {
+		return fmt.Errorf("library name is required")
+	}
+	if err := os.RemoveAll(filepath.Join("node_modules", name)); err != nil {
+		return fmt.Errorf("reinstall-library: failed to remove node_modules/%s: %w", name, err)
+	}
+	if _, _, err := tm.Base.ExecCommand(cmd.CommandParams{
+		Command: "npm",
+		Args:    []string{"install"},
+	}); err != nil {
+		return fmt.Errorf("reinstall-library: npm install failed: %w", err)
+	}
+	return nil
+}
+
+// DeleteBranch checks out target (default "main"), fetches, pulls, then opens an
+// interactive fzf picker to select and force-delete a local branch.
+func (tm *TaskManager) DeleteBranch(target string) error {
+	if target == "" {
+		target = "main"
+	}
+	if err := tm.Git.SwitchBranch(target); err != nil {
+		return fmt.Errorf("delete-branch setup: %w", err)
+	}
+	if err := tm.Git.FetchOrigin(); err != nil {
+		return fmt.Errorf("delete-branch setup: %w", err)
+	}
+	if err := tm.Git.Pull(target); err != nil {
+		return fmt.Errorf("delete-branch setup: %w", err)
+	}
+
+	branches, err := tm.Git.ListBranches()
+	if err != nil {
+		return fmt.Errorf("delete-branch: %w", err)
+	}
+	if len(branches) == 0 {
+		return fmt.Errorf("delete-branch: no local branches to delete")
+	}
+
+	selected, err := tm.Fzf.SelectFromList(branches, "Select branch to delete:")
+	if err != nil {
+		return fmt.Errorf("delete-branch: selection cancelled: %w", err)
+	}
+
+	if err := tm.Git.DeleteBranch(selected, true); err != nil {
+		return fmt.Errorf("delete-branch: %w", err)
+	}
+	return nil
+}

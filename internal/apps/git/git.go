@@ -190,6 +190,31 @@ func (g *Git) Update() error {
 	return fmt.Errorf("%w for git", apps.ErrUpdateNotSupported)
 }
 
+// ListBranches returns all local branch names, stripping the current-branch
+// marker (* ) and surrounding whitespace.
+func (g *Git) ListBranches() ([]string, error) {
+	stdout, _, err := g.Base.ExecCommand(cmd.CommandParams{
+		Command: constants.Git,
+		Args:    []string{"branch"},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("git: failed to list branches: %w", err)
+	}
+	var branches []string
+	for line := range strings.SplitSeq(stdout, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		line = strings.TrimPrefix(line, "* ")
+		line = strings.TrimSpace(line)
+		if line != "" {
+			branches = append(branches, line)
+		}
+	}
+	return branches, nil
+}
+
 // BranchExists checks if a branch exists in the repository
 func (g *Git) BranchExists(branch string) (bool, error) {
 	execCommand := cmd.CommandParams{

@@ -276,6 +276,36 @@ dg wt prune                                 # Remove all worktrees (prompts for 
 
 **Planned commands**: See [ROADMAP.md](ROADMAP.md) for planned features and future commands.
 
+#### `dg task`
+
+Developer utility commands for git branch management and npm dependency management.
+These commands are callable by both agents (Claude Code, CI, any non-interactive process)
+and humans (via the `dge` shell wrapper or directly).
+
+```
+dg task <subcommand> [args]
+dg t <subcommand> [args]   # alias
+```
+
+| Subcommand            | Args       | Description                                                                            |
+| --------------------- | ---------- | -------------------------------------------------------------------------------------- |
+| `refresh-branch`      | `[target]` | Checkout target (default: `main`), pull, return to previous branch, merge              |
+| `reset-main-branch`   | —          | Checkout `main`, hard-reset to `origin/main`                                           |
+| `delete-branch`       | `[target]` | Checkout target (default: `main`), fetch, pick a branch via fzf to force-delete        |
+| `reinstall-libraries` | —          | `git clean -Xdf`, remove `node_modules/`, `npm install`, remove `tsconfig.tsbuildinfo` |
+| `reinstall-library`   | `<name>`   | Remove `node_modules/<name>`, run `npm install`                                        |
+
+`dge` (the shell function in `devgita.zsh`) is now a thin wrapper that forwards to `dg task`:
+
+```sh
+dge() {
+  if [[ $# -eq 0 ]]; then dg task --help; return; fi
+  dg task "$@"
+}
+```
+
+Agents should prefer `dg task` directly; humans can use either `dg task` or `dge`.
+
 ---
 
 ## Behavior & Edge Cases

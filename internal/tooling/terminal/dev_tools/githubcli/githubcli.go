@@ -95,3 +95,30 @@ func (g *GithubCli) ExecuteCommand(args ...string) error {
 func (g *GithubCli) Update() error {
 	return fmt.Errorf("gh update not implemented through devgita")
 }
+
+// RunWithOutput runs a gh command and returns captured stdout.
+func (g *GithubCli) RunWithOutput(args ...string) (string, error) {
+	execCommand := cmd.CommandParams{
+		IsSudo:  false,
+		Command: constants.GithubCli,
+		Args:    args,
+	}
+	stdout, _, err := g.Base.ExecCommand(execCommand)
+	if err != nil {
+		return "", fmt.Errorf("failed to run gh command: %w", err)
+	}
+	return stdout, nil
+}
+
+// GraphQL runs `gh api graphql` with the given query and variables, returning raw JSON stdout.
+// stringVars are passed as -f key=value; intVars are passed as -F key=value.
+func (g *GithubCli) GraphQL(query string, stringVars, intVars map[string]string) (string, error) {
+	args := []string{"api", "graphql", "-f", "query=" + query}
+	for k, v := range stringVars {
+		args = append(args, "-f", k+"="+v)
+	}
+	for k, v := range intVars {
+		args = append(args, "-F", k+"="+v)
+	}
+	return g.RunWithOutput(args...)
+}

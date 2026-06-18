@@ -192,3 +192,92 @@ func TestExecuteCommand(t *testing.T) {
 // 		t.Fatalf("unexpected error message: %v", err)
 // 	}
 // }
+
+func TestRunWithOutput(t *testing.T) {
+	mc := commands.NewMockCommand()
+	mockBase := commands.NewMockBaseCommand()
+	app := &GithubCli{Cmd: mc, Base: mockBase}
+
+	t.Run("returns stdout on success", func(t *testing.T) {
+		mockBase.SetExecCommandResult(`{"data":"value"}`, "", nil)
+
+		out, err := app.RunWithOutput("api", "graphql", "-f", "query=...")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if out != `{"data":"value"}` {
+			t.Fatalf("expected stdout, got %q", out)
+		}
+		lastCall := mockBase.GetLastExecCommandCall()
+		if lastCall.Command != "gh" {
+			t.Fatalf("expected command 'gh', got %q", lastCall.Command)
+		}
+	})
+
+	t.Run("wraps error", func(t *testing.T) {
+		mockBase.ResetExecCommand()
+		mockBase.SetExecCommandResult("", "err", fmt.Errorf("exit 1"))
+
+		_, err := app.RunWithOutput("api", "graphql")
+		if err == nil {
+			t.Fatal("expected error")
+		}
+		if !strings.Contains(err.Error(), "failed to run gh command") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+}
+
+func TestGraphQL(t *testing.T) {
+	mc := commands.NewMockCommand()
+	mockBase := commands.NewMockBaseCommand()
+	app := &GithubCli{Cmd: mc, Base: mockBase}
+
+	t.Run("assembles correct gh args", func(t *testing.T) {
+		mockBase.SetExecCommandResult(`{"data":{}}`, "", nil)
+
+		out, err := app.GraphQL(
+			"query { viewer { login } }",
+			map[string]string{"owner": "octocat"},
+			map[string]string{"pr": "42"},
+		)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if out != `{"data":{}}` {
+			t.Fatalf("expected json output, got %q", out)
+		}
+
+		call := mockBase.GetLastExecCommandCall()
+		if call == nil {
+			t.Fatal("no ExecCommand call recorded")
+		}
+		if call.Command != "gh" {
+			t.Fatalf("expected 'gh', got %q", call.Command)
+		}
+
+		argsJoined := strings.Join(call.Args, " ")
+		if !strings.Contains(argsJoined, "api graphql") {
+			t.Fatalf("expected 'api graphql' in args, got: %v", call.Args)
+		}
+		if !strings.Contains(argsJoined, "query=query { viewer { login } }") {
+			t.Fatalf("expected query arg in args, got: %v", call.Args)
+		}
+		if !strings.Contains(argsJoined, "-f owner=octocat") {
+			t.Fatalf("expected string var -f owner=octocat in args, got: %v", call.Args)
+		}
+		if !strings.Contains(argsJoined, "-F pr=42") {
+			t.Fatalf("expected int var -F pr=42 in args, got: %v", call.Args)
+		}
+	})
+
+	t.Run("returns error from gh", func(t *testing.T) {
+		mockBase.ResetExecCommand()
+		mockBase.SetExecCommandResult("", "unauthorized", fmt.Errorf("exit 1"))
+
+		_, err := app.GraphQL("query { viewer { login } }", nil, nil)
+		if err == nil {
+			t.Fatal("expected error")
+		}
+	})
+}

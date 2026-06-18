@@ -1425,3 +1425,64 @@ func TestDiffIncludesUntrackedFiles(t *testing.T) {
 		t.Errorf("expected 'Untracked files:' section in diff output")
 	}
 }
+
+func TestListBranches(t *testing.T) {
+	t.Run("parses branch output", func(t *testing.T) {
+		mockBase := commands.NewMockBaseCommand()
+		mockBase.SetExecCommandResult("  main\n  feature-a\n* current", "", nil)
+		g := &Git{Cmd: commands.NewMockCommand(), Base: mockBase}
+
+		branches, err := g.ListBranches()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		expected := []string{"main", "feature-a", "current"}
+		if len(branches) != len(expected) {
+			t.Fatalf("expected %v, got %v", expected, branches)
+		}
+		for i, v := range expected {
+			if branches[i] != v {
+				t.Errorf("index %d: expected %q, got %q", i, v, branches[i])
+			}
+		}
+	})
+
+	t.Run("strips current branch marker", func(t *testing.T) {
+		mockBase := commands.NewMockBaseCommand()
+		mockBase.SetExecCommandResult("* main\n  other", "", nil)
+		g := &Git{Cmd: commands.NewMockCommand(), Base: mockBase}
+
+		branches, err := g.ListBranches()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(branches) != 2 || branches[0] != "main" || branches[1] != "other" {
+			t.Errorf("unexpected branches: %v", branches)
+		}
+	})
+
+	t.Run("returns empty slice for no branches", func(t *testing.T) {
+		mockBase := commands.NewMockBaseCommand()
+		mockBase.SetExecCommandResult("", "", nil)
+		g := &Git{Cmd: commands.NewMockCommand(), Base: mockBase}
+
+		branches, err := g.ListBranches()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(branches) != 0 {
+			t.Fatalf("expected empty, got %v", branches)
+		}
+	})
+
+	t.Run("returns error on git failure", func(t *testing.T) {
+		mockBase := commands.NewMockBaseCommand()
+		mockBase.SetExecCommandResult("", "fatal: not a repo", fmt.Errorf("exit 128"))
+		g := &Git{Cmd: commands.NewMockCommand(), Base: mockBase}
+
+		_, err := g.ListBranches()
+		if err == nil {
+			t.Fatal("expected error")
+		}
+	})
+}

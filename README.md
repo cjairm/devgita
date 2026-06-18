@@ -187,6 +187,12 @@ dg install --skip databases,desktop
   - `dg wt remove [name]` - Remove a worktree (fzf picker if name omitted)
   - `dg wt repair <name>` - Recreate the tmux window for an existing worktree
   - `dg wt prune` - Remove all managed worktrees
+- `dg task` (alias: `dg t`) - Developer utilities callable by agents and humans (mirrors `dge` shell function)
+  - `dg task refresh-branch [target]` - Checkout target (default: `main`), pull, return to previous branch, merge
+  - `dg task reset-main-branch` - Checkout `main`, hard-reset to `origin/main`
+  - `dg task delete-branch [target]` - Checkout target, fetch, pick a branch via fzf to force-delete
+  - `dg task reinstall-libraries` - Clean ignored files, remove `node_modules/`, run `npm install`
+  - `dg task reinstall-library <name>` - Remove `node_modules/<name>`, run `npm install`
 - `dg --version` - Show version information
 - `dg --help` - Show help message
 
