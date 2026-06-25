@@ -4,10 +4,12 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/pkg/constants"
@@ -17,8 +19,10 @@ import (
 	"github.com/cjairm/devgita/pkg/utils"
 )
 
-var LookPathFn = exec.LookPath
-var CommandFn = exec.Command
+var (
+	LookPathFn = exec.LookPath
+	CommandFn  = exec.Command
+)
 
 // BaseCommandExecutor defines the interface for executing commands and managing system state
 // This interface allows for dependency injection and mocking in tests
@@ -60,6 +64,12 @@ type CommandParams struct {
 	IsSudo      bool
 	Command     string
 	Args        []string
+	// Stream, when true, tees the command's stdout/stderr to the process's
+	// own stdout/stderr as it runs, so callers (e.g. `dg task` utilities) see
+	// real-time progress instead of nothing. Output is still captured into the
+	// returned strings for error context. Default false preserves the quiet,
+	// debug-log-only behavior used by the installers.
+	Stream bool
 }
 
 func NewBaseCommand() *BaseCommand {
@@ -222,35 +232,39 @@ func (b *BaseCommand) ExecCommand(cmd CommandParams) (string, string, error) {
 
 	var stdoutBuf, stderrBuf strings.Builder
 
-	stdoutScanner := bufio.NewScanner(stdoutPipe)
-	stderrScanner := bufio.NewScanner(stderrPipe)
-
 	// Start command
 	if err := execCommand.Start(); err != nil {
 		logger.L().Errorf("failed to start command: %v", err)
 		return "", "", err
 	}
 
-	// Read stdout
-	go func() {
-		for stdoutScanner.Scan() {
-			line := stdoutScanner.Text()
-			stdoutBuf.WriteString(line + "\n")
-			logger.L().Debugw("stdout", "line", line)
-		}
-	}()
+	// Drain both pipes concurrently. When Stream is set we copy bytes straight
+	// through to the terminal (real-time progress); otherwise we keep the
+	// line-buffered, debug-log-only behavior. Either way output is captured into
+	// the buffers for the returned strings.
+	var wg sync.WaitGroup
+	wg.Add(2)
 
-	// Read stderr
-	go func() {
-		for stderrScanner.Scan() {
-			line := stderrScanner.Text()
-			stderrBuf.WriteString(line + "\n")
-			logger.L().Debugw("stderr", "line", line)
+	drain := func(pipe io.Reader, buf *strings.Builder, live io.Writer, label string) {
+		defer wg.Done()
+		if cmd.Stream {
+			_, _ = io.Copy(io.MultiWriter(buf, live), pipe)
+			return
 		}
-	}()
+		scanner := bufio.NewScanner(pipe)
+		for scanner.Scan() {
+			line := scanner.Text()
+			buf.WriteString(line + "\n")
+			logger.L().Debugw(label, "line", line)
+		}
+	}
 
-	// Wait for command to complete
+	go drain(stdoutPipe, &stdoutBuf, os.Stdout, "stdout")
+	go drain(stderrPipe, &stderrBuf, os.Stderr, "stderr")
+
+	// Wait for command to complete, then for the readers to flush.
 	err = execCommand.Wait()
+	wg.Wait()
 	if err != nil {
 		logger.L().Debugw("command finished with error", "error", err, "stderr", stderrBuf.String())
 	}

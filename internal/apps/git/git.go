@@ -49,6 +49,11 @@ type WorktreeInfo struct {
 type Git struct {
 	Cmd  cmd.Command
 	Base cmd.BaseCommandExecutor
+	// Stream, when true, tees git command output (clone/pull/fetch/merge/…) to
+	// the terminal in real time. Used by `dg task` utilities so humans and
+	// agents see progress as it happens. Commands whose output is parsed
+	// (e.g. ListBranches) intentionally stay non-streaming.
+	Stream bool
 }
 
 func (g *Git) Name() string       { return constants.Git }
@@ -113,6 +118,7 @@ func (g *Git) ExecuteCommand(args ...string) error {
 		IsSudo:  false,
 		Command: constants.Git,
 		Args:    args,
+		Stream:  g.Stream,
 	}
 	if _, stderr, err := g.Base.ExecCommand(execCommand); err != nil {
 		if stderr != "" {
@@ -131,6 +137,7 @@ func (g *Git) ExecuteCommandAt(dir string, args ...string) error {
 		IsSudo:  false,
 		Command: constants.Git,
 		Args:    fullArgs,
+		Stream:  g.Stream,
 	}
 	if _, stderr, err := g.Base.ExecCommand(execCommand); err != nil {
 		if stderr != "" {

@@ -190,6 +190,30 @@ func TestReinstallLibrary(t *testing.T) {
 	})
 }
 
+func TestStreamsOutput(t *testing.T) {
+	t.Run("npm install streams output", func(t *testing.T) {
+		tm, _, npmBase := newTaskSetup()
+
+		if err := tm.ReinstallLibrary("lodash"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		npmCalls := npmBase.ExecCommandCalls
+		if len(npmCalls) != 1 {
+			t.Fatalf("expected 1 npm ExecCommand call, got %d", len(npmCalls))
+		}
+		if !npmCalls[0].Stream {
+			t.Error("expected npm install to run with Stream=true for real-time progress")
+		}
+	})
+
+	t.Run("New enables git streaming", func(t *testing.T) {
+		tm := New()
+		if !tm.Git.Stream {
+			t.Error("expected New() to enable Git.Stream so task git output is shown live")
+		}
+	})
+}
+
 func TestDeleteBranch_Setup(t *testing.T) {
 	t.Run("setup propagates error on checkout failure", func(t *testing.T) {
 		tm, gitBase, _ := newTaskSetup()

@@ -331,6 +331,40 @@ func TestExecuteCommand(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("Stream defaults to false", func(t *testing.T) {
+		mockApp.Base.ResetExecCommand()
+		mockApp.Base.SetExecCommandResult("", "", nil)
+
+		if err := app.ExecuteCommand("status"); err != nil {
+			t.Fatalf("ExecuteCommand failed: %v", err)
+		}
+		if mockApp.Base.GetLastExecCommandCall().Stream {
+			t.Error("expected Stream=false by default")
+		}
+	})
+
+	t.Run("Stream propagates to ExecCommand", func(t *testing.T) {
+		streaming := &Git{Cmd: mockApp.Cmd, Base: mockApp.Base, Stream: true}
+		mockApp.Base.ResetExecCommand()
+		mockApp.Base.SetExecCommandResult("", "", nil)
+
+		if err := streaming.ExecuteCommand("status"); err != nil {
+			t.Fatalf("ExecuteCommand failed: %v", err)
+		}
+		if !mockApp.Base.GetLastExecCommandCall().Stream {
+			t.Error("expected Git.Stream=true to set CommandParams.Stream")
+		}
+
+		mockApp.Base.ResetExecCommand()
+		mockApp.Base.SetExecCommandResult("", "", nil)
+		if err := streaming.ExecuteCommandAt("/tmp/repo", "status"); err != nil {
+			t.Fatalf("ExecuteCommandAt failed: %v", err)
+		}
+		if !mockApp.Base.GetLastExecCommandCall().Stream {
+			t.Error("expected Git.Stream=true to set CommandParams.Stream for ExecuteCommandAt")
+		}
+	})
 }
 
 func TestBranchExists(t *testing.T) {

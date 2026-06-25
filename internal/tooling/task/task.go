@@ -21,10 +21,13 @@ type TaskManager struct {
 	Fzf  *fzf.Fzf
 }
 
-// New creates a TaskManager with real executors.
+// New creates a TaskManager with real executors. Git output is streamed so
+// humans (via dge) and agents see real-time progress from these utilities.
 func New() *TaskManager {
+	git := git_app.New()
+	git.Stream = true
 	return &TaskManager{
-		Git:  git_app.New(),
+		Git:  git,
 		Base: cmd.NewBaseCommand(),
 		Fzf:  fzf.New(),
 	}
@@ -74,6 +77,7 @@ func (tm *TaskManager) ReinstallLibraries() error {
 	if _, _, err := tm.Base.ExecCommand(cmd.CommandParams{
 		Command: "npm",
 		Args:    []string{"install"},
+		Stream:  true,
 	}); err != nil {
 		return fmt.Errorf("reinstall-libraries: npm install failed: %w", err)
 	}
@@ -92,6 +96,7 @@ func (tm *TaskManager) ReinstallLibrary(name string) error {
 	if _, _, err := tm.Base.ExecCommand(cmd.CommandParams{
 		Command: "npm",
 		Args:    []string{"install"},
+		Stream:  true,
 	}); err != nil {
 		return fmt.Errorf("reinstall-library: npm install failed: %w", err)
 	}
