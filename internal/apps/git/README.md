@@ -92,6 +92,47 @@ git stash pop
 git restore --staged .   # optional: unstage
 ```
 
+### Re-sync with main (preserving committed work)
+
+When your work is already **committed**, replay it on top of the updated main.
+
+Suppose your history is:
+
+```
+295769d  <-- main (old base)
+   \
+    ... your commits ...  <-- HEAD (feat/your-branch)
+```
+
+**Primary: rebase.** One command — linear history, no merge commit. Best for a
+personal branch with a few clean commits. Conflicts are resolved per commit, so
+they can recur across commits.
+
+```bash
+git switch feat/your-branch
+git rebase main          # replays your commits on top of latest main
+```
+
+**Alternative: wip branch + merge.** Reach for this when conflicts are messy
+(e.g. `package.json`, `package-lock.json`) and you'd rather resolve them once,
+when you must keep the original commit SHAs (shared branch), or when you want an
+explicit backup branch instead of relying on the reflog.
+
+```bash
+git switch -c wip/your-branch       # pin your commits on a temp branch
+git switch feat/your-branch         # back to your working branch
+git reset --hard <old-base>         # e.g. 295769d — drop to main's old base
+git merge main                      # fast-forward to latest main
+git merge wip/your-branch           # replay your commits; resolve conflicts once
+```
+
+Either way, if the branch was already pushed, update the remote with
+`git push --force-with-lease`. Clean up the temp branch at the end:
+
+```bash
+git branch -d wip/your-branch
+```
+
 ### Squash merge into clean branch
 
 ```bash
