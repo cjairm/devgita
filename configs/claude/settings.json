@@ -41,6 +41,7 @@
       "Bash(source *)",
       "Bash(cat *)",
       "Bash(awk *)",
+      "Bash(devgita *)",
       "Read",
       "Edit"
     ],
