@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-18
 **Estimated Duration:** ~4–5 hours
-**Status:** Draft
+**Status:** Done
 
 ---
 
@@ -90,13 +90,13 @@ humans (via `dge`), and is covered by the Go test suite.
 
 ### In Scope
 
-- [ ] `dg task` parent command + subcommands: `delete-branch`, `refresh-branch`, `reset-main-branch`, `reinstall-libraries`, `reinstall-library`
-- [ ] Interactive branch picker for `delete-branch` via `fzf.SelectFromList` (no `fzf-tmux` dependency)
-- [ ] Extend `internal/tooling/terminal/dev_tools/githubcli/githubcli.go` so callers can pass a GraphQL query (with variables) and receive stdout back
-- [ ] Rewrite the `dge()` function in `devgita.zsh.tmpl` to a thin wrapper: `dge() { dg task "$@"; }` (preserving the allowlist UX, or delegating validation to Cobra)
-- [ ] Tests (mocked) for every `dg task` subcommand and the new githubcli method
-- [ ] Register `taskCmd` in `cmd/root.go`
-- [ ] Document `dg task` in `docs/spec.md` and README; note the `dge` → `dg task` relationship
+- [x] `dg task` parent command + subcommands: `delete-branch`, `refresh-branch`, `reset-main-branch`, `reinstall-libraries`, `reinstall-library`
+- [x] Interactive branch picker for `delete-branch` via `fzf.SelectFromList` (no `fzf-tmux` dependency)
+- [x] Extend `internal/tooling/terminal/dev_tools/githubcli/githubcli.go` so callers can pass a GraphQL query (with variables) and receive stdout back
+- [x] Rewrite the `dge()` function in `devgita.zsh.tmpl` to a thin wrapper: `dge() { dg task "$@"; }` (preserving the allowlist UX, or delegating validation to Cobra)
+- [x] Tests (mocked) for every `dg task` subcommand and the new githubcli method
+- [x] Register `taskCmd` (in `cmd/task.go`'s own `init()`, following the same self-registering pattern as `cmd/worktree.go`, rather than in `cmd/root.go` directly)
+- [x] Document `dg task` in `docs/spec.md` and README; note the `dge` → `dg task` relationship
 
 ### Explicitly Out of Scope
 
@@ -105,6 +105,17 @@ humans (via `dge`), and is covered by the Go test suite.
 - Adding new utilities beyond the existing `dge` set.
 
 **Scope is locked.** If something out of scope surfaces, document it here for a future cycle.
+
+**Post-hoc note (closing this cycle):** Scope expanded during implementation beyond what's listed
+above — `cmd/task_pr.go` and `internal/tooling/task/pr.go` add a full PR review workflow under
+`dg task` (`review-threads`, `resolve-thread`, `unresolve-thread`, `reply-thread`, `submit-review`,
+`create-pr`, `update-pr-description`, `approve-pr`, `request-changes-pr`, `comment-pr`, `merge-pr`,
+`pr-view`, `pr-checks`, `current-pr`, `current-repo`), and `dg task`/`dge` output now streams in
+real time (see commits `131cd30`, `d6c28a7`). This was a deliberate widening of the original
+"agent-callable dev utilities" goal into a full PR workflow surface, not documented as a separate
+cycle at the time. Recorded here for traceability; a future cycle doc should retroactively (or the
+next time this area changes) capture the PR-workflow design decisions properly instead of relying
+on commit messages alone.
 
 ---
 
@@ -245,16 +256,18 @@ go test ./... -cover
 
 ## 8. Cross-Model Review Notes
 
-- [ ] Domain context clear?
-- [ ] Engineer context sufficient?
-- [ ] Objective unambiguous?
-- [ ] Scope locked (esp. fetch-pr-comments deferral)?
-- [ ] Steps actionable (5–15 min each)?
-- [ ] Verification executable?
-- [ ] Risks realistic (destructive git ops, fzf behavior)?
+- [x] Domain context clear?
+- [x] Engineer context sufficient?
+- [x] Objective unambiguous?
+- [x] Scope locked (esp. fetch-pr-comments deferral)?
+- [x] Steps actionable (5–15 min each)?
+- [x] Verification executable?
+- [x] Risks realistic (destructive git ops, fzf behavior)?
 
 **Reviewer notes:**
-(Fill in during review.)
+Shipped across commits `317e5be`, `da3cb43`, `131cd30`, `d6c28a7`, `72bfd60`, `731e9b5`. Scope
+grew to include a full PR review workflow (see post-hoc note in section 4) beyond the original
+git/npm task list — see that note before treating this doc as a template for similar work.
 
 ---
 

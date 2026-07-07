@@ -510,5 +510,17 @@ All dependencies already exist in devgita:
 
 ---
 
-**Status**: Draft  
-**Last Updated**: 2026-04-16
+**Status**: Superseded — Done via later cycles
+**Last Updated**: 2026-07-06
+
+**Superseded by:**
+
+- [2026-05-01-worktree-multi-ai-and-panel.md](2026-05-01-worktree-multi-ai-and-panel.md) (Done) —
+  multi-AI launcher, centralized storage, `--from`/`--prompt`-equivalent flags, enhanced jump dialog
+- [2026-06-07-worktree-v2-tui-dashboard.md](2026-06-07-worktree-v2-tui-dashboard.md) (Done) —
+  TUI dashboard (`dg wt ui`) replacing the fzf jump flow, plus `repair`/`prune`
+
+This doc's MVP (`create`/`list`/`remove`) shipped essentially as scoped in `cmd/worktree.go`; every
+item under "What MVP Does NOT Include" (`--prompt`, `--from`, `jump`, `cleanup`/bulk removal) was
+picked up and completed by the two cycles above. Left here for historical context only — do not
+use as an active spec.
