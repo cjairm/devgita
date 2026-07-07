@@ -34,6 +34,14 @@ Includes graceful fallback for `tree-sitter-cli` and transparent state tracking 
   - Handles updates differently (leaves pre-existing packages in place)
   - Scope: Can pass `--app` or `--package` for single-package uninstall
 
+- 🟢 **`dg list` / `dg installed`** — Show what's installed
+  - Prints installed items grouped by category, plus a separate "already on this machine"
+    section for pre-existing items
+  - `--category <name>` filters to a single bucket
+  - Shipped in v0.28.0
+  - MVP scope: name + category only. Versions/timestamps are **not yet tracked** — that
+    requires a `global_config.yaml` schema change and is still planned (see below)
+
 ---
 
 ## Planned Commands
@@ -42,9 +50,8 @@ The following commands are planned but not yet implemented:
 
 ### Configuration & Management
 
-- **`dg list` / `dg installed`** — Show what's installed
-  - Display installed packages with versions and timestamps
-  - Show category grouping
+- **Per-item version/install-timestamp tracking** — Requires a `global_config.yaml` schema
+  change + migration strategy (see `dg list` above for the MVP that ships without this)
 
 - **`dg update [app] [options]`** — Check and apply updates
   - Complex due to breaking changes
@@ -53,6 +60,7 @@ The following commands are planned but not yet implemented:
 
 - **`dg check-updates`** — Find available updates for all installed packages
   - Report which apps have updates available
+  - Depends on version tracking existing first
 
 - **`dg validate`** — Check configuration validity
   - Verify current configuration is valid
