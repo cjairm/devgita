@@ -276,6 +276,41 @@ dg wt prune                                 # Remove all worktrees (prompts for 
 
 **Planned commands**: See [ROADMAP.md](ROADMAP.md) for planned features and future commands.
 
+#### `dg list`
+
+Shows everything Devgita has installed, read from `~/.config/devgita/global_config.yaml`,
+grouped by category, plus a separate section for items that were already present on the
+machine before Devgita touched them.
+
+```
+dg list [--category <name>]
+dg installed [--category <name>]   # alias
+```
+
+**Flags**:
+
+- `--category <name>` — Filter to a single bucket. Valid values: `packages`, `desktop_apps`,
+  `fonts`, `themes`, `terminal_tools`, `dev_languages`, `databases`.
+
+**Behavior**:
+
+- Prints one table per non-empty category; empty categories are omitted.
+- The "Already on this machine (not installed by Devgita)" section only prints if it has
+  entries.
+- An empty config (nothing installed yet) prints a clear message instead of a blank screen.
+- An unrecognized `--category` value prints an error listing the valid category names.
+- This is the MVP: name + category only. Per-item version and install-timestamp tracking
+  requires a `global_config.yaml` schema change and is planned as a future release (see
+  [ROADMAP.md](ROADMAP.md)).
+
+**Examples**:
+
+```
+dg list                             # Everything, grouped by category
+dg list --category=terminal_tools   # Only the terminal tools bucket
+dg installed                        # Same as 'dg list'
+```
+
 #### `dg task`
 
 Developer utility commands for git branch management and npm dependency management.

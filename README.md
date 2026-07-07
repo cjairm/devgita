@@ -187,6 +187,8 @@ dg install --skip databases,desktop
   - `dg wt remove [name]` - Remove a worktree (fzf picker if name omitted)
   - `dg wt repair <name>` - Recreate the tmux window for an existing worktree
   - `dg wt prune` - Remove all managed worktrees
+- `dg list` (alias: `dg installed`) - Show everything Devgita has installed, grouped by category
+  - `--category <name>` - Filter to one bucket (`packages`, `desktop_apps`, `fonts`, `themes`, `terminal_tools`, `dev_languages`, `databases`)
 - `dg task` (alias: `dg t`) - Developer utilities callable by agents and humans (mirrors `dge` shell function)
   - `dg task refresh-branch [target]` - Checkout target (default: `main`), pull, return to previous branch, merge
   - `dg task reset-main-branch` - Checkout `main`, hard-reset to `origin/main`
