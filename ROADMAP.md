@@ -41,6 +41,21 @@ Includes graceful fallback for `tree-sitter-cli` and transparent state tracking 
   - Shipped in v0.28.0
   - MVP scope: name + category only. Versions/timestamps are **not yet tracked** — that
     requires a `global_config.yaml` schema change and is still planned (see below)
+  - Also opens an interactive dashboard (grouped list with live OK/MISSING/UNKNOWN status
+    per item) when run in a terminal; plain-text table behavior for piped/CI/`--plain` use
+    is unchanged. Shares this dashboard with `dg validate` below. (Pending next release tag.)
+
+- 🟢 **`dg validate`** — Drift detection between tracked state and system reality
+  - Checks every item Devgita tracked (installed by it, or found pre-existing) against
+    system reality (package manager / binary / version-command check per category)
+  - In a terminal, opens the same dashboard as `dg list`, pre-filtered to problems only
+  - Piped output, CI, or `--plain`: prints a plain STATUS table and exits non-zero if
+    anything tracked is missing (a failed check reports UNKNOWN and never fails the exit
+    code, so a flaky/unavailable package manager can't turn CI red)
+  - `--category <name>` filters to a single bucket
+  - MVP scope: presence/drift detection only, read-only. No in-TUI repair/reinstall actions
+    yet (flagged as a follow-up)
+  - Pending next release tag (shipped on `dg-validate-inventory` branch; not yet released)
 
 ---
 
@@ -61,10 +76,6 @@ The following commands are planned but not yet implemented:
 - **`dg check-updates`** — Find available updates for all installed packages
   - Report which apps have updates available
   - Depends on version tracking existing first
-
-- **`dg validate`** — Check configuration validity
-  - Verify current configuration is valid
-  - Check if all dependencies are met
 
 ### Customization
 

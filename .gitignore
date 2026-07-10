@@ -47,3 +47,6 @@ devgita-linux-*
 
 # Claude Code worktrees (legacy)
 .claude/worktrees/
+
+# Development worktrees (superpowers)
+.worktrees/

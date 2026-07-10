@@ -451,7 +451,10 @@ func TestDetectPreInstalledDatabases(t *testing.T) {
 
 		// None should be detected (check databases list is empty)
 		if len(gc.AlreadyInstalled.Databases) > 0 {
-			t.Errorf("Expected no databases to be tracked, but found: %v", gc.AlreadyInstalled.Databases)
+			t.Errorf(
+				"Expected no databases to be tracked, but found: %v",
+				gc.AlreadyInstalled.Databases,
+			)
 		}
 	})
 
@@ -620,4 +623,34 @@ func TestDatabaseConfig_AllNative(t *testing.T) {
 			t.Errorf("Expected database %s not found in configs", db)
 		}
 	}
+}
+
+func TestIsInstalledOnSystem_KnownDatabaseOK(t *testing.T) {
+	mockApp := testutil.NewMockApp()
+	d := &Databases{Cmd: mockApp.Cmd, Base: mockApp.Base}
+	mockApp.Base.SetExecCommandResult("redis-server 7.2.0", "", nil)
+
+	if !d.IsInstalledOnSystem("redis") {
+		t.Error("expected redis to be detected as installed")
+	}
+}
+
+func TestIsInstalledOnSystem_KnownDatabaseMissing(t *testing.T) {
+	mockApp := testutil.NewMockApp()
+	d := &Databases{Cmd: mockApp.Cmd, Base: mockApp.Base}
+	mockApp.Base.SetExecCommandResult("", "command not found", fmt.Errorf("command not found"))
+
+	if d.IsInstalledOnSystem("postgresql") {
+		t.Error("expected postgresql to be detected as missing")
+	}
+}
+
+func TestIsInstalledOnSystem_UnknownNameReturnsFalse(t *testing.T) {
+	mockApp := testutil.NewMockApp()
+	d := &Databases{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+	if d.IsInstalledOnSystem("cassandra") {
+		t.Error("expected an unrecognized database name to return false")
+	}
+	testutil.VerifyNoRealCommands(t, mockApp.Base)
 }

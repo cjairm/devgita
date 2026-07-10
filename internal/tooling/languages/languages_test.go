@@ -503,7 +503,10 @@ func TestDetectPreInstalledLanguages(t *testing.T) {
 
 		// None should be detected (check dev_languages list is empty)
 		if len(gc.AlreadyInstalled.DevLanguages) > 0 {
-			t.Errorf("Expected no languages to be tracked, but found: %v", gc.AlreadyInstalled.DevLanguages)
+			t.Errorf(
+				"Expected no languages to be tracked, but found: %v",
+				gc.AlreadyInstalled.DevLanguages,
+			)
 		}
 	})
 
@@ -546,4 +549,36 @@ func TestNew_CallsDetection(t *testing.T) {
 	if err := gc.Load(); err != nil {
 		t.Fatalf("Expected global config to exist after New(): %v", err)
 	}
+}
+
+func TestIsInstalledOnSystem_MiseLanguageOK(t *testing.T) {
+	mockApp := testutil.NewMockApp()
+	dl := &DevLanguages{Cmd: mockApp.Cmd, Base: mockApp.Base}
+	mockApp.Base.SetExecCommandResult("v20.0.0", "", nil)
+
+	// "node@lts" is exactly what formatSpec produces for the mise-managed Node config.
+	if !dl.IsInstalledOnSystem("node@lts") {
+		t.Error("expected node@lts to be detected as installed")
+	}
+}
+
+func TestIsInstalledOnSystem_NativeLanguageMissing(t *testing.T) {
+	mockApp := testutil.NewMockApp()
+	dl := &DevLanguages{Cmd: mockApp.Cmd, Base: mockApp.Base}
+	mockApp.Base.SetExecCommandResult("", "command not found", fmt.Errorf("command not found"))
+
+	// "php" (no version suffix — PHP is UseMise: false) is what formatSpec produces for PHP.
+	if dl.IsInstalledOnSystem("php") {
+		t.Error("expected php to be detected as missing")
+	}
+}
+
+func TestIsInstalledOnSystem_UnknownSpecReturnsFalse(t *testing.T) {
+	mockApp := testutil.NewMockApp()
+	dl := &DevLanguages{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+	if dl.IsInstalledOnSystem("cobol@1985") {
+		t.Error("expected an unrecognized language spec to return false")
+	}
+	testutil.VerifyNoRealCommands(t, mockApp.Base)
 }

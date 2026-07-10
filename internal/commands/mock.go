@@ -29,16 +29,26 @@ type MockCommand struct {
 	// Call history for MaybeInstallPackage
 	MaybeInstalledPkgs []string         // ordered history of all MaybeInstallPackage calls
 	MaybeInstallErrors map[string]error // per-package error injection: pkg -> error
+
+	// Per-name presence/error overrides — map hit wins over the global bool/error above.
+	PackageInstalledMap       map[string]bool
+	DesktopAppInstalledMap    map[string]bool
+	PackageInstalledErrors    map[string]error
+	DesktopAppInstalledErrors map[string]error
 }
 
 // NewMockCommand creates a new MockCommand with sensible defaults
 func NewMockCommand() *MockCommand {
 	return &MockCommand{
-		PackageManagerInstalled: true,
-		PackageInstalled:        false,
-		DesktopAppInstalled:     false,
-		MaybeInstalledPkgs:      []string{},
-		MaybeInstallErrors:      map[string]error{},
+		PackageManagerInstalled:   true,
+		PackageInstalled:          false,
+		DesktopAppInstalled:       false,
+		MaybeInstalledPkgs:        []string{},
+		MaybeInstallErrors:        map[string]error{},
+		PackageInstalledMap:       map[string]bool{},
+		DesktopAppInstalledMap:    map[string]bool{},
+		PackageInstalledErrors:    map[string]error{},
+		DesktopAppInstalledErrors: map[string]error{},
 	}
 }
 
@@ -101,10 +111,30 @@ func (m *MockCommand) IsPackageManagerInstalled() bool {
 }
 
 func (m *MockCommand) IsPackageInstalled(packageName string) (bool, error) {
+	if m.PackageInstalledErrors != nil {
+		if err, ok := m.PackageInstalledErrors[packageName]; ok {
+			return false, err
+		}
+	}
+	if m.PackageInstalledMap != nil {
+		if v, ok := m.PackageInstalledMap[packageName]; ok {
+			return v, nil
+		}
+	}
 	return m.PackageInstalled, nil
 }
 
 func (m *MockCommand) IsDesktopAppInstalled(desktopAppName string) (bool, error) {
+	if m.DesktopAppInstalledErrors != nil {
+		if err, ok := m.DesktopAppInstalledErrors[desktopAppName]; ok {
+			return false, err
+		}
+	}
+	if m.DesktopAppInstalledMap != nil {
+		if v, ok := m.DesktopAppInstalledMap[desktopAppName]; ok {
+			return v, nil
+		}
+	}
 	return m.DesktopAppInstalled, nil
 }
 
@@ -130,6 +160,10 @@ func (m *MockCommand) Reset() {
 
 	m.MaybeInstalledPkgs = []string{}
 	m.MaybeInstallErrors = map[string]error{}
+	m.PackageInstalledMap = map[string]bool{}
+	m.DesktopAppInstalledMap = map[string]bool{}
+	m.PackageInstalledErrors = map[string]error{}
+	m.DesktopAppInstalledErrors = map[string]error{}
 }
 
 // SetError configures error scenarios for different operations
@@ -176,6 +210,7 @@ type MockBaseCommand struct {
 	IsDesktopAppPresentResult bool
 	IsPackagePresentResult    bool
 	IsFontPresentResult       bool
+	IsFontPresentError        error
 
 	// Platform detection mock
 	IsMacResult bool
@@ -261,7 +296,7 @@ func (m *MockBaseCommand) IsPackagePresent(cmd *exec.Cmd, packageName string) (b
 
 // IsFontPresent mocks the BaseCommand.IsFontPresent method
 func (m *MockBaseCommand) IsFontPresent(fontName string) (bool, error) {
-	return m.IsFontPresentResult, nil
+	return m.IsFontPresentResult, m.IsFontPresentError
 }
 
 // MaybeInstall mocks the BaseCommand.MaybeInstall method

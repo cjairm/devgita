@@ -61,7 +61,8 @@ func (d *Databases) ChooseDatabases(ctx context.Context) (context.Context, error
 	if len(installedDatabases) > 0 {
 		utils.PrintWarning(fmt.Sprintf(
 			"Already installed databases (skipped from selection): %s",
-			strings.Join(installedDatabases, ", ")))
+			strings.Join(installedDatabases, ", "),
+		))
 	}
 	selectedDatabases, err := promptui.MultiSelect(
 		"Select databases to install",
@@ -84,6 +85,18 @@ func (d *Databases) isDatabaseInstalledOnSystem(dbCfg DatabaseConfig) bool {
 		Args:    versionArgs,
 	})
 	return err == nil
+}
+
+// IsInstalledOnSystem reports whether the tracked database name matches a known
+// database config and is present on the system via its version command. Returns
+// false for a name that matches no current config.
+func (d *Databases) IsInstalledOnSystem(name string) bool {
+	for _, dbCfg := range GetDatabaseConfigs() {
+		if dbCfg.Name == name {
+			return d.isDatabaseInstalledOnSystem(dbCfg)
+		}
+	}
+	return false
 }
 
 // getInstalledDatabases returns list of already installed database display names

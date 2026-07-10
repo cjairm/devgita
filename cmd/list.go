@@ -10,6 +10,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/cjairm/devgita/internal/config"
+	tuiinventory "github.com/cjairm/devgita/internal/tui/inventory"
 	"github.com/spf13/cobra"
 )
 
@@ -149,7 +150,10 @@ func formatInstalled(gc *config.GlobalConfig, category string) (string, error) {
 	return buf.String(), nil
 }
 
-var listCategoryFlag string
+var (
+	listCategoryFlag string
+	listPlainFlag    bool
+)
 
 var listCmd = &cobra.Command{
 	Use:     "list",
@@ -157,19 +161,32 @@ var listCmd = &cobra.Command{
 	Short:   "View all items installed via Devgita",
 	Long: `View all items installed via Devgita (alias: installed).
 
-Reads ~/.config/devgita/global_config.yaml and prints everything Devgita has
-installed, grouped by category, plus a separate section for items that were
-already present on the machine before Devgita touched them.
+In a terminal, opens the interactive inventory dashboard grouped by category
+with a live OK/MISSING/UNKNOWN status per item. Piped output, CI, or --plain
+fall back to the plain-text table (reads ~/.config/devgita/global_config.yaml
+directly, with no live status check).
 
 Examples:
-  dg list                          # Show everything, grouped by category
+  dg list                          # Interactive dashboard in a terminal
+  dg list --plain                  # Force the plain-text table
   dg list --category=terminal_tools  # Show only one category
   dg installed                     # Same as 'dg list'`,
 	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if listCategoryFlag != "" && !isValidCategory(listCategoryFlag) {
+			return fmt.Errorf(
+				"invalid category %q: valid categories are %s",
+				listCategoryFlag, strings.Join(validCategoryKeys(), ", "),
+			)
+		}
+
 		gc := &config.GlobalConfig{}
 		if err := gc.Load(); err != nil {
 			return fmt.Errorf("failed to load global config: %w", err)
+		}
+
+		if !listPlainFlag && isInteractiveTerminal() {
+			return tuiinventory.Run(gc, tuiinventory.Options{Category: listCategoryFlag})
 		}
 
 		out, err := formatInstalled(gc, listCategoryFlag)
@@ -190,5 +207,11 @@ func init() {
 		"category",
 		"",
 		fmt.Sprintf("Filter to a single category (%s)", strings.Join(validCategoryKeys(), ", ")),
+	)
+	listCmd.Flags().BoolVar(
+		&listPlainFlag,
+		"plain",
+		false,
+		"Force plain-text output even in a terminal",
 	)
 }

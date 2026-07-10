@@ -71,7 +71,8 @@ func (dl *DevLanguages) ChooseLanguages(ctx context.Context) (context.Context, e
 	if len(installedLanguages) > 0 {
 		utils.PrintWarning(fmt.Sprintf(
 			"Already installed languages (skipped from selection): %s",
-			strings.Join(installedLanguages, ", ")))
+			strings.Join(installedLanguages, ", "),
+		))
 	}
 	selectedLanguages, err := promptui.MultiSelect(
 		"Select programming languages to install",
@@ -94,6 +95,19 @@ func (dl *DevLanguages) isLanguageInstalledOnSystem(langCfg LanguageConfig) bool
 		Args:    versionArgs,
 	})
 	return err == nil
+}
+
+// IsInstalledOnSystem reports whether the tracked language spec (as produced by
+// formatSpec — e.g. "node@lts" for mise-managed languages, "php" for native ones)
+// matches a known language config and is present on the system via its version
+// command. Returns false for a spec that matches no current config.
+func (dl *DevLanguages) IsInstalledOnSystem(name string) bool {
+	for _, langCfg := range GetLanguageConfigs() {
+		if formatSpec(langCfg.Name, langCfg.Version, langCfg.UseMise) == name {
+			return dl.isLanguageInstalledOnSystem(langCfg)
+		}
+	}
+	return false
 }
 
 // getInstalledLanguages returns list of already installed language display names

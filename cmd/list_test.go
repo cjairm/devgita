@@ -103,6 +103,16 @@ func TestListCmd_InvalidCategoryFlag(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid category")
 }
 
+func TestListCmd_PlainFlagRegistered(t *testing.T) {
+	flag := listCmd.Flags().Lookup("plain")
+	if flag == nil {
+		t.Fatal("expected --plain flag to be registered on dg list")
+	}
+	if flag.DefValue != "false" {
+		t.Errorf("expected --plain to default to false, got %q", flag.DefValue)
+	}
+}
+
 func TestListCmd_LoadFailure(t *testing.T) {
 	origRoot := paths.Paths.Config.Root
 	paths.Paths.Config.Root = t.TempDir()
