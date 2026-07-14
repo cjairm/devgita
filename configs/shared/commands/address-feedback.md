@@ -54,7 +54,17 @@ devgita task review-threads --state unresolved   # add --pr PR_NUMBER if you hav
 
 Read the whole list before changing anything — a later comment can change how you handle an earlier one.
 
-### 3. Triage each thread
+### 3. Load the repo's conventions
+
+Before touching code, read the repo's entry-point docs so every change follows its established patterns:
+
+1. `CLAUDE.md`, `AGENTS.md`, or `INSTRUCTIONS.md` — development practices, patterns, build/test/commit conventions.
+2. `README.md` if none of those exist — basic project info and links to deeper docs.
+3. Follow the links those files point to when they cover the area you're changing (e.g. a testing or error-handling guide).
+
+These conventions govern how you implement every fix in the next steps.
+
+### 4. Triage each thread
 
 Sort every thread into one of these, then work in logical batches (not one commit per comment):
 
@@ -66,15 +76,20 @@ Sort every thread into one of these, then work in logical batches (not one commi
 | Out of scope  | Valid but not for this PR                   | Reply that you'll track it separately, resolve      |
 | Needs clarity | You genuinely don't understand the ask      | Reply with a specific question — **do not resolve** |
 
-Before implementing, look at how the surrounding code already solves similar problems so your change matches the codebase's existing patterns.
+**Verify before you change anything.** For each "Fix" thread, check the suggested change against two bars before writing code:
 
-### 4. Implement, verify, and commit
+- **Repository patterns** — look at how the surrounding code already solves similar problems (and what the docs from step 3 say). Your change must match the codebase's existing patterns.
+- **Industry best practices** — the suggestion should be sound engineering, not just what the reviewer typed. If it conflicts with a well-established practice or with the repo's own conventions, don't implement it blindly — move it to the Discuss bucket and explain the tradeoff in plain terms.
 
-Make the changes, then verify and commit **following the repo's own conventions** — read `AGENTS.md`, `CLAUDE.md`, or `INSTRUCTIONS.md` for how this project builds, tests, and commits. Don't assume a language or toolchain.
+A reviewer comment is an input, not an order: agree with it by verifying it, not by default.
+
+### 5. Implement, verify, and commit
+
+Make the changes following the conventions from step 3, then verify and commit the same way — how this project builds, tests, and commits. Don't assume a language or toolchain.
 
 Group related fixes into meaningful commits and push so reviewers can see what changed since their pass.
 
-### 5. Reply and resolve
+### 6. Reply and resolve
 
 For each thread you handled, reply then resolve:
 
@@ -86,6 +101,26 @@ devgita task resolve-thread <thread-id>
 Use `--body-file <path>` instead of an inline body when the reply needs multi-line Markdown.
 
 Reply to every thread, even trivial ones, so the reviewer never has to guess whether you saw it. Reference the commit when a fix landed there. Leave "needs clarity" threads open.
+
+**Reply style — keep it simple.** Every reply must be readable by any engineer, including a junior one:
+
+- Use plain, everyday words. No fancy vocabulary, no jargon unless the reviewer used it first.
+- Short sentences. Say what you changed and why in one or two lines.
+- No filler ("as per your suggestion", "I have proceeded to..."). Just: what changed, where, and the commit.
+- If you disagree, explain the tradeoff in simple terms — no lecturing.
+
+Good: `Done in a1b2c3d — moved the check before the loop so we don't hit the API on every item.`
+Bad: `Per your astute observation, I have refactored the aforementioned logic to preemptively short-circuit redundant invocations.`
+
+### 7. Re-request review
+
+After all threads are handled and pushed, tag each reviewer whose feedback you addressed so they know it's ready for another look:
+
+```bash
+devgita task comment-pr --body "@<reviewer1> @<reviewer2> Addressed your feedback — pushed in <short-sha(s)>. Ready for another look."
+```
+
+Get the reviewer usernames from the thread authors in step 2. Tag every distinct reviewer you replied to, in one comment.
 
 ## Output
 
@@ -107,6 +142,9 @@ Return only this — no preamble, no narration:
 
 ### Verification
 <result of the repo's build/test command, or "n/a — no code changes">
+
+### Re-review
+Tagged: @<reviewer1>, @<reviewer2>
 ```
 
 ## Notes

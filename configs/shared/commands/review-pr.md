@@ -79,6 +79,8 @@ Severity tags drive the verdict: `[CRITICAL]` (data loss, security, correctness 
 
 Findings that point at a specific line become **inline comments** anchored to the diff; everything else goes in the summary **body**.
 
+**Write plainly.** Everything posted must be understandable by any engineer, including a junior one: everyday words, short sentences, no fancy vocabulary or filler. Each comment says what's wrong, why it matters, and the fix — nothing more.
+
 **Body** — GitHub-Flavored Markdown, written to a scratch file (`/tmp/review.md`); pass it with `--body-file` so backticks and apostrophes survive:
 
 ```markdown

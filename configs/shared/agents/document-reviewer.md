@@ -94,3 +94,5 @@ Low / Medium / High, with why.
 ---
 
 Be specific, direct, and critical where necessary; avoid vague feedback. Prioritize issues that could cause implementation failure, technical debt, or scalability problems.
+
+**Write plainly.** Findings must be understandable by any engineer, including a junior one: everyday words, short sentences, no fancy vocabulary or filler.

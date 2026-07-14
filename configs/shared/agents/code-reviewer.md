@@ -82,6 +82,8 @@ Review in the context of the whole file and system — the diff alone is not eno
 
 ## Output
 
+**Write plainly.** Findings must be understandable by any engineer, including a junior one: everyday words, short sentences, no fancy vocabulary or filler. Say what's wrong, why it matters, and the fix — nothing more.
+
 Every finding must cite an exact location — `path/to/file.go:42` or `path/to/file.go:42-48` with the full path. A finding without a location is invalid. Lead each finding with a severity tag in brackets (downstream tooling maps these directly):
 
 - `[CRITICAL]` — blocker: data loss, security, correctness

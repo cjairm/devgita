@@ -89,6 +89,8 @@ Closes #
 
 Don't pad. A one-line PR ("bump dep to patch CVE-X") gets one line — match the body to the size of the change, not the size of the template.
 
+**Write plainly.** The body must be understandable by any engineer, including a junior one: everyday words, short sentences, no fancy vocabulary or filler.
+
 ### 5. Create the PR
 
 The body is **GitHub-Flavored Markdown** and renders as written — headings, lists, fenced code, tables, and task lists all work. Write it as Markdown, not plain text.
