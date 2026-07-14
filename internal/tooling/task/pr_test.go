@@ -191,6 +191,19 @@ func TestPRConfirmations(t *testing.T) {
 		}
 	})
 
+	t.Run("request review with explicit pr", func(t *testing.T) {
+		pm, ghBase, _ := newPRSetup()
+		ghBase.SetExecCommandResult("", "", nil)
+
+		out, err := pm.RequestReviewPR("7", []string{"octocat", "hubot"})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if out != "Requested review from octocat, hubot on PR #7" {
+			t.Fatalf("unexpected confirmation: %q", out)
+		}
+	})
+
 	t.Run("merge current branch pr", func(t *testing.T) {
 		pm, ghBase, _ := newPRSetup()
 		ghBase.SetExecCommandResult("", "", nil)

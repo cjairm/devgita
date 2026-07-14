@@ -386,6 +386,7 @@ into compact, LLM-oriented output — `gh` fetches/acts, `jq` renders):
 | `update-pr-description` | `--pr N`, `--body` (req)                      | Replace a PR's description                                           |
 | `approve-pr`            | `--pr N`, `--body`                            | Approve a PR                                                         |
 | `request-changes-pr`    | `--pr N`, `--body` (req)                      | Request changes on a PR                                              |
+| `request-review`        | `--pr N`, `<reviewer>...` (req)               | Re-request review (adds reviewers back to the requested list)        |
 | `comment-pr`            | `--pr N`, `--body` (req)                      | Post a top-level PR comment                                          |
 | `merge-pr`              | `--pr N`, `--method squash\|merge\|rebase`    | Merge a PR (default: squash)                                         |
 | `pr-view`               | `--pr N`                                      | Compact PR summary (number, title, state, mergeable, review, branch) |

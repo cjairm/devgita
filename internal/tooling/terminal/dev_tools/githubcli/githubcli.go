@@ -301,6 +301,22 @@ func (g *GithubCli) RequestChangesPR(prNumber, body string) error {
 	return g.ExecuteCommand(args...)
 }
 
+// RequestReviewPR adds reviewers to a pull request's requested-reviewers list.
+// GitHub re-requests review from a reviewer who already reviewed, so this is
+// how a PR is handed back after feedback is addressed. prNumber may be empty
+// (current branch); at least one reviewer is required.
+func (g *GithubCli) RequestReviewPR(prNumber string, reviewers []string) error {
+	if len(reviewers) == 0 {
+		return fmt.Errorf("request review requires at least one reviewer")
+	}
+	args := []string{"pr", "edit"}
+	if prNumber != "" {
+		args = append(args, prNumber)
+	}
+	args = append(args, "--add-reviewer", strings.Join(reviewers, ","))
+	return g.ExecuteCommand(args...)
+}
+
 // replyReviewThreadMutation posts a reply comment onto an existing review thread.
 const replyReviewThreadMutation = `mutation($threadId: ID!, $body: String!) {
   addPullRequestReviewThreadReply(input: {pullRequestReviewThreadId: $threadId, body: $body}) {

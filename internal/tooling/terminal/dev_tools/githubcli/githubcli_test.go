@@ -762,6 +762,51 @@ func TestCommentPR(t *testing.T) {
 	})
 }
 
+func TestRequestReviewPR(t *testing.T) {
+	t.Run("adds reviewers on explicit pr", func(t *testing.T) {
+		mockBase := commands.NewMockBaseCommand()
+		app := &GithubCli{Cmd: commands.NewMockCommand(), Base: mockBase}
+		mockBase.SetExecCommandResult("", "", nil)
+
+		if err := app.RequestReviewPR("7", []string{"octocat", "hubot"}); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		call := mockBase.GetLastExecCommandCall()
+		if !argSeq(call.Args, "pr", "edit", "7") {
+			t.Fatalf("expected 'pr edit 7', got %v", call.Args)
+		}
+		if !argSeq(call.Args, "--add-reviewer", "octocat,hubot") {
+			t.Fatalf("expected --add-reviewer octocat,hubot, got %v", call.Args)
+		}
+	})
+
+	t.Run("omits pr number for current branch", func(t *testing.T) {
+		mockBase := commands.NewMockBaseCommand()
+		app := &GithubCli{Cmd: commands.NewMockCommand(), Base: mockBase}
+		mockBase.SetExecCommandResult("", "", nil)
+
+		if err := app.RequestReviewPR("", []string{"octocat"}); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		call := mockBase.GetLastExecCommandCall()
+		if call.Args[0] != "pr" || call.Args[1] != "edit" || call.Args[2] != "--add-reviewer" {
+			t.Fatalf("expected 'pr edit --add-reviewer ...' with no number, got %v", call.Args)
+		}
+	})
+
+	t.Run("requires at least one reviewer", func(t *testing.T) {
+		mockBase := commands.NewMockBaseCommand()
+		app := &GithubCli{Cmd: commands.NewMockCommand(), Base: mockBase}
+
+		if err := app.RequestReviewPR("7", nil); err == nil {
+			t.Fatal("expected error for empty reviewers")
+		}
+		if mockBase.GetExecCommandCallCount() != 0 {
+			t.Fatal("expected no gh call when validation fails")
+		}
+	})
+}
+
 func TestMergePR(t *testing.T) {
 	tests := []struct {
 		method   string

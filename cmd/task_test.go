@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -393,6 +394,10 @@ func (m *mockPRRunner) RequestChangesPR(pr, body string) (string, error) {
 	return m.record("RequestChangesPR", "pr", pr, "body", body)
 }
 
+func (m *mockPRRunner) RequestReviewPR(pr string, reviewers []string) (string, error) {
+	return m.record("RequestReviewPR", "pr", pr, "reviewers", strings.Join(reviewers, ","))
+}
+
 func (m *mockPRRunner) CommentPR(pr, body string) (string, error) {
 	return m.record("CommentPR", "pr", pr, "body", body)
 }
@@ -482,6 +487,26 @@ func TestPRTask_Dispatch(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		if mock.lastArg["pr"] != "9" || mock.lastArg["method"] != "rebase" {
+			t.Fatalf("unexpected args: %v", mock.lastArg)
+		}
+	})
+
+	t.Run("request-review passes pr and reviewers", func(t *testing.T) {
+		mock := newMockPRRunner()
+		defer setupPRMock(t, mock)()
+		prFlag = "7"
+		defer func() { prFlag = "" }()
+
+		if err := taskRequestReviewCmd.RunE(
+			taskRequestReviewCmd,
+			[]string{"octocat", "hubot"},
+		); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if mock.calls[0] != "RequestReviewPR" {
+			t.Fatalf("expected RequestReviewPR, got %v", mock.calls)
+		}
+		if mock.lastArg["pr"] != "7" || mock.lastArg["reviewers"] != "octocat,hubot" {
 			t.Fatalf("unexpected args: %v", mock.lastArg)
 		}
 	})

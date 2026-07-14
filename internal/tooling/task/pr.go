@@ -237,6 +237,19 @@ func (p *PRManager) RequestChangesPR(prNumber, body string) (string, error) {
 	return "Requested changes on " + prLabel(prNumber), nil
 }
 
+// RequestReviewPR re-requests review from the given reviewers by adding them
+// back to the PR's requested-reviewers list.
+func (p *PRManager) RequestReviewPR(prNumber string, reviewers []string) (string, error) {
+	if err := p.Gh.RequestReviewPR(prNumber, reviewers); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf(
+		"Requested review from %s on %s",
+		strings.Join(reviewers, ", "),
+		prLabel(prNumber),
+	), nil
+}
+
 // CommentPR posts a top-level comment on a PR.
 func (p *PRManager) CommentPR(prNumber, body string) (string, error) {
 	if err := p.Gh.CommentPR(prNumber, body); err != nil {

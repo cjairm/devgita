@@ -206,6 +206,7 @@ dg install --skip databases,desktop
     - `dg task update-pr-description [--pr N] --body B` - Replace a PR description
     - `dg task approve-pr [--pr N] [--body B]` - Approve a PR
     - `dg task request-changes-pr [--pr N] --body B` - Request changes on a PR
+    - `dg task request-review [--pr N] <reviewer>...` - Re-request review from reviewers (adds them back to the reviewers list)
     - `dg task comment-pr [--pr N] --body B` - Post a top-level PR comment
     - `dg task merge-pr [--pr N] [--method squash|merge|rebase]` - Merge a PR
     - `dg task pr-view [--pr N]` / `pr-checks [--pr N]` - Compact PR summary / CI check status

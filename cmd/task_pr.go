@@ -24,6 +24,7 @@ type prRunner interface {
 	UpdatePRDescription(prNumber, body string) (string, error)
 	ApprovePR(prNumber, body string) (string, error)
 	RequestChangesPR(prNumber, body string) (string, error)
+	RequestReviewPR(prNumber string, reviewers []string) (string, error)
 	CommentPR(prNumber, body string) (string, error)
 	MergePR(prNumber, method string) (string, error)
 	PRView(prNumber string) (string, error)
@@ -239,6 +240,22 @@ var taskRequestChangesPRCmd = &cobra.Command{
 	},
 }
 
+var taskRequestReviewCmd = &cobra.Command{
+	Use:   "request-review <reviewer> [reviewer...]",
+	Short: "Re-request review from one or more reviewers (adds them to the PR's reviewers list)",
+	Long: `Add reviewers back to a pull request's requested-reviewers list. GitHub
+re-requests review from a reviewer who already reviewed, so this hands the PR
+back after feedback is addressed. --pr targets a PR number; omit it to use the
+current branch's PR.`,
+	Example: `  dg task request-review octocat
+  dg task request-review --pr 42 octocat hubot`,
+	Args: cobra.MinimumNArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		out, err := newPRTasks().RequestReviewPR(prFlag, args)
+		return emitPRResult(cmd, out, err)
+	},
+}
+
 var taskCommentPRCmd = &cobra.Command{
 	Use:   "comment-pr",
 	Short: "Post a top-level comment on a pull request (body required)",
@@ -314,6 +331,7 @@ func init() {
 	taskCmd.AddCommand(taskUpdatePRDescriptionCmd)
 	taskCmd.AddCommand(taskApprovePRCmd)
 	taskCmd.AddCommand(taskRequestChangesPRCmd)
+	taskCmd.AddCommand(taskRequestReviewCmd)
 	taskCmd.AddCommand(taskCommentPRCmd)
 	taskCmd.AddCommand(taskMergePRCmd)
 	taskCmd.AddCommand(taskPRViewCmd)
@@ -364,6 +382,9 @@ func init() {
 	taskRequestChangesPRCmd.Flags().
 		StringVar(&prBodyFlag, "body", "", "Review comment, Markdown (required)")
 	taskRequestChangesPRCmd.Flags().StringVar(&prBodyFileFlag, "body-file", "", bodyFileUsage)
+
+	taskRequestReviewCmd.Flags().
+		StringVar(&prFlag, "pr", "", "PR number (default: current branch)")
 
 	taskCommentPRCmd.Flags().StringVar(&prFlag, "pr", "", "PR number (default: current branch)")
 	taskCommentPRCmd.Flags().

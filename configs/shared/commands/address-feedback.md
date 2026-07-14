@@ -114,13 +114,13 @@ Bad: `Per your astute observation, I have refactored the aforementioned logic to
 
 ### 7. Re-request review
 
-After all threads are handled and pushed, tag each reviewer whose feedback you addressed so they know it's ready for another look:
+After all threads are handled and pushed, add each reviewer whose feedback you addressed back to the PR's reviewers list so GitHub asks them for a fresh review:
 
 ```bash
-devgita task comment-pr --body "@<reviewer1> @<reviewer2> Addressed your feedback — pushed in <short-sha(s)>. Ready for another look."
+devgita task request-review <reviewer1> [reviewer2 ...]   # add --pr PR_NUMBER if you have one
 ```
 
-Get the reviewer usernames from the thread authors in step 2. Tag every distinct reviewer you replied to, in one comment.
+Get the reviewer usernames from the thread authors in step 2. Request every distinct human reviewer you replied to in one command; skip bot authors.
 
 ## Output
 
@@ -144,7 +144,7 @@ Return only this — no preamble, no narration:
 <result of the repo's build/test command, or "n/a — no code changes">
 
 ### Re-review
-Tagged: @<reviewer1>, @<reviewer2>
+Requested from: <reviewer1>, <reviewer2>
 ```
 
 ## Notes
