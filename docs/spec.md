@@ -365,6 +365,14 @@ dg t <subcommand> [args]   # alias
 | `reinstall-libraries` | —          | `git clean -Xdf`, remove `node_modules/`, `npm install`, remove `tsconfig.tsbuildinfo` |
 | `reinstall-library`   | `<name>`   | Remove `node_modules/<name>`, run `npm install`                                        |
 
+**Review scope subcommands** (compact, noise-filtered git context for agents — the
+`review-threads` pattern applied to git; `git` plumbing is fetched, Go formatters render):
+
+| Subcommand     | Args / Flags    | Description                                                                                                                                                                                                                                                                                         |
+| -------------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `review-scope` | —               | Fetch origin (bounded, best-effort), then print branch, default branch, ahead/behind, commit subjects, and a per-file stat table. Lockfile-style noise (`package-lock.json`, `go.sum`, `*.min.js`, …) is excluded from the table and noted separately with its own counts — never silently dropped. |
+| `branch-diff`  | `--file <path>` | Diff against the merge-base with the default branch, same default exclusions applied in one `git diff` call. Does **not** fetch (reuses `review-scope`'s comparison base within the same review session). `--file` bypasses exclusions for that one file.                                           |
+
 **Pull request subcommands** (via `gh`; data-returning ones are formatted by `jq`
 into compact, LLM-oriented output — `gh` fetches/acts, `jq` renders):
 

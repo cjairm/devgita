@@ -25,6 +25,15 @@ type mockTaskRunner struct {
 	deleteBranchArg    string
 	deleteBranchCalled bool
 	deleteBranchErr    error
+
+	reviewScopeCalled bool
+	reviewScopeRet    string
+	reviewScopeErr    error
+
+	branchDiffArg    string
+	branchDiffCalled bool
+	branchDiffRet    string
+	branchDiffErr    error
 }
 
 func (m *mockTaskRunner) RefreshBranch(target string) error {
@@ -53,6 +62,17 @@ func (m *mockTaskRunner) DeleteBranch(target string) error {
 	m.deleteBranchCalled = true
 	m.deleteBranchArg = target
 	return m.deleteBranchErr
+}
+
+func (m *mockTaskRunner) ReviewScope() (string, error) {
+	m.reviewScopeCalled = true
+	return m.reviewScopeRet, m.reviewScopeErr
+}
+
+func (m *mockTaskRunner) BranchDiff(file string) (string, error) {
+	m.branchDiffCalled = true
+	m.branchDiffArg = file
+	return m.branchDiffRet, m.branchDiffErr
 }
 
 func setupTaskMock(t *testing.T, mock taskRunner) func() {
@@ -228,6 +248,83 @@ func TestTask_DeleteBranch(t *testing.T) {
 		defer restore()
 
 		err := taskDeleteBranchCmd.RunE(taskDeleteBranchCmd, []string{})
+		if err == nil {
+			t.Fatal("expected error")
+		}
+	})
+}
+
+func TestTask_ReviewScope(t *testing.T) {
+	t.Run("calls ReviewScope and prints its output", func(t *testing.T) {
+		mock := &mockTaskRunner{
+			reviewScopeRet: "branch: feat/x -> main (default)  [ahead 1, behind 0]",
+		}
+		restore := setupTaskMock(t, mock)
+		defer restore()
+
+		err := taskReviewScopeCmd.RunE(taskReviewScopeCmd, []string{})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !mock.reviewScopeCalled {
+			t.Error("expected ReviewScope to be called")
+		}
+	})
+
+	t.Run("propagates error", func(t *testing.T) {
+		mock := &mockTaskRunner{reviewScopeErr: fmt.Errorf("git failed")}
+		restore := setupTaskMock(t, mock)
+		defer restore()
+
+		err := taskReviewScopeCmd.RunE(taskReviewScopeCmd, []string{})
+		if err == nil {
+			t.Fatal("expected error")
+		}
+	})
+}
+
+func TestTask_BranchDiff(t *testing.T) {
+	t.Run("no --file passes empty string", func(t *testing.T) {
+		mock := &mockTaskRunner{branchDiffRet: "diff --git a/x b/x"}
+		restore := setupTaskMock(t, mock)
+		defer restore()
+		taskBranchDiffFileFlag = ""
+
+		err := taskBranchDiffCmd.RunE(taskBranchDiffCmd, []string{})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !mock.branchDiffCalled {
+			t.Error("expected BranchDiff to be called")
+		}
+		if mock.branchDiffArg != "" {
+			t.Errorf("expected empty file arg, got %q", mock.branchDiffArg)
+		}
+	})
+
+	t.Run("passes --file flag", func(t *testing.T) {
+		mock := &mockTaskRunner{branchDiffRet: "diff --git a/go.sum b/go.sum"}
+		restore := setupTaskMock(t, mock)
+		defer restore()
+		taskBranchDiffFileFlag = "go.sum"
+		defer func() { taskBranchDiffFileFlag = "" }()
+
+		err := taskBranchDiffCmd.RunE(taskBranchDiffCmd, []string{})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if mock.branchDiffArg != "go.sum" {
+			t.Errorf("expected file arg 'go.sum', got %q", mock.branchDiffArg)
+		}
+	})
+
+	t.Run("propagates error", func(t *testing.T) {
+		mock := &mockTaskRunner{branchDiffErr: fmt.Errorf("diff failed")}
+		restore := setupTaskMock(t, mock)
+		defer restore()
+		taskBranchDiffFileFlag = ""
+
+		err := taskBranchDiffCmd.RunE(taskBranchDiffCmd, []string{})
 		if err == nil {
 			t.Fatal("expected error")
 		}

@@ -23,6 +23,22 @@ Everything about designing and building devgita commands:
 
 ---
 
+### [Task Design](task-design.md) — AI-first, token-wise `dg task` subcommands
+
+How to design `dg task` output for LLM agents:
+
+- When a task earns its existence (round-trips, policy, rendering) — and when not
+- Output principles: labeled plain text, payload only, one-line confirmations, stable sentinels, lossy-with-a-receipt
+- Orchestrate/format separation (jq for JSON, pure Go for text) and its testing payoff
+- Measuring token cost before and after
+- Future: rtk and how it complements `dg task`
+
+**When to read:** Before adding or changing any `dg task` subcommand whose consumer is an agent.
+
+**Referenced by:** CLAUDE.md Documentation Index; cycle docs 2026-06-18 and 2026-07-14
+
+---
+
 ### [Testing Patterns](testing-patterns.md) — Isolation, mocks, and reliability
 
 Complete testing architecture for devgita:

@@ -27,6 +27,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/cjairm/devgita/internal/apps"
 	"github.com/cjairm/devgita/internal/apps/baseapp"
@@ -171,6 +172,25 @@ func (g *Git) FetchOrigin() error {
 	return g.ExecuteCommand("fetch", "origin")
 }
 
+// FetchOriginTimeout runs `git fetch origin` bounded by timeout, so a hung
+// network call can't block a caller expecting a fast response (e.g.
+// TaskManager.ReviewScope). A zero timeout is unbounded, same as FetchOrigin.
+func (g *Git) FetchOriginTimeout(timeout time.Duration) error {
+	execCommand := cmd.CommandParams{
+		Command: constants.Git,
+		Args:    []string{"fetch", "origin"},
+		Stream:  g.Stream,
+		Timeout: timeout,
+	}
+	if _, stderr, err := g.Base.ExecCommand(execCommand); err != nil {
+		if stderr != "" {
+			return fmt.Errorf("git: %s", stderr)
+		}
+		return fmt.Errorf("failed to run git command: %w", err)
+	}
+	return nil
+}
+
 func (g *Git) Pop(branch string) error {
 	return g.ExecuteCommand("stash", "pop")
 }
@@ -250,9 +270,57 @@ func (g *Git) RemoteBranchExists(branch string) (bool, error) {
 	return strings.TrimSpace(stdout) != "", nil
 }
 
+// CurrentBranch returns the checked-out branch name, or "" when HEAD is
+// detached (mirrors `git branch --show-current`).
+func (g *Git) CurrentBranch() (string, error) {
+	stdout, _, err := g.Base.ExecCommand(cmd.CommandParams{
+		Command: constants.Git,
+		Args:    []string{"branch", "--show-current"},
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to get current branch: %w", err)
+	}
+	return strings.TrimSpace(stdout), nil
+}
+
+// ShortHead returns HEAD's short commit SHA (mirrors `git rev-parse --short HEAD`).
+func (g *Git) ShortHead() (string, error) {
+	stdout, _, err := g.Base.ExecCommand(cmd.CommandParams{
+		Command: constants.Git,
+		Args:    []string{"rev-parse", "--short", "HEAD"},
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve HEAD: %w", err)
+	}
+	return strings.TrimSpace(stdout), nil
+}
+
+// RunCapture runs a git command and returns its stdout, for callers (e.g.
+// `dg task`) that need to parse output rather than just check for an error.
+func (g *Git) RunCapture(args ...string) (string, error) {
+	execCommand := cmd.CommandParams{
+		Command: constants.Git,
+		Args:    args,
+	}
+	stdout, stderr, err := g.Base.ExecCommand(execCommand)
+	if err != nil {
+		if stderr != "" {
+			return stdout, fmt.Errorf("git: %s", stderr)
+		}
+		return stdout, fmt.Errorf("failed to run git command: %w", err)
+	}
+	return stdout, nil
+}
+
+// defaultBranchProbeOrder is tried, in order, when origin/HEAD is unset —
+// covers the common default-branch names beyond "main".
+var defaultBranchProbeOrder = []string{"main", "master", "develop"}
+
 // DefaultBranch returns the repository's default branch name (e.g. "main").
-// It resolves origin/HEAD when available and falls back to "main" so callers
-// always get a usable branch name even on repos where origin/HEAD is unset.
+// It resolves origin/HEAD when available; when unset it probes
+// origin/main, origin/master, origin/develop in order via RemoteBranchExists
+// and returns the first that exists, falling back to "main" as a last resort
+// so callers always get a usable branch name.
 func (g *Git) DefaultBranch() string {
 	execCommand := cmd.CommandParams{
 		Command: constants.Git,
@@ -267,6 +335,12 @@ func (g *Git) DefaultBranch() string {
 		}
 		if ref != "" {
 			return ref
+		}
+	}
+
+	for _, candidate := range defaultBranchProbeOrder {
+		if exists, probeErr := g.RemoteBranchExists(candidate); probeErr == nil && exists {
+			return candidate
 		}
 	}
 	return "main"

@@ -114,6 +114,7 @@ The following commands are planned but not yet implemented:
 **New Category: `ai-tools`**
 
 - **Ollama** — Local LLM inference engine
+- **rtk** — Token-compressing CLI proxy (https://github.com/rtk-ai/rtk); complements `dg task` by covering the long tail of commands we deliberately don't wrap (test runners, docker, cat/grep). Install the binary via brew/install-script; keep its command-rewriting hook (`rtk init -g`) opt-in. See [docs/guides/task-design.md](docs/guides/task-design.md) for the adoption stance; revisit once the project stabilizes.
 - Gemini CLI integration
 - IDE AI integrations (Claude Code, Opencode configuration)
 - Terminal app for running AI commands (TBD)

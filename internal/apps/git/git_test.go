@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/cjairm/devgita/internal/apps"
 	"github.com/cjairm/devgita/internal/commands"
@@ -766,10 +767,69 @@ func TestDefaultBranch(t *testing.T) {
 		}
 	})
 
-	t.Run("falls back to main when origin/HEAD unset", func(t *testing.T) {
+	t.Run("falls back to main when origin/HEAD unset and origin/main exists", func(t *testing.T) {
 		mockApp.Base.ResetExecCommand()
 		mockApp.Base.SetExecCommandResults(
 			commands.ExecCommandResult("", "fatal: ref not found", fmt.Errorf("no origin/HEAD")),
+			commands.ExecCommandResult("origin/main", "", nil), // RemoteBranchExists("main")
+		)
+		if got := app.DefaultBranch(); got != "main" {
+			t.Fatalf("Expected 'main', got %q", got)
+		}
+	})
+
+	t.Run("probes master when origin/HEAD unset and no origin/main", func(t *testing.T) {
+		mockApp.Base.ResetExecCommand()
+		mockApp.Base.SetExecCommandResults(
+			commands.ExecCommandResult("", "fatal: ref not found", fmt.Errorf("no origin/HEAD")),
+			commands.ExecCommandResult(
+				"",
+				"",
+				nil,
+			), // RemoteBranchExists("main") -> none
+			commands.ExecCommandResult(
+				"origin/master",
+				"",
+				nil,
+			), // RemoteBranchExists("master") -> exists
+		)
+		if got := app.DefaultBranch(); got != "master" {
+			t.Fatalf("Expected 'master', got %q", got)
+		}
+	})
+
+	t.Run("probes develop when origin/HEAD unset and no main/master", func(t *testing.T) {
+		mockApp.Base.ResetExecCommand()
+		mockApp.Base.SetExecCommandResults(
+			commands.ExecCommandResult("", "fatal: ref not found", fmt.Errorf("no origin/HEAD")),
+			commands.ExecCommandResult(
+				"",
+				"",
+				nil,
+			), // RemoteBranchExists("main") -> none
+			commands.ExecCommandResult(
+				"",
+				"",
+				nil,
+			), // RemoteBranchExists("master") -> none
+			commands.ExecCommandResult(
+				"origin/develop",
+				"",
+				nil,
+			), // RemoteBranchExists("develop") -> exists
+		)
+		if got := app.DefaultBranch(); got != "develop" {
+			t.Fatalf("Expected 'develop', got %q", got)
+		}
+	})
+
+	t.Run("falls back to main when origin/HEAD unset and nothing else exists", func(t *testing.T) {
+		mockApp.Base.ResetExecCommand()
+		mockApp.Base.SetExecCommandResults(
+			commands.ExecCommandResult("", "fatal: ref not found", fmt.Errorf("no origin/HEAD")),
+			commands.ExecCommandResult("", "", nil), // RemoteBranchExists("main") -> none
+			commands.ExecCommandResult("", "", nil), // RemoteBranchExists("master") -> none
+			commands.ExecCommandResult("", "", nil), // RemoteBranchExists("develop") -> none
 		)
 		if got := app.DefaultBranch(); got != "main" {
 			t.Fatalf("Expected fallback 'main', got %q", got)
@@ -1517,6 +1577,138 @@ func TestListBranches(t *testing.T) {
 		_, err := g.ListBranches()
 		if err == nil {
 			t.Fatal("expected error")
+		}
+	})
+}
+
+func TestFetchOriginTimeout(t *testing.T) {
+	t.Run("passes the timeout through to ExecCommand", func(t *testing.T) {
+		mockBase := commands.NewMockBaseCommand()
+		mockBase.SetExecCommandResult("", "", nil)
+		g := &Git{Cmd: commands.NewMockCommand(), Base: mockBase}
+
+		if err := g.FetchOriginTimeout(10 * time.Second); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		call := mockBase.GetLastExecCommandCall()
+		if call == nil {
+			t.Fatal("expected an ExecCommand call")
+		}
+		if call.Timeout != 10*time.Second {
+			t.Fatalf("expected Timeout=10s, got %v", call.Timeout)
+		}
+		if call.Command != "git" || len(call.Args) != 2 || call.Args[0] != "fetch" ||
+			call.Args[1] != "origin" {
+			t.Fatalf("expected git fetch origin, got %s %v", call.Command, call.Args)
+		}
+	})
+
+	t.Run("propagates error (simulates a timed-out fetch)", func(t *testing.T) {
+		mockBase := commands.NewMockBaseCommand()
+		mockBase.SetExecCommandResult("", "", fmt.Errorf("command timed out after 10s"))
+		g := &Git{Cmd: commands.NewMockCommand(), Base: mockBase}
+
+		if err := g.FetchOriginTimeout(10 * time.Second); err == nil {
+			t.Fatal("expected error")
+		}
+	})
+}
+
+func TestCurrentBranch(t *testing.T) {
+	t.Run("returns the checked-out branch", func(t *testing.T) {
+		mockBase := commands.NewMockBaseCommand()
+		mockBase.SetExecCommandResult("feat/x\n", "", nil)
+		g := &Git{Cmd: commands.NewMockCommand(), Base: mockBase}
+
+		got, err := g.CurrentBranch()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got != "feat/x" {
+			t.Fatalf("expected 'feat/x', got %q", got)
+		}
+	})
+
+	t.Run("returns empty string when detached", func(t *testing.T) {
+		mockBase := commands.NewMockBaseCommand()
+		mockBase.SetExecCommandResult("", "", nil)
+		g := &Git{Cmd: commands.NewMockCommand(), Base: mockBase}
+
+		got, err := g.CurrentBranch()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got != "" {
+			t.Fatalf("expected empty string, got %q", got)
+		}
+	})
+
+	t.Run("propagates error", func(t *testing.T) {
+		mockBase := commands.NewMockBaseCommand()
+		mockBase.SetExecCommandResult("", "fatal: not a repo", fmt.Errorf("exit 128"))
+		g := &Git{Cmd: commands.NewMockCommand(), Base: mockBase}
+
+		if _, err := g.CurrentBranch(); err == nil {
+			t.Fatal("expected error")
+		}
+	})
+}
+
+func TestShortHead(t *testing.T) {
+	t.Run("returns the short sha", func(t *testing.T) {
+		mockBase := commands.NewMockBaseCommand()
+		mockBase.SetExecCommandResult("abc1234\n", "", nil)
+		g := &Git{Cmd: commands.NewMockCommand(), Base: mockBase}
+
+		got, err := g.ShortHead()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got != "abc1234" {
+			t.Fatalf("expected 'abc1234', got %q", got)
+		}
+	})
+
+	t.Run("propagates error", func(t *testing.T) {
+		mockBase := commands.NewMockBaseCommand()
+		mockBase.SetExecCommandResult("", "fatal: bad revision", fmt.Errorf("exit 128"))
+		g := &Git{Cmd: commands.NewMockCommand(), Base: mockBase}
+
+		if _, err := g.ShortHead(); err == nil {
+			t.Fatal("expected error")
+		}
+	})
+}
+
+func TestRunCapture(t *testing.T) {
+	t.Run("returns stdout on success", func(t *testing.T) {
+		mockBase := commands.NewMockBaseCommand()
+		mockBase.SetExecCommandResult("abc123\n", "", nil)
+		g := &Git{Cmd: commands.NewMockCommand(), Base: mockBase}
+
+		out, err := g.RunCapture("merge-base", "origin/main", "HEAD")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if out != "abc123\n" {
+			t.Fatalf("unexpected output: %q", out)
+		}
+
+		call := mockBase.GetLastExecCommandCall()
+		if call == nil || call.Command != "git" {
+			t.Fatalf("expected a git call, got %+v", call)
+		}
+	})
+
+	t.Run("wraps stderr on failure", func(t *testing.T) {
+		mockBase := commands.NewMockBaseCommand()
+		mockBase.SetExecCommandResult("", "fatal: bad object", fmt.Errorf("exit 128"))
+		g := &Git{Cmd: commands.NewMockCommand(), Base: mockBase}
+
+		_, err := g.RunCapture("merge-base", "origin/main", "HEAD")
+		if err == nil || !strings.Contains(err.Error(), "bad object") {
+			t.Fatalf("expected error containing stderr, got %v", err)
 		}
 	})
 }

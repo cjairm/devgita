@@ -3,6 +3,7 @@ package commands
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/pkg/constants"
@@ -70,6 +72,11 @@ type CommandParams struct {
 	// returned strings for error context. Default false preserves the quiet,
 	// debug-log-only behavior used by the installers.
 	Stream bool
+	// Timeout, when non-zero, bounds the command's execution: it is killed if
+	// still running once the timeout elapses. Zero preserves today's
+	// unbounded behavior. Used for network calls (e.g. git fetch) where a
+	// hang would otherwise block a caller expecting a fast response.
+	Timeout time.Duration
 }
 
 func NewBaseCommand() *BaseCommand {
@@ -215,7 +222,10 @@ func (b *BaseCommand) ExecCommand(cmd CommandParams) (string, string, error) {
 	logger.L().
 		Debugw("Executing command", "command", strings.Join(append([]string{command}, args...), " "))
 
-	execCommand := exec.Command(command, args...)
+	ctx, cancel := commandTimeoutContext(cmd.Timeout)
+	defer cancel()
+
+	execCommand := exec.CommandContext(ctx, command, args...)
 	execCommand.Stdin = os.Stdin
 
 	stdoutPipe, err := execCommand.StdoutPipe()
@@ -265,6 +275,9 @@ func (b *BaseCommand) ExecCommand(cmd CommandParams) (string, string, error) {
 	// Wait for command to complete, then for the readers to flush.
 	err = execCommand.Wait()
 	wg.Wait()
+	if ctx.Err() == context.DeadlineExceeded {
+		err = fmt.Errorf("command timed out after %s: %w", cmd.Timeout, ctx.Err())
+	}
 	if err != nil {
 		logger.L().Debugw("command finished with error", "error", err, "stderr", stderrBuf.String())
 	}
@@ -274,6 +287,17 @@ func (b *BaseCommand) ExecCommand(cmd CommandParams) (string, string, error) {
 	}
 
 	return strings.TrimSpace(stdoutBuf.String()), strings.TrimSpace(stderrBuf.String()), err
+}
+
+// commandTimeoutContext builds the context used to bound a command's
+// execution. A zero timeout preserves unbounded execution (today's
+// behavior); a positive timeout returns a context that cancels once it
+// elapses, causing exec.CommandContext to kill the still-running process.
+func commandTimeoutContext(timeout time.Duration) (context.Context, context.CancelFunc) {
+	if timeout <= 0 {
+		return context.Background(), func() {}
+	}
+	return context.WithTimeout(context.Background(), timeout)
 }
 
 func (b *BaseCommand) MaybeInstall(

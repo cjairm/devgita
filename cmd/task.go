@@ -32,6 +32,8 @@ type taskRunner interface {
 	ReinstallLibraries() error
 	ReinstallLibrary(name string) error
 	DeleteBranch(target string) error
+	ReviewScope() (string, error)
+	BranchDiff(file string) (string, error)
 }
 
 // newTaskManager is the factory used by task subcommands; overridden in tests.
@@ -44,14 +46,16 @@ var taskCmd = &cobra.Command{
 	Long: `Developer utility commands callable by agents (Claude Code, CI, any
 non-interactive process) and humans (via the dge() shell wrapper or directly).
 
-Three families:
+Four families:
   - git branch:  refresh-branch, reset-main-branch, delete-branch
+  - review scope: review-scope, branch-diff
   - npm deps:    reinstall-libraries, reinstall-library
   - GitHub PRs:  review-threads, resolve/unresolve/reply-thread, submit-review,
                  create-pr, update-pr-description, approve-pr, request-changes-pr,
                  comment-pr, merge-pr, pr-view, pr-checks, current-pr, current-repo
 
-PR data commands return compact, LLM-oriented output (gh fetches, jq renders).
+review-scope and PR data commands return compact, LLM-oriented output
+(review-scope/branch-diff parse git plumbing; PR commands run gh + jq).
 Run "dg task <subcommand> --help" for flags and examples.`,
 	Example: `  dg task review-threads --state unresolved
   dg task pr-view
@@ -132,6 +136,51 @@ This is equivalent to the dge reinstall-library shell utility.`,
 	},
 }
 
+// taskBranchDiffFileFlag is branch-diff's --file flag.
+var taskBranchDiffFileFlag string
+
+var taskReviewScopeCmd = &cobra.Command{
+	Use:   "review-scope",
+	Short: "Fetch + orient in one call: branch, ahead/behind, commits, file stats (for agents)",
+	Long: `Fetch origin (bounded, best-effort), resolve the default branch, and print a
+compact orientation report: ahead/behind counts, commit subjects, and a
+per-file stat table. Lockfile-style noise (package-lock.json, go.sum,
+*.min.js, ...) is excluded from the table and noted separately with its own
+stat counts, never silently dropped.
+
+Run "dg task branch-diff" next to see the full (noise-filtered) diff, or
+"dg task branch-diff --file <path>" to inspect one file, including an
+otherwise-excluded one.`,
+	Example: `  dg task review-scope
+  dg task review-scope && dg task branch-diff`,
+	Args: cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		out, err := newTaskManager().ReviewScope()
+		return emitPRResult(cmd, out, err)
+	},
+}
+
+var taskBranchDiffCmd = &cobra.Command{
+	Use:   "branch-diff",
+	Short: "Show the merge-base diff against the default branch, noise excluded (for agents)",
+	Long: `Diff the current branch against its merge-base with the default branch.
+Lockfile-style noise (package-lock.json, go.sum, *.min.js, ...) is excluded by
+default and noted separately with its own stat counts.
+
+--file bypasses exclusions and returns just that file's diff, including an
+otherwise-excluded file.
+
+Does not fetch: run "dg task review-scope" first in the same review session,
+since re-fetching per file pull could shift the comparison base mid-review.`,
+	Example: `  dg task branch-diff
+  dg task branch-diff --file internal/tooling/task/scope.go`,
+	Args: cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		out, err := newTaskManager().BranchDiff(taskBranchDiffFileFlag)
+		return emitPRResult(cmd, out, err)
+	},
+}
+
 func init() {
 	rootCmd.AddCommand(taskCmd)
 	// Standard Cobra help for the whole task subtree (overrides the branded
@@ -143,4 +192,9 @@ func init() {
 	taskCmd.AddCommand(taskDeleteBranchCmd)
 	taskCmd.AddCommand(taskReinstallLibrariesCmd)
 	taskCmd.AddCommand(taskReinstallLibraryCmd)
+	taskCmd.AddCommand(taskReviewScopeCmd)
+	taskCmd.AddCommand(taskBranchDiffCmd)
+
+	taskBranchDiffCmd.Flags().
+		StringVar(&taskBranchDiffFileFlag, "file", "", "Diff only this file, bypassing exclusions")
 }

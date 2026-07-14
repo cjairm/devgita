@@ -23,12 +23,16 @@ Open a pull request describing the branch's overall impact. Commits are granular
 ### 1. Gather context
 
 ```bash
-git branch --show-current
-git log main..HEAD --format="%s%n%b%n---"
-git diff main... --stat
+devgita task review-scope
 ```
 
-If the stat isn't enough to understand the change, read the full diff: `git diff main...`. Self-review it here — catch the obvious before a reviewer spends attention on it.
+This reports the branch, the repo's actual default branch (never assume `main`), ahead/behind, commit subjects, and a per-file stat table (lockfile-style noise excluded and noted). For commit bodies (not just subjects), run one more command using the default branch review-scope just reported:
+
+```bash
+git log <default>..HEAD --format="%s%n%b%n---"
+```
+
+If the stat isn't enough to understand the change, read the full diff: `devgita task branch-diff` (or `--file <path>` for one file). Self-review it here — catch the obvious before a reviewer spends attention on it.
 
 ### 2. Check for a PR template
 

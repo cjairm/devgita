@@ -450,6 +450,7 @@ Quick reference to where things live:
 | **Testing Patterns**   | `docs/guides/testing-patterns.md`            | Mocking, dependency injection, test isolation                                               |
 | **Error Handling**     | `docs/guides/error-handling.md`              | Error patterns, user-facing messages                                                        |
 | **CLI Patterns**       | `docs/guides/cli-patterns.md`                | Command structure, Cobra patterns, flags, subcommands                                       |
+| **Task Design**        | `docs/guides/task-design.md`                 | AI-first, token-wise `dg task` output — when to build a task, output principles, rtk stance |
 | **Cross-Platform**     | `docs/guides/cross-platform-installation.md` | Strategy pattern, package mappings, Debian strategies                                       |
 | **Theming**            | `docs/guides/theming.md`                     | Shared Gruvbox palette, `.Theme` flow, transparency convention, the "match the others" rule |
 | **Claude Code app**    | `docs/apps/claude.md`                        | Claude config, format/lint hook (reuses neovim Mason), statusline                           |
@@ -462,7 +463,7 @@ Quick reference to where things live:
 
 ## Recent Changes & Active Work
 
-**Last updated:** 2026-04-28
+**Last updated:** 2026-07-14
 
 **Recent specs completed:**
 

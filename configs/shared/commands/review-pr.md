@@ -8,6 +8,7 @@ permission:
     "*": deny
     "devgita task *": allow
     "git diff*": allow
+    "git fetch*": allow
     "git log*": allow
     "git branch*": allow
 ---
@@ -40,7 +41,7 @@ If it prints "No pull request found for the current branch.", stop and tell the 
 devgita task pr-view          # add --pr PR_NUMBER if you have one
 ```
 
-Read the PR's purpose first — the description and linked ticket — before any code. Gather the findings already in the conversation. If there are none, review the change yourself with the lens in step 4 (`git diff main...` for a locally checked-out branch).
+Read the PR's purpose first — the description and linked ticket — before any code. Gather the findings already in the conversation. If there are none, review the change yourself with the lens in step 4. For a locally checked-out branch, run `devgita task review-scope` for the orientation (branch, ahead/behind, commits, per-file stats), then `devgita task branch-diff` (or `--file <path>` for one file) for the full noise-filtered diff.
 
 ### 3. Fetch existing threads and dedup — never repeat addressed feedback
 

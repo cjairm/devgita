@@ -195,6 +195,9 @@ dg install --skip databases,desktop
   - `dg task delete-branch [target]` - Checkout target, fetch, pick a branch via fzf to force-delete
   - `dg task reinstall-libraries` - Clean ignored files, remove `node_modules/`, run `npm install`
   - `dg task reinstall-library <name>` - Remove `node_modules/<name>`, run `npm install`
+  - **Review scope tasks (noise-filtered git context for agents):**
+    - `dg task review-scope` - Fetch + orient in one call: branch, default branch, ahead/behind, commits, per-file stats (lockfile-style noise excluded and noted)
+    - `dg task branch-diff [--file <path>]` - Merge-base diff against the default branch, same exclusions applied; `--file` bypasses them for one file
   - **Pull request tasks (via `gh`, formatted for agents):**
     - `dg task review-threads [--pr N] [--state unresolved|resolved|all]` - Show PR review threads as compact markdown
     - `dg task resolve-thread <id>` / `unresolve-thread <id>` - Resolve/reopen a review thread
