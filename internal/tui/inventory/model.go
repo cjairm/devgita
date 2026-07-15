@@ -26,8 +26,7 @@ type model struct {
 	groupMode groupMode
 
 	problemsOnly bool
-	filtering    bool
-	filter       string
+	filter       tuicomponents.FilterField
 	showHelp     bool
 
 	width, height int
@@ -62,54 +61,12 @@ func newModel(items []inventory.Item, opts Options) model {
 }
 
 func (m *model) rebuildRows() {
-	m.rows = buildRows(m.items, m.groupMode, m.collapsed, m.filter, m.problemsOnly)
-	indices := itemIndices(m.rows)
-	if len(indices) == 0 {
-		m.cursor = 0
-		return
-	}
-	for _, i := range indices {
-		if i >= m.cursor {
-			m.cursor = i
-			return
-		}
-	}
-	m.cursor = indices[len(indices)-1]
+	m.rows = buildRows(m.items, m.groupMode, m.collapsed, m.filter.Text, m.problemsOnly)
+	m.cursor = tuicomponents.ClampCursor(itemIndices(m.rows), m.cursor)
 }
 
 func (m *model) moveCursor(delta int) {
-	indices := navigableIndices(m.rows, m.collapsed)
-	if len(indices) == 0 {
-		return
-	}
-	cur := -1
-	for i, idx := range indices {
-		if idx == m.cursor {
-			cur = i
-			break
-		}
-	}
-	if cur == -1 {
-		if delta > 0 {
-			for _, idx := range indices {
-				if idx > m.cursor {
-					m.cursor = idx
-					return
-				}
-			}
-		} else {
-			for i := len(indices) - 1; i >= 0; i-- {
-				if indices[i] < m.cursor {
-					m.cursor = indices[i]
-					return
-				}
-			}
-		}
-		m.cursor = indices[0]
-		return
-	}
-	cur = ((cur+delta)%len(indices) + len(indices)) % len(indices)
-	m.cursor = indices[cur]
+	m.cursor = tuicomponents.MoveCursor(navigableIndices(m.rows, m.collapsed), m.cursor, delta)
 }
 
 func (m model) Init() tea.Cmd { return nil }
@@ -135,24 +92,9 @@ func (m model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	if m.filtering {
-		switch key {
-		case "esc":
-			m.filter = ""
-			m.filtering = false
+	if m.filter.Active {
+		if m.filter.HandleKey(key) {
 			m.rebuildRows()
-		case "enter":
-			m.filtering = false
-		case "backspace":
-			if len(m.filter) > 0 {
-				m.filter = m.filter[:len(m.filter)-1]
-				m.rebuildRows()
-			}
-		default:
-			if len(key) == 1 && key >= " " {
-				m.filter += key
-				m.rebuildRows()
-			}
 		}
 		return m, nil
 	}
@@ -178,7 +120,7 @@ func (m model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.rebuildRows()
 		}
 	case "/":
-		m.filtering = true
+		m.filter.Active = true
 	case "p":
 		m.problemsOnly = !m.problemsOnly
 		m.rebuildRows()
@@ -241,7 +183,7 @@ func (m model) renderContent() string {
 	}
 
 	// Problems-only with nothing wrong would render an empty pane; say so instead.
-	if len(lines) == 0 && m.problemsOnly && m.filter == "" {
+	if len(lines) == 0 && m.problemsOnly && m.filter.Text == "" {
 		lines = []string{
 			"",
 			m.palette.Inactive.Render(
@@ -271,26 +213,7 @@ func (m model) renderHelpOverlay() string {
 		{Key: "?", Desc: "toggle this help"},
 		{Key: "q / ctrl+c", Desc: "quit"},
 	}
-	popup := m.palette.WhichKeyPopup(
-		"Keybindings",
-		entries,
-		1,
-		min(m.width-2, 64),
-	) + "\n" + m.palette.HintDesc.Render("press any key to close")
-
-	popupLines := strings.Split(popup, "\n")
-	topPad := max((m.height-len(popupLines))/2, 0)
-	leftPad := max((m.width-min(m.width-2, 64))/2, 0)
-	indent := strings.Repeat(" ", leftPad)
-
-	var out []string
-	for range topPad {
-		out = append(out, "")
-	}
-	for _, l := range popupLines {
-		out = append(out, indent+l)
-	}
-	return strings.Join(out, "\n")
+	return m.palette.HelpOverlay("Keybindings", entries, m.width, m.height)
 }
 
 // visibleWindow returns [start, end) into a rowsLen-length list such that the
@@ -380,9 +303,8 @@ func (m model) renderSummary(width int) string {
 }
 
 func (m model) renderHint(width int) string {
-	if m.filtering {
-		hint := "filter: " + m.filter + "█  · esc: clear · enter: keep"
-		return m.palette.HintDesc.Render(ansi.Truncate(hint, width, ""))
+	if m.filter.Active {
+		return m.palette.FilterHint(m.filter, width)
 	}
 	problemsDesc := "problems"
 	if m.problemsOnly {

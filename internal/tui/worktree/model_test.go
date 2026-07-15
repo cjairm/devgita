@@ -182,19 +182,19 @@ func TestFilterMode(t *testing.T) {
 	// Enter filter mode
 	m2, _ := m.Update(tea.KeyPressMsg{Code: '/'})
 	m3 := m2.(Model)
-	if !m3.filtering {
+	if !m3.filter.Active {
 		t.Error("should be in filtering mode after /")
 	}
 	// Type a char
 	m4, _ := m3.Update(tea.KeyPressMsg{Code: 'b'})
 	m5 := m4.(Model)
-	if m5.filter != "b" {
-		t.Errorf("expected filter 'b', got %q", m5.filter)
+	if m5.filter.Text != "b" {
+		t.Errorf("expected filter 'b', got %q", m5.filter.Text)
 	}
 	// Esc clears and exits
 	m6, _ := m5.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
 	m7 := m6.(Model)
-	if m7.filtering || m7.filter != "" {
+	if m7.filter.Active || m7.filter.Text != "" {
 		t.Error("esc should clear filter and exit filtering mode")
 	}
 }
@@ -439,7 +439,7 @@ func TestFilterHidesNonMatchingRows(t *testing.T) {
 	// Esc clears filter and restores all rows
 	m4, _ := m3.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
 	m5 := m4.(Model)
-	if m5.filter != "" {
+	if m5.filter.Text != "" {
 		t.Error("esc should clear filter string")
 	}
 	if len(m5.rows) != totalBefore {

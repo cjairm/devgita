@@ -146,17 +146,17 @@ func TestUpdate_FilterMode(t *testing.T) {
 	m := newModel(testItems(), Options{})
 	m2, _ := m.Update(tea.KeyPressMsg{Code: '/'})
 	m3 := m2.(model)
-	if !m3.filtering {
+	if !m3.filter.Active {
 		t.Fatal("/ should enter filtering mode")
 	}
 	m4, _ := m3.Update(tea.KeyPressMsg{Code: 'g'})
 	m5 := m4.(model)
-	if m5.filter != "g" {
-		t.Errorf("expected filter %q, got %q", "g", m5.filter)
+	if m5.filter.Text != "g" {
+		t.Errorf("expected filter %q, got %q", "g", m5.filter.Text)
 	}
 	m6, _ := m5.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
 	m7 := m6.(model)
-	if m7.filtering || m7.filter != "" {
+	if m7.filter.Active || m7.filter.Text != "" {
 		t.Error("esc should clear filter and exit filtering mode")
 	}
 }
@@ -239,12 +239,12 @@ func TestUpdate_JKOnEmptyRowsDoesNotPanic(t *testing.T) {
 		m3 = next.(model)
 	}
 	if len(m3.rows) != 0 {
-		t.Fatalf("expected filter %q to match zero rows, got %d", m3.filter, len(m3.rows))
+		t.Fatalf("expected filter %q to match zero rows, got %d", m3.filter.Text, len(m3.rows))
 	}
 	// Exit filtering mode so j/k reach the navigation branch.
 	m4, _ := m3.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	m5 := m4.(model)
-	if m5.filtering {
+	if m5.filter.Active {
 		t.Fatal("enter should exit filtering mode")
 	}
 

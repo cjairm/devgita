@@ -407,19 +407,19 @@ func TestFeature(t *testing.T) {
 
 Where to find and add code:
 
-| Purpose                   | Location                       | Notes                                                   |
-| ------------------------- | ------------------------------ | ------------------------------------------------------- |
-| **CLI commands**          | `cmd/`                         | Entry points; register in cmd/root.go                   |
-| **App modules**           | `internal/apps/{appname}/`     | 2 files per app: `{appname}.go` + `{appname}_test.go`   |
-| **Category coordinators** | `internal/tooling/`            | terminal, languages, databases, worktree                |
-| **Platform installers**   | `internal/commands/`           | Strategy implementations for Debian, Darwin             |
-| **Configuration logic**   | `internal/config/`             | Global state management                                 |
-| **TUI components**        | `internal/tui/`                | Terminal UI helpers (minimal)                           |
-| **Shared utilities**      | `pkg/`                         | Logger, paths, file ops, constants, package mappings    |
-| **Embedded configs**      | `configs/`                     | Templates and static files (embedded at compile time)   |
-| **Tests**                 | `*_test.go` alongside impl     | Use testutil mocks; never execute real commands         |
-| **User docs**             | `docs/`                        | Feature docs, architecture, app guides, tooling details |
-| **Developer docs**        | `CLAUDE.md`, `CONTRIBUTING.md` | This file and contributor guide                         |
+| Purpose                   | Location                       | Notes                                                                                                                                                                                                                 |
+| ------------------------- | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **CLI commands**          | `cmd/`                         | Entry points; register in cmd/root.go                                                                                                                                                                                 |
+| **App modules**           | `internal/apps/{appname}/`     | 2 files per app: `{appname}.go` + `{appname}_test.go`                                                                                                                                                                 |
+| **Category coordinators** | `internal/tooling/`            | terminal, languages, databases, worktree                                                                                                                                                                              |
+| **Platform installers**   | `internal/commands/`           | Strategy implementations for Debian, Darwin                                                                                                                                                                           |
+| **Configuration logic**   | `internal/config/`             | Global state management                                                                                                                                                                                               |
+| **TUI components**        | `internal/tui/`                | TUIs live here; `internal/tui/components` is the shared toolkit (palette, hint bar, help overlay, filter field, list navigation) — new TUIs must be assembled from it, and logic needed by a second TUI moves into it |
+| **Shared utilities**      | `pkg/`                         | Logger, paths, file ops, constants, package mappings                                                                                                                                                                  |
+| **Embedded configs**      | `configs/`                     | Templates and static files (embedded at compile time)                                                                                                                                                                 |
+| **Tests**                 | `*_test.go` alongside impl     | Use testutil mocks; never execute real commands                                                                                                                                                                       |
+| **User docs**             | `docs/`                        | Feature docs, architecture, app guides, tooling details                                                                                                                                                               |
+| **Developer docs**        | `CLAUDE.md`, `CONTRIBUTING.md` | This file and contributor guide                                                                                                                                                                                       |
 
 ### Adding a new command
 

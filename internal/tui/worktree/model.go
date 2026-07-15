@@ -78,8 +78,7 @@ type Model struct {
 	diffRemoved int
 	diffScroll  int
 
-	filtering bool
-	filter    string
+	filter tuicomponents.FilterField
 
 	status string
 
@@ -220,25 +219,9 @@ func (m Model) selectedStatus() (worktree.WorktreeStatus, bool) {
 }
 
 func (m *Model) rebuildRows() {
-	m.rows = buildRows(m.statuses, m.collapsed, m.filter)
-	// Ensure cursor points to a worktree row
-	indices := worktreeIndices(m.rows)
-	if len(indices) == 0 {
-		m.cursor = 0
-		return
-	}
+	m.rows = buildRows(m.statuses, m.collapsed, m.filter.Text)
 	// Keep cursor on a valid worktree row
-	found := false
-	for _, i := range indices {
-		if i >= m.cursor {
-			m.cursor = i
-			found = true
-			break
-		}
-	}
-	if !found {
-		m.cursor = indices[len(indices)-1]
-	}
+	m.cursor = tuicomponents.ClampCursor(worktreeIndices(m.rows), m.cursor)
 }
 
 // navigableIndices returns row indices that j/k visit: all worktree rows plus
@@ -254,41 +237,7 @@ func (m *Model) navigableIndices() []int {
 }
 
 func (m *Model) moveCursor(delta int) {
-	indices := m.navigableIndices()
-	if len(indices) == 0 {
-		return
-	}
-	cur := -1
-	for i, idx := range indices {
-		if idx == m.cursor {
-			cur = i
-			break
-		}
-	}
-	if cur == -1 {
-		// Cursor is on an expanded repo header — jump to nearest navigable row.
-		if delta > 0 {
-			for _, idx := range indices {
-				if idx > m.cursor {
-					m.cursor = idx
-					return
-				}
-			}
-			m.cursor = indices[0]
-		} else {
-			for i := len(indices) - 1; i >= 0; i-- {
-				if indices[i] < m.cursor {
-					m.cursor = indices[i]
-					return
-				}
-			}
-			m.cursor = indices[len(indices)-1]
-		}
-		return
-	}
-	cur += delta
-	cur = ((cur % len(indices)) + len(indices)) % len(indices)
-	m.cursor = indices[cur]
+	m.cursor = tuicomponents.MoveCursor(m.navigableIndices(), m.cursor, delta)
 }
 
 func (m Model) safeMaxLeft() int {
@@ -394,27 +343,9 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	if m.filtering {
-		switch key {
-		case "esc":
-			m.filter = ""
-			m.filtering = false
+	if m.filter.Active {
+		if m.filter.HandleKey(key) {
 			m.rebuildRows()
-			return m, nil
-		case "enter":
-			m.filtering = false
-			return m, nil
-		case "backspace":
-			if len(m.filter) > 0 {
-				m.filter = m.filter[:len(m.filter)-1]
-				m.rebuildRows()
-			}
-			return m, nil
-		default:
-			if len(key) == 1 && key >= " " {
-				m.filter += key
-				m.rebuildRows()
-			}
 		}
 		return m, nil
 	}
@@ -523,7 +454,7 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case "/":
-		m.filtering = true
+		m.filter.Active = true
 		return m, nil
 
 	case "enter":
@@ -894,9 +825,8 @@ func (m Model) renderHint(width int) string {
 	if m.pendingDelete != "" {
 		return m.armedDeleteHint(m.pendingDelete, "d", "", width)
 	}
-	if m.filtering {
-		hint := "filter: " + m.filter + "█  · esc: clear · enter: keep"
-		return m.palette.HintDesc.Render(ansi.Truncate(hint, width, ""))
+	if m.filter.Active {
+		return m.palette.FilterHint(m.filter, width)
 	}
 	hints := []tuicomponents.KeyHint{
 		{Key: "↵", Desc: "attach"},
@@ -922,83 +852,21 @@ func (m Model) renderStatus(width int) string {
 }
 
 func (m Model) renderHelpOverlay() string {
-	type entry struct{ key, desc string }
-	entries := []entry{
-		{"enter", "attach (auto-repairs missing window)"},
-		{"j / k", "move cursor down / up"},
-		{"h / l", "collapse / expand repo"},
-		{"z", "toggle collapse all repos"},
-		{"tab", "switch Agent / Diff pane"},
-		{"d d", "delete worktree (confirm twice)"},
-		{"D D", "delete worktree + kill its session"},
-		{"r", "repair (recreate window + relaunch AI)"},
-		{"/", "filter  esc:clear  enter:keep"},
-		{"ctrl+d / ctrl+u", "scroll Diff pane down / up"},
-		{"?", "toggle this help"},
-		{"q / ctrl+c", "quit"},
+	entries := []tuicomponents.WhichKeyEntry{
+		{Key: "enter", Desc: "attach (auto-repairs missing window)"},
+		{Key: "j / k", Desc: "move cursor down / up"},
+		{Key: "h / l", Desc: "collapse / expand repo"},
+		{Key: "z", Desc: "toggle collapse all repos"},
+		{Key: "tab", Desc: "switch Agent / Diff pane"},
+		{Key: "d d", Desc: "delete worktree (confirm twice)"},
+		{Key: "D D", Desc: "delete worktree + kill its session"},
+		{Key: "r", Desc: "repair (recreate window + relaunch AI)"},
+		{Key: "/", Desc: "filter  esc:clear  enter:keep"},
+		{Key: "ctrl+d / ctrl+u", Desc: "scroll Diff pane down / up"},
+		{Key: "?", Desc: "toggle this help"},
+		{Key: "q / ctrl+c", Desc: "quit"},
 	}
-
-	const keyColW = 16
-	const descColW = 36
-	// inner: 1 space + key + 1 space + │ + 1 space + desc + 1 space = keyColW+descColW+4
-	boxInnerW := keyColW + descColW + 4
-	boxW := boxInnerW + 2
-	if boxW > m.width-2 {
-		boxW = m.width - 2
-		boxInnerW = boxW - 2
-	}
-
-	b := m.palette.PaletteBorder.Render
-	sep := strings.Repeat("─", boxInnerW)
-
-	title := "Keybindings"
-	titleStyled := m.palette.RepoHeader.Render(title)
-	lpad := max((boxInnerW-len(title))/2, 0)
-	rpad := max(boxInnerW-lpad-len(title), 0)
-
-	var sb strings.Builder
-	sb.WriteString(b("┌"+sep+"┐") + "\n")
-	sb.WriteString(
-		b(
-			"│",
-		) + strings.Repeat(
-			" ",
-			lpad,
-		) + titleStyled + strings.Repeat(
-			" ",
-			rpad,
-		) + b(
-			"│",
-		) + "\n",
-	)
-	sb.WriteString(b("├"+sep+"┤") + "\n")
-
-	for _, e := range entries {
-		keyStyled := m.palette.HintKey.Render(e.key)
-		keyPad := strings.Repeat(" ", max(0, keyColW-ansi.StringWidth(e.key)))
-		desc := ansi.Truncate(e.desc, descColW, "")
-		descPad := strings.Repeat(" ", max(0, descColW-ansi.StringWidth(desc)))
-		sb.WriteString(
-			b("│") + " " + keyStyled + keyPad + b(" │ ") + desc + descPad + " " + b("│") + "\n",
-		)
-	}
-
-	sb.WriteString(b("└"+sep+"┘") + "\n")
-	sb.WriteString(m.palette.HintDesc.Render("press any key to close"))
-
-	boxLines := strings.Split(strings.TrimRight(sb.String(), "\n"), "\n")
-	topPad := max((m.height-len(boxLines))/2, 0)
-	leftPad := max((m.width-boxW)/2, 0)
-	indent := strings.Repeat(" ", leftPad)
-
-	var out []string
-	for range topPad {
-		out = append(out, "")
-	}
-	for _, l := range boxLines {
-		out = append(out, indent+l)
-	}
-	return strings.Join(out, "\n")
+	return m.palette.HelpOverlay("Keybindings", entries, m.width, m.height)
 }
 
 // padLines ensures a slice of lines has exactly n entries, each padded/truncated to w visible chars.
