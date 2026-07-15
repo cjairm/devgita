@@ -27,6 +27,7 @@ func makeTestModel(statuses []worktree.WorktreeStatus) Model {
 	m.diffStatFn = func(_ string) (files, added, removed int, err error) { return 1, 5, 2, nil }
 	m.attachFn = func(_, _ string) error { return nil }
 	m.removeFn = func(_, _ string, _ bool) error { return nil }
+	m.removeSessionFn = func(_, _ string) error { return nil }
 	m.repairFn = func(_, _ string, _ worktree.AICoder) error { return nil }
 	m.statuses = statuses
 	m.rebuildRows()
@@ -258,6 +259,90 @@ func TestDeleteDoubleConfirm(t *testing.T) {
 	}
 	if removedName != "feature-a" {
 		t.Errorf("expected name 'feature-a', got %q", removedName)
+	}
+}
+
+func TestSessionDeleteDoubleConfirm(t *testing.T) {
+	removeCalled := false
+	var removedRepo, removedName string
+
+	m := makeTestModel(testStatuses())
+	m.removeSessionFn = func(repo, name string) error {
+		removeCalled = true
+		removedRepo = repo
+		removedName = name
+		return nil
+	}
+
+	// First D: arm
+	m2, _ := m.Update(tea.KeyPressMsg{Code: 'D'})
+	m3 := m2.(Model)
+	if removeCalled {
+		t.Error("first D should not delete")
+	}
+	if m3.pendingSessionDelete == "" {
+		t.Error("first D should arm pendingSessionDelete")
+	}
+
+	// Non-D key clears arm
+	m4, _ := m3.Update(tea.KeyPressMsg{Code: 'j'})
+	m5 := m4.(Model)
+	if m5.pendingSessionDelete != "" {
+		t.Error("j should clear pendingSessionDelete")
+	}
+	if removeCalled {
+		t.Error("no delete should have happened")
+	}
+
+	// d does not confirm a D-armed delete
+	m6, _ := m3.Update(tea.KeyPressMsg{Code: 'd'})
+	m7 := m6.(Model)
+	if m7.pendingSessionDelete != "" {
+		t.Error("d should clear pendingSessionDelete instead of confirming it")
+	}
+	if removeCalled {
+		t.Error("d after D must not trigger the session delete")
+	}
+
+	// Second D on same row deletes worktree + session
+	m8, _ := m.Update(tea.KeyPressMsg{Code: 'D'})
+	m9 := m8.(Model)
+	m10, cmd := m9.Update(tea.KeyPressMsg{Code: 'D'})
+	_ = m10
+	if cmd != nil {
+		cmd()
+	}
+	if !removeCalled {
+		t.Error("second D should call removeSessionFn")
+	}
+	if removedRepo != "repo-a" {
+		t.Errorf("expected repo 'repo-a', got %q", removedRepo)
+	}
+	if removedName != "feature-a" {
+		t.Errorf("expected name 'feature-a', got %q", removedName)
+	}
+}
+
+func TestSessionDeleteErrorPropagation(t *testing.T) {
+	m := makeTestModel(testStatuses())
+	m.removeSessionFn = func(_, _ string) error {
+		return fmt.Errorf("no such session")
+	}
+
+	m2, _ := m.Update(tea.KeyPressMsg{Code: 'D'})
+	m3 := m2.(Model)
+	m4, cmd := m3.Update(tea.KeyPressMsg{Code: 'D'})
+	if cmd == nil {
+		t.Fatal("expected a command after second D")
+	}
+	msg := cmd()
+	m5, _ := m4.(Model).Update(msg)
+	m6 := m5.(Model)
+	if m6.status == "" {
+		t.Error("expected inline status message on session delete error")
+	}
+	if m6.pendingSessionDelete != "" {
+		t.Error("pendingSessionDelete should be cleared after error")
 	}
 }
 

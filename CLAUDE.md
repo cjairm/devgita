@@ -95,10 +95,22 @@ Hard constraints that override all other considerations:
 ### Coding standards
 
 - Follow [Effective Go](https://golang.org/doc/effective_go) conventions
+- **Reuse before writing (DRY):** Before adding any function, helper, or logic, search the codebase for something that already does the job and build on it — extend or delegate rather than re-implement. When a change would make two code paths share the same logic, extract that logic into one place instead of copying it; do the extraction in the same PR that introduces the second use. Duplication found during review is a defect to fix, not a style preference.
+- **Prefer existing over new:** When new code is unavoidable, prefer in this order: this codebase's existing helpers and patterns, then the Go standard library, then a dependency the project already uses, and only then new custom code. Never add a new dependency for something the standard library or an existing dependency covers; introducing one is a decision to surface in the PR, not a default. Also question whether the code needs to exist at all — speculative or "for later" code is not written until something needs it. Simplicity never overrides the non-negotiable rules (section 4), correctness, or error handling.
 - Naming: camelCase for functions/variables, PascalCase for exports
 - Run `go fmt` before committing (make lint does this)
 - Comments explain WHY, not WHAT (code should be self-documenting)
 - Never ignore errors; always handle or return them explicitly
+
+### Communication style
+
+Applies to every reply the agent writes in this repo — answers, summaries, PR text, commit messages:
+
+- Answer straight and keep it short. Lead with the answer or outcome, then only the detail that changes what the reader does next.
+- Brevity comes from cutting filler, never substance. Do not omit important information, caveats, or failures to make a reply shorter.
+- Plain language, no fancy wording. Any engineer on the team — regardless of seniority or context — should be able to read a reply once and understand it. Spell out terms instead of assuming shared shorthand.
+- No decoration for its own sake: headers, tables, and bullet lists only when they genuinely make the answer easier to scan.
+- State uncertainty and problems plainly instead of softening or padding them.
 
 ### Lint issues
 

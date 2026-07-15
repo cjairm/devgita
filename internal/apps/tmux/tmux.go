@@ -204,10 +204,36 @@ func (t *Tmux) FindWindowsBySuffix(suffix string) []string {
 // SwitchToWindow moves the attached client to the given session and selects the
 // window, so it works no matter which session the client is currently on.
 func (t *Tmux) SwitchToWindow(session, name string) error {
-	if err := t.ExecuteCommand("switch-client", "-t", session); err != nil {
+	if err := t.SwitchToSession(session); err != nil {
 		return err
 	}
 	return t.ExecuteCommand("select-window", "-t", session+":"+name)
+}
+
+// CurrentSession returns the name of the session the attached client is on.
+// Returns ("", false) when not running inside tmux or when the query fails.
+func (t *Tmux) CurrentSession() (string, bool) {
+	if os.Getenv("TMUX") == "" {
+		return "", false
+	}
+	execCommand := cmd.CommandParams{
+		Command: constants.Tmux,
+		Args:    []string{"display-message", "-p", "#{session_name}"},
+	}
+	stdout, _, err := t.Base.ExecCommand(execCommand)
+	if err != nil {
+		return "", false
+	}
+	name := strings.TrimSpace(stdout)
+	if name == "" {
+		return "", false
+	}
+	return name, true
+}
+
+// SwitchToSession moves the attached client to the given session.
+func (t *Tmux) SwitchToSession(name string) error {
+	return t.ExecuteCommand("switch-client", "-t", name)
 }
 
 // SendKeysToWindowInSession sends keystrokes to a window in a specific session.

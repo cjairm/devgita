@@ -27,6 +27,12 @@ import (
 const (
 	// windowPrefix is prepended to worktree names for tmux windows
 	windowPrefix = "wt-"
+
+	// fallbackSession is the always-available session the attached client is
+	// moved to before its current session is killed. It matches the session
+	// name created by configs/alacritty/starter.sh on terminal startup and is
+	// created on demand when missing. It is never killed itself.
+	fallbackSession = "misc"
 )
 
 // flattenName converts a branch-style name (with slashes) to a flat directory name.
@@ -430,6 +436,56 @@ func (w *WorktreeManager) Repair(name string, coder AICoder) error {
 // RemoveInRepo deletes a worktree disambiguated by repo slug.
 func (w *WorktreeManager) RemoveInRepo(repoSlug, name string, force bool) error {
 	return w.removeByRepo(repoSlug, name, force)
+}
+
+// RemoveWithSessionInRepo force-deletes a worktree and also kills the tmux
+// session that hosted its window. If the attached client is on that session,
+// it is first moved to the fallback session (created on demand) so the
+// terminal survives the kill. The fallback session itself is never killed.
+func (w *WorktreeManager) RemoveWithSessionInRepo(repoSlug, name string) error {
+	windowName := GetWindowName(repoSlug, name)
+	session, hadWindow := w.Tmux.WindowSession(windowName)
+
+	if err := w.removeByRepo(repoSlug, name, true); err != nil {
+		return err
+	}
+
+	if !hadWindow || session == fallbackSession {
+		return nil
+	}
+	// Killing the worktree window may have already destroyed the session
+	// (tmux removes a session when its last window closes).
+	if !w.Tmux.HasSession(session) {
+		return nil
+	}
+
+	if current, ok := w.Tmux.CurrentSession(); ok && current == session {
+		if !w.Tmux.HasSession(fallbackSession) {
+			workdir, err := os.UserHomeDir()
+			if err != nil {
+				workdir = "/"
+			}
+			if err := w.Tmux.CreateSession(fallbackSession, workdir); err != nil {
+				return fmt.Errorf(
+					"worktree removed but session '%s' kept: failed to create fallback session '%s': %w",
+					session,
+					fallbackSession,
+					err,
+				)
+			}
+		}
+		if err := w.Tmux.SwitchToSession(fallbackSession); err != nil {
+			return fmt.Errorf(
+				"worktree removed but session '%s' kept: failed to switch to '%s': %w",
+				session, fallbackSession, err,
+			)
+		}
+	}
+
+	if err := w.Tmux.KillSession(session); err != nil {
+		return fmt.Errorf("worktree removed but failed to kill session '%s': %w", session, err)
+	}
+	return nil
 }
 
 // RepairInRepo repairs a worktree in a specific repo, bypassing the slug-search ambiguity.

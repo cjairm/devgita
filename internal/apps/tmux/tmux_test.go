@@ -1274,3 +1274,69 @@ func TestSendKeysToWindowInSession(t *testing.T) {
 		t.Errorf("expected target 'my-session:wt-feature' in args %v", last.Args)
 	}
 }
+
+func TestCurrentSession(t *testing.T) {
+	t.Run("returns session name inside tmux", func(t *testing.T) {
+		t.Setenv("TMUX", "/tmp/tmux-1000/default,123,0")
+		mockApp := testutil.NewMockApp()
+		mockApp.Base.SetExecCommandResult("misc\n", "", nil)
+		app := &tmux.Tmux{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+		name, ok := app.CurrentSession()
+		if !ok || name != "misc" {
+			t.Errorf("expected (misc, true), got (%q, %v)", name, ok)
+		}
+		last := mockApp.Base.GetLastExecCommandCall()
+		if last == nil || last.Args[0] != "display-message" {
+			t.Errorf("expected 'display-message', got %v", last)
+		}
+	})
+
+	t.Run("returns false outside tmux without calling tmux", func(t *testing.T) {
+		t.Setenv("TMUX", "")
+		mockApp := testutil.NewMockApp()
+		app := &tmux.Tmux{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+		if _, ok := app.CurrentSession(); ok {
+			t.Error("expected false when not inside tmux")
+		}
+		if mockApp.Base.GetExecCommandCallCount() != 0 {
+			t.Error("should not execute tmux commands outside tmux")
+		}
+	})
+
+	t.Run("returns false on exec error", func(t *testing.T) {
+		t.Setenv("TMUX", "/tmp/tmux-1000/default,123,0")
+		mockApp := testutil.NewMockApp()
+		mockApp.Base.SetExecCommandResult("", "no server", errors.New("no server"))
+		app := &tmux.Tmux{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+		if _, ok := app.CurrentSession(); ok {
+			t.Error("expected false on exec error")
+		}
+	})
+}
+
+func TestSwitchToSession(t *testing.T) {
+	mockApp := testutil.NewMockApp()
+	mockApp.Base.SetExecCommandResult("", "", nil)
+	app := &tmux.Tmux{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+	if err := app.SwitchToSession("misc"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	last := mockApp.Base.GetLastExecCommandCall()
+	if last == nil || last.Args[0] != "switch-client" {
+		t.Fatalf("expected 'switch-client', got %v", last)
+	}
+	found := false
+	for _, arg := range last.Args {
+		if arg == "misc" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected target 'misc' in args %v", last.Args)
+	}
+}

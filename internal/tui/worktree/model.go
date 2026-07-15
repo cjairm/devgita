@@ -95,16 +95,18 @@ type Model struct {
 	dragging   bool
 	dragStartX int
 
-	pendingDelete string // "repo/name" or ""
-	showHelp      bool
+	pendingDelete        string // "repo/name" or ""
+	pendingSessionDelete string // "repo/name" or ""
+	showHelp             bool
 
 	// Injected I/O seams (overridable in tests)
-	captureFn  func(session, window string) (string, error)
-	diffFn     func(path string) (string, error)
-	diffStatFn func(path string) (files, added, removed int, err error)
-	attachFn   func(session, window string) error
-	removeFn   func(repo, name string, force bool) error
-	repairFn   func(repo, name string, coder worktree.AICoder) error
+	captureFn       func(session, window string) (string, error)
+	diffFn          func(path string) (string, error)
+	diffStatFn      func(path string) (files, added, removed int, err error)
+	attachFn        func(session, window string) error
+	removeFn        func(repo, name string, force bool) error
+	removeSessionFn func(repo, name string) error
+	repairFn        func(repo, name string, coder worktree.AICoder) error
 }
 
 func newModel(
@@ -136,6 +138,9 @@ func newModel(
 	}
 	m.removeFn = func(repo, name string, force bool) error {
 		return mgr.RemoveInRepo(repo, name, force)
+	}
+	m.removeSessionFn = func(repo, name string) error {
+		return mgr.RemoveWithSessionInRepo(repo, name)
 	}
 	m.repairFn = func(repo, name string, coder worktree.AICoder) error {
 		return mgr.RepairInRepo(repo, name, coder)
@@ -414,9 +419,12 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	// Clear pending delete on any non-d key
+	// Clear pending deletes on any key that doesn't continue the confirmation
 	if key != "d" && m.pendingDelete != "" {
 		m.pendingDelete = ""
+	}
+	if key != "D" && m.pendingSessionDelete != "" {
+		m.pendingSessionDelete = ""
 	}
 
 	switch key {
@@ -524,6 +532,9 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "d":
 		return m.handleDelete()
 
+	case "D":
+		return m.handleSessionDelete()
+
 	case "r":
 		return m.handleRepair()
 
@@ -590,39 +601,58 @@ func (m Model) handleAttach() (tea.Model, tea.Cmd) {
 	}
 }
 
-func (m Model) handleDelete() (tea.Model, tea.Cmd) {
+// confirmThenRemove implements the shared two-press delete confirmation.
+// pending is the currently armed "repo/name" key (or ""); remove performs the
+// removal on the second press. It returns the new pending value and, on
+// confirmation, a command that runs the removal and refreshes the list.
+func (m Model) confirmThenRemove(
+	pending string,
+	remove func(repo, name string) error,
+) (string, tea.Cmd) {
 	sel, ok := m.selectedStatus()
 	if !ok {
-		return m, nil
+		return pending, nil
 	}
 
 	key := sel.Repo + "/" + sel.Name
 
-	if m.pendingDelete == key {
-		// Second d: execute delete
-		m.pendingDelete = ""
-		removeFn := m.removeFn
-		repo := sel.Repo
-		name := sel.Name
-		statuses := m.statuses
-		return m, func() tea.Msg {
-			if err := removeFn(repo, name, true); err != nil {
-				return statusMsg("delete failed: " + err.Error())
-			}
-			// Drop from statuses
-			var updated []worktree.WorktreeStatus
-			for _, s := range statuses {
-				if s.Repo != repo || s.Name != name {
-					updated = append(updated, s)
-				}
-			}
-			return statusesMsg(updated)
-		}
+	// First press (or cursor moved to another row): arm
+	if pending != key {
+		return key, nil
 	}
 
-	// First d: arm
-	m.pendingDelete = key
-	return m, nil
+	// Second press: execute
+	repo := sel.Repo
+	name := sel.Name
+	statuses := m.statuses
+	return "", func() tea.Msg {
+		if err := remove(repo, name); err != nil {
+			return statusMsg("delete failed: " + err.Error())
+		}
+		// Drop from statuses
+		var updated []worktree.WorktreeStatus
+		for _, s := range statuses {
+			if s.Repo != repo || s.Name != name {
+				updated = append(updated, s)
+			}
+		}
+		return statusesMsg(updated)
+	}
+}
+
+func (m Model) handleDelete() (tea.Model, tea.Cmd) {
+	removeFn := m.removeFn
+	pending, cmd := m.confirmThenRemove(m.pendingDelete, func(repo, name string) error {
+		return removeFn(repo, name, true)
+	})
+	m.pendingDelete = pending
+	return m, cmd
+}
+
+func (m Model) handleSessionDelete() (tea.Model, tea.Cmd) {
+	pending, cmd := m.confirmThenRemove(m.pendingSessionDelete, m.removeSessionFn)
+	m.pendingSessionDelete = pending
+	return m, cmd
 }
 
 func (m Model) handleRepair() (tea.Model, tea.Cmd) {
@@ -764,7 +794,7 @@ func (m Model) renderLeft(width int) string {
 			if i == m.cursor {
 				g := m.palette.StatusGlyph(state)
 				plainText := connectorRaw + g + branchChar + " " + name
-				if m.pendingDelete == pendingKey {
+				if m.pendingDelete == pendingKey || m.pendingSessionDelete == pendingKey {
 					line = m.palette.Armed.Render(plainText + padding)
 				} else {
 					line = m.palette.Selected.Render(plainText + padding)
@@ -844,15 +874,25 @@ func (m Model) renderDiffContent(width, height int) string {
 	return strings.Join(truncated, "\n")
 }
 
+// armedDeleteHint renders the confirmation hint for a two-press delete.
+// pending is the armed "repo/name" key, key the keypress to repeat, and
+// suffix an optional description of extra effects beyond the worktree delete.
+func (m Model) armedDeleteHint(pending, key, suffix string, width int) string {
+	parts := strings.SplitN(pending, "/", 2)
+	name := pending
+	if len(parts) == 2 {
+		name = parts[1]
+	}
+	hint := "press " + key + " again to delete " + name + suffix + " · any other key cancels"
+	return m.palette.HintDesc.Render(ansi.Truncate(hint, width, ""))
+}
+
 func (m Model) renderHint(width int) string {
+	if m.pendingSessionDelete != "" {
+		return m.armedDeleteHint(m.pendingSessionDelete, "D", " and kill its session", width)
+	}
 	if m.pendingDelete != "" {
-		parts := strings.SplitN(m.pendingDelete, "/", 2)
-		name := m.pendingDelete
-		if len(parts) == 2 {
-			name = parts[1]
-		}
-		hint := "press d again to delete " + name + " · any other key cancels"
-		return m.palette.HintDesc.Render(ansi.Truncate(hint, width, ""))
+		return m.armedDeleteHint(m.pendingDelete, "d", "", width)
 	}
 	if m.filtering {
 		hint := "filter: " + m.filter + "█  · esc: clear · enter: keep"
@@ -865,6 +905,7 @@ func (m Model) renderHint(width int) string {
 		{Key: "z", Desc: "all"},
 		{Key: "⇥", Desc: "tab"},
 		{Key: "d", Desc: "del"},
+		{Key: "D", Desc: "del+sess"},
 		{Key: "r", Desc: "repair"},
 		{Key: "/", Desc: "filter"},
 		{Key: "?", Desc: "help"},
@@ -889,6 +930,7 @@ func (m Model) renderHelpOverlay() string {
 		{"z", "toggle collapse all repos"},
 		{"tab", "switch Agent / Diff pane"},
 		{"d d", "delete worktree (confirm twice)"},
+		{"D D", "delete worktree + kill its session"},
 		{"r", "repair (recreate window + relaunch AI)"},
 		{"/", "filter  esc:clear  enter:keep"},
 		{"ctrl+d / ctrl+u", "scroll Diff pane down / up"},

@@ -269,7 +269,7 @@ dg wt <subcommand> [flags]     # alias
 ```
 dg wt create feature-login                  # Create worktree, use default AI
 dg wt create feature-login --ai claude      # Create with Claude Code
-dg wt ui                                    # Open TUI dashboard (j/k nav, Enter attach, d delete, r repair)
+dg wt ui                                    # Open TUI dashboard (j/k nav, Enter attach, d delete, D delete + kill session, r repair)
 dg wt repair feature-login                  # Recreate missing tmux window
 dg wt prune                                 # Remove all worktrees (prompts for confirmation)
 ```

@@ -492,3 +492,182 @@ func TestCreateStaleWorktree(t *testing.T) {
 		"This test requires complex mock setup to simulate git worktree list output with stale entries",
 	)
 }
+
+// tmuxCallArgs flattens the recorded tmux ExecCommand calls into "cmd arg1 arg2" strings.
+func tmuxCallArgs(mockBase *commands.MockBaseCommand) []string {
+	var out []string
+	for _, c := range mockBase.ExecCommandCalls {
+		out = append(out, strings.Join(c.Args, " "))
+	}
+	return out
+}
+
+func TestRemoveWithSessionInRepo(t *testing.T) {
+	const wtName = "feat"
+
+	// newWM builds a manager whose worktree directory does not exist (so only
+	// the tmux window/session paths are exercised) and whose window lives in
+	// the given session.
+	newWM := func(t *testing.T, session string) (*WorktreeManager, *commands.MockBaseCommand, string) {
+		t.Helper()
+		repoSlug := filepath.Base(t.TempDir())
+		mockGitBase := commands.NewMockBaseCommand()
+		mockGitBase.SetExecCommandResult("", "", nil)
+		mockTmuxBase := commands.NewMockBaseCommand()
+		wm := &WorktreeManager{
+			Git:  &git.Git{Cmd: commands.NewMockCommand(), Base: mockGitBase},
+			Tmux: &tmux.Tmux{Cmd: commands.NewMockCommand(), Base: mockTmuxBase},
+			Base: commands.NewMockBaseCommand(),
+		}
+		_ = session
+		return wm, mockTmuxBase, repoSlug
+	}
+
+	t.Run("attached to victim session switches to fallback before kill", func(t *testing.T) {
+		t.Setenv("TMUX", "/tmp/tmux-1000/default,123,0")
+		wm, mockTmuxBase, repoSlug := newWM(t, "dev-session")
+		windowName := GetWindowName(repoSlug, wtName)
+		windowList := "dev-session\t" + windowName + "\n"
+		mockTmuxBase.SetExecCommandResults(
+			commands.ExecCommandResult(windowList, "", nil),      // WindowSession (ours)
+			commands.ExecCommandResult(windowList, "", nil),      // WindowSession (worktreeState)
+			commands.ExecCommandResult(windowList, "", nil),      // WindowSession (KillWindow)
+			commands.ExecCommandResult("", "", nil),              // kill-window
+			commands.ExecCommandResult("", "", nil),              // has-session dev-session
+			commands.ExecCommandResult("dev-session\n", "", nil), // display-message (CurrentSession)
+			commands.ExecCommandResult("", "", nil),              // has-session misc
+			commands.ExecCommandResult("", "", nil),              // switch-client
+			commands.ExecCommandResult("", "", nil),              // kill-session
+		)
+
+		if err := wm.RemoveWithSessionInRepo(repoSlug, wtName); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		calls := tmuxCallArgs(mockTmuxBase)
+		switchIdx, killIdx := -1, -1
+		for i, c := range calls {
+			if c == "switch-client -t misc" {
+				switchIdx = i
+			}
+			if c == "kill-session -t dev-session" {
+				killIdx = i
+			}
+		}
+		if switchIdx == -1 {
+			t.Fatalf("expected switch-client to misc, calls: %v", calls)
+		}
+		if killIdx == -1 {
+			t.Fatalf("expected kill-session of dev-session, calls: %v", calls)
+		}
+		if switchIdx > killIdx {
+			t.Error("client must be switched to fallback before the session is killed")
+		}
+	})
+
+	t.Run("not attached to victim session kills without switching", func(t *testing.T) {
+		t.Setenv("TMUX", "/tmp/tmux-1000/default,123,0")
+		wm, mockTmuxBase, repoSlug := newWM(t, "dev-session")
+		windowName := GetWindowName(repoSlug, wtName)
+		windowList := "dev-session\t" + windowName + "\n"
+		mockTmuxBase.SetExecCommandResults(
+			commands.ExecCommandResult(windowList, "", nil),
+			commands.ExecCommandResult(windowList, "", nil),
+			commands.ExecCommandResult(windowList, "", nil),
+			commands.ExecCommandResult("", "", nil),        // kill-window
+			commands.ExecCommandResult("", "", nil),        // has-session dev-session
+			commands.ExecCommandResult("other\n", "", nil), // display-message → different session
+			commands.ExecCommandResult("", "", nil),        // kill-session
+		)
+
+		if err := wm.RemoveWithSessionInRepo(repoSlug, wtName); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		calls := tmuxCallArgs(mockTmuxBase)
+		for _, c := range calls {
+			if strings.HasPrefix(c, "switch-client") {
+				t.Errorf("should not switch client when not attached to victim session: %v", calls)
+			}
+		}
+		if last := calls[len(calls)-1]; last != "kill-session -t dev-session" {
+			t.Errorf("expected final kill-session, got %q (calls: %v)", last, calls)
+		}
+	})
+
+	t.Run("never kills the fallback session", func(t *testing.T) {
+		wm, mockTmuxBase, repoSlug := newWM(t, "misc")
+		windowName := GetWindowName(repoSlug, wtName)
+		windowList := "misc\t" + windowName + "\n"
+		mockTmuxBase.SetExecCommandResults(
+			commands.ExecCommandResult(windowList, "", nil),
+			commands.ExecCommandResult(windowList, "", nil),
+			commands.ExecCommandResult(windowList, "", nil),
+			commands.ExecCommandResult("", "", nil), // kill-window
+		)
+
+		if err := wm.RemoveWithSessionInRepo(repoSlug, wtName); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		for _, c := range tmuxCallArgs(mockTmuxBase) {
+			if strings.HasPrefix(c, "kill-session") {
+				t.Errorf("fallback session must never be killed: %v", tmuxCallArgs(mockTmuxBase))
+			}
+		}
+	})
+
+	t.Run("skips kill when session already destroyed by kill-window", func(t *testing.T) {
+		wm, mockTmuxBase, repoSlug := newWM(t, "dev-session")
+		windowName := GetWindowName(repoSlug, wtName)
+		windowList := "dev-session\t" + windowName + "\n"
+		mockTmuxBase.SetExecCommandResults(
+			commands.ExecCommandResult(windowList, "", nil),
+			commands.ExecCommandResult(windowList, "", nil),
+			commands.ExecCommandResult(windowList, "", nil),
+			commands.ExecCommandResult("", "", nil),                           // kill-window
+			commands.ExecCommandResult("", "no such session", os.ErrNotExist), // has-session fails
+		)
+
+		if err := wm.RemoveWithSessionInRepo(repoSlug, wtName); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		for _, c := range tmuxCallArgs(mockTmuxBase) {
+			if strings.HasPrefix(c, "kill-session") {
+				t.Errorf("should not kill an already-destroyed session: %v", tmuxCallArgs(mockTmuxBase))
+			}
+		}
+	})
+
+	t.Run("creates fallback session when missing", func(t *testing.T) {
+		t.Setenv("TMUX", "/tmp/tmux-1000/default,123,0")
+		wm, mockTmuxBase, repoSlug := newWM(t, "dev-session")
+		windowName := GetWindowName(repoSlug, wtName)
+		windowList := "dev-session\t" + windowName + "\n"
+		mockTmuxBase.SetExecCommandResults(
+			commands.ExecCommandResult(windowList, "", nil),
+			commands.ExecCommandResult(windowList, "", nil),
+			commands.ExecCommandResult(windowList, "", nil),
+			commands.ExecCommandResult("", "", nil),                           // kill-window
+			commands.ExecCommandResult("", "", nil),                           // has-session dev-session
+			commands.ExecCommandResult("dev-session\n", "", nil),              // display-message
+			commands.ExecCommandResult("", "no such session", os.ErrNotExist), // has-session misc fails
+			commands.ExecCommandResult("", "", nil),                           // new-session
+			commands.ExecCommandResult("", "", nil),                           // switch-client
+			commands.ExecCommandResult("", "", nil),                           // kill-session
+		)
+
+		if err := wm.RemoveWithSessionInRepo(repoSlug, wtName); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		calls := tmuxCallArgs(mockTmuxBase)
+		created := false
+		for _, c := range calls {
+			if strings.HasPrefix(c, "new-session") && strings.Contains(c, "-s misc") {
+				created = true
+			}
+		}
+		if !created {
+			t.Errorf("expected fallback session to be created, calls: %v", calls)
+		}
+	})
+}
