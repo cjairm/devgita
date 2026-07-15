@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"testing"
 
 	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/files"
@@ -11,6 +12,59 @@ import (
 
 // This allows swapping it during tests
 var FileAlreadyExist = files.FileAlreadyExist
+
+// testSandbox is the throwaway root directory every derived path resolves
+// under while running inside `go test`. It exists so a test that forgets (or
+// incompletely applies) path isolation can never read or delete real user
+// data. Outside `go test` it is empty and has no effect.
+//
+// HOME and the XDG base variables are redirected into the sandbox too, so
+// env-reading fallbacks resolve inside it as well; tests that set their own
+// XDG values (e.g. via t.Setenv) still take precedence because those reads
+// stay dynamic. Every path helper resolves the home directory through
+// userHome, which references this variable — that reference guarantees Go
+// initializes the sandbox before any package-level path (e.g. Paths) is
+// derived.
+var testSandbox = func() string {
+	if !testing.Testing() {
+		return ""
+	}
+	dir, err := os.MkdirTemp("", "devgita-test-sandbox-")
+	if err != nil {
+		panic("could not create test sandbox directory: " + err.Error())
+	}
+	for key, value := range map[string]string{
+		"HOME":            dir,
+		"XDG_CONFIG_HOME": filepath.Join(dir, ".config"),
+		"XDG_DATA_HOME":   filepath.Join(dir, ".local", "share"),
+		"XDG_STATE_HOME":  filepath.Join(dir, ".local", "state"),
+		"XDG_CACHE_HOME":  filepath.Join(dir, ".cache"),
+	} {
+		if err := os.Setenv(key, value); err != nil {
+			panic("could not redirect " + key + " to the test sandbox: " + err.Error())
+		}
+	}
+	return dir
+}()
+
+// userHome resolves the user's home directory, panicking when it cannot be
+// determined. Under `go test` the read stays dynamic (tests may point HOME at
+// their own temp dir via t.Setenv), but it can never resolve to the real home
+// directory: the sandbox init already redirected HOME, and an empty HOME
+// falls back to the sandbox root.
+func userHome() string {
+	if testSandbox != "" {
+		if home := os.Getenv("HOME"); home != "" {
+			return home
+		}
+		return testSandbox
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		panic("could not determine home directory")
+	}
+	return home
+}
 
 // Paths contains all directory path structures
 var Paths = struct {
@@ -210,11 +264,7 @@ var Files = struct {
 func GetConfigDir(subPath ...string) string {
 	base := os.Getenv("XDG_CONFIG_HOME")
 	if base == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			panic("could not determine home directory")
-		}
-		base = filepath.Join(home, ".config")
+		base = filepath.Join(userHome(), ".config")
 	}
 	return filepath.Join(append([]string{base}, subPath...)...)
 }
@@ -224,11 +274,7 @@ func GetConfigDir(subPath ...string) string {
 func GetDataDir(subPath ...string) string {
 	base := os.Getenv("XDG_DATA_HOME")
 	if base == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			panic("could not determine home directory")
-		}
-		base = filepath.Join(home, ".local", "share")
+		base = filepath.Join(userHome(), ".local", "share")
 	}
 	return filepath.Join(append([]string{base}, subPath...)...)
 }
@@ -239,11 +285,7 @@ func GetAppDir(subPath ...string) string {
 }
 
 func GetHomeDir(subPath ...string) string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		panic("could not determine home directory")
-	}
-	return filepath.Join(append([]string{home}, subPath...)...)
+	return filepath.Join(append([]string{userHome()}, subPath...)...)
 }
 
 // Returns XDG_STATE_HOME or fallback to ~/.local/state
@@ -251,11 +293,7 @@ func GetHomeDir(subPath ...string) string {
 func GetStateDir(subPath ...string) string {
 	base := os.Getenv("XDG_STATE_HOME")
 	if base == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			panic("could not determine home directory")
-		}
-		base = filepath.Join(home, ".local", "state")
+		base = filepath.Join(userHome(), ".local", "state")
 	}
 	return filepath.Join(append([]string{base}, subPath...)...)
 }
@@ -265,11 +303,7 @@ func GetStateDir(subPath ...string) string {
 func GetCacheDir(subPath ...string) string {
 	base := os.Getenv("XDG_CACHE_HOME")
 	if base == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			panic("could not determine home directory")
-		}
-		base = filepath.Join(home, ".cache")
+		base = filepath.Join(userHome(), ".cache")
 	}
 	return filepath.Join(append([]string{base}, subPath...)...)
 }
@@ -298,10 +332,7 @@ func GetSystemApplicationsDir(isMac bool, subPath ...string) string {
 }
 
 func GetShellConfigFile() string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		panic("could not determine home directory")
-	}
+	home := userHome()
 	configDir := os.Getenv("XDG_CONFIG_HOME")
 	if configDir == "" {
 		configDir = filepath.Join(home, ".config")
@@ -324,12 +355,8 @@ func GetShellConfigFile() string {
 
 // Returns user-level fonts dir
 func GetUserFontsDir(isMac bool, subPath ...string) string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		panic("could not determine home directory")
-	}
-
 	if isMac {
+		home := userHome()
 		base := filepath.Join(home, "Library", "Fonts")
 		return filepath.Join(append([]string{base}, subPath...)...)
 	}

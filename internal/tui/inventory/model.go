@@ -13,8 +13,7 @@ import (
 
 // Options configures the dashboard's initial filter state.
 type Options struct {
-	ProblemsOnly bool   // pre-applied "problems only" filter (dg validate sets this)
-	Category     string // pre-filter to a single category key (e.g. "fonts"); "" = all
+	Category string // pre-filter to a single category key (e.g. "fonts"); "" = all
 }
 
 type model struct {
@@ -29,6 +28,7 @@ type model struct {
 	problemsOnly bool
 	filtering    bool
 	filter       string
+	showHelp     bool
 
 	width, height int
 
@@ -51,12 +51,11 @@ func newModel(items []inventory.Item, opts Options) model {
 	}
 
 	m := model{
-		items:        items,
-		title:        title,
-		collapsed:    map[string]bool{},
-		groupMode:    groupByCategory,
-		problemsOnly: opts.ProblemsOnly,
-		palette:      tuicomponents.NewPalette(),
+		items:     items,
+		title:     title,
+		collapsed: map[string]bool{},
+		groupMode: groupByCategory,
+		palette:   tuicomponents.NewPalette(),
 	}
 	m.rebuildRows()
 	return m
@@ -130,6 +129,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	key := msg.String()
 
+	// Help overlay: any key dismisses it
+	if m.showHelp {
+		m.showHelp = false
+		return m, nil
+	}
+
 	if m.filtering {
 		switch key {
 		case "esc":
@@ -153,6 +158,8 @@ func (m model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 
 	switch key {
+	case "?":
+		m.showHelp = true
 	case "q", "ctrl+c":
 		return m, tea.Quit
 	case "j":
@@ -214,6 +221,10 @@ func (m model) renderContent() string {
 		return ""
 	}
 
+	if m.showHelp {
+		return m.renderHelpOverlay()
+	}
+
 	hint := m.renderHint(m.width)
 	summary := m.renderSummary(m.width)
 
@@ -229,7 +240,57 @@ func (m model) renderContent() string {
 		lines = append(lines, m.renderRow(i))
 	}
 
-	return m.palette.BorderedPane(m.title, m.width, lines) + "\n" + summary + "\n" + hint
+	// Problems-only with nothing wrong would render an empty pane; say so instead.
+	if len(lines) == 0 && m.problemsOnly && m.filter == "" {
+		lines = []string{
+			"",
+			m.palette.Inactive.Render(
+				fmt.Sprintf(
+					"  ✓ no problems — all %d tracked items are present · press p to show everything",
+					len(m.items),
+				),
+			),
+		}
+	}
+
+	title := m.title
+	if m.problemsOnly {
+		title += " · problems only"
+	}
+
+	return m.palette.BorderedPane(title, m.width, lines) + "\n" + summary + "\n" + hint
+}
+
+func (m model) renderHelpOverlay() string {
+	entries := []tuicomponents.WhichKeyEntry{
+		{Key: "j / k", Desc: "move down / up"},
+		{Key: "h / l", Desc: "collapse / expand group"},
+		{Key: "g", Desc: "group by category / by status"},
+		{Key: "p", Desc: "toggle problems only (MISSING/UNKNOWN)"},
+		{Key: "/", Desc: "filter by name  esc:clear  enter:keep"},
+		{Key: "?", Desc: "toggle this help"},
+		{Key: "q / ctrl+c", Desc: "quit"},
+	}
+	popup := m.palette.WhichKeyPopup(
+		"Keybindings",
+		entries,
+		1,
+		min(m.width-2, 64),
+	) + "\n" + m.palette.HintDesc.Render("press any key to close")
+
+	popupLines := strings.Split(popup, "\n")
+	topPad := max((m.height-len(popupLines))/2, 0)
+	leftPad := max((m.width-min(m.width-2, 64))/2, 0)
+	indent := strings.Repeat(" ", leftPad)
+
+	var out []string
+	for range topPad {
+		out = append(out, "")
+	}
+	for _, l := range popupLines {
+		out = append(out, indent+l)
+	}
+	return strings.Join(out, "\n")
 }
 
 // visibleWindow returns [start, end) into a rowsLen-length list such that the
@@ -323,12 +384,17 @@ func (m model) renderHint(width int) string {
 		hint := "filter: " + m.filter + "█  · esc: clear · enter: keep"
 		return m.palette.HintDesc.Render(ansi.Truncate(hint, width, ""))
 	}
+	problemsDesc := "problems"
+	if m.problemsOnly {
+		problemsDesc = "show all"
+	}
 	hints := []tuicomponents.KeyHint{
 		{Key: "j/k", Desc: "move"},
 		{Key: "h/l", Desc: "collapse/expand"},
 		{Key: "/", Desc: "filter"},
-		{Key: "p", Desc: "problems"},
+		{Key: "p", Desc: problemsDesc},
 		{Key: "g", Desc: "group"},
+		{Key: "?", Desc: "help"},
 		{Key: "q", Desc: "quit"},
 	}
 	return m.palette.HintBar(hints, width)

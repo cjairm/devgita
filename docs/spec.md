@@ -276,9 +276,10 @@ dg wt prune                                 # Remove all worktrees (prompts for 
 
 **Planned commands**: See [ROADMAP.md](ROADMAP.md) for planned features and future commands.
 
-#### `dg list` and `dg validate`
+#### `dg list`
 
-`dg list` and `dg validate` share one data model and one interactive dashboard:
+`dg list` is the single inventory command (there is no separate `dg validate`; drift
+checking lives inside the dashboard's problems-only view):
 
 - **Data model** — every item Devgita has tracked in `~/.config/devgita/global_config.yaml`
   (both what it installed and what it found pre-existing) is live-checked against the system,
@@ -286,31 +287,33 @@ dg wt prune                                 # Remove all worktrees (prompts for 
   - `OK` — the presence check ran and found the item.
   - `MISSING` — the check ran and definitively did not find the item.
   - `UNKNOWN` — the check itself failed to run (e.g. `brew`/`dpkg` unavailable). A failed
-    check is never conflated with a missing item — only `MISSING` affects `dg validate`'s
-    exit code, so a flaky or unavailable package manager can't turn CI red.
+    check is never conflated with a missing item, so a flaky or unavailable package manager
+    can't misreport drift.
   - The `themes` and `terminal_tools` categories are tracked but have no live presence check
     implemented yet (no current code path populates them); if a future feature starts
     tracking items there, they report `UNKNOWN` rather than being silently misreported as
     `OK` or `MISSING`.
 - **Dashboard** — renders the collected items as an interactive, grouped list. Opens
-  automatically when either command runs in a terminal; falls back to plain-text output for
-  piped, CI, or `--plain` invocations. Keybindings: `j`/`k` move, `h`/`l` collapse/expand a
-  group, `/` enter a text filter, `p` toggle problems-only, `g` toggle between grouping by
-  category and grouping by status, `q` quit.
+  automatically in a terminal; falls back to plain-text output for piped, CI, or `--plain`
+  invocations. Keybindings: `j`/`k` move, `h`/`l` collapse/expand a group, `/` enter a text
+  filter, `p` toggle problems-only (`MISSING`/`UNKNOWN` items), `g` toggle between grouping
+  by category and grouping by status, `?` open the keybinding help overlay, `q` quit.
+  While problems-only is active the pane title shows the mode and the `p` hint flips to
+  "show all"; if nothing is missing, the pane says so explicitly instead of rendering an
+  empty list.
 
 ```
 dg list [--category <name>] [--plain]
 dg installed [--category <name>] [--plain]   # alias
-dg validate [--category <name>] [--plain]
 ```
 
-**Flags** (both commands):
+**Flags**:
 
 - `--category <name>` — Filter to a single bucket. Valid values: `packages`, `desktop_apps`,
   `fonts`, `themes`, `terminal_tools`, `dev_languages`, `databases`.
 - `--plain` — Force plain-text output even when run in a terminal.
 
-**`dg list` behavior**:
+**Behavior**:
 
 - In a terminal, opens the dashboard unfiltered (every tracked item, all categories).
 - Piped output, CI, or `--plain`: prints one table per non-empty category (name only, no
@@ -322,28 +325,12 @@ dg validate [--category <name>] [--plain]
   install-timestamp tracking requires a `global_config.yaml` schema change and is planned as
   a future release (see [ROADMAP.md](ROADMAP.md)).
 
-**`dg validate` behavior**:
-
-- In a terminal, opens the same dashboard pre-filtered to problems only (`MISSING`/`UNKNOWN`
-  items); press `p` to toggle back to everything.
-- Piped output, CI, or `--plain`: prints one STATUS table per non-empty category (NAME,
-  STATUS, SOURCE, DETAIL columns), sorted alphabetically within each category. `DETAIL` is
-  empty except for `UNKNOWN` rows, where it carries the underlying check error (e.g. `brew`
-  not on `PATH`) so a user can diagnose why a check couldn't run. Exits non-zero if any
-  tracked item is `MISSING`; an all-`UNKNOWN` or all-`OK` run exits zero. A config with
-  nothing tracked prints a clear message and exits zero.
-- An unrecognized `--category` value prints an error listing the valid category names before
-  any presence checks run.
-
 **Examples**:
 
 ```
 dg list                             # Interactive dashboard in a terminal
 dg list --category=terminal_tools   # Only the terminal tools bucket
 dg installed                        # Same as 'dg list'
-dg validate                         # Interactive dashboard, problems only
-dg validate --plain                 # Plain STATUS table, exits 1 if anything is missing
-dg validate --category=fonts        # Limit to one category
 ```
 
 #### `dg task`

@@ -8,8 +8,7 @@ import (
 	"github.com/cjairm/devgita/internal/inventory"
 )
 
-// Run starts the shared inventory dashboard. dg list calls this with
-// Options{} (unfiltered); dg validate calls it with Options{ProblemsOnly: true}.
+// Run starts the interactive inventory dashboard for dg list.
 func Run(gc *config.GlobalConfig, opts Options) error {
 	c := &inventory.Collector{Cmd: commands.NewCommand(), Base: commands.NewBaseCommand()}
 	items := c.Collect(gc)

@@ -52,6 +52,12 @@ Read these **in order** before starting work:
 
 Hard constraints that override all other considerations:
 
+### Engineering Discipline
+
+- Fix root causes, never symptoms. When something misbehaves, find the underlying cause and fix it so the problem cannot recur — a fix that only hides or defers the failure is not done.
+- Temporary fixes, workarounds, and hacks are not acceptable. If a proper fix is genuinely impossible right now, say so explicitly and get agreement on the gap before shipping anything less; never ship it silently.
+- Where a class of mistake keeps being possible, prefer making it structurally impossible (enforced by code) over documenting a convention people must remember.
+
 ### Security
 
 - Never execute arbitrary downloaded code without verification
@@ -62,6 +68,7 @@ Hard constraints that override all other considerations:
 ### Data Integrity
 
 - Installation state must be atomic: either complete or fully roll back (no partial installations)
+- Tests must never read or write real user directories. Under `go test`, `pkg/paths` automatically redirects HOME and all XDG roots into a throwaway sandbox so this cannot happen even when a test forgets to isolate; that guard must never be weakened or bypassed
 - User home directory must never be assumed writable in global locations; respect XDG Base Directory if needed
 - Config files installed by devgita must be distinguishable from user edits (version markers, checksums)
 
@@ -178,7 +185,7 @@ Accidental real command execution is a common mistake. It can:
 - [ ] All public functionality has tests
 - [ ] Use `testutil.MockApp` for command mocking — never call `foo.New()` in a test that invokes state-changing methods
 - [ ] Verify no real commands executed: `testutil.VerifyNoRealCommands(t, mockApp.Base)` — confirm it's checking the **same** base the app uses
-- [ ] **Call `testutil.IsolateXDGDirs(t)` in any test that calls Uninstall, ForceInstall, ForceConfigure, or SoftConfigure — prevents deleting real user data**
+- [ ] **Isolate every path a test mutates (`testutil.SetupCompleteTest` or explicit `paths.Paths.*` overrides) in any test that calls Uninstall, ForceInstall, ForceConfigure, or SoftConfigure — and isolate ALL the roots the operation touches, not just the obvious one.** The automatic `pkg/paths` test sandbox protects real user data as a last resort, but unisolated tests still leak state into other tests through the shared sandbox
 - [ ] **Save and restore every `paths.Paths.*` mutation via `t.Cleanup` — prevents cross-test state leakage**
 - [ ] Use `t.Helper()` in test helper functions
 - [ ] Test both success and failure paths

@@ -28,7 +28,7 @@ func mockExtractor(destDir string) error {
 	}
 
 	for _, dir := range dirs {
-		if err := os.MkdirAll(dir, 0755); err != nil {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return err
 		}
 	}
@@ -41,7 +41,7 @@ func mockExtractor(destDir string) error {
 	}
 
 	for path, content := range files {
-		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 			return err
 		}
 	}
@@ -59,7 +59,11 @@ func TestGetZshConfigPath_MatchesRegenerateShellConfigOutput(t *testing.T) {
 	actual := getZshConfigPath()
 
 	if actual != expected {
-		t.Errorf("getZshConfigPath() = %q, want %q (must match RegenerateShellConfig output path)", actual, expected)
+		t.Errorf(
+			"getZshConfigPath() = %q, want %q (must match RegenerateShellConfig output path)",
+			actual,
+			expected,
+		)
 	}
 
 	testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
@@ -134,7 +138,7 @@ func TestSoftInstall_DirectoryExistsWithFiles(t *testing.T) {
 	configsDir := filepath.Join(appDir, "configs")
 
 	// Create existing configs directory with a file
-	if err := os.MkdirAll(configsDir, 0755); err != nil {
+	if err := os.MkdirAll(configsDir, 0o755); err != nil {
 		t.Fatalf("Failed to create configs dir: %v", err)
 	}
 	testFile := filepath.Join(configsDir, "test.txt")
@@ -173,11 +177,11 @@ func TestUninstall_RemovesConfigsDirectory(t *testing.T) {
 
 	// Create configs directory in app root
 	configsDir := filepath.Join(paths.Paths.App.Root, "configs")
-	if err := os.MkdirAll(configsDir, 0755); err != nil {
+	if err := os.MkdirAll(configsDir, 0o755); err != nil {
 		t.Fatalf("Failed to create configs dir: %v", err)
 	}
 	testFile := filepath.Join(configsDir, "test.txt")
-	if err := os.WriteFile(testFile, []byte("content"), 0644); err != nil {
+	if err := os.WriteFile(testFile, []byte("content"), 0o644); err != nil {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 
@@ -200,28 +204,24 @@ func TestUninstall_RemovesConfigsDirectory(t *testing.T) {
 }
 
 func TestForceInstall(t *testing.T) {
-	tempDir := t.TempDir()
-	appDir := filepath.Join(tempDir, "devgita")
-	configsDir := filepath.Join(appDir, "configs")
+	// ForceInstall runs Uninstall, which also touches Config.Root paths —
+	// SetupCompleteTest isolates both App.Root and Config.Root.
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
+
+	configsDir := filepath.Join(paths.Paths.App.Root, "configs")
 
 	// Create existing configs directory
-	if err := os.MkdirAll(configsDir, 0755); err != nil {
+	if err := os.MkdirAll(configsDir, 0o755); err != nil {
 		t.Fatalf("Failed to create configs dir: %v", err)
 	}
 	oldFile := filepath.Join(configsDir, "old.txt")
-	if err := os.WriteFile(oldFile, []byte("old"), 0644); err != nil {
+	if err := os.WriteFile(oldFile, []byte("old"), 0o644); err != nil {
 		t.Fatalf("Failed to create old file: %v", err)
 	}
 
-	oldAppDir := paths.Paths.App.Root
-	paths.Paths.App.Root = appDir
-	t.Cleanup(func() {
-		paths.Paths.App.Root = oldAppDir
-	})
-
-	mockApp := testutil.NewMockApp()
 	dg := &Devgita{
-		Base:            mockApp.Base,
+		Base:            tc.MockApp.Base,
 		ExtractEmbedded: mockExtractor,
 	}
 
@@ -240,7 +240,7 @@ func TestForceInstall(t *testing.T) {
 		t.Fatal("Expected new configs to be extracted")
 	}
 
-	testutil.VerifyNoRealCommands(t, mockApp.Base)
+	testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
 }
 
 func TestForceConfigure_CreatesConfig(t *testing.T) {
@@ -282,7 +282,7 @@ func TestForceConfigure_OverwritesExisting(t *testing.T) {
 
 	// Create existing config file
 	oldContent := "old: config\n"
-	if err := os.WriteFile(tc.ConfigPath, []byte(oldContent), 0644); err != nil {
+	if err := os.WriteFile(tc.ConfigPath, []byte(oldContent), 0o644); err != nil {
 		t.Fatalf("Failed to create old config: %v", err)
 	}
 
@@ -333,7 +333,7 @@ shell:
   eza: false
   bat: false
 `
-	if err := os.WriteFile(tc.ConfigPath, []byte(existingContent), 0644); err != nil {
+	if err := os.WriteFile(tc.ConfigPath, []byte(existingContent), 0o644); err != nil {
 		t.Fatalf("Failed to create existing config: %v", err)
 	}
 
@@ -341,7 +341,7 @@ shell:
 	// This must match where RegenerateShellConfig writes the file
 	actualZshPath := getZshConfigPath()
 	existingZsh := "# Custom zsh marker\nsource /custom/path\n"
-	if err := os.WriteFile(actualZshPath, []byte(existingZsh), 0644); err != nil {
+	if err := os.WriteFile(actualZshPath, []byte(existingZsh), 0o644); err != nil {
 		t.Fatalf("Failed to create existing zsh config: %v", err)
 	}
 

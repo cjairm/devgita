@@ -454,7 +454,6 @@ func TestInstallCommand(t *testing.T) {
 | `dg list / installed`           | No args                 | Planned       |
 | `dg update [app]`               | Single arg              | Planned       |
 | `dg check-updates`              | No args                 | Planned       |
-| `dg validate`                   | No args                 | Planned       |
 | `dg change --theme --font`      | Multiple flags          | Planned       |
 | `dg backup [name]`              | Single arg              | Planned       |
 | `dg restore [backup]`           | Single arg              | Planned       |

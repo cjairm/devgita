@@ -1,6 +1,7 @@
 package tuiinventory
 
 import (
+	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -38,12 +39,50 @@ func TestNewModel_CategoryPreFilter(t *testing.T) {
 	}
 }
 
-func TestNewModel_ProblemsOnlyOption(t *testing.T) {
-	m := newModel(testItems(), Options{ProblemsOnly: true})
-	for _, r := range m.rows {
-		if r.kind == rowItem && r.item.State == inventory.StateOK {
-			t.Error("ProblemsOnly should hide OK items from the initial rows")
-		}
+func TestUpdate_HelpOverlay(t *testing.T) {
+	m := newModel(testItems(), Options{})
+	m.width, m.height = 80, 24
+
+	m2, _ := m.Update(tea.KeyPressMsg{Code: '?'})
+	m3 := m2.(model)
+	if !m3.showHelp {
+		t.Fatal("? should open the help overlay")
+	}
+	content := m3.renderContent()
+	if !strings.Contains(content, "problems only") {
+		t.Error("help overlay should explain the p keybinding")
+	}
+
+	// Any key closes it without acting on the list
+	m4, _ := m3.Update(tea.KeyPressMsg{Code: 'p'})
+	m5 := m4.(model)
+	if m5.showHelp {
+		t.Error("any key should close the help overlay")
+	}
+	if m5.problemsOnly {
+		t.Error("the closing key must not also toggle problems-only")
+	}
+}
+
+func TestView_ProblemsOnlyStateIsVisible(t *testing.T) {
+	// All items OK: problems-only shows a message instead of an empty pane.
+	items := []inventory.Item{
+		{Name: "git", Category: "packages", Source: "installed", State: inventory.StateOK},
+	}
+	m := newModel(items, Options{})
+	m.width, m.height = 80, 24
+
+	m2, _ := m.Update(tea.KeyPressMsg{Code: 'p'})
+	m3 := m2.(model)
+	content := m3.renderContent()
+	if !strings.Contains(content, "no problems") {
+		t.Error("problems-only with nothing missing should say so instead of rendering empty")
+	}
+	if !strings.Contains(content, "problems only") {
+		t.Error("pane title should show the problems-only mode")
+	}
+	if !strings.Contains(content, "show all") {
+		t.Error("hint bar should flip p to 'show all' while problems-only is active")
 	}
 }
 

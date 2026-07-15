@@ -42,7 +42,6 @@ Available Commands:
   check-updates  See if any managed apps have updates
   backup         Create a backup of your current Devgita-managed environment
   restore        Restore a previous backup configuration
-  validate       Ensure configuration and dependencies are correct
   change         Change font or theme (--theme=..., --font=...)
   version        Print the version number of devgita
 
@@ -52,7 +51,6 @@ Examples:
   dg re-configure --app=neovim
   dg change --theme=tokyonight --font=JetBrainsMono
   dg backup --output=~/dg_backup.json
-  dg validate
 `,
 }
 

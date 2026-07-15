@@ -16,7 +16,7 @@ const (
 	// StateMissing: the check ran and definitively did not find the item.
 	StateMissing
 	// StateUnknown: the check itself failed to run (e.g. brew/dpkg unavailable).
-	// Never conflated with StateMissing — only StateMissing affects `dg validate`'s exit code.
+	// Never conflated with StateMissing, so a flaky package manager never reads as drift.
 	StateUnknown
 )
 
@@ -41,7 +41,7 @@ type Item struct {
 }
 
 // CategoryInfo pairs a category key with its display label, in the fixed display
-// order shared by `dg list` and `dg validate`.
+// order used by the `dg list` dashboard.
 type CategoryInfo struct {
 	Key   string
 	Label string

@@ -6,7 +6,7 @@ package cmd
 import "os"
 
 // isInteractiveTerminal reports whether stdout is attached to a real terminal.
-// Used by dg list / dg validate to decide between the interactive dashboard and
+// Used by dg list to decide between the interactive dashboard and
 // plain-text output (piped, redirected, or CI contexts always get plain text).
 func isInteractiveTerminal() bool {
 	info, err := os.Stdout.Stat()

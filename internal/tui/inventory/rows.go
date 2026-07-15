@@ -1,5 +1,5 @@
 // Package tuiinventory provides the shared Bubble Tea dashboard for browsing
-// devgita's tracked inventory, used by both `dg list` and `dg validate`.
+// devgita's tracked inventory, used by the `dg list` dashboard.
 package tuiinventory
 
 import (
