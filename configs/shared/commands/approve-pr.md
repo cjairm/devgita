@@ -69,13 +69,15 @@ A failing or errored check is often flaky, an unrelated job, or otherwise still 
 
 ### 4. Decide
 
+**Write plainly.** Anything posted to the PR — the approval body or a comment — must be understandable by any engineer, including a junior one: everyday words, short sentences, no fancy vocabulary or filler.
+
 **Approve when both gates hold:** the PR is open and there are no unresolved threads (and any resolved one you spot-checked holds up). Failing checks are noted, not blocking.
 
 ```bash
-devgita task approve-pr --body "LGTM — all feedback addressed."
+devgita task approve-pr --body "LGTM. Thanks for working on the suggestions 🔥"
 ```
 
-Keep the approval body to a single line. Don't paste the gate summary or per-thread detail into the PR — that belongs in the report to the user, not the review. If checks are red, mention it in one short clause (e.g. "LGTM — all feedback addressed; CI has a failing job worth a look") rather than withholding approval.
+Keep the approval body to a short, warm one-liner acknowledging the work — e.g. "LGTM. Thanks for working on the suggestions 🔥" or "LGTM. I appreciate the work — all my comments were addressed." Vary the phrasing. Don't paste the gate summary or per-thread detail into the PR — that belongs in the report to the user, not the review. If checks are red, mention it in one short clause (e.g. "LGTM — all feedback addressed; CI has a failing job worth a look") rather than withholding approval.
 
 **If a real gate blocks** (an unresolved thread, or a resolution that doesn't hold up), do **not** approve. Report it to the user; the author can clear it with `/address-feedback`. If a note on the PR is warranted, post one terse comment — not a per-thread recap:
 
