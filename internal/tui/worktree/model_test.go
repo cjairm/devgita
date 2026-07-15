@@ -3,9 +3,11 @@ package tuiworktree
 import (
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/cjairm/devgita/internal/testutil"
 	"github.com/cjairm/devgita/internal/tooling/task"
 	"github.com/cjairm/devgita/internal/tooling/worktree"
@@ -472,6 +474,90 @@ func TestDeleteErrorPropagation(t *testing.T) {
 	}
 	if m6.pendingDelete != "" {
 		t.Error("pendingDelete should be cleared after error")
+	}
+}
+
+func TestDiffFocusMode(t *testing.T) {
+	m := makeTestModel(testStatuses())
+	m.diffContent = "line0\nline1\nline2\nline3\nline4"
+	m.diffFileLines = []int{0, 3}
+
+	// space focuses the diff pane
+	m2, _ := m.Update(tea.KeyPressMsg{Code: tea.KeySpace})
+	m3 := m2.(Model)
+	if !m3.diffFocused {
+		t.Fatal("space should focus the diff pane")
+	}
+
+	// j scrolls the diff without moving the list cursor
+	cursorBefore := m3.cursor
+	m4, _ := m3.Update(tea.KeyPressMsg{Code: 'j'})
+	m5 := m4.(Model)
+	if m5.diffScroll != 1 {
+		t.Errorf("j should scroll diff by 1, got %d", m5.diffScroll)
+	}
+	if m5.cursor != cursorBefore {
+		t.Error("j while focused must not move the list cursor")
+	}
+
+	// ] jumps to the next file header
+	m6, _ := m5.Update(tea.KeyPressMsg{Code: ']'})
+	m7 := m6.(Model)
+	if m7.diffScroll != 3 {
+		t.Errorf("] should jump to next file header line 3, got %d", m7.diffScroll)
+	}
+
+	// [ jumps back to the previous file header
+	m8, _ := m7.Update(tea.KeyPressMsg{Code: '['})
+	m9 := m8.(Model)
+	if m9.diffScroll != 0 {
+		t.Errorf("[ should jump back to header line 0, got %d", m9.diffScroll)
+	}
+
+	// G/g hit bottom/top
+	m10, _ := m9.Update(tea.KeyPressMsg{Code: 'G'})
+	m11 := m10.(Model)
+	if m11.diffScroll != 4 {
+		t.Errorf("G should scroll to last line, got %d", m11.diffScroll)
+	}
+
+	// d while focused must not arm a delete
+	m12, _ := m11.Update(tea.KeyPressMsg{Code: 'd'})
+	m13 := m12.(Model)
+	if m13.pendingDelete != "" {
+		t.Error("d while focused must not arm pendingDelete")
+	}
+
+	// esc returns focus to the list
+	m14, _ := m13.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	m15 := m14.(Model)
+	if m15.diffFocused {
+		t.Error("esc should unfocus the diff pane")
+	}
+}
+
+func TestDiffFocusRequiresContent(t *testing.T) {
+	m := makeTestModel(testStatuses())
+	m.diffContent = ""
+	m2, _ := m.Update(tea.KeyPressMsg{Code: tea.KeySpace})
+	if m2.(Model).diffFocused {
+		t.Error("space must not focus an empty (still loading) diff pane")
+	}
+}
+
+func TestDiffHeaderShowsComparison(t *testing.T) {
+	m := makeTestModel(testStatuses())
+	m.diffBase = "main @3e90667"
+	m.diffBranch = "feature-a"
+	m.diffFiles, m.diffAdded, m.diffRemoved = 2, 96, 14
+	m.diffContent = "x"
+	right := m.renderRight(100)
+	header := strings.Split(ansi.Strip(right), "\n")[0]
+	if !strings.Contains(header, "main @3e90667 ← feature-a") {
+		t.Errorf("expected comparison label in header, got %q", header)
+	}
+	if !strings.Contains(header, "±2 +96 -14") {
+		t.Errorf("expected stat line in header, got %q", header)
 	}
 }
 

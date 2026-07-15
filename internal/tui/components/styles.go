@@ -15,9 +15,10 @@ type Palette struct {
 	BranchGlyph lip.Style // ANSI 8 dim
 
 	// Diff colors
-	DiffAdded   lip.Style // ANSI 2
-	DiffRemoved lip.Style // ANSI 1
-	DiffFiles   lip.Style // ANSI 15 white
+	DiffAdded      lip.Style // ANSI 2
+	DiffRemoved    lip.Style // ANSI 1
+	DiffFiles      lip.Style // ANSI 15 white
+	DiffFileHeader lip.Style // bold ANSI 15 — per-file header in a diff pane
 
 	// Tree structure
 	RepoHeader  lip.Style // ANSI 6 bold
@@ -68,9 +69,10 @@ func NewPalette() *Palette {
 		NoSession:   lip.NewStyle().Foreground(lip.Color("8")),
 		BranchGlyph: lip.NewStyle().Foreground(lip.Color("8")),
 
-		DiffAdded:   lip.NewStyle().Foreground(lip.Color("2")),
-		DiffRemoved: lip.NewStyle().Foreground(lip.Color("1")),
-		DiffFiles:   lip.NewStyle().Foreground(lip.Color("15")),
+		DiffAdded:      lip.NewStyle().Foreground(lip.Color("2")),
+		DiffRemoved:    lip.NewStyle().Foreground(lip.Color("1")),
+		DiffFiles:      lip.NewStyle().Foreground(lip.Color("15")),
+		DiffFileHeader: lip.NewStyle().Bold(true).Foreground(lip.Color("15")),
 
 		RepoHeader:  lip.NewStyle().Bold(true).Foreground(lip.Color("6")),
 		SectionHead: lip.NewStyle().Foreground(lip.Color("8")),

@@ -247,14 +247,14 @@ dg wt <subcommand> [flags]     # alias
 
 **Subcommands**:
 
-| Subcommand      | Description                                                                         |
-| --------------- | ----------------------------------------------------------------------------------- |
-| `create <name>` | Create a new worktree + tmux window                                                 |
-| `list`          | List all managed worktrees                                                          |
-| `remove [name]` | Remove a worktree (interactive picker if name omitted)                              |
-| `ui` / `dash`   | Full-screen TUI dashboard (NERDTree-style tree + branch-diff pane); replaces `jump` |
-| `repair <name>` | Recreate the tmux window for an existing worktree                                   |
-| `prune`         | Remove **all** managed worktrees after confirmation                                 |
+| Subcommand      | Description                                                                                                                                                                                                                                                                      |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `create <name>` | Create a new worktree + tmux window                                                                                                                                                                                                                                              |
+| `list`          | List all managed worktrees                                                                                                                                                                                                                                                       |
+| `remove [name]` | Remove a worktree (interactive picker if name omitted)                                                                                                                                                                                                                           |
+| `ui` / `dash`   | Full-screen TUI dashboard (NERDTree-style tree + branch-diff pane). The pane labels its comparison (`<default-branch> @<merge-base> ← <branch>`), renders one styled header per file with per-file +/- counts, and is focusable (Space) for vim-style scrolling; replaces `jump` |
+| `repair <name>` | Recreate the tmux window for an existing worktree                                                                                                                                                                                                                                |
+| `prune`         | Remove **all** managed worktrees after confirmation                                                                                                                                                                                                                              |
 
 **Flags for `create` and `repair`**:
 
@@ -278,7 +278,8 @@ dg wt <subcommand> [flags]     # alias
 dg wt create feature-login                  # Create worktree, use default AI
 dg wt create feature-login --ai claude      # Create with Claude Code
 dg wt new fix-auth --repo ~/code/api        # Create for another repo; window opens in its session
-dg wt ui                                    # Open TUI dashboard (j/k nav, Enter attach, d delete, D delete + kill session, r repair)
+dg wt ui                                    # Open TUI dashboard (j/k nav, Enter attach, d delete, D delete + kill session, r repair,
+                                            #   Space focuses the diff pane: j/k scroll, [/] jump between files, g/G top/bottom, Esc back)
 dg wt repair feature-login                  # Recreate missing tmux window
 dg wt prune                                 # Remove all worktrees (prompts for confirmation)
 ```

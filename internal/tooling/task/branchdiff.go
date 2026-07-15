@@ -9,11 +9,24 @@ import (
 
 // BranchDiffResult is BranchDiffAt's payload: the rendered diff plus totals
 // for the included (non-excluded) files, for display in a stat line.
+// BaseBranch/BaseSHA identify what the diff compares against so callers can
+// label it, and FileStats carries per-file counts for per-file headers.
 type BranchDiffResult struct {
-	Content string
-	Files   int
+	Content    string
+	Files      int
+	Added      int
+	Removed    int
+	BaseBranch string
+	BaseSHA    string // short merge-base hash
+	FileStats  []FileStat
+}
+
+// FileStat is one included file's numstat counts.
+type FileStat struct {
+	Path    string
 	Added   int
 	Removed int
+	Binary  bool
 }
 
 // BranchDiffAt returns the diff of the worktree at dir against its
@@ -51,13 +64,25 @@ func BranchDiffAt(g *git_app.Git, dir string) (BranchDiffResult, error) {
 	}
 	included, excluded := partitionExcluded(changes)
 
+	shortBase := base
+	if len(shortBase) > 7 {
+		shortBase = shortBase[:7]
+	}
 	res := BranchDiffResult{
-		Content: formatBranchDiff(rangeLabel, diff, excluded),
-		Files:   len(included),
+		Content:    formatBranchDiff(rangeLabel, diff, excluded),
+		Files:      len(included),
+		BaseBranch: defaultBranch,
+		BaseSHA:    shortBase,
 	}
 	for _, f := range included {
 		res.Added += f.Added
 		res.Removed += f.Removed
+		res.FileStats = append(res.FileStats, FileStat{
+			Path:    f.Path,
+			Added:   f.Added,
+			Removed: f.Removed,
+			Binary:  f.Binary,
+		})
 	}
 
 	if untracked := untrackedFiles(g, dir); len(untracked) > 0 {

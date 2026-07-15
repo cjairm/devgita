@@ -213,11 +213,19 @@ func TestBranchDiffAt(t *testing.T) {
 	t.Run("diffs merge-base against working tree with -C dir and totals stats", func(t *testing.T) {
 		tm, gitBase, _ := newTaskSetup()
 		gitBase.SetExecCommandResults(
-			commands.ExecCommandResult("origin/main\n", "", nil),                   // symbolic-ref (default branch)
+			commands.ExecCommandResult(
+				"origin/main\n",
+				"",
+				nil,
+			), // symbolic-ref (default branch)
 			commands.ExecCommandResult("abc123\n", "", nil),                        // merge-base
 			commands.ExecCommandResult("diff --git a/x b/x\n+hi\n", "", nil),       // diff
 			commands.ExecCommandResult("5\t2\tmain.go\n40\t12\tgo.sum\n", "", nil), // numstat
-			commands.ExecCommandResult("?? notes.txt\n", "", nil),                  // status --porcelain
+			commands.ExecCommandResult(
+				"?? notes.txt\n",
+				"",
+				nil,
+			), // status --porcelain
 		)
 
 		res, err := BranchDiffAt(tm.Git, "/tmp/wt")
@@ -236,7 +244,21 @@ func TestBranchDiffAt(t *testing.T) {
 		}
 		// main.go (included) + notes.txt (untracked); go.sum excluded from totals.
 		if res.Files != 2 || res.Added != 5 || res.Removed != 2 {
-			t.Errorf("unexpected stats: files=%d added=%d removed=%d", res.Files, res.Added, res.Removed)
+			t.Errorf(
+				"unexpected stats: files=%d added=%d removed=%d",
+				res.Files,
+				res.Added,
+				res.Removed,
+			)
+		}
+		// Base metadata labels the comparison; abc123 is already short.
+		if res.BaseBranch != "main" || res.BaseSHA != "abc123" {
+			t.Errorf("unexpected base metadata: branch=%q sha=%q", res.BaseBranch, res.BaseSHA)
+		}
+		// Per-file stats cover included files only.
+		if len(res.FileStats) != 1 || res.FileStats[0].Path != "main.go" ||
+			res.FileStats[0].Added != 5 || res.FileStats[0].Removed != 2 {
+			t.Errorf("unexpected file stats: %+v", res.FileStats)
 		}
 
 		// Every git call must target the worktree dir via -C.

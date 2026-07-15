@@ -33,6 +33,9 @@ type (
 	diffMsg     struct {
 		content               string
 		files, added, removed int
+		fileLines             []int  // line indexes of per-file headers, for [ / ] jumps
+		base                  string // comparison base label, e.g. "main @3e90667"
+		branch                string // worktree branch the diff belongs to
 	}
 )
 
@@ -56,11 +59,15 @@ type Model struct {
 	collapsed    map[string]bool
 	allCollapsed bool
 
-	diffContent string
-	diffFiles   int
-	diffAdded   int
-	diffRemoved int
-	diffScroll  int
+	diffContent   string
+	diffFiles     int
+	diffAdded     int
+	diffRemoved   int
+	diffScroll    int
+	diffFocused   bool
+	diffFileLines []int
+	diffBase      string
+	diffBranch    string
 
 	filter tuicomponents.FilterField
 
@@ -147,17 +154,36 @@ func (m Model) tickCmd() tea.Cmd {
 
 func (m Model) computeDiffCmd(s worktree.WorktreeStatus) tea.Cmd {
 	df := m.diffFn
+	p := m.palette
 	path := s.Path
+	branch := s.Branch
+	if branch == "" {
+		branch = s.Name
+	}
 	return func() tea.Msg {
 		res, err := df(path)
 		content := res.Content
 		if err != nil {
 			content = "(diff unavailable: " + err.Error() + ")"
+		} else {
+			content = rewriteFileHeaders(content, res.FileStats, p)
 		}
 		if len(content) > maxDiffBytes {
 			content = content[:maxDiffBytes] + "\n... (truncated)"
 		}
-		return diffMsg{content: content, files: res.Files, added: res.Added, removed: res.Removed}
+		base := res.BaseBranch
+		if base != "" && res.BaseSHA != "" {
+			base += " @" + res.BaseSHA
+		}
+		return diffMsg{
+			content:   content,
+			files:     res.Files,
+			added:     res.Added,
+			removed:   res.Removed,
+			fileLines: diffFileHeaderLines(content),
+			base:      base,
+			branch:    branch,
+		}
 	}
 }
 
@@ -246,6 +272,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.diffFiles = msg.files
 		m.diffAdded = msg.added
 		m.diffRemoved = msg.removed
+		m.diffFileLines = msg.fileLines
+		m.diffBase = msg.base
+		m.diffBranch = msg.branch
 		return m, nil
 
 	case tickMsg:
@@ -278,6 +307,10 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.rebuildRows()
 		}
 		return m, nil
+	}
+
+	if m.diffFocused {
+		return m.handleDiffKey(key)
 	}
 
 	// Clear pending deletes on any key that doesn't continue the confirmation
@@ -372,6 +405,12 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.filter.Active = true
 		return m, nil
 
+	case "space":
+		if m.diffContent != "" {
+			m.diffFocused = true
+		}
+		return m, nil
+
 	case "enter":
 		return m.handleAttach()
 
@@ -385,17 +424,73 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.handleRepair()
 
 	case "ctrl+d":
-		pageSize := m.height - 4
-		m.diffScroll += pageSize
+		m.diffScroll = min(m.diffScroll+m.diffPageSize(), m.maxDiffScroll())
 		return m, nil
 
 	case "ctrl+u":
-		pageSize := m.height - 4
-		m.diffScroll = max(m.diffScroll-pageSize, 0)
+		m.diffScroll = max(m.diffScroll-m.diffPageSize(), 0)
 		return m, nil
 	}
 
 	return m, nil
+}
+
+// handleDiffKey processes keys while the diff pane is focused: vim-style
+// scrolling, [ / ] file jumps, and esc/space to return to the list.
+func (m Model) handleDiffKey(key string) (tea.Model, tea.Cmd) {
+	switch key {
+	case "q", "ctrl+c":
+		return m, tea.Quit
+
+	case "esc", "space":
+		m.diffFocused = false
+
+	case "?":
+		m.showHelp = true
+
+	case "j", "down":
+		m.diffScroll = min(m.diffScroll+1, m.maxDiffScroll())
+
+	case "k", "up":
+		m.diffScroll = max(m.diffScroll-1, 0)
+
+	case "ctrl+d":
+		m.diffScroll = min(m.diffScroll+m.diffPageSize(), m.maxDiffScroll())
+
+	case "ctrl+u":
+		m.diffScroll = max(m.diffScroll-m.diffPageSize(), 0)
+
+	case "g":
+		m.diffScroll = 0
+
+	case "G":
+		m.diffScroll = m.maxDiffScroll()
+
+	case "]":
+		for _, ln := range m.diffFileLines {
+			if ln > m.diffScroll {
+				m.diffScroll = min(ln, m.maxDiffScroll())
+				break
+			}
+		}
+
+	case "[":
+		for i := len(m.diffFileLines) - 1; i >= 0; i-- {
+			if m.diffFileLines[i] < m.diffScroll {
+				m.diffScroll = m.diffFileLines[i]
+				break
+			}
+		}
+	}
+	return m, nil
+}
+
+func (m Model) diffPageSize() int {
+	return max(m.height-4, 1)
+}
+
+func (m Model) maxDiffScroll() int {
+	return max(strings.Count(m.diffContent, "\n"), 0)
 }
 
 func (m Model) handleAttach() (tea.Model, tea.Cmd) {
@@ -654,7 +749,12 @@ func (m Model) renderLeft(width int) string {
 }
 
 func (m Model) renderDivider(height int) string {
-	divChar := m.palette.Divider.Render("│")
+	style := m.palette.Divider
+	if m.diffFocused {
+		// Brighter divider signals the diff pane holds keyboard focus.
+		style = m.palette.HintKey
+	}
+	divChar := style.Render("│")
 	lines := make([]string, height)
 	for i := range lines {
 		lines[i] = divChar
@@ -664,6 +764,13 @@ func (m Model) renderDivider(height int) string {
 
 func (m Model) renderRight(width int) string {
 	header := m.palette.DiffStatLine(m.diffFiles, m.diffAdded, m.diffRemoved)
+	// GitHub-style "base ← compare" label, shown once for the whole diff.
+	if m.diffBase != "" && m.diffBranch != "" {
+		header = m.palette.RepoHeader.Render(m.diffBase) +
+			m.palette.Divider.Render(" ← ") +
+			m.palette.DiffFileHeader.Render(m.diffBranch) +
+			"  " + header
+	}
 	contentHeight := max(m.height-4, 0) // height minus hint, status, header, blank line
 	content := m.renderDiffContent(width, contentHeight)
 	return ansi.Truncate(header, width, "") + "\n" + content
@@ -708,8 +815,21 @@ func (m Model) renderHint(width int) string {
 	if m.filter.Active {
 		return m.palette.FilterHint(m.filter, width)
 	}
+	if m.diffFocused {
+		hints := []tuicomponents.KeyHint{
+			{Key: "esc", Desc: "back"},
+			{Key: "j/k", Desc: "scroll"},
+			{Key: "^d/^u", Desc: "page"},
+			{Key: "[/]", Desc: "file"},
+			{Key: "g/G", Desc: "top/end"},
+			{Key: "?", Desc: "help"},
+			{Key: "q", Desc: "quit"},
+		}
+		return m.palette.HintBar(hints, width)
+	}
 	hints := []tuicomponents.KeyHint{
 		{Key: "↵", Desc: "attach"},
+		{Key: "spc", Desc: "diff"},
 		{Key: "j/k", Desc: "move"},
 		{Key: "h/l", Desc: "fold"},
 		{Key: "z", Desc: "all"},
@@ -740,7 +860,10 @@ func (m Model) renderHelpOverlay() string {
 		{Key: "D D", Desc: "delete worktree + kill its session"},
 		{Key: "r", Desc: "repair (recreate window + relaunch AI)"},
 		{Key: "/", Desc: "filter  esc:clear  enter:keep"},
+		{Key: "space", Desc: "focus diff pane (esc returns to the list)"},
 		{Key: "ctrl+d / ctrl+u", Desc: "scroll diff down / up"},
+		{Key: "[ / ]", Desc: "previous / next file (diff focused)"},
+		{Key: "g / G", Desc: "diff top / bottom (diff focused)"},
 		{Key: "?", Desc: "toggle this help"},
 		{Key: "q / ctrl+c", Desc: "quit"},
 	}
