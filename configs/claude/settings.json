@@ -60,14 +60,9 @@
       "Read(~/.bash_history)",
       "Edit(.git/**)",
       "Edit(.claude/**)",
-      "Write(.git/**)",
-      "Write(.claude/**)",
       "Edit(~/.zshrc)",
-      "Write(~/.zshrc)",
       "Edit(~/.bashrc)",
-      "Write(~/.bashrc)",
-      "Edit(~/.profile)",
-      "Write(~/.profile)"
+      "Edit(~/.profile)"
     ],
     "defaultMode": "acceptEdits"
   },

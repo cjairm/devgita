@@ -32,8 +32,9 @@ override the broad allow:
 - **deny** — never allowed: network exfiltration tools, credential file reads
   (SSH keys, cloud CLI configs, token files, shell history), privilege
   escalation, persistence mechanisms (crontab/launchctl), destructive disk ops,
-  and Edit/Write on `.git/`, `.claude/`, and shell rc files. `Edit` and `Write`
-  are separate tools and must each be denied.
+  and file edits to `.git/`, `.claude/`, and shell rc files. `Edit(path)` rules
+  cover all file-editing tools (Edit, Write, NotebookEdit); `Write(path)` rules
+  are not matched by file permission checks, so they must not be used.
 
 Deny and ask rules apply in **every** permission mode, including
 `bypassPermissions` (`claude --dangerously-skip-permissions`), so the guardrails
