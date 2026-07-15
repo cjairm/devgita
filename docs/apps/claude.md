@@ -20,6 +20,33 @@ terminal AI CLI, as a first-class terminal tool and deploys a curated config to
 | `configs/claude/themes/`                   | `~/.claude/themes/`                   |                                       |
 | `configs/shared/{skills,commands,agents}/` | `~/.claude/{skills,commands,agents}/` | shared with OpenCode                  |
 
+## Permissions model
+
+`settings.json` uses a broad-allow-with-carve-outs model to minimize prompts.
+Rules are evaluated deny → ask → allow (first match wins), so the carve-outs
+override the broad allow:
+
+- **allow** — `Bash(*)`, `Read`, `Edit`: day-to-day work never prompts.
+- **ask** — rare-but-legitimate commands (remote copies, force pushes, infra
+  applies) prompt instead of being blocked.
+- **deny** — never allowed: network exfiltration tools, credential file reads
+  (SSH keys, cloud CLI configs, token files, shell history), privilege
+  escalation, persistence mechanisms (crontab/launchctl), destructive disk ops,
+  and Edit/Write on `.git/`, `.claude/`, and shell rc files. `Edit` and `Write`
+  are separate tools and must each be denied.
+
+Deny and ask rules apply in **every** permission mode, including
+`bypassPermissions` (`claude --dangerously-skip-permissions`), so the guardrails
+survive YOLO sessions.
+
+**Known limits:** Bash deny rules are prefix matchers — interpreter one-liners
+(`python -c`, `node -e`) and shell wrappers (`sh -c "..."`) can evade them, so
+the deny list is friction and defense-in-depth, not a security boundary. For a
+real boundary on high-autonomy work, enable Claude Code's built-in OS sandbox
+(`/sandbox`; Seatbelt on macOS) which enforces filesystem and network limits at
+the kernel level, and keep Claude Code up to date (deny-list bypass bugs have
+been patched in past releases).
+
 ## Formatting & linting (PostToolUse hook)
 
 `settings.json` registers a single `PostToolUse` hook on `Edit|Write` that runs
