@@ -144,7 +144,10 @@ devgita task submit-review \
 
 Add `--pr PR_NUMBER` when you resolved a number in step 1. The review posts atomically — one notification, all inline comments grouped under it.
 
-If you have **nothing new** to add (everything is already covered or addressed), don't post an empty review — post one short `comment-pr` saying so. Likewise, if existing **unresolved** threads remain unaddressed and that's the main issue, flag it in a brief comment rather than re-listing each thread.
+**Re-review with nothing new to add** — split by whether prior feedback is actually settled:
+
+- **Every prior thread was addressed and you have no new findings → approve.** Don't post a comment saying "nothing to add" — a comment doesn't dismiss a prior request-changes review, so it leaves the PR blocked for no reason. Submit `--event approve` with a short, warm one-liner acknowledging the work, e.g. "LGTM. Thanks for working on the suggestions 🔥" or "LGTM. I appreciate the work — all my comments were addressed." Vary the phrasing; keep it to one line.
+- **Unresolved threads remain unaddressed and that's the main issue → don't approve.** Flag it in one brief `comment-pr` rather than re-listing each thread.
 
 ## Output
 
