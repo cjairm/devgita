@@ -252,13 +252,21 @@ dg wt <subcommand> [flags]     # alias
 | `create <name>` | Create a new worktree + tmux window                                                 |
 | `list`          | List all managed worktrees                                                          |
 | `remove [name]` | Remove a worktree (interactive picker if name omitted)                              |
-| `ui` / `dash`   | Full-screen TUI dashboard (NERDTree-style tree + Agent/Diff panes); replaces `jump` |
+| `ui` / `dash`   | Full-screen TUI dashboard (NERDTree-style tree + branch-diff pane); replaces `jump` |
 | `repair <name>` | Recreate the tmux window for an existing worktree                                   |
 | `prune`         | Remove **all** managed worktrees after confirmation                                 |
 
 **Flags for `create` and `repair`**:
 
 - `--ai <alias>` / `-a <alias>` — AI coder to launch in the window. Accepted aliases: `opencode`, `oc`, `claude`, `cc`, `claudecode`. Resolution order: flag → `DEVGITA_AI` env var → `worktree.default_ai` in `global_config.yaml`.
+
+**Flag for `create`**:
+
+- `--repo <path>` / `-r <path>` — Path to the repository (`~` is expanded), so the command works
+  from any directory. The window opens in a tmux session named after the repo — created when
+  missing, reused otherwise — and the attached client switches to it when run inside tmux.
+  Without the flag, the repo is the one containing the current directory and the window opens
+  in the current session.
 
 **Flag for `remove`**:
 
@@ -269,6 +277,7 @@ dg wt <subcommand> [flags]     # alias
 ```
 dg wt create feature-login                  # Create worktree, use default AI
 dg wt create feature-login --ai claude      # Create with Claude Code
+dg wt new fix-auth --repo ~/code/api        # Create for another repo; window opens in its session
 dg wt ui                                    # Open TUI dashboard (j/k nav, Enter attach, d delete, D delete + kill session, r repair)
 dg wt repair feature-login                  # Recreate missing tmux window
 dg wt prune                                 # Remove all worktrees (prompts for confirmation)

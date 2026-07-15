@@ -2,8 +2,6 @@
 package tuiworktree
 
 import (
-	"fmt"
-	"hash/fnv"
 	"os"
 	"strings"
 	"time"
@@ -14,6 +12,7 @@ import (
 	"github.com/cjairm/devgita/internal/apps/git"
 	"github.com/cjairm/devgita/internal/apps/tmux"
 	"github.com/cjairm/devgita/internal/config"
+	"github.com/cjairm/devgita/internal/tooling/task"
 	"github.com/cjairm/devgita/internal/tooling/worktree"
 	tuicomponents "github.com/cjairm/devgita/internal/tui/components"
 )
@@ -23,25 +22,15 @@ const (
 	defaultLeftPaneWidth = 35
 	maxLeftPaneWidthPct  = 0.60
 	dividerWidth         = 1
-	refreshInterval      = 1500 * time.Millisecond
-	navPauseThreshold    = 500 * time.Millisecond
+	refreshInterval      = 3 * time.Second
 	maxDiffBytes         = 64 * 1024
-)
-
-type tabKind int
-
-const (
-	tabAgent tabKind = iota
-	tabDiff
 )
 
 // --- Messages ---
 
 type (
-	statusesMsg     []worktree.WorktreeStatus
-	agentContentMsg string
-	agentOfflineMsg struct{}
-	diffMsg         struct {
+	statusesMsg []worktree.WorktreeStatus
+	diffMsg     struct {
 		content               string
 		files, added, removed int
 	}
@@ -67,11 +56,6 @@ type Model struct {
 	collapsed    map[string]bool
 	allCollapsed bool
 
-	activeTab    tabKind
-	agentContent string
-	agentHash    string
-	agentOffline bool
-
 	diffContent string
 	diffFiles   int
 	diffAdded   int
@@ -87,8 +71,6 @@ type Model struct {
 
 	palette *tuicomponents.Palette
 
-	lastNavTime time.Time
-
 	leftPaneWidth int
 
 	dragging   bool
@@ -99,9 +81,7 @@ type Model struct {
 	showHelp             bool
 
 	// Injected I/O seams (overridable in tests)
-	captureFn       func(session, window string) (string, error)
-	diffFn          func(path string) (string, error)
-	diffStatFn      func(path string) (files, added, removed int, err error)
+	diffFn          func(path string) (task.BranchDiffResult, error)
 	attachFn        func(session, window string) error
 	removeFn        func(repo, name string, force bool) error
 	removeSessionFn func(repo, name string) error
@@ -123,14 +103,8 @@ func newModel(
 		palette:       tuicomponents.NewPalette(),
 		leftPaneWidth: defaultLeftPaneWidth,
 	}
-	m.captureFn = func(session, window string) (string, error) {
-		return tmuxApp.CapturePane(session, window)
-	}
-	m.diffFn = func(path string) (string, error) {
-		return gitApp.Diff(path)
-	}
-	m.diffStatFn = func(path string) (files, added, removed int, err error) {
-		return gitApp.DiffStat(path)
+	m.diffFn = func(path string) (task.BranchDiffResult, error) {
+		return task.BranchDiffAt(gitApp, path)
 	}
 	m.attachFn = func(session, window string) error {
 		return tmuxApp.SwitchToWindow(session, window)
@@ -171,39 +145,19 @@ func (m Model) tickCmd() tea.Cmd {
 	})
 }
 
-func (m Model) captureAgentCmd(s worktree.WorktreeStatus) tea.Cmd {
-	window := worktree.GetWindowName(s.Repo, s.Name)
-	if m.tmuxApp == nil {
-		return func() tea.Msg { return agentOfflineMsg{} }
-	}
-	session, ok := m.tmuxApp.WindowSession(window)
-	if !ok {
-		return func() tea.Msg { return agentOfflineMsg{} }
-	}
-	capFn := m.captureFn
-	return func() tea.Msg {
-		content, err := capFn(session, window)
-		if err != nil {
-			return agentOfflineMsg{}
-		}
-		return agentContentMsg(content)
-	}
-}
-
 func (m Model) computeDiffCmd(s worktree.WorktreeStatus) tea.Cmd {
 	df := m.diffFn
-	dsf := m.diffStatFn
 	path := s.Path
 	return func() tea.Msg {
-		content, err := df(path)
+		res, err := df(path)
+		content := res.Content
 		if err != nil {
 			content = "(diff unavailable: " + err.Error() + ")"
 		}
 		if len(content) > maxDiffBytes {
 			content = content[:maxDiffBytes] + "\n... (truncated)"
 		}
-		files, added, removed, _ := dsf(path)
-		return diffMsg{content: content, files: files, added: added, removed: removed}
+		return diffMsg{content: content, files: res.Files, added: res.Added, removed: res.Removed}
 	}
 }
 
@@ -248,12 +202,6 @@ func (m Model) rightPaneWidth() int {
 	return max(m.width-m.leftPaneWidth-dividerWidth, 0)
 }
 
-func contentHash(s string) string {
-	h := fnv.New32a()
-	_, _ = h.Write([]byte(s))
-	return fmt.Sprintf("%d", h.Sum32())
-}
-
 // Update implements tea.Model.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -289,21 +237,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.statuses = []worktree.WorktreeStatus(msg)
 		m.rebuildRows()
 		if sel, ok := m.selectedStatus(); ok {
-			return m, tea.Batch(m.captureAgentCmd(sel), m.computeDiffCmd(sel))
+			return m, m.computeDiffCmd(sel)
 		}
-		return m, nil
-
-	case agentContentMsg:
-		hash := contentHash(string(msg))
-		if hash != m.agentHash {
-			m.agentContent = string(msg)
-			m.agentHash = hash
-			m.agentOffline = false
-		}
-		return m, nil
-
-	case agentOfflineMsg:
-		m.agentOffline = true
 		return m, nil
 
 	case diffMsg:
@@ -314,14 +249,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tickMsg:
-		sel, ok := m.selectedStatus()
-		if !ok || m.agentOffline {
-			return m, m.tickCmd()
-		}
-		if time.Since(m.lastNavTime) > navPauseThreshold {
-			return m, tea.Batch(m.captureAgentCmd(sel), m.tickCmd())
-		}
-		return m, m.tickCmd()
+		// Periodic refresh: reload statuses, which re-derives the selected
+		// worktree's diff via the statusesMsg handler.
+		return m, tea.Batch(m.loadCmd(), m.tickCmd())
 
 	case statusMsg:
 		m.status = string(msg)
@@ -367,24 +297,18 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 
 	case "j":
-		m.lastNavTime = time.Now()
-		m.pendingDelete = ""
 		m.diffScroll = 0
-		m.agentOffline = false
 		m.moveCursor(1)
 		if sel, ok := m.selectedStatus(); ok {
-			return m, tea.Batch(m.captureAgentCmd(sel), m.computeDiffCmd(sel))
+			return m, m.computeDiffCmd(sel)
 		}
 		return m, nil
 
 	case "k":
-		m.lastNavTime = time.Now()
-		m.pendingDelete = ""
 		m.diffScroll = 0
-		m.agentOffline = false
 		m.moveCursor(-1)
 		if sel, ok := m.selectedStatus(); ok {
-			return m, tea.Batch(m.captureAgentCmd(sel), m.computeDiffCmd(sel))
+			return m, m.computeDiffCmd(sel)
 		}
 		return m, nil
 
@@ -444,15 +368,6 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case "tab":
-		if m.activeTab == tabAgent {
-			m.activeTab = tabDiff
-		} else {
-			m.activeTab = tabAgent
-		}
-		m.diffScroll = 0
-		return m, nil
-
 	case "/":
 		m.filter.Active = true
 		return m, nil
@@ -470,17 +385,13 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.handleRepair()
 
 	case "ctrl+d":
-		if m.activeTab == tabDiff {
-			pageSize := m.height - 4
-			m.diffScroll += pageSize
-		}
+		pageSize := m.height - 4
+		m.diffScroll += pageSize
 		return m, nil
 
 	case "ctrl+u":
-		if m.activeTab == tabDiff {
-			pageSize := m.height - 4
-			m.diffScroll = max(m.diffScroll-pageSize, 0)
-		}
+		pageSize := m.height - 4
+		m.diffScroll = max(m.diffScroll-pageSize, 0)
 		return m, nil
 	}
 
@@ -752,46 +663,15 @@ func (m Model) renderDivider(height int) string {
 }
 
 func (m Model) renderRight(width int) string {
-	tabs := []tuicomponents.Tab{
-		{Label: "Agent"},
-		{Label: "Diff"},
-	}
-	tabBar := m.palette.TabBar(tabs, int(m.activeTab))
-	contentHeight := max(m.height-4, 0) // height minus hint, status, tabbar, blank line
-
-	var content string
-	if m.activeTab == tabAgent {
-		if m.agentOffline {
-			content = m.palette.Inactive.Render("⟂ window offline — press r to repair")
-		} else {
-			content = m.renderAgentContent(width, contentHeight)
-		}
-	} else {
-		content = m.renderDiffContent(width, contentHeight)
-	}
-
-	return tabBar + "\n" + content
-}
-
-func (m Model) renderAgentContent(width, height int) string {
-	if m.agentContent == "" {
-		return m.palette.Inactive.Render("(loading...)")
-	}
-	lines := strings.Split(m.agentContent, "\n")
-	var truncated []string
-	for _, line := range lines {
-		truncated = append(truncated, ansi.Truncate(line, width, ""))
-	}
-	// Show last `height` lines (most recent output)
-	if len(truncated) > height {
-		truncated = truncated[len(truncated)-height:]
-	}
-	return strings.Join(truncated, "\n")
+	header := m.palette.DiffStatLine(m.diffFiles, m.diffAdded, m.diffRemoved)
+	contentHeight := max(m.height-4, 0) // height minus hint, status, header, blank line
+	content := m.renderDiffContent(width, contentHeight)
+	return ansi.Truncate(header, width, "") + "\n" + content
 }
 
 func (m Model) renderDiffContent(width, height int) string {
 	if m.diffContent == "" {
-		return m.palette.Inactive.Render("(no changes)")
+		return m.palette.Inactive.Render("(loading...)")
 	}
 	lines := strings.Split(m.diffContent, "\n")
 	// Apply scroll
@@ -833,7 +713,6 @@ func (m Model) renderHint(width int) string {
 		{Key: "j/k", Desc: "move"},
 		{Key: "h/l", Desc: "fold"},
 		{Key: "z", Desc: "all"},
-		{Key: "⇥", Desc: "tab"},
 		{Key: "d", Desc: "del"},
 		{Key: "D", Desc: "del+sess"},
 		{Key: "r", Desc: "repair"},
@@ -857,12 +736,11 @@ func (m Model) renderHelpOverlay() string {
 		{Key: "j / k", Desc: "move cursor down / up"},
 		{Key: "h / l", Desc: "collapse / expand repo"},
 		{Key: "z", Desc: "toggle collapse all repos"},
-		{Key: "tab", Desc: "switch Agent / Diff pane"},
 		{Key: "d d", Desc: "delete worktree (confirm twice)"},
 		{Key: "D D", Desc: "delete worktree + kill its session"},
 		{Key: "r", Desc: "repair (recreate window + relaunch AI)"},
 		{Key: "/", Desc: "filter  esc:clear  enter:keep"},
-		{Key: "ctrl+d / ctrl+u", Desc: "scroll Diff pane down / up"},
+		{Key: "ctrl+d / ctrl+u", Desc: "scroll diff down / up"},
 		{Key: "?", Desc: "toggle this help"},
 		{Key: "q / ctrl+c", Desc: "quit"},
 	}

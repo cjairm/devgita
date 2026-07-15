@@ -244,9 +244,15 @@ func (g *Git) ListBranches() ([]string, error) {
 
 // BranchExists checks if a branch exists in the repository
 func (g *Git) BranchExists(branch string) (bool, error) {
+	return g.BranchExistsIn("", branch)
+}
+
+// BranchExistsIn is BranchExists evaluated against the repository at dir
+// ("" = current directory).
+func (g *Git) BranchExistsIn(dir, branch string) (bool, error) {
 	execCommand := cmd.CommandParams{
 		Command: constants.Git,
-		Args:    []string{"branch", "--list", branch},
+		Args:    dirArgs(dir, "branch", "--list", branch),
 	}
 	stdout, _, err := g.Base.ExecCommand(execCommand)
 	if err != nil {
@@ -258,9 +264,15 @@ func (g *Git) BranchExists(branch string) (bool, error) {
 
 // RemoteBranchExists checks if a remote branch exists (e.g., origin/feature-A)
 func (g *Git) RemoteBranchExists(branch string) (bool, error) {
+	return g.RemoteBranchExistsIn("", branch)
+}
+
+// RemoteBranchExistsIn is RemoteBranchExists evaluated against the repository
+// at dir ("" = current directory).
+func (g *Git) RemoteBranchExistsIn(dir, branch string) (bool, error) {
 	execCommand := cmd.CommandParams{
 		Command: constants.Git,
-		Args:    []string{"branch", "-r", "--list", fmt.Sprintf("origin/%s", branch)},
+		Args:    dirArgs(dir, "branch", "-r", "--list", fmt.Sprintf("origin/%s", branch)),
 	}
 	stdout, _, err := g.Base.ExecCommand(execCommand)
 	if err != nil {
@@ -268,6 +280,15 @@ func (g *Git) RemoteBranchExists(branch string) (bool, error) {
 	}
 	// If output contains the remote branch name, it exists
 	return strings.TrimSpace(stdout) != "", nil
+}
+
+// dirArgs prefixes git args with "-C dir" when dir is non-empty, so the same
+// command can run against the current directory or an arbitrary repo path.
+func dirArgs(dir string, args ...string) []string {
+	if dir == "" {
+		return args
+	}
+	return append([]string{"-C", dir}, args...)
 }
 
 // CurrentBranch returns the checked-out branch name, or "" when HEAD is
@@ -322,9 +343,15 @@ var defaultBranchProbeOrder = []string{"main", "master", "develop"}
 // and returns the first that exists, falling back to "main" as a last resort
 // so callers always get a usable branch name.
 func (g *Git) DefaultBranch() string {
+	return g.DefaultBranchIn("")
+}
+
+// DefaultBranchIn is DefaultBranch evaluated against the repository at dir
+// ("" = current directory).
+func (g *Git) DefaultBranchIn(dir string) string {
 	execCommand := cmd.CommandParams{
 		Command: constants.Git,
-		Args:    []string{"symbolic-ref", "--short", "refs/remotes/origin/HEAD"},
+		Args:    dirArgs(dir, "symbolic-ref", "--short", "refs/remotes/origin/HEAD"),
 	}
 	stdout, _, err := g.Base.ExecCommand(execCommand)
 	if err == nil {
@@ -339,7 +366,7 @@ func (g *Git) DefaultBranch() string {
 	}
 
 	for _, candidate := range defaultBranchProbeOrder {
-		if exists, probeErr := g.RemoteBranchExists(candidate); probeErr == nil && exists {
+		if exists, probeErr := g.RemoteBranchExistsIn(dir, candidate); probeErr == nil && exists {
 			return candidate
 		}
 	}
@@ -352,12 +379,19 @@ func (g *Git) DefaultBranch() string {
 // 2. Remote branch exists: create tracking branch (after fetch)
 // 3. Neither exists: create new branch from the freshly-fetched default branch
 func (g *Git) CreateWorktree(path, branch string) error {
+	return g.CreateWorktreeIn("", path, branch)
+}
+
+// CreateWorktreeIn is CreateWorktree evaluated against the repository at
+// repoDir ("" = current directory), so worktrees can be created for a repo
+// the caller is not inside.
+func (g *Git) CreateWorktreeIn(repoDir, path, branch string) error {
 	// Fetch latest remote refs to ensure we see recent branches.
 	// Best-effort: ignore errors (user may be offline or have no remote).
-	_ = g.FetchOrigin()
+	_ = g.ExecuteCommand(dirArgs(repoDir, "fetch", "origin")...)
 
 	// Check if local branch already exists
-	localExists, err := g.BranchExists(branch)
+	localExists, err := g.BranchExistsIn(repoDir, branch)
 	if err != nil {
 		return fmt.Errorf("failed to check if local branch exists: %w", err)
 	}
@@ -365,37 +399,39 @@ func (g *Git) CreateWorktree(path, branch string) error {
 	// If local branch exists, check it out in the worktree, then bring it up to
 	// date with its remote counterpart.
 	if localExists {
-		if err := g.ExecuteCommand("worktree", "add", path, branch); err != nil {
+		if err := g.ExecuteCommand(
+			dirArgs(repoDir, "worktree", "add", path, branch)...,
+		); err != nil {
 			return err
 		}
 		return g.syncExistingBranch(path, branch)
 	}
 
 	// Check if remote branch exists
-	remoteExists, err := g.RemoteBranchExists(branch)
+	remoteExists, err := g.RemoteBranchExistsIn(repoDir, branch)
 	if err != nil {
 		return fmt.Errorf("failed to check if remote branch exists: %w", err)
 	}
 
 	// If remote branch exists, checkout it (creates tracking branch automatically)
 	if remoteExists {
-		return g.ExecuteCommand("worktree", "add", path, branch)
+		return g.ExecuteCommand(dirArgs(repoDir, "worktree", "add", path, branch)...)
 	}
 
 	// Neither local nor remote exists: create a new branch. Prefer basing it on
 	// the freshly-fetched default branch (origin/<default>) so new worktrees are
 	// deterministic and never inherit a stale or unrelated HEAD. Fall back to
 	// HEAD when the remote default isn't available (e.g. offline, no origin).
-	defaultBranch := g.DefaultBranch()
-	baseExists, err := g.RemoteBranchExists(defaultBranch)
+	defaultBranch := g.DefaultBranchIn(repoDir)
+	baseExists, err := g.RemoteBranchExistsIn(repoDir, defaultBranch)
 	if err != nil {
 		return fmt.Errorf("failed to check if remote default branch exists: %w", err)
 	}
 	if baseExists {
 		base := fmt.Sprintf("origin/%s", defaultBranch)
-		return g.ExecuteCommand("worktree", "add", path, "-b", branch, base)
+		return g.ExecuteCommand(dirArgs(repoDir, "worktree", "add", path, "-b", branch, base)...)
 	}
-	return g.ExecuteCommand("worktree", "add", path, "-b", branch)
+	return g.ExecuteCommand(dirArgs(repoDir, "worktree", "add", path, "-b", branch)...)
 }
 
 // syncExistingBranch brings a worktree's already-existing local branch up to
@@ -405,7 +441,9 @@ func (g *Git) CreateWorktree(path, branch string) error {
 // leave the branch untouched and warn the user how to reconcile manually
 // (logger is suppressed below ERROR in normal runs, so we print directly).
 func (g *Git) syncExistingBranch(path, branch string) error {
-	remoteExists, err := g.RemoteBranchExists(branch)
+	// Check refs through the worktree itself so this works no matter which
+	// repository (if any) the process's working directory is in.
+	remoteExists, err := g.RemoteBranchExistsIn(path, branch)
 	if err != nil {
 		return fmt.Errorf("failed to check if remote branch exists: %w", err)
 	}
@@ -504,9 +542,15 @@ func (g *Git) getMainWorktree(fromPath string) (string, error) {
 
 // GetRepoRoot returns the root directory of the current git repository
 func (g *Git) GetRepoRoot() (string, error) {
+	return g.GetRepoRootIn("")
+}
+
+// GetRepoRootIn is GetRepoRoot evaluated against the repository at dir
+// ("" = current directory). It also validates that dir is inside a git repo.
+func (g *Git) GetRepoRootIn(dir string) (string, error) {
 	execCommand := cmd.CommandParams{
 		Command: constants.Git,
-		Args:    []string{"rev-parse", "--show-toplevel"},
+		Args:    dirArgs(dir, "rev-parse", "--show-toplevel"),
 	}
 	stdout, _, err := g.Base.ExecCommand(execCommand)
 	if err != nil {
@@ -526,100 +570,6 @@ func (g *Git) IsWorktreeDirty(path string) (bool, error) {
 		return false, fmt.Errorf("failed to check worktree status: %w", err)
 	}
 	return strings.TrimSpace(stdout) != "", nil
-}
-
-// Diff returns the colored diff for a worktree (HEAD vs working tree + untracked files).
-func (g *Git) Diff(path string) (string, error) {
-	// Tracked changes: diff HEAD (covers both staged + unstaged)
-	execCommand := cmd.CommandParams{
-		Command: constants.Git,
-		Args:    []string{"-C", path, "diff", "--color=always", "HEAD"},
-	}
-	stdout, _, err := g.Base.ExecCommand(execCommand)
-	if err != nil {
-		// Fallback for repos with no commits
-		execCommand2 := cmd.CommandParams{
-			Command: constants.Git,
-			Args:    []string{"-C", path, "diff", "--color=always"},
-		}
-		stdout, _, err = g.Base.ExecCommand(execCommand2)
-		if err != nil {
-			return "", fmt.Errorf("git diff failed: %w", err)
-		}
-	}
-
-	// Untracked files from status --porcelain
-	statusCmd := cmd.CommandParams{
-		Command: constants.Git,
-		Args:    []string{"-C", path, "status", "--porcelain"},
-	}
-	statusOut, _, _ := g.Base.ExecCommand(statusCmd)
-	var untracked []string
-	for line := range strings.SplitSeq(statusOut, "\n") {
-		if path, ok := strings.CutPrefix(line, "?? "); ok {
-			untracked = append(untracked, path)
-		}
-	}
-	if len(untracked) > 0 {
-		stdout += "\nUntracked files:\n"
-		for _, f := range untracked {
-			stdout += "  " + f + "\n"
-		}
-	}
-	return stdout, nil
-}
-
-// DiffStat returns aggregate stats: files changed, lines added, lines removed.
-// Untracked files are counted in files but their line counts are 0.
-func (g *Git) DiffStat(path string) (files, added, removed int, err error) {
-	execCommand := cmd.CommandParams{
-		Command: constants.Git,
-		Args:    []string{"-C", path, "diff", "--numstat", "HEAD"},
-	}
-	stdout, _, execErr := g.Base.ExecCommand(execCommand)
-	if execErr != nil {
-		execCommand2 := cmd.CommandParams{
-			Command: constants.Git,
-			Args:    []string{"-C", path, "diff", "--numstat"},
-		}
-		stdout, _, execErr = g.Base.ExecCommand(execCommand2)
-		if execErr != nil {
-			return 0, 0, 0, fmt.Errorf("git diff --numstat failed: %w", execErr)
-		}
-	}
-	for line := range strings.SplitSeq(strings.TrimSpace(stdout), "\n") {
-		if line == "" {
-			continue
-		}
-		parts := strings.Fields(line)
-		if len(parts) < 2 {
-			continue
-		}
-		files++
-		if parts[0] != "-" {
-			var a int
-			_, _ = fmt.Sscanf(parts[0], "%d", &a)
-			added += a
-		}
-		if parts[1] != "-" {
-			var r int
-			_, _ = fmt.Sscanf(parts[1], "%d", &r)
-			removed += r
-		}
-	}
-
-	// Count untracked files
-	statusCmd := cmd.CommandParams{
-		Command: constants.Git,
-		Args:    []string{"-C", path, "status", "--porcelain"},
-	}
-	statusOut, _, _ := g.Base.ExecCommand(statusCmd)
-	for line := range strings.SplitSeq(statusOut, "\n") {
-		if _, ok := strings.CutPrefix(line, "?? "); ok {
-			files++
-		}
-	}
-	return files, added, removed, nil
 }
 
 // PruneWorktrees removes stale worktree entries

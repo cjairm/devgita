@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/cjairm/devgita/pkg/constants"
@@ -258,6 +259,18 @@ var Files = struct {
 }
 
 // Public API functions
+
+// ExpandHome replaces a leading "~" with the user's home directory, so CLI
+// flags can accept paths like ~/code/repo. Other paths pass through unchanged.
+func ExpandHome(path string) string {
+	if path == "~" {
+		return userHome()
+	}
+	if after, ok := strings.CutPrefix(path, "~/"); ok {
+		return filepath.Join(userHome(), after)
+	}
+	return path
+}
 
 // Returns XDG_CONFIG_HOME or fallback to ~/.config
 // Reads environment variables dynamically to support testing

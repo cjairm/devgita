@@ -671,3 +671,93 @@ func TestRemoveWithSessionInRepo(t *testing.T) {
 		}
 	})
 }
+
+// stubCoder is an AICoder that always installs successfully, for exercising
+// the create flow without touching the real system.
+type stubCoder struct{}
+
+func (stubCoder) Name() string           { return "stub" }
+func (stubCoder) Command() string        { return "stub-cmd" }
+func (stubCoder) EnsureInstalled() error { return nil }
+
+func TestCreateAt(t *testing.T) {
+	t.Run("errors when path is not a git repository", func(t *testing.T) {
+		mockGitBase := commands.NewMockBaseCommand()
+		mockGitBase.SetExecCommandResult("", "fatal: not a git repository", os.ErrNotExist)
+		wm := &WorktreeManager{
+			Git:  &git.Git{Cmd: commands.NewMockCommand(), Base: mockGitBase},
+			Tmux: &tmux.Tmux{Cmd: commands.NewMockCommand(), Base: commands.NewMockBaseCommand()},
+			Base: commands.NewMockBaseCommand(),
+		}
+
+		if err := wm.CreateAt("/nowhere", "feat", stubCoder{}, true); err == nil {
+			t.Fatal("expected error for a non-repo path")
+		}
+	})
+
+	t.Run("creates the repo-slug session when missing and launches there", func(t *testing.T) {
+		t.Setenv("TMUX", "") // outside tmux: no client switch at the end
+		repoRoot := t.TempDir()
+
+		mockGitBase := commands.NewMockBaseCommand()
+		mockGitBase.SetExecCommandResults(
+			commands.ExecCommandResult(repoRoot+"\n", "", nil), // rev-parse --show-toplevel
+			commands.ExecCommandResult("", "", nil),            // everything else succeeds/empty
+		)
+		mockTmuxBase := commands.NewMockBaseCommand()
+		mockTmuxBase.SetExecCommandResults(
+			commands.ExecCommandResult("", "", nil),                           // worktreeState list-windows (no window)
+			commands.ExecCommandResult("", "", nil),                           // ensureWindow list-windows (no window)
+			commands.ExecCommandResult("", "no such session", os.ErrNotExist), // has-session → missing
+			commands.ExecCommandResult("", "", nil),                           // new-session
+			commands.ExecCommandResult("", "", nil),                           // send-keys
+		)
+
+		wm := &WorktreeManager{
+			Git:  &git.Git{Cmd: commands.NewMockCommand(), Base: mockGitBase},
+			Tmux: &tmux.Tmux{Cmd: commands.NewMockCommand(), Base: mockTmuxBase},
+			Base: commands.NewMockBaseCommand(),
+		}
+
+		if err := wm.CreateAt(repoRoot, "feat", stubCoder{}, true); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		repoSlug := filepath.Base(repoRoot)
+		windowName := GetWindowName(repoSlug, "feat")
+		sawNewSession := false
+		sawSendKeys := false
+		for _, call := range mockTmuxBase.ExecCommandCalls {
+			joined := strings.Join(call.Args, " ")
+			if strings.HasPrefix(joined, "new-session") &&
+				strings.Contains(joined, "-s "+tmuxSessionName(repoSlug)) &&
+				strings.Contains(joined, "-n "+windowName) {
+				sawNewSession = true
+			}
+			if strings.HasPrefix(joined, "send-keys") && strings.Contains(joined, "stub-cmd") {
+				sawSendKeys = true
+			}
+		}
+		if !sawNewSession {
+			t.Errorf("expected new-session for %q with window %q, calls: %+v",
+				repoSlug, windowName, mockTmuxBase.ExecCommandCalls)
+		}
+		if !sawSendKeys {
+			t.Errorf("expected AI coder command sent to the window, calls: %+v",
+				mockTmuxBase.ExecCommandCalls)
+		}
+
+		// Worktree creation must target the repo via -C.
+		sawWorktreeAdd := false
+		for _, call := range mockGitBase.ExecCommandCalls {
+			joined := strings.Join(call.Args, " ")
+			if strings.Contains(joined, "worktree add") && strings.HasPrefix(joined, "-C "+repoRoot) {
+				sawWorktreeAdd = true
+			}
+		}
+		if !sawWorktreeAdd {
+			t.Errorf("expected 'git -C %s worktree add ...', calls: %+v",
+				repoRoot, mockGitBase.ExecCommandCalls)
+		}
+	})
+}

@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"os"
 	"testing"
-	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/cjairm/devgita/internal/testutil"
+	"github.com/cjairm/devgita/internal/tooling/task"
 	"github.com/cjairm/devgita/internal/tooling/worktree"
 	tuicomponents "github.com/cjairm/devgita/internal/tui/components"
 )
@@ -22,9 +22,9 @@ func makeTestModel(statuses []worktree.WorktreeStatus) Model {
 		width:         120,
 		height:        40,
 	}
-	m.captureFn = func(_, _ string) (string, error) { return "agent output", nil }
-	m.diffFn = func(_ string) (string, error) { return "diff content", nil }
-	m.diffStatFn = func(_ string) (files, added, removed int, err error) { return 1, 5, 2, nil }
+	m.diffFn = func(_ string) (task.BranchDiffResult, error) {
+		return task.BranchDiffResult{Content: "diff content", Files: 1, Added: 5, Removed: 2}, nil
+	}
 	m.attachFn = func(_, _ string) error { return nil }
 	m.removeFn = func(_, _ string, _ bool) error { return nil }
 	m.removeSessionFn = func(_, _ string) error { return nil }
@@ -162,18 +162,6 @@ func TestCollapsedHeaderReachableAfterNavAway(t *testing.T) {
 	m9 := m8.(Model)
 	if m9.rows[m9.cursor].kind != rowWorktree || m9.rows[m9.cursor].status.Repo != "repo-a" {
 		t.Error("after l on re-reached header, cursor should be in repo-a worktree")
-	}
-}
-
-func TestTabToggle(t *testing.T) {
-	m := makeTestModel(testStatuses())
-	if m.activeTab != tabAgent {
-		t.Error("initial tab should be agent")
-	}
-	m2, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
-	m3 := m2.(Model)
-	if m3.activeTab != tabDiff {
-		t.Error("after Tab, active tab should be diff")
 	}
 }
 
@@ -397,19 +385,6 @@ func TestRepairCallsRepairFn(t *testing.T) {
 	}
 	_ = repairedRepo
 	_ = repairedName
-}
-
-func TestAgentOfflinePlaceholder(t *testing.T) {
-	m := makeTestModel(testStatuses())
-	m2, _ := m.Update(agentOfflineMsg{})
-	m3 := m2.(Model)
-	if !m3.agentOffline {
-		t.Error("agentOfflineMsg should set agentOffline")
-	}
-	// Tick should not re-issue capture when offline
-	m4, cmd := m3.Update(tickMsg(time.Now()))
-	_ = m4
-	_ = cmd
 }
 
 func TestFilterHidesNonMatchingRows(t *testing.T) {

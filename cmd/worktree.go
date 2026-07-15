@@ -11,6 +11,7 @@ import (
 	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/internal/tooling/worktree"
 	tuiworktree "github.com/cjairm/devgita/internal/tui/worktree"
+	"github.com/cjairm/devgita/pkg/paths"
 	"github.com/cjairm/devgita/pkg/utils"
 	"github.com/spf13/cobra"
 )
@@ -31,6 +32,7 @@ Examples:
   dg worktree create feature-login              # Create worktree + window with default AI
   dg worktree create feature-login --ai claude  # Create with Claude Code
   dg wt c feature-login                         # Same, using short form
+  dg wt new fix-auth --repo ~/code/api          # Create for another repo (window opens in its session)
   dg wt l                                       # List all worktrees
   dg wt ui                                      # Open the TUI dashboard
   dg wt rm                                      # Remove worktree (fzf selection)
@@ -47,8 +49,13 @@ var worktreeCreateCmd = &cobra.Command{
 This command:
   1. Creates a new git worktree in ~/.local/share/devgita/worktrees/<repo>/<name>
   2. Creates a new branch with the same name
-  3. Creates a new tmux window named wt-<name> in the current session
+  3. Creates a new tmux window named wt-<repo>-<name> in the current session
   4. Launches the selected AI coder in the window
+
+With --repo you don't need to be inside the repository: the worktree is
+created for the repo at the given path, and the window opens in a tmux
+session named after the repo (created if missing, reused otherwise). When run
+inside tmux, the client switches to the new window.
 
 AI coder selection precedence:
   1. --ai flag
@@ -71,11 +78,18 @@ After creation, switch to the window with:
 		}
 
 		wm := worktree.New()
-		if err := wm.Create(name, coder, forceFlag); err != nil {
-			return err
+		var repoRoot string
+		if repoFlag != "" {
+			if err := wm.CreateAt(repoFlag, name, coder, forceFlag); err != nil {
+				return err
+			}
+			repoRoot, _ = wm.Git.GetRepoRootIn(paths.ExpandHome(repoFlag))
+		} else {
+			if err := wm.Create(name, coder, forceFlag); err != nil {
+				return err
+			}
+			repoRoot, _ = wm.Git.GetRepoRoot()
 		}
-
-		repoRoot, _ := wm.Git.GetRepoRoot()
 		repoSlug := repoRoot
 		if repoRoot != "" {
 			repoSlug = repoRoot[findLastSlash(repoRoot)+1:]
@@ -257,6 +271,7 @@ Example:
 var (
 	aiFlag    string
 	forceFlag bool
+	repoFlag  string
 )
 
 func init() {
@@ -272,6 +287,9 @@ func init() {
 		StringVarP(&aiFlag, "ai", "a", "", "AI coder to launch (opencode, oc, claude, cc, claudecode)")
 	worktreeCreateCmd.Flags().
 		BoolVarP(&forceFlag, "force", "f", false, "Skip hook compatibility check")
+	worktreeCreateCmd.Flags().
+		StringVarP(&repoFlag, "repo", "r", "",
+			"Path to the repository (defaults to the repo containing the current directory); the window opens in the repo's tmux session")
 	worktreeRepairCmd.Flags().
 		StringVarP(&aiFlag, "ai", "a", "", "AI coder to launch (opencode, oc, claude, cc, claudecode)")
 	worktreeRemoveCmd.Flags().

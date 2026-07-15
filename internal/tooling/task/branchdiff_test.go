@@ -1,6 +1,7 @@
 package task
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -204,6 +205,67 @@ func TestBranchDiff(t *testing.T) {
 			if len(call.Args) > 0 && call.Args[0] == "fetch" {
 				t.Fatalf("expected branch-diff to never call fetch, got: %v", call.Args)
 			}
+		}
+	})
+}
+
+func TestBranchDiffAt(t *testing.T) {
+	t.Run("diffs merge-base against working tree with -C dir and totals stats", func(t *testing.T) {
+		tm, gitBase, _ := newTaskSetup()
+		gitBase.SetExecCommandResults(
+			commands.ExecCommandResult("origin/main\n", "", nil),                   // symbolic-ref (default branch)
+			commands.ExecCommandResult("abc123\n", "", nil),                        // merge-base
+			commands.ExecCommandResult("diff --git a/x b/x\n+hi\n", "", nil),       // diff
+			commands.ExecCommandResult("5\t2\tmain.go\n40\t12\tgo.sum\n", "", nil), // numstat
+			commands.ExecCommandResult("?? notes.txt\n", "", nil),                  // status --porcelain
+		)
+
+		res, err := BranchDiffAt(tm.Git, "/tmp/wt")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if !strings.Contains(res.Content, "diff --git a/x b/x") {
+			t.Errorf("expected diff content, got: %q", res.Content)
+		}
+		if !strings.Contains(res.Content, "go.sum (+40/-12)") {
+			t.Errorf("expected exclusion note for go.sum, got: %q", res.Content)
+		}
+		if !strings.Contains(res.Content, "Untracked files:\n  notes.txt") {
+			t.Errorf("expected untracked file listing, got: %q", res.Content)
+		}
+		// main.go (included) + notes.txt (untracked); go.sum excluded from totals.
+		if res.Files != 2 || res.Added != 5 || res.Removed != 2 {
+			t.Errorf("unexpected stats: files=%d added=%d removed=%d", res.Files, res.Added, res.Removed)
+		}
+
+		// Every git call must target the worktree dir via -C.
+		for _, call := range gitBase.ExecCommandCalls {
+			if len(call.Args) < 2 || call.Args[0] != "-C" || call.Args[1] != "/tmp/wt" {
+				t.Errorf("expected every call to start with '-C /tmp/wt', got %v", call.Args)
+			}
+		}
+
+		// The diff call must target the bare merge-base (working tree diff,
+		// committed + uncommitted), keep colors, and carry the exclusions.
+		diffCall := gitBase.ExecCommandCalls[2]
+		joined := strings.Join(diffCall.Args, " ")
+		if !strings.Contains(joined, "diff --color=always abc123 -- .") {
+			t.Errorf("expected colored working-tree diff against merge-base, got %v", diffCall.Args)
+		}
+		if !strings.Contains(joined, ":(exclude,glob)**/go.sum") {
+			t.Errorf("expected exclusion pathspecs, got %v", diffCall.Args)
+		}
+	})
+
+	t.Run("merge-base failure surfaces error", func(t *testing.T) {
+		tm, gitBase, _ := newTaskSetup()
+		gitBase.SetExecCommandResults(
+			commands.ExecCommandResult("origin/main\n", "", nil),
+			commands.ExecCommandResult("", "fatal: no merge base", fmt.Errorf("exit 1")),
+		)
+		if _, err := BranchDiffAt(tm.Git, "/tmp/wt"); err == nil {
+			t.Fatal("expected error when merge-base fails")
 		}
 	})
 }

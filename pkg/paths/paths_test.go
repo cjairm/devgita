@@ -291,3 +291,31 @@ func TestFontsDirs(t *testing.T) {
 		}
 	})
 }
+
+func TestExpandHome(t *testing.T) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("could not resolve home: %v", err)
+	}
+
+	t.Run("expands bare tilde", func(t *testing.T) {
+		if got := paths.ExpandHome("~"); got != home {
+			t.Errorf("expected %q, got %q", home, got)
+		}
+	})
+
+	t.Run("expands tilde-slash prefix", func(t *testing.T) {
+		want := filepath.Join(home, "code", "repo")
+		if got := paths.ExpandHome("~/code/repo"); got != want {
+			t.Errorf("expected %q, got %q", want, got)
+		}
+	})
+
+	t.Run("leaves other paths untouched", func(t *testing.T) {
+		for _, p := range []string{"/abs/path", "relative/path", "no~expansion/~here"} {
+			if got := paths.ExpandHome(p); got != p {
+				t.Errorf("expected %q unchanged, got %q", p, got)
+			}
+		}
+	})
+}

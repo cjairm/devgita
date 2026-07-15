@@ -299,24 +299,6 @@ func (t *Tmux) SendKeysToWindow(window, keys string) error {
 	return t.ExecuteCommand("send-keys", "-t", window, keys, "Enter")
 }
 
-// CapturePane returns the visible content of pane 0 (the agent's pane) for the
-// given tmux window. The result includes ANSI color escapes (-e).
-func (t *Tmux) CapturePane(session, window string) (string, error) {
-	target := session + ":" + window + ".0"
-	execCommand := cmd.CommandParams{
-		Command: constants.Tmux,
-		Args:    []string{"capture-pane", "-p", "-e", "-t", target},
-	}
-	stdout, stderr, err := t.Base.ExecCommand(execCommand)
-	if err != nil {
-		if stderr != "" {
-			return "", fmt.Errorf("capture-pane: %s", stderr)
-		}
-		return "", fmt.Errorf("failed to capture pane %s: %w", target, err)
-	}
-	return stdout, nil
-}
-
 // SelectWindow switches focus to a specific window by name
 func (t *Tmux) SelectWindow(name string) error {
 	return t.ExecuteCommand("select-window", "-t", name)

@@ -3,7 +3,86 @@ package task
 import (
 	"fmt"
 	"strings"
+
+	git_app "github.com/cjairm/devgita/internal/apps/git"
 )
+
+// BranchDiffResult is BranchDiffAt's payload: the rendered diff plus totals
+// for the included (non-excluded) files, for display in a stat line.
+type BranchDiffResult struct {
+	Content string
+	Files   int
+	Added   int
+	Removed int
+}
+
+// BranchDiffAt returns the diff of the worktree at dir against its
+// merge-base with the default branch — committed AND uncommitted work —
+// with the same lockfile exclusions and notes as BranchDiff. Output keeps
+// git's ANSI colors (--color=always): this exists for the `dg wt ui` diff
+// pane, which shows everything the worktree would merge. Untracked files
+// are invisible to `git diff`, so they are listed by name at the end and
+// counted in Files.
+func BranchDiffAt(g *git_app.Git, dir string) (BranchDiffResult, error) {
+	defaultBranch := g.DefaultBranchIn(dir)
+	baseOut, err := g.RunCapture("-C", dir, "merge-base", "origin/"+defaultBranch, "HEAD")
+	if err != nil {
+		return BranchDiffResult{}, fmt.Errorf("branch-diff: %w", err)
+	}
+	base := strings.TrimSpace(baseOut)
+	rangeLabel := defaultBranch + "..worktree"
+
+	args := append(
+		[]string{"-C", dir, "diff", "--color=always", base, "--", "."},
+		exclusionPathspecs()...,
+	)
+	diff, err := g.RunCapture(args...)
+	if err != nil {
+		return BranchDiffResult{}, fmt.Errorf("branch-diff: %w", err)
+	}
+
+	numstatOut, err := g.RunCapture("-C", dir, "diff", "--numstat", "--no-renames", base)
+	if err != nil {
+		return BranchDiffResult{}, fmt.Errorf("branch-diff: %w", err)
+	}
+	changes, err := parseNumstat(numstatOut)
+	if err != nil {
+		return BranchDiffResult{}, fmt.Errorf("branch-diff: %w", err)
+	}
+	included, excluded := partitionExcluded(changes)
+
+	res := BranchDiffResult{
+		Content: formatBranchDiff(rangeLabel, diff, excluded),
+		Files:   len(included),
+	}
+	for _, f := range included {
+		res.Added += f.Added
+		res.Removed += f.Removed
+	}
+
+	if untracked := untrackedFiles(g, dir); len(untracked) > 0 {
+		res.Content += "\nUntracked files:\n  " + strings.Join(untracked, "\n  ")
+		res.Files += len(untracked)
+	}
+	return res, nil
+}
+
+// untrackedFiles lists files git doesn't track yet in the worktree at dir.
+// Best-effort: a status failure just yields an empty list, since the diff
+// itself already rendered.
+func untrackedFiles(g *git_app.Git, dir string) []string {
+	out, err := g.RunCapture("-C", dir, "status", "--porcelain")
+	if err != nil {
+		return nil
+	}
+	var untracked []string
+	for line := range strings.SplitSeq(out, "\n") {
+		if path, ok := strings.CutPrefix(line, "?? "); ok {
+			untracked = append(untracked, path)
+		}
+	}
+	return untracked
+}
 
 // BranchDiff returns the merge-base diff against the default branch, with
 // lockfile-style noise excluded by default (see exclusions.go) and called

@@ -63,7 +63,6 @@ type WorktreeState struct {
 	WindowName   string
 	WtExists     bool
 	WindowExists bool
-	BranchExists bool
 }
 
 // WorktreeManager coordinates git worktrees with tmux windows
@@ -98,22 +97,52 @@ func GetWorktreeBasePath() string {
 }
 
 // Create creates a new worktree with tmux window and launches the specified AI coder.
-// If force is false and the repo has hooks incompatible with git worktrees, the user
-// is prompted to confirm before proceeding.
+// The repo is the one containing the current directory and the window opens in the
+// current tmux session. If force is false and the repo has hooks incompatible with
+// git worktrees, the user is prompted to confirm before proceeding.
 func (w *WorktreeManager) Create(name string, coder AICoder, force bool) error {
-	if coder == nil {
-		return fmt.Errorf("AI coder is required")
-	}
-
-	if err := coder.EnsureInstalled(); err != nil {
+	if err := validateCoder(coder); err != nil {
 		return err
 	}
-
 	repoRoot, err := w.Git.GetRepoRoot()
 	if err != nil {
 		return fmt.Errorf("not in a git repository: %w", err)
 	}
+	return w.create(repoRoot, name, coder, force, false)
+}
 
+// CreateAt is Create for a repository the caller is not inside: repoPath ("~"
+// expanded) locates the repo, the window opens in the repo-slug tmux session
+// (created when missing, reused otherwise), and the attached client follows
+// it when running inside tmux.
+func (w *WorktreeManager) CreateAt(repoPath, name string, coder AICoder, force bool) error {
+	if err := validateCoder(coder); err != nil {
+		return err
+	}
+	repoRoot, err := w.Git.GetRepoRootIn(paths.ExpandHome(repoPath))
+	if err != nil {
+		return fmt.Errorf("no git repository at %s: %w", repoPath, err)
+	}
+	return w.create(repoRoot, name, coder, force, true)
+}
+
+// validateCoder guards the shared create flow: a coder is required and must
+// be installed before any git or tmux state is touched.
+func validateCoder(coder AICoder) error {
+	if coder == nil {
+		return fmt.Errorf("AI coder is required")
+	}
+	return coder.EnsureInstalled()
+}
+
+// create is the shared worktree-creation flow. useRepoSession selects where
+// the window goes: the current tmux session (plain Create) or the repo-slug
+// session (CreateAt).
+func (w *WorktreeManager) create(
+	repoRoot, name string,
+	coder AICoder,
+	force, useRepoSession bool,
+) error {
 	repoSlug := filepath.Base(repoRoot)
 	wtPath := w.worktreePath(repoSlug, name)
 	windowName := GetWindowName(repoSlug, name)
@@ -172,18 +201,44 @@ func (w *WorktreeManager) Create(name string, coder AICoder, force bool) error {
 		return fmt.Errorf("failed to create worktree directory: %w", err)
 	}
 
-	if err := w.Git.CreateWorktree(wtPath, name); err != nil {
+	if err := w.Git.CreateWorktreeIn(repoRoot, wtPath, name); err != nil {
 		if strings.Contains(err.Error(), "is a missing but already registered") {
 			if pruneErr := w.Git.PruneWorktreesAt(filepath.Dir(wtPath)); pruneErr == nil {
-				if retryErr := w.Git.CreateWorktree(wtPath, name); retryErr == nil {
-					return w.createWindowAndLaunch(windowName, wtPath, coder)
+				if retryErr := w.Git.CreateWorktreeIn(repoRoot, wtPath, name); retryErr == nil {
+					return w.launchWindow(repoSlug, windowName, wtPath, coder, useRepoSession)
 				}
 			}
 		}
 		return fmt.Errorf("failed to create worktree: %w", err)
 	}
 
-	return w.createWindowAndLaunch(windowName, wtPath, coder)
+	return w.launchWindow(repoSlug, windowName, wtPath, coder, useRepoSession)
+}
+
+// launchWindow creates the worktree's tmux window and starts the AI coder in
+// it, rolling the worktree back if the window cannot be created. The window
+// goes to the current session or the repo-slug session (created when missing,
+// reused otherwise); in the latter case the attached client follows it.
+func (w *WorktreeManager) launchWindow(
+	repoSlug, windowName, wtPath string,
+	coder AICoder,
+	useRepoSession bool,
+) error {
+	if !useRepoSession {
+		return w.createWindowAndLaunch(windowName, wtPath, coder)
+	}
+
+	if err := w.ensureWindow(repoSlug, windowName, wtPath, coder); err != nil {
+		_ = w.Git.RemoveWorktree(wtPath, true, "")
+		return err
+	}
+	// Follow the new window when running inside tmux (best-effort).
+	if os.Getenv("TMUX") != "" {
+		if session, ok := w.Tmux.WindowSession(windowName); ok {
+			_ = w.Tmux.SwitchToWindow(session, windowName)
+		}
+	}
+	return nil
 }
 
 func (w *WorktreeManager) createWindowAndLaunch(windowName, wtPath string, coder AICoder) error {
@@ -222,13 +277,6 @@ func (w *WorktreeManager) worktreeState(repoSlug, name string) (WorktreeState, e
 
 	if _, ok := w.Tmux.WindowSession(state.WindowName); ok {
 		state.WindowExists = true
-	}
-
-	if state.WtExists {
-		branchExists, err := w.Git.BranchExists(name)
-		if err == nil {
-			state.BranchExists = branchExists
-		}
 	}
 
 	return state, nil
