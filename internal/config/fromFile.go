@@ -65,9 +65,74 @@ type FailedInstallation struct {
 	AttemptCount int       `yaml:"attempt_count"`
 }
 
+// RecentRepo tracks a repo root devgita has created a worktree in, so the
+// worktree TUI's repo picker can offer it again (most-recently-used first)
+// even after every worktree under it has been removed.
+type RecentRepo struct {
+	Path     string    `yaml:"path"`
+	LastUsed time.Time `yaml:"last_used"`
+}
+
+// maxRecentRepos caps the recent-repos store so it can't grow unbounded.
+const maxRecentRepos = 20
+
 // WorktreeConfig stores worktree-specific settings
 type WorktreeConfig struct {
-	DefaultAI string `yaml:"default_ai"` // "opencode" | "claude"; empty = fallback to "opencode"
+	DefaultAI   string       `yaml:"default_ai"`             // "opencode" | "claude"; empty = fallback to "opencode"
+	RecentRepos []RecentRepo `yaml:"recent_repos,omitempty"` // MRU-ordered; new field, absent in old configs
+}
+
+// UpsertRecentRepo records path as the most-recently-used repo: if path is
+// already present it is moved to the front with LastUsed bumped to now,
+// otherwise it is prepended. The list is capped at maxRecentRepos entries,
+// dropping the least-recently-used. path must already be canonicalized (see
+// CanonicalRepoPath) so the same repo is never stored under two string forms.
+func (wc *WorktreeConfig) UpsertRecentRepo(path string, now time.Time) {
+	entries := make([]RecentRepo, 0, len(wc.RecentRepos)+1)
+	entries = append(entries, RecentRepo{Path: path, LastUsed: now})
+	for _, r := range wc.RecentRepos {
+		if r.Path != path {
+			entries = append(entries, r)
+		}
+	}
+	if len(entries) > maxRecentRepos {
+		entries = entries[:maxRecentRepos]
+	}
+	wc.RecentRepos = entries
+}
+
+// PrunedRecentRepos returns RecentRepos with any entry whose Path no longer
+// exists on disk removed. It is a pure read-time filter: it does not mutate
+// the receiver or persist anything, so callers decide separately whether and
+// when to save the pruned result.
+func (wc *WorktreeConfig) PrunedRecentRepos() []RecentRepo {
+	pruned := make([]RecentRepo, 0, len(wc.RecentRepos))
+	for _, r := range wc.RecentRepos {
+		if _, err := os.Stat(r.Path); err == nil {
+			pruned = append(pruned, r)
+		}
+	}
+	return pruned
+}
+
+// CanonicalRepoPath normalizes a repo path to one canonical string form so
+// the same repo is never tracked under multiple representations: expand a
+// leading "~", make it absolute, clean it, then best-effort resolve
+// symlinks (falling back to the cleaned absolute path when a path doesn't
+// exist yet or symlink resolution otherwise fails). Every source that feeds
+// the repo-candidates provider (recent-repos store, cursor repo, zoxide
+// results) must canonicalize through this same function to dedupe correctly.
+func CanonicalRepoPath(path string) string {
+	expanded := paths.ExpandHome(path)
+	abs, err := filepath.Abs(expanded)
+	if err != nil {
+		abs = expanded
+	}
+	cleaned := filepath.Clean(abs)
+	if resolved, err := filepath.EvalSymlinks(cleaned); err == nil {
+		return resolved
+	}
+	return cleaned
 }
 
 type GlobalConfig struct {
@@ -100,11 +165,11 @@ func (gc *GlobalConfig) Load() error {
 }
 
 func (gc *GlobalConfig) Save() error {
-	file, err := yaml.Marshal(gc)
+	data, err := yaml.Marshal(gc)
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(getGlobalConfigFilePath(), file, 0644)
+	return files.WriteFileAtomic(getGlobalConfigFilePath(), data, files.FilePermission)
 }
 
 func (gc *GlobalConfig) Reset() error {
@@ -114,7 +179,7 @@ func (gc *GlobalConfig) Reset() error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(getGlobalConfigFilePath(), data, 0644)
+	return files.WriteFileAtomic(getGlobalConfigFilePath(), data, files.FilePermission)
 }
 
 func (gc *GlobalConfig) Create() error {
@@ -237,7 +302,8 @@ func (gc *GlobalConfig) AddToFailed(packageName, category, errorMessage string, 
 			gc.FailedInstallations[i].ErrorMessage = errorMessage
 			gc.FailedInstallations[i].FailedAt = time.Now()
 			gc.FailedInstallations[i].AttemptCount = attemptCount
-			logger.L().Warnw("Updated failed installation",
+			logger.L().Warnw(
+				"Updated failed installation",
 				"package", packageName,
 				"category", category,
 				"error", errorMessage,
@@ -254,7 +320,8 @@ func (gc *GlobalConfig) AddToFailed(packageName, category, errorMessage string, 
 		FailedAt:     time.Now(),
 		AttemptCount: attemptCount,
 	})
-	logger.L().Warnw("Added to failed installations",
+	logger.L().Warnw(
+		"Added to failed installations",
 		"package", packageName,
 		"category", category,
 		"error", errorMessage,

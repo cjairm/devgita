@@ -16,12 +16,16 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/cjairm/devgita/internal/apps/git"
 	"github.com/cjairm/devgita/internal/apps/tmux"
 	cmd "github.com/cjairm/devgita/internal/commands"
+	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/internal/tooling/terminal/dev_tools/fzf"
+	"github.com/cjairm/devgita/pkg/logger"
 	"github.com/cjairm/devgita/pkg/paths"
+	"github.com/cjairm/devgita/pkg/utils"
 )
 
 const (
@@ -71,15 +75,23 @@ type WorktreeManager struct {
 	Tmux *tmux.Tmux
 	Fzf  *fzf.Fzf
 	Base cmd.BaseCommandExecutor
+	// WarnFn reports a non-fatal warning to the user (e.g. the recent-repos
+	// store failed to record a successful create). It defaults to a CLI-safe
+	// print in New(); a caller rendering a TUI must override it before
+	// constructing its model with something like a toast, since printing
+	// directly to stdout underneath a running Bubble Tea alt-screen program
+	// would corrupt its rendering.
+	WarnFn func(msg string)
 }
 
 // New creates a new WorktreeManager instance
 func New() *WorktreeManager {
 	return &WorktreeManager{
-		Git:  git.New(),
-		Tmux: tmux.New(),
-		Fzf:  fzf.New(),
-		Base: cmd.NewBaseCommand(),
+		Git:    git.New(),
+		Tmux:   tmux.New(),
+		Fzf:    fzf.New(),
+		Base:   cmd.NewBaseCommand(),
+		WarnFn: utils.PrintWarning,
 	}
 }
 
@@ -205,14 +217,36 @@ func (w *WorktreeManager) create(
 		if strings.Contains(err.Error(), "is a missing but already registered") {
 			if pruneErr := w.Git.PruneWorktreesAt(filepath.Dir(wtPath)); pruneErr == nil {
 				if retryErr := w.Git.CreateWorktreeIn(repoRoot, wtPath, name); retryErr == nil {
-					return w.launchWindow(repoSlug, windowName, wtPath, coder, useRepoSession)
+					return w.launchWindowAndRecord(
+						repoRoot,
+						repoSlug,
+						windowName,
+						wtPath,
+						coder,
+						useRepoSession,
+					)
 				}
 			}
 		}
 		return fmt.Errorf("failed to create worktree: %w", err)
 	}
 
-	return w.launchWindow(repoSlug, windowName, wtPath, coder, useRepoSession)
+	return w.launchWindowAndRecord(repoRoot, repoSlug, windowName, wtPath, coder, useRepoSession)
+}
+
+// launchWindowAndRecord wraps launchWindow so both create() call sites (the
+// happy path and the stale-entry retry path) record the repo as used on
+// success without duplicating that logic at each call site.
+func (w *WorktreeManager) launchWindowAndRecord(
+	repoRoot, repoSlug, windowName, wtPath string,
+	coder AICoder,
+	useRepoSession bool,
+) error {
+	if err := w.launchWindow(repoSlug, windowName, wtPath, coder, useRepoSession); err != nil {
+		return err
+	}
+	w.recordRepoUsed(repoRoot)
+	return nil
 }
 
 // launchWindow creates the worktree's tmux window and starts the AI coder in
@@ -740,4 +774,50 @@ func (w *WorktreeManager) SelectWorktreeInteractively(prompt string) (string, er
 	}
 
 	return selected, nil
+}
+
+// recordRepoUsed best-effort upserts repoRoot into the recent-repos store so
+// the worktree picker can offer this repo again later, even after every
+// worktree under it has been removed. This never fails create: repoRoot's
+// worktree and tmux window already exist by the time this runs, so a store
+// write failure here is a degraded-but-working outcome, not a create
+// failure. The failure is still surfaced (never silently swallowed): via
+// WarnFn (CLI prints it, a TUI caller can route it to a toast) and always via
+// a debug log entry.
+func (w *WorktreeManager) recordRepoUsed(repoRoot string) {
+	canonical := config.CanonicalRepoPath(repoRoot)
+
+	gc := &config.GlobalConfig{}
+	if err := gc.Create(); err != nil {
+		w.warnRepoRecordFailure(canonical, err)
+		return
+	}
+	if err := gc.Load(); err != nil {
+		w.warnRepoRecordFailure(canonical, err)
+		return
+	}
+	gc.Worktree.UpsertRecentRepo(canonical, time.Now())
+	if err := gc.Save(); err != nil {
+		w.warnRepoRecordFailure(canonical, err)
+		return
+	}
+}
+
+// warnRepoRecordFailure reports a recordRepoUsed failure through WarnFn
+// (falling back to utils.PrintWarning when unset, so CLI callers get a
+// sensible default even if a WorktreeManager was constructed as a literal
+// instead of via New) and always logs it at debug level.
+func (w *WorktreeManager) warnRepoRecordFailure(repoRoot string, err error) {
+	logger.L().Debugw("failed to record recent repo", "repo", repoRoot, "error", err)
+	warn := w.WarnFn
+	if warn == nil {
+		warn = utils.PrintWarning
+	}
+	warn(
+		fmt.Sprintf(
+			"worktree created, but failed to remember repo %s for later reuse: %v",
+			repoRoot,
+			err,
+		),
+	)
 }

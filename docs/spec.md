@@ -1,6 +1,6 @@
 # Devgita Product Specification
 
-**Last Updated**: 2026-05-11  
+**Last Updated**: 2026-07-15  
 **Owner**: @cjairm
 
 ---
@@ -247,18 +247,18 @@ dg wt <subcommand> [flags]     # alias
 
 **Subcommands**:
 
-| Subcommand      | Description                                                                                                                                                                                                                                                                      |
-| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `create <name>` | Create a new worktree + tmux window                                                                                                                                                                                                                                              |
-| `list`          | List all managed worktrees                                                                                                                                                                                                                                                       |
-| `remove [name]` | Remove a worktree (interactive picker if name omitted)                                                                                                                                                                                                                           |
-| `ui` / `dash`   | Full-screen TUI dashboard (NERDTree-style tree + branch-diff pane). The pane labels its comparison (`<default-branch> @<merge-base> ← <branch>`), renders one styled header per file with per-file +/- counts, and is focusable (Space) for vim-style scrolling; replaces `jump` |
-| `repair <name>` | Recreate the tmux window for an existing worktree                                                                                                                                                                                                                                |
-| `prune`         | Remove **all** managed worktrees after confirmation                                                                                                                                                                                                                              |
+| Subcommand      | Description                                                                                                                                                                                                                                                                                                                                                                              |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `create <name>` | Create a new worktree + tmux window                                                                                                                                                                                                                                                                                                                                                      |
+| `list`          | List all managed worktrees                                                                                                                                                                                                                                                                                                                                                               |
+| `remove [name]` | Remove a worktree (interactive picker if name omitted)                                                                                                                                                                                                                                                                                                                                   |
+| `ui` / `dash`   | Full-screen TUI dashboard (NERDTree-style tree + branch-diff pane). The pane labels its comparison (`<default-branch> @<merge-base> ← <branch>`), renders one styled header per file with per-file +/- counts, and is focusable (Space) for vim-style scrolling; replaces `jump`. Press `n` to create a worktree without leaving the dashboard — see "Creating from the dashboard" below |
+| `repair <name>` | Recreate the tmux window for an existing worktree                                                                                                                                                                                                                                                                                                                                        |
+| `prune`         | Remove **all** managed worktrees after confirmation                                                                                                                                                                                                                                                                                                                                      |
 
 **Flags for `create` and `repair`**:
 
-- `--ai <alias>` / `-a <alias>` — AI coder to launch in the window. Accepted aliases: `opencode`, `oc`, `claude`, `cc`, `claudecode`. Resolution order: flag → `DEVGITA_AI` env var → `worktree.default_ai` in `global_config.yaml`.
+- `--ai <alias>` / `-a <alias>` — AI coder to launch in the window. Accepted aliases: `opencode`, `oc`, `claude`, `cc`, `claudecode`. Resolution order: flag → `DEVGITA_WORKTREE_AI` env var → `worktree.default_ai` in `global_config.yaml`.
 
 **Flag for `create`**:
 
@@ -278,11 +278,29 @@ dg wt <subcommand> [flags]     # alias
 dg wt create feature-login                  # Create worktree, use default AI
 dg wt create feature-login --ai claude      # Create with Claude Code
 dg wt new fix-auth --repo ~/code/api        # Create for another repo; window opens in its session
-dg wt ui                                    # Open TUI dashboard (j/k nav, Enter attach, d delete, D delete + kill session, r repair,
+dg wt ui                                    # Open TUI dashboard (j/k nav, Enter attach, n create, d delete, D delete + kill session, r repair,
                                             #   Space focuses the diff pane: j/k scroll, [/] jump between files, g/G top/bottom, Esc back)
 dg wt repair feature-login                  # Recreate missing tmux window
 dg wt prune                                 # Remove all worktrees (prompts for confirmation)
 ```
+
+**Creating from the dashboard (`n`)**:
+
+- `n` opens a floating repo picker over the dashboard — the background stays visible, matching
+  the `?` help overlay. Candidates are ranked: the repo under the cursor first, then repos from
+  the recent-repos store (most-recently-used first), then `zoxide query -l` results when zoxide
+  is installed. Typing filters the list; if the query matches nothing, Enter validates it
+  directly as a free-typed repo path instead.
+- Enter on a repo opens a floating name prompt. Enter creates the worktree (same as `create
+--repo`) and attaches into the new window — the TUI exits, identical to pressing Enter on an
+  existing row. If the create's pre-flight hook-compatibility check finds warnings, they're
+  shown as a status message and a second Enter confirms; any other key cancels the confirm.
+- A failed create (invalid path, duplicate name, etc.) is shown as a status message; the
+  dashboard keeps running rather than exiting.
+- Esc at the repo picker or the name prompt returns to the dashboard unchanged.
+- Every successful create — from `ui`, `create`, or `new` — records the repo's root path in
+  `global_config.yaml`'s `worktree.recent_repos` (MRU-ordered, capped at 20). This is what lets
+  the picker offer a repo that currently has zero worktrees.
 
 **Planned commands**: See [ROADMAP.md](ROADMAP.md) for planned features and future commands.
 

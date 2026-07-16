@@ -497,7 +497,7 @@ func (g *Git) ListWorktreesAt(dir string) ([]WorktreeInfo, error) {
 // within the worktree being deleted.
 func (g *Git) RemoveWorktree(path string, deleteBranch bool, branchName string) error {
 	// Find the main worktree by resolving git-common-dir from the target path
-	mainWorktree, err := g.getMainWorktree(path)
+	mainWorktree, err := g.GetMainWorktree(path)
 	if err != nil {
 		return fmt.Errorf("cannot resolve main worktree for %s: %w", path, err)
 	}
@@ -521,8 +521,12 @@ func (g *Git) RemoveWorktree(path string, deleteBranch bool, branchName string) 
 	return nil
 }
 
-// getMainWorktree resolves the main worktree path from any worktree in the repo.
-func (g *Git) getMainWorktree(fromPath string) (string, error) {
+// GetMainWorktree resolves the main worktree (repo root) path from any
+// worktree in the repo, via `git worktree list --porcelain`'s first
+// "worktree <path>" line (always the main worktree). Exported so callers
+// outside this package (e.g. the worktree tooling's repo-candidate
+// resolution) can reuse the same mechanism instead of duplicating it.
+func (g *Git) GetMainWorktree(fromPath string) (string, error) {
 	execCommand := cmd.CommandParams{
 		Command: constants.Git,
 		Args:    []string{"-C", fromPath, "worktree", "list", "--porcelain"},

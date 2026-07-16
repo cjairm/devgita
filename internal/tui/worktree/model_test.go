@@ -31,9 +31,32 @@ func makeTestModel(statuses []worktree.WorktreeStatus) Model {
 	m.removeFn = func(_, _ string, _ bool) error { return nil }
 	m.removeSessionFn = func(_, _ string) error { return nil }
 	m.repairFn = func(_, _ string, _ worktree.AICoder) error { return nil }
+	m.windowSessionFn = func(_ string) (string, bool) { return "", false }
+	m.repoCandidatesFn = func(_ string) ([]string, error) { return nil, nil }
+	m.validateRepoPathFn = func(path string) (string, error) { return path, nil }
+	m.checkHookCompatibilityFn = func(_ string) []string { return nil }
+	m.createFn = func(_, _ string) (string, error) { return "", nil }
 	m.statuses = statuses
 	m.rebuildRows()
 	return m
+}
+
+// flattenCmd runs cmd and recursively unwraps any tea.BatchMsg it produces,
+// so tests can assert on the individual messages a tea.Batch yields without
+// needing the full bubbletea runtime to fan them back into Update.
+func flattenCmd(cmd tea.Cmd) []tea.Msg {
+	if cmd == nil {
+		return nil
+	}
+	msg := cmd()
+	if batch, ok := msg.(tea.BatchMsg); ok {
+		var out []tea.Msg
+		for _, c := range batch {
+			out = append(out, flattenCmd(c)...)
+		}
+		return out
+	}
+	return []tea.Msg{msg}
 }
 
 func testStatuses() []worktree.WorktreeStatus {
@@ -573,3 +596,26 @@ func TestNarrowTerminalNoPanic(t *testing.T) {
 		t.Error("rightPaneWidth should not be negative")
 	}
 }
+
+func TestHelpOverlayShowsDashboardBackground(t *testing.T) {
+	m := makeTestModel(testStatuses())
+	m.showHelp = true
+	out := ansi.Strip(m.renderContent())
+
+	if !strings.Contains(out, "press any key to close") {
+		t.Error("expected the help popup to be rendered")
+	}
+	if !strings.Contains(out, "repo-a") {
+		t.Error(
+			"expected the dashboard background (repo-a) to remain visible behind the help popup",
+		)
+	}
+	if !strings.Contains(out, "feature-a") {
+		t.Error(
+			"expected the dashboard background (feature-a) to remain visible behind the help popup",
+		)
+	}
+}
+
+// Create-flow (n → repo-pick → name-input → create) tests live in
+// create_flow_test.go, mirroring the create_flow.go/model.go split.

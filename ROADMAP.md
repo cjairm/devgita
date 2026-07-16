@@ -4,61 +4,6 @@ Public roadmap of planned features, improvements, and discussion topics for futu
 
 ---
 
-## 🟢 Completed: Neovim Dependencies
-
-Shipped in v0.15.0. The following packages are now automatically installed as prerequisites when installing Neovim:
-
-- `make`
-- `gcc` (Linux only)
-- `ripgrep`
-- `fd-find` (APT) / `fd` (Homebrew)
-- `tree-sitter-cli` (with npm fallback on Debian Bookworm stable)
-- `unzip`
-- `xclip` (Linux only; macOS uses `pbcopy`/`pbpaste`)
-
-Includes graceful fallback for `tree-sitter-cli` and transparent state tracking in `global_config.yaml`.
-
----
-
-## Implemented Commands
-
-### Configuration & Management
-
-- 🟢 **`dg configure [app]`** — Re-applies configuration files for a named app without reinstalling
-  - `--force` overwrites existing config files; default (soft mode) only applies if files are absent
-  - Supports 19 apps; apps with no config return an info message and exit zero
-  - Shipped in v0.10.0
-
-- 🟢 **`dg uninstall [app/category]`** — Remove installed packages
-  - Verifies packages were installed by us (not pre-existing)
-  - Handles updates differently (leaves pre-existing packages in place)
-  - Scope: Can pass `--app` or `--package` for single-package uninstall
-
-- 🟢 **`dg list` / `dg installed`** — Show what's installed
-  - Prints installed items grouped by category, plus a separate "already on this machine"
-    section for pre-existing items
-  - `--category <name>` filters to a single bucket
-  - Shipped in v0.28.0
-  - MVP scope: name + category only. Versions/timestamps are **not yet tracked** — that
-    requires a `global_config.yaml` schema change and is still planned (see below)
-  - Also opens an interactive dashboard (grouped list with live OK/MISSING/UNKNOWN status
-    per item) when run in a terminal; plain-text table behavior for piped/CI/`--plain` use
-    is unchanged. Shares this dashboard with `dg validate` below. (Pending next release tag.)
-
-- 🟢 **`dg validate`** — Drift detection between tracked state and system reality
-  - Checks every item Devgita tracked (installed by it, or found pre-existing) against
-    system reality (package manager / binary / version-command check per category)
-  - In a terminal, opens the same dashboard as `dg list`, pre-filtered to problems only
-  - Piped output, CI, or `--plain`: prints a plain STATUS table and exits non-zero if
-    anything tracked is missing (a failed check reports UNKNOWN and never fails the exit
-    code, so a flaky/unavailable package manager can't turn CI red)
-  - `--category <name>` filters to a single bucket
-  - MVP scope: presence/drift detection only, read-only. No in-TUI repair/reinstall actions
-    yet (flagged as a follow-up)
-  - Pending next release tag (shipped on `dg-validate-inventory` branch; not yet released)
-
----
-
 ## Planned Commands
 
 The following commands are planned but not yet implemented:
@@ -66,7 +11,10 @@ The following commands are planned but not yet implemented:
 ### Configuration & Management
 
 - **Per-item version/install-timestamp tracking** — Requires a `global_config.yaml` schema
-  change + migration strategy (see `dg list` above for the MVP that ships without this)
+  change + migration strategy (`dg list` shipped without this; it shows name + category only)
+
+- **`dg validate` repair actions** — Add in-TUI repair/reinstall actions to the validate
+  dashboard (shipped read-only: presence/drift detection only)
 
 - **`dg update [app] [options]`** — Check and apply updates
   - Complex due to breaking changes
@@ -93,17 +41,28 @@ The following commands are planned but not yet implemented:
 - **`dg restore [backup]`** — Revert to previous configuration
   - Restore from saved backup point
 
-### Tmux Utilities
-
-- **`dg tmux --new-window="~/path/to/project"`** — Create tmux window shortcuts
-  - Auto-generates window aliases (e.g., `tmhello-world` for `~/my-path/hello-world`)
-  - Removes need for custom commands like `tmn`
-
 ### Worktree Enhancements
 
-- Improved UX for `dg worktree` management
-- Better navigation and selection workflows
-- Related: See active cycle `2026-04-22-worktree-ux-improvements.md`
+Shipped so far: `dg wt ui` TUI dashboard (attach, destroy + session-hop, repair, filter,
+branch-diff pane), `dg wt new --repo` for cross-repo creation, and `n` in `dg wt ui` to
+create a worktree without leaving the dashboard — a floating repo picker (cursor repo →
+recent-repos store, MRU → zoxide → free-typed path) followed by a floating name prompt,
+then attach-and-quit on success. Every create (TUI or CLI) records the repo root in
+`global_config.yaml`'s `worktree.recent_repos`, which is what lets the picker rank repos
+that have no live worktrees. Cycle doc:
+[docs/plans/cycles/2026-07-15-wt-ui-create-flow.md](docs/plans/cycles/2026-07-15-wt-ui-create-flow.md).
+Next steps below come from a July 2026 investigation of how competing multi-session tools
+(Claude Squad, worktrunk, uzi, sesh, gwq, Crystal) minimize keystrokes for session
+creation — the common winning patterns are single-key in-TUI create, create+attach
+collapsed into one action, and "the name is the only thing you type; everything else is
+inferred."
+
+- ⚪ **Prompt-first create** — Optionally capture a task prompt at creation and pass it to
+  the AI coder so the agent starts working immediately (Claude Squad's `N`, worktrunk's
+  `wt switch -x claude -- 'task'`, uzi's `uzi prompt`).
+- ⚪ **Auto-naming** — Generate a branch/worktree name when none is given (uzi generates
+  names automatically; gwq/ccmanager derive paths from templates so the branch name is the
+  only input).
 
 ---
 
@@ -149,7 +108,6 @@ Users should be able to choose between alternatives:
 ### Development & Architecture
 
 - **Mise management** — What's the best approach? Documentation is difficult to follow
-- **TUI improvements** — Should we add [Bubbletea](https://github.com/charmbracelet/bubbletea) + [Lipgloss](https://github.com/charmbracelet/lipgloss) for better UI?
 - **Git integration** — Should git-related commands be namespaced as `dg git clean --flags`, `dg git revert`, or just `dg clean-branch`?
 - **NPM integration** — Should we offer `dg npm clean` for fresh installs and full cleanup?
 - **Update strategy** — How to handle updates when apps can have breaking changes?

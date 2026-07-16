@@ -87,12 +87,24 @@ type Model struct {
 	pendingSessionDelete string // "repo/name" or ""
 	showHelp             bool
 
+	createMode         createMode
+	repoPicker         *tuicomponents.FuzzyPicker
+	createRepo         string // resolved repo path chosen in repo-pick mode
+	createName         string // in-progress name text in name-input mode
+	pendingHookWarning bool   // armed by a first enter when CheckHookCompatibility found warnings; a second enter confirms, any other key (or edited name) de-arms it
+	creating           bool   // true from the moment the create tea.Cmd is dispatched until its result (createdMsg/createFailedMsg) is processed; the ONLY thing that actually enforces "one create at a time" (see createFn's WarnFn-swap comment below) — handleNewWorktree checks this and ignores n while it's true
+
 	// Injected I/O seams (overridable in tests)
-	diffFn          func(path string) (task.BranchDiffResult, error)
-	attachFn        func(session, window string) error
-	removeFn        func(repo, name string, force bool) error
-	removeSessionFn func(repo, name string) error
-	repairFn        func(repo, name string, coder worktree.AICoder) error
+	diffFn                   func(path string) (task.BranchDiffResult, error)
+	attachFn                 func(session, window string) error
+	removeFn                 func(repo, name string, force bool) error
+	removeSessionFn          func(repo, name string) error
+	repairFn                 func(repo, name string, coder worktree.AICoder) error
+	windowSessionFn          func(window string) (string, bool)
+	repoCandidatesFn         func(cursorRepoSlug string) ([]string, error)
+	validateRepoPathFn       func(path string) (string, error)
+	checkHookCompatibilityFn func(repoPath string) []string
+	createFn                 func(repoPath, name string) (warning string, err error)
 }
 
 func newModel(
@@ -124,6 +136,49 @@ func newModel(
 	}
 	m.repairFn = func(repo, name string, coder worktree.AICoder) error {
 		return mgr.RepairInRepo(repo, name, coder)
+	}
+	m.windowSessionFn = tmuxApp.WindowSession
+	m.repoCandidatesFn = mgr.RepoCandidates
+	m.validateRepoPathFn = mgr.ValidateRepoPath
+	// CheckHookCompatibility only stats/reads hook files (and reads
+	// core.hooksPath via a read-only git config --get) — no prints, no
+	// prompts, no writes — so it's safe to call directly from the TUI, unlike
+	// worktree.go's own force=false path which raw-prints and blocks on
+	// os.Stdin. The model calls this itself before create so the user still
+	// gets the warning, just through a TUI-safe confirm (see
+	// handleNameInputKey), instead of losing it to a hardcoded force=true.
+	m.checkHookCompatibilityFn = gitApp.CheckHookCompatibility
+	m.createFn = func(repoPath, name string) (string, error) {
+		alias := worktree.ResolveAIAlias("", gc)
+		coder, err := worktree.ResolveAICoder(alias)
+		if err != nil {
+			return "", err
+		}
+		// mgr.WarnFn fires synchronously from inside CreateAt below (e.g. the
+		// recent-repos store failed to record this create). Swapping it to a
+		// local closure and restoring it via defer right after CreateAt
+		// returns is safe only because this TUI never runs two creates
+		// concurrently — and that's actually true, not just assumed: this
+		// tea.Cmd closure only ever runs while m.creating is true, and
+		// handleNewWorktree (the only way to start another create) refuses
+		// to open the picker while m.creating is true, so a second createFn
+		// call can never be in flight to race this swap/restore.
+		var warning string
+		original := mgr.WarnFn
+		mgr.WarnFn = func(msg string) { warning = msg }
+		defer func() { mgr.WarnFn = original }()
+		// force=true is safe here specifically because the model already ran
+		// its own equivalent hook-compatibility check (checkHookCompatibilityFn)
+		// and, when it found warnings, its own equivalent TUI-safe confirm
+		// (handleNameInputKey's pendingHookWarning arm/second-enter) before
+		// ever reaching this closure — so this isn't skipping the check,
+		// worktree.go's raw fmt.Println/stdin-read version of it is just
+		// redundant by this point and would otherwise corrupt or hang the
+		// running bubbletea alt-screen display.
+		if err := mgr.CreateAt(repoPath, name, coder, true); err != nil {
+			return "", err
+		}
+		return warning, nil
 	}
 	return m
 }
@@ -286,6 +341,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.status = string(msg)
 		return m, nil
 
+	case createdMsg:
+		return m.handleCreateSuccess(msg.repoPath, msg.name, msg.warning)
+
+	case createFailedMsg:
+		m.creating = false
+		m.status = "create failed: " + msg.err.Error()
+		return m, nil
+
 	case tea.KeyPressMsg:
 		return m.handleKey(msg)
 	}
@@ -300,6 +363,15 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.showHelp {
 		m.showHelp = false
 		return m, nil
+	}
+
+	// Repo-pick and name-input float over the dashboard and intercept every
+	// key while active, the same way showHelp does above.
+	if m.createMode == createRepoPick {
+		return m.handleRepoPickKey(key)
+	}
+	if m.createMode == createNameInput {
+		return m.handleNameInputKey(key)
 	}
 
 	if m.filter.Active {
@@ -423,6 +495,9 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "r":
 		return m.handleRepair()
 
+	case "n":
+		return m.handleNewWorktree()
+
 	case "ctrl+d":
 		m.diffScroll = min(m.diffScroll+m.diffPageSize(), m.maxDiffScroll())
 		return m, nil
@@ -504,14 +579,24 @@ func (m Model) handleAttach() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	window := worktree.GetWindowName(sel.Repo, sel.Name)
+	return m, m.attachToWindowCmd(sel.Repo, sel.Name)
+}
+
+// attachToWindowCmd looks up repo/name's tmux window (auto-repairing it
+// first if the window is missing) and attaches, quitting the TUI on
+// success. Extracted from handleAttach so the create flow can reuse the
+// identical retry/auto-repair logic for a worktree that was just created and
+// isn't in m.statuses yet (selectedStatus can't provide it there), instead
+// of duplicating this logic at a second call site.
+func (m Model) attachToWindowCmd(repo, name string) tea.Cmd {
+	window := worktree.GetWindowName(repo, name)
 	attachFn := m.attachFn
 	repairFn := m.repairFn
-	tmuxApp := m.tmuxApp
+	windowSessionFn := m.windowSessionFn
 	gc := m.gc
 
-	return m, func() tea.Msg {
-		session, ok := tmuxApp.WindowSession(window)
+	return func() tea.Msg {
+		session, ok := windowSessionFn(window)
 		if ok {
 			if err := attachFn(session, window); err != nil {
 				return statusMsg("attach failed: " + err.Error())
@@ -524,10 +609,10 @@ func (m Model) handleAttach() (tea.Model, tea.Cmd) {
 		if err != nil {
 			return statusMsg("repair failed: " + err.Error())
 		}
-		if err := repairFn(sel.Repo, sel.Name, coder); err != nil {
+		if err := repairFn(repo, name, coder); err != nil {
 			return statusMsg("repair failed: " + err.Error())
 		}
-		session, ok = tmuxApp.WindowSession(window)
+		session, ok = windowSessionFn(window)
 		if !ok {
 			return statusMsg("repair succeeded but window not found")
 		}
@@ -628,10 +713,24 @@ func (m Model) renderContent() string {
 		return ""
 	}
 
+	background := m.renderDashboard()
 	if m.showHelp {
-		return m.renderHelpOverlay()
+		return tuicomponents.Overlay(background, m.renderHelpPopup(), m.width, m.height)
 	}
+	if m.createMode == createRepoPick {
+		return tuicomponents.Overlay(background, m.renderRepoPickPopup(), m.width, m.height)
+	}
+	if m.createMode == createNameInput {
+		return tuicomponents.Overlay(background, m.renderNameInputPopup(), m.width, m.height)
+	}
+	return background
+}
 
+// renderDashboard renders the normal (non-help) dashboard: narrow-terminal
+// fallback or the left+divider+right layout, plus hint and status lines. It
+// always runs, even while the help popup is shown, so renderContent has a
+// live background to composite the popup over instead of blanking the screen.
+func (m Model) renderDashboard() string {
 	rpw := m.rightPaneWidth()
 	lpw := m.leftPaneWidth
 
@@ -812,6 +911,21 @@ func (m Model) renderHint(width int) string {
 	if m.pendingDelete != "" {
 		return m.armedDeleteHint(m.pendingDelete, "d", "", width)
 	}
+	if m.createMode == createRepoPick {
+		hints := []tuicomponents.KeyHint{
+			{Key: "esc", Desc: "cancel"},
+			{Key: "enter", Desc: "select"},
+			{Key: "↑/↓", Desc: "move"},
+		}
+		return m.palette.HintBar(hints, width)
+	}
+	if m.createMode == createNameInput {
+		hints := []tuicomponents.KeyHint{
+			{Key: "esc", Desc: "cancel"},
+			{Key: "enter", Desc: "create"},
+		}
+		return m.palette.HintBar(hints, width)
+	}
 	if m.filter.Active {
 		return m.palette.FilterHint(m.filter, width)
 	}
@@ -829,6 +943,7 @@ func (m Model) renderHint(width int) string {
 	}
 	hints := []tuicomponents.KeyHint{
 		{Key: "↵", Desc: "attach"},
+		{Key: "n", Desc: "new"},
 		{Key: "spc", Desc: "diff"},
 		{Key: "j/k", Desc: "move"},
 		{Key: "h/l", Desc: "fold"},
@@ -850,9 +965,12 @@ func (m Model) renderStatus(width int) string {
 	return m.palette.StatusMsg.Render(ansi.Truncate(m.status, width, ""))
 }
 
-func (m Model) renderHelpOverlay() string {
+// renderHelpPopup builds the raw (uncentered) help popup content; the
+// caller composites it over the dashboard background via Overlay.
+func (m Model) renderHelpPopup() string {
 	entries := []tuicomponents.WhichKeyEntry{
 		{Key: "enter", Desc: "attach (auto-repairs missing window)"},
+		{Key: "n", Desc: "create a new worktree (repo picker → name prompt)"},
 		{Key: "j / k", Desc: "move cursor down / up"},
 		{Key: "h / l", Desc: "collapse / expand repo"},
 		{Key: "z", Desc: "toggle collapse all repos"},
@@ -867,7 +985,7 @@ func (m Model) renderHelpOverlay() string {
 		{Key: "?", Desc: "toggle this help"},
 		{Key: "q / ctrl+c", Desc: "quit"},
 	}
-	return m.palette.HelpOverlay("Keybindings", entries, m.width, m.height)
+	return m.palette.HelpPopup("Keybindings", entries, m.width)
 }
 
 // padLines ensures a slice of lines has exactly n entries, each padded/truncated to w visible chars.

@@ -21,7 +21,7 @@ func createTempDir(t *testing.T) string {
 
 func createTempSourceFile(t *testing.T, tempDir string, fileName string) string {
 	srcFilePath := filepath.Join(tempDir, fileName)
-	err := os.WriteFile(srcFilePath, []byte(fileContent), 0644)
+	err := os.WriteFile(srcFilePath, []byte(fileContent), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to create source file: %v", err)
 	}
@@ -30,14 +30,14 @@ func createTempSourceFile(t *testing.T, tempDir string, fileName string) string 
 
 func createTempSourceDir(t *testing.T, tempDir string) string {
 	srcDir := filepath.Join(tempDir, "source")
-	err := os.Mkdir(srcDir, 0755)
+	err := os.Mkdir(srcDir, 0o755)
 	if err != nil {
 		t.Fatalf("Failed to create source directory: %v", err)
 	}
 	createTempSourceFile(t, srcDir, "file1.txt")
 
 	subDir := filepath.Join(srcDir, "subdir")
-	err = os.Mkdir(subDir, 0755)
+	err = os.Mkdir(subDir, 0o755)
 	if err != nil {
 		t.Fatalf("Failed to create subdirectory: %v", err)
 	}
@@ -81,7 +81,7 @@ func TestCopyFile(t *testing.T) {
 
 	// Test copying to a directory instead of a file
 	dstDirPath := filepath.Join(tempDir, "destinationDir")
-	if err := os.Mkdir(dstDirPath, 0755); err != nil {
+	if err := os.Mkdir(dstDirPath, 0o755); err != nil {
 		t.Fatalf("Failed to create destination directory: %v", err)
 	}
 	err = files.CopyFile(srcFilePath, dstDirPath)
@@ -119,7 +119,7 @@ func TestCopyDir(t *testing.T) {
 
 	// Test copying an empty directory
 	emptySrcDir := filepath.Join(srcDir, "empty")
-	if err := os.Mkdir(emptySrcDir, 0755); err != nil {
+	if err := os.Mkdir(emptySrcDir, 0o755); err != nil {
 		t.Fatalf("Failed to create empty source directory: %v", err)
 	}
 	emptyDstDir := filepath.Join(dstDir, "empty")
@@ -140,7 +140,7 @@ func TestCopyDir(t *testing.T) {
 
 	// Test copying to an existing directory
 	existingFile := filepath.Join(dstDir, "file1.txt")
-	if err := os.WriteFile(existingFile, []byte("Existing file"), 0644); err != nil {
+	if err := os.WriteFile(existingFile, []byte("Existing file"), 0o644); err != nil {
 		t.Fatalf("Failed to create existing file in destination: %v", err)
 	}
 	if err := files.CopyDir(srcDir, dstDir); err != nil {
@@ -155,7 +155,7 @@ func TestCopyDir(t *testing.T) {
 
 	// Test handling read-only files
 	readOnlyFile := filepath.Join(dstDir, "readonly.txt")
-	if err := os.WriteFile(readOnlyFile, []byte("Read-only file"), 0444); err != nil {
+	if err := os.WriteFile(readOnlyFile, []byte("Read-only file"), 0o444); err != nil {
 		t.Fatalf("Failed to create read-only file: %v", err)
 	}
 	if err := files.CopyDir(srcDir, dstDir); err != nil {
@@ -175,7 +175,7 @@ func TestIsDirEmpty(t *testing.T) {
 
 	// Test empty directory
 	emptyDir := filepath.Join(tempDir, "empty")
-	if err := os.Mkdir(emptyDir, 0755); err != nil {
+	if err := os.Mkdir(emptyDir, 0o755); err != nil {
 		t.Fatalf("Failed to create empty directory: %v", err)
 	}
 
@@ -186,7 +186,7 @@ func TestIsDirEmpty(t *testing.T) {
 
 	// Test directory with files
 	nonEmptyDir := filepath.Join(tempDir, "nonempty")
-	if err := os.Mkdir(nonEmptyDir, 0755); err != nil {
+	if err := os.Mkdir(nonEmptyDir, 0o755); err != nil {
 		t.Fatalf("Failed to create non-empty directory: %v", err)
 	}
 	createTempSourceFile(t, nonEmptyDir, "file.txt")
@@ -205,11 +205,11 @@ func TestIsDirEmpty(t *testing.T) {
 
 	// Test directory with subdirectories
 	dirWithSubdir := filepath.Join(tempDir, "withsubdir")
-	if err := os.Mkdir(dirWithSubdir, 0755); err != nil {
+	if err := os.Mkdir(dirWithSubdir, 0o755); err != nil {
 		t.Fatalf("Failed to create directory: %v", err)
 	}
 	subDir := filepath.Join(dirWithSubdir, "subdir")
-	if err := os.Mkdir(subDir, 0755); err != nil {
+	if err := os.Mkdir(subDir, 0o755); err != nil {
 		t.Fatalf("Failed to create subdirectory: %v", err)
 	}
 
@@ -247,7 +247,7 @@ func TestSoftCopyFile(t *testing.T) {
 	t.Run("skip copy when destination already exists", func(t *testing.T) {
 		// Modify the destination file to verify it's not overwritten
 		modifiedContent := "Modified content"
-		if err := os.WriteFile(dstFilePath, []byte(modifiedContent), 0644); err != nil {
+		if err := os.WriteFile(dstFilePath, []byte(modifiedContent), 0o644); err != nil {
 			t.Fatalf("Failed to modify destination file: %v", err)
 		}
 
@@ -315,7 +315,7 @@ func TestSoftCopyDir(t *testing.T) {
 		// Create a marker file in destination to verify it's not overwritten
 		markerFile := filepath.Join(dstDir, "marker.txt")
 		markerContent := "This file should not be removed"
-		if err := os.WriteFile(markerFile, []byte(markerContent), 0644); err != nil {
+		if err := os.WriteFile(markerFile, []byte(markerContent), 0o644); err != nil {
 			t.Fatalf("Failed to create marker file: %v", err)
 		}
 
@@ -346,7 +346,7 @@ func TestSoftCopyDir(t *testing.T) {
 
 	t.Run("copy when destination exists but is empty", func(t *testing.T) {
 		emptyDstDir := filepath.Join(tempDir, "empty_destination")
-		if err := os.Mkdir(emptyDstDir, 0755); err != nil {
+		if err := os.Mkdir(emptyDstDir, 0o755); err != nil {
 			t.Fatalf("Failed to create empty destination directory: %v", err)
 		}
 
@@ -388,7 +388,7 @@ export HOME="{{.Home}}"
 export USER="{{.User}}"
 export DEBUG={{.Debug}}`
 
-		if err := os.WriteFile(templatePath, []byte(templateContent), 0644); err != nil {
+		if err := os.WriteFile(templatePath, []byte(templateContent), 0o644); err != nil {
 			t.Fatalf("Failed to create template file: %v", err)
 		}
 		// Prepare template data
@@ -428,7 +428,7 @@ export DEBUG=true`
 		if err != nil {
 			t.Fatalf("Failed to stat output file: %v", err)
 		}
-		if info.Mode().Perm() != 0644 {
+		if info.Mode().Perm() != 0o644 {
 			t.Errorf("Expected file permissions 0644, got %o", info.Mode().Perm())
 		}
 
@@ -443,7 +443,7 @@ export DEBUG=true`
 export PATH="{{.BinPath}}:$PATH"
 export EDITOR="{{.Editor}}"`
 
-		if err := os.WriteFile(templatePath, []byte(templateContent), 0644); err != nil {
+		if err := os.WriteFile(templatePath, []byte(templateContent), 0o644); err != nil {
 			t.Fatalf("Failed to create template file: %v", err)
 		}
 
@@ -491,7 +491,7 @@ export EDITOR="nvim"`
 {{if .EnableDebug}}export DEBUG=1{{end}}
 {{if .EnableVerbose}}export VERBOSE=1{{end}}`
 
-		if err := os.WriteFile(templatePath, []byte(templateContent), 0644); err != nil {
+		if err := os.WriteFile(templatePath, []byte(templateContent), 0o644); err != nil {
 			t.Fatalf("Failed to create template file: %v", err)
 		}
 
@@ -530,7 +530,7 @@ export DEBUG=1
 {{range .Packages}}install {{.}}
 {{end}}`
 
-		if err := os.WriteFile(templatePath, []byte(templateContent), 0644); err != nil {
+		if err := os.WriteFile(templatePath, []byte(templateContent), 0o644); err != nil {
 			t.Fatalf("Failed to create template file: %v", err)
 		}
 
@@ -584,7 +584,7 @@ install tmux
 		templatePath := filepath.Join(tempDir, "invalid.tmpl")
 		templateContent := `Invalid template {{.MissingCloseBrace`
 
-		if err := os.WriteFile(templatePath, []byte(templateContent), 0644); err != nil {
+		if err := os.WriteFile(templatePath, []byte(templateContent), 0o644); err != nil {
 			t.Fatalf("Failed to create template file: %v", err)
 		}
 
@@ -605,7 +605,7 @@ install tmux
 		templatePath := filepath.Join(tempDir, "missing_field.tmpl")
 		templateContent := `Value: {{.MissingField}} - Other: {{.ExistingField}}`
 
-		if err := os.WriteFile(templatePath, []byte(templateContent), 0644); err != nil {
+		if err := os.WriteFile(templatePath, []byte(templateContent), 0o644); err != nil {
 			t.Fatalf("Failed to create template file: %v", err)
 		}
 
@@ -636,7 +636,7 @@ install tmux
 		templatePath := filepath.Join(tempDir, "valid.tmpl")
 		templateContent := `Value: {{.Key}}`
 
-		if err := os.WriteFile(templatePath, []byte(templateContent), 0644); err != nil {
+		if err := os.WriteFile(templatePath, []byte(templateContent), 0o644); err != nil {
 			t.Fatalf("Failed to create template file: %v", err)
 		}
 
@@ -659,14 +659,14 @@ install tmux
 		templatePath := filepath.Join(tempDir, "overwrite.tmpl")
 		templateContent := `New content: {{.Value}}`
 
-		if err := os.WriteFile(templatePath, []byte(templateContent), 0644); err != nil {
+		if err := os.WriteFile(templatePath, []byte(templateContent), 0o644); err != nil {
 			t.Fatalf("Failed to create template file: %v", err)
 		}
 
 		// Create existing output file
 		outputPath := filepath.Join(tempDir, "overwrite_output.txt")
 		oldContent := "This should be overwritten"
-		if err := os.WriteFile(outputPath, []byte(oldContent), 0644); err != nil {
+		if err := os.WriteFile(outputPath, []byte(oldContent), 0o644); err != nil {
 			t.Fatalf("Failed to create existing output file: %v", err)
 		}
 
@@ -693,7 +693,7 @@ install tmux
 	t.Run("empty template produces empty file", func(t *testing.T) {
 		// Create empty template
 		templatePath := filepath.Join(tempDir, "empty.tmpl")
-		if err := os.WriteFile(templatePath, []byte(""), 0644); err != nil {
+		if err := os.WriteFile(templatePath, []byte(""), 0o644); err != nil {
 			t.Fatalf("Failed to create empty template file: %v", err)
 		}
 
@@ -715,5 +715,85 @@ install tmux
 		}
 
 		t.Log("Successfully generated empty file from empty template")
+	})
+}
+
+func TestWriteFileAtomic(t *testing.T) {
+	tempDir := createTempDir(t)
+	defer os.RemoveAll(tempDir)
+	logger.Init(false)
+
+	// leakedTempFiles reports any lingering ".<base>.tmp.*" siblings of path,
+	// which WriteFileAtomic must never leave behind after it returns.
+	leakedTempFiles := func(t *testing.T, path string) []string {
+		t.Helper()
+		pattern := filepath.Join(filepath.Dir(path), "."+filepath.Base(path)+".tmp.*")
+		matches, err := filepath.Glob(pattern)
+		if err != nil {
+			t.Fatalf("Failed to glob for leaked temp files: %v", err)
+		}
+		return matches
+	}
+
+	t.Run(
+		"successful write has correct content, permissions, and no leaked temp file",
+		func(t *testing.T) {
+			outputPath := filepath.Join(tempDir, "atomic.txt")
+			content := []byte("atomic content")
+
+			err := files.WriteFileAtomic(outputPath, content, 0o640)
+			if err != nil {
+				t.Fatalf("WriteFileAtomic returned an unexpected error: %v", err)
+			}
+
+			gotContent, err := os.ReadFile(outputPath)
+			if err != nil {
+				t.Fatalf("Failed to read output file: %v", err)
+			}
+			if string(gotContent) != string(content) {
+				t.Errorf("Content mismatch.\nExpected: %q\nGot: %q", content, gotContent)
+			}
+
+			info, err := os.Stat(outputPath)
+			if err != nil {
+				t.Fatalf("Failed to stat output file: %v", err)
+			}
+			if info.Mode().Perm() != 0o640 {
+				t.Errorf("Expected file permissions 0640, got %o", info.Mode().Perm())
+			}
+
+			if leaked := leakedTempFiles(t, outputPath); len(leaked) != 0 {
+				t.Errorf("Expected no leaked temp files, found: %v", leaked)
+			}
+		},
+	)
+
+	t.Run("overwrites existing content instead of merging", func(t *testing.T) {
+		outputPath := filepath.Join(tempDir, "overwrite.txt")
+		oldContent := "this is a much longer original line that should be fully replaced"
+		if err := os.WriteFile(outputPath, []byte(oldContent), 0o644); err != nil {
+			t.Fatalf("Failed to seed existing file: %v", err)
+		}
+
+		newContent := []byte("short new")
+		if err := files.WriteFileAtomic(outputPath, newContent, 0o644); err != nil {
+			t.Fatalf("WriteFileAtomic returned an unexpected error: %v", err)
+		}
+
+		gotContent, err := os.ReadFile(outputPath)
+		if err != nil {
+			t.Fatalf("Failed to read output file: %v", err)
+		}
+		if string(gotContent) != string(newContent) {
+			t.Errorf(
+				"Expected target to hold only the new content %q, got %q",
+				newContent,
+				gotContent,
+			)
+		}
+
+		if leaked := leakedTempFiles(t, outputPath); len(leaked) != 0 {
+			t.Errorf("Expected no leaked temp files, found: %v", leaked)
+		}
 	})
 }

@@ -2,6 +2,7 @@ package files
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,11 +14,11 @@ import (
 
 const (
 	// FilePermission is the default permission for regular files (rw-r--r--)
-	FilePermission = 0644
+	FilePermission = 0o644
 	// DirPermission is the default permission for directories (rwxr-xr-x)
-	DirPermission = 0755
+	DirPermission = 0o755
 	// AllPermissions grants all permissions (rwxrwxrwx)
-	AllPermissions = 0777
+	AllPermissions = 0o777
 )
 
 // SoftCopyFile copies a file from src to dst only if dst does not already exist.
@@ -158,7 +159,10 @@ func ContentExistsInFile(filePath, substringToFind string) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("failed to open file %s: %w", filePath, err)
 	}
-	defer file.Close()
+	defer func() {
+		// Read-only handle; a close failure here is not actionable.
+		_ = file.Close()
+	}()
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -182,7 +186,12 @@ func AddLineToFile(line, filePath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to open file %s for appending: %w", filePath, err)
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			logger.L().
+				Debugw("failed to close file after append", "filePath", filePath, "error", closeErr)
+		}
+	}()
 	if _, err := file.WriteString("\n" + line); err != nil {
 		return fmt.Errorf("failed to write line to file %s: %w", filePath, err)
 	}
@@ -205,37 +214,69 @@ func GenerateFromTemplate(templatePath, outputPath string, data any) error {
 	if err != nil {
 		return fmt.Errorf("failed to parse template %s: %w", templatePath, err)
 	}
-	// Ensure the output directory exists before creating the temp file
-	if err := os.MkdirAll(filepath.Dir(outputPath), DirPermission); err != nil {
-		return fmt.Errorf("failed to create directory for %s: %w", outputPath, err)
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return fmt.Errorf("failed to execute template %s: %w", templatePath, err)
 	}
-	// Write to temporary file first (atomic write pattern)
-	tempFile, err := os.CreateTemp(filepath.Dir(outputPath), "."+filepath.Base(outputPath)+".tmp.*")
+	if err := WriteFileAtomic(outputPath, buf.Bytes(), FilePermission); err != nil {
+		return err
+	}
+	logger.L().
+		Debugw("Successfully generated file from template", "outputPath", outputPath)
+	return nil
+}
+
+// WriteFileAtomic writes data to path atomically: it writes to a temporary file in
+// the same directory as path (so the final rename stays on one filesystem and is
+// atomic), then renames it over path as the commit point. This guarantees a crash or
+// interrupted write never leaves path truncated or partially written — either the old
+// complete content or the new complete content is observed, never a partial mix.
+// The target directory is created if it does not already exist.
+func WriteFileAtomic(path string, data []byte, perm os.FileMode) error {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, DirPermission); err != nil {
+		return fmt.Errorf("failed to create directory for %s: %w", path, err)
+	}
+	tempFile, err := os.CreateTemp(dir, "."+filepath.Base(path)+".tmp.*")
 	if err != nil {
-		return fmt.Errorf("failed to create temporary file for %s: %w", outputPath, err)
+		return fmt.Errorf("failed to create temporary file for %s: %w", path, err)
 	}
 	tempPath := tempFile.Name()
+	// closed tracks whether the success path below already closed tempFile, so
+	// this cleanup only closes it on error paths that return before that point
+	// (a double Close on the same *os.File always errors, which would otherwise
+	// spam a bogus "failed to close" log line on every successful write).
+	closed := false
 	defer func() {
-		tempFile.Close()
-		if _, err := os.Stat(tempPath); err == nil {
-			os.Remove(tempPath)
+		if !closed {
+			if closeErr := tempFile.Close(); closeErr != nil {
+				logger.L().
+					Debugw("failed to close temporary file", "tempPath", tempPath, "error", closeErr)
+			}
+		}
+		if _, statErr := os.Stat(tempPath); statErr == nil {
+			// Only reached if we returned before the rename; the temp file must
+			// not linger next to the real config.
+			if removeErr := os.Remove(tempPath); removeErr != nil {
+				logger.L().
+					Debugw("failed to remove temporary file", "tempPath", tempPath, "error", removeErr)
+			}
 		}
 	}()
-	if err := tmpl.Execute(tempFile, data); err != nil {
-		return fmt.Errorf("failed to execute template %s: %w", templatePath, err)
+	if _, err := tempFile.Write(data); err != nil {
+		return fmt.Errorf("failed to write temporary file %s: %w", tempPath, err)
 	}
 	if err := tempFile.Close(); err != nil {
 		return fmt.Errorf("failed to close temporary file %s: %w", tempPath, err)
 	}
-	if err := os.Chmod(tempPath, FilePermission); err != nil {
+	closed = true
+	if err := os.Chmod(tempPath, perm); err != nil {
 		return fmt.Errorf("failed to set permissions on temporary file %s: %w", tempPath, err)
 	}
-	// Atomically replace original file (this is the commit point)
-	if err := os.Rename(tempPath, outputPath); err != nil {
-		return fmt.Errorf("failed to replace output file %s: %w", outputPath, err)
+	// Atomically replace the target file (this is the commit point).
+	if err := os.Rename(tempPath, path); err != nil {
+		return fmt.Errorf("failed to replace file %s: %w", path, err)
 	}
-	logger.L().
-		Debugw("Successfully generated file from template", "outputPath", outputPath)
 	return nil
 }
 

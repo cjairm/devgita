@@ -290,6 +290,12 @@ func init() {
 	worktreeCreateCmd.Flags().
 		StringVarP(&repoFlag, "repo", "r", "",
 			"Path to the repository (defaults to the repo containing the current directory); the window opens in the repo's tmux session")
+	_ = worktreeCreateCmd.RegisterFlagCompletionFunc(
+		"repo",
+		func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+			return nil, cobra.ShellCompDirectiveFilterDirs
+		},
+	)
 	worktreeRepairCmd.Flags().
 		StringVarP(&aiFlag, "ai", "a", "", "AI coder to launch (opencode, oc, claude, cc, claudecode)")
 	worktreeRemoveCmd.Flags().

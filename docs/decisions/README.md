@@ -1,6 +1,6 @@
 # Architectural Decision Records
 
-This directory contains decisions about significant technical choices, trade-offs, and their consequences. See `CLAUDE.md` section 10 for when to write an ADR.
+This directory contains decisions about significant technical choices, trade-offs, and their consequences. See the "Spec-driven development" section of `CLAUDE.md` for when to write an ADR.
 
 ## Status
 
@@ -20,4 +20,5 @@ This directory contains decisions about significant technical choices, trade-off
 
 ## Index
 
-- (None yet)
+- [ADR-0001](ADR-0001-in-tui-overlays-over-external-pickers.md) — In-TUI floating overlays instead of external picker processes
+- [ADR-0002](ADR-0002-recent-repos-store-in-global-config.md) — Recent-repos store in global config

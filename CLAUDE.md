@@ -353,9 +353,10 @@ When to write documentation **before** code:
 **Required workflow before implementing ANY code changes:**
 
 1. If the change is substantial, create a cycle document in `docs/plans/cycles/YYYY-MM-DD-<name>.md`
-2. Get user/team approval before implementing
-3. Track progress by checking off steps as you go
-4. When all steps are complete, mark all tasks/checkboxes in the cycle doc as done and update the status field in the document header to **Done**
+2. If the design chose between competing approaches with lasting impact, record each such choice as an ADR in `docs/decisions/` **before implementation starts** — a cycle doc's trade-offs section does not replace an ADR, and a design discussion that ends in an approved choice is not done until the ADR exists
+3. Get user/team approval before implementing
+4. Track progress by checking off steps as you go
+5. When all steps are complete, mark all tasks/checkboxes in the cycle doc as done and update the status field in the document header to **Done**
 
 ---
 
