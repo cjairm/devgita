@@ -41,7 +41,7 @@ If it prints "No pull request found for the current branch.", stop and tell the 
 devgita task pr-view          # add --pr PR_NUMBER if you have one
 ```
 
-Read the PR's purpose first — the description and linked ticket — before any code. Gather the findings already in the conversation. If there are none, review the change yourself with the lens in step 4. For a locally checked-out branch, run `devgita task review-scope` for the orientation (branch, ahead/behind, commits, per-file stats), then `devgita task branch-diff` (or `--file <path>` for one file) for the full noise-filtered diff.
+Read the PR's purpose first — the description and linked ticket — before any code. Gather the findings already in the conversation. If there are none, review the change yourself with the lens in step 4. For a locally checked-out branch, run `devgita task review-scope` for the orientation (branch, ahead/behind, commits, per-file stats), then `devgita task branch-diff` (or `--file <path>` for one file) for the full noise-filtered diff. `review-scope` does a read-only fetch of origin and must run first, so the diff reflects current remote state — never `git pull` or merge, which would mutate the branch under review.
 
 ### 3. Fetch existing threads and dedup — never repeat addressed feedback
 
@@ -165,6 +165,7 @@ Return a terse summary to the user:
 ## Notes
 
 - This command never edits code. It reads, then posts exactly one review.
+- Invoke the `devgita` binary only — never a `dg` alias, `go run`, or a local build. Only the installed binary is available in this environment.
 - **Dedup is mandatory**: never duplicate a finding already raised, and treat a resolved thread as handled.
 - A line that isn't part of the diff can't take an inline comment — move that finding to the body's "General notes" instead.
 

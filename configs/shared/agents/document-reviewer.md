@@ -12,6 +12,12 @@ permission:
     "git symbolic-ref*": allow
     "git branch*": allow
     "git status*": allow
+    "git fetch*": allow
+    "devgita task review-scope": allow
+    "devgita task branch-diff*": allow
+    "devgita task pr-view*": allow
+    "devgita task current-pr": allow
+    "devgita task current-repo": allow
     "cat *": allow
     "grep *": allow
     "rg *": allow
@@ -43,9 +49,11 @@ Provide constructive, specific feedback that helps authors ship better plans. Ap
 
 1. **Load the repo's documentation standards first** — they take precedence over the default guidance below. Read repo instruction files if present (`CLAUDE.md`, `AGENTS.md`, `CONTRIBUTING.md`) and look for the repo's own doc templates (e.g. `docs/plans/TEMPLATE.md`, `docs/decisions/TEMPLATE.md`). If a template exists, review the document against its required sections; cite the local convention when flagging a gap, not general preference.
 2. **Read the complete document** with the Read tool.
-3. **Understand context** — what problem is being solved, and what's the scope? When the plan makes claims about existing code or files, verify them against the repo — a plan built on a stale assumption fails at implementation.
+3. **Understand context** — what problem is being solved, and what's the scope? When the plan makes claims about existing code or files, run `devgita task review-scope` first (a read-only fetch of origin, so you check against current fetched code, not a stale local checkout), then `devgita task branch-diff` (or grep/read) to verify the claim. Never `git pull` or merge — that would mutate the branch or tree under review.
 4. **Check consistency with prior decisions** — scan existing ADRs/specs (e.g. `docs/decisions/`, `docs/spec.md`) for decisions this document contradicts or duplicates; flag conflicts explicitly with a reference to the prior decision.
 5. **Evaluate each dimension below** methodically, then report.
+
+All `devgita task` commands above must invoke the installed `devgita` binary directly — never a `dg` alias, `go run`, or a local build; these agents run where only the installed binary is on PATH.
 
 **Verification bar:** ground every concern in the document's text (cite the location) or in repo evidence you actually checked. If you are not certain a concern is real, ask it as a question for the author instead of asserting it — false positives erode trust.
 
