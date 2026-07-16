@@ -2,9 +2,7 @@
 package tuiworktree
 
 import (
-	"context"
 	"os"
-	"os/exec"
 	"strings"
 	"time"
 
@@ -15,6 +13,7 @@ import (
 	"github.com/cjairm/devgita/internal/apps/tmux"
 	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/internal/tooling/task"
+	"github.com/cjairm/devgita/internal/tooling/terminal/dev_tools/githubcli"
 	"github.com/cjairm/devgita/internal/tooling/worktree"
 	tuicomponents "github.com/cjairm/devgita/internal/tui/components"
 )
@@ -26,6 +25,9 @@ const (
 	dividerWidth         = 1
 	refreshInterval      = 3 * time.Second
 	maxDiffBytes         = 64 * 1024
+	// prTitleTimeout bounds the best-effort gh PR-title lookup so a hung or slow
+	// gh can't outlive one refresh interval and stall the diff pane.
+	prTitleTimeout = 2 * time.Second
 )
 
 // --- Messages ---
@@ -195,16 +197,14 @@ func newModel(
 		}
 		return warning, nil
 	}
+	// Reuse the shared gh wrapper rather than shelling out to gh here, so the
+	// diff pane's PR-title lookup goes through the same executor as every other
+	// gh call. PRTitleAt is best-effort and bounded: it returns "" (never an
+	// error) when gh is absent, unauthenticated, times out, or the branch has
+	// no PR — all of which the header treats as "no title".
+	gh := githubcli.New()
 	m.prTitleFn = func(_, path string) string {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		defer cancel()
-		c := exec.CommandContext(ctx, "gh", "pr", "view", "--json", "title", "-q", ".title")
-		c.Dir = path
-		out, err := c.Output()
-		if err != nil {
-			return "" // gh absent, unauthenticated, timed out, or no PR — all degrade to no title
-		}
-		return strings.TrimSpace(string(out))
+		return gh.PRTitleAt(path, prTitleTimeout)
 	}
 	return m
 }

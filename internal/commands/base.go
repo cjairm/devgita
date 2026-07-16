@@ -77,6 +77,10 @@ type CommandParams struct {
 	// unbounded behavior. Used for network calls (e.g. git fetch) where a
 	// hang would otherwise block a caller expecting a fast response.
 	Timeout time.Duration
+	// Dir, when non-empty, sets the command's working directory, so a caller
+	// can run a tool that has no directory flag (e.g. gh) against a specific
+	// repo or worktree. Empty preserves the process's current directory.
+	Dir string
 }
 
 func NewBaseCommand() *BaseCommand {
@@ -226,6 +230,9 @@ func (b *BaseCommand) ExecCommand(cmd CommandParams) (string, string, error) {
 	defer cancel()
 
 	execCommand := exec.CommandContext(ctx, command, args...)
+	if cmd.Dir != "" {
+		execCommand.Dir = cmd.Dir
+	}
 	execCommand.Stdin = os.Stdin
 
 	stdoutPipe, err := execCommand.StdoutPipe()
