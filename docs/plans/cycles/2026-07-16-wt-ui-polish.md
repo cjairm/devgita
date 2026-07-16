@@ -4,7 +4,7 @@
 **Estimated Duration:** Steps 1–2 shipped; remaining Steps 3–4 ~3 hours (existing-branch
 create ~1.5h, PR title ~1.5h). Split as two follow-up commits so each stays within the
 ~3h cycle-slice guidance.
-**Status:** In Progress
+**Status:** Done (implementation + automated verification; manual TUI checks 3–5 pending hands-on confirmation)
 
 ---
 
@@ -90,14 +90,14 @@ the branch has a PR.
 - [x] Shared `TextInput` editor (value + caret, left/right/home/end, mid-string
       insert/delete), adopted by the name prompt, filter, and repo-picker query. Removes
       the old append-only `TrimLastRune` path.
-- [ ] `create` converts an existing local branch (see Step 3) — when the worktree name
+- [x] `create` converts an existing local branch (see Step 3) — when the worktree name
       matches a branch already checked out in the main clone, free that branch (switch the
       clone to its default branch) and create the worktree on it, instead of failing.
       Covers both `dg wt create` and the TUI create flow; refuses on an uncommitted-work
       tree rather than move it.
-- [ ] PR title in the diff-pane header (see Step 4) — best-effort, cached, shown only when
+- [x] PR title in the diff-pane header (see Step 4) — best-effort, cached, shown only when
       a PR exists; runs off the refresh path with a bounded timeout.
-- [ ] Docs updated for the existing-branch behavior (required, not optional):
+- [x] Docs updated for the existing-branch behavior (required, not optional):
       `cmd/worktree.go` create help and the worktree section of `docs/spec.md`.
 
 ### Explicitly Out of Scope
@@ -237,6 +237,10 @@ make lint
 
 ### Manual
 
+> Steps 3–5 require running `dg wt ui` against a real repo (and, for 5, a branch
+> with an open PR). They are covered by automated tests but still need hands-on
+> confirmation before the cycle is fully closed.
+
 1. [x] `dg wt ui` with no worktrees → right pane shows the create guidance, not `(loading...)`.
 2. [x] `n` → name prompt → paste a path → move the caret with ←/→ and fix a character mid-string.
 3. [ ] In a repo, create a branch and stay on it. In `dg wt ui` pick that repo and name the worktree the same as the branch → worktree + window created on it; the main clone is left on its default branch.
@@ -246,7 +250,7 @@ make lint
 ### Regression Check
 
 - [x] Attach/destroy/repair/filter/diff-pane and the `n` create flow unchanged.
-- [ ] `dg wt new`, `rm`, `ls`, `repair`, `prune` unchanged; `create` unchanged except that a name matching an existing local branch now adopts it instead of erroring.
+- [x] `dg wt new`, `rm`, `ls`, `repair`, `prune` unchanged; `create` unchanged except that a name matching an existing local branch now adopts it instead of erroring. (Confirmed by the full `go test ./...` suite passing.)
 
 ---
 
