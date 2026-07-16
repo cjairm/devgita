@@ -54,6 +54,7 @@ type Model struct {
 	gc      *config.GlobalConfig
 
 	statuses     []worktree.WorktreeStatus
+	loaded       bool // true once the first List() result is in, so an empty dashboard shows guidance instead of a permanent "(loading...)"
 	rows         []row
 	cursor       int // index into rows (always a rowWorktree)
 	collapsed    map[string]bool
@@ -89,10 +90,10 @@ type Model struct {
 
 	createMode         createMode
 	repoPicker         *tuicomponents.FuzzyPicker
-	createRepo         string // resolved repo path chosen in repo-pick mode
-	createName         string // in-progress name text in name-input mode
-	pendingHookWarning bool   // armed by a first enter when CheckHookCompatibility found warnings; a second enter confirms, any other key (or edited name) de-arms it
-	creating           bool   // true from the moment the create tea.Cmd is dispatched until its result (createdMsg/createFailedMsg) is processed; the ONLY thing that actually enforces "one create at a time" (see createFn's WarnFn-swap comment below) — handleNewWorktree checks this and ignores n while it's true
+	createRepo         string                  // resolved repo path chosen in repo-pick mode
+	createInput        tuicomponents.TextInput // in-progress name text + caret in name-input mode
+	pendingHookWarning bool                    // armed by a first enter when CheckHookCompatibility found warnings; a second enter confirms, any other key (or edited name) de-arms it
+	creating           bool                    // true from the moment the create tea.Cmd is dispatched until its result (createdMsg/createFailedMsg) is processed; the ONLY thing that actually enforces "one create at a time" (see createFn's WarnFn-swap comment below) — handleNewWorktree checks this and ignores n while it's true
 
 	// Injected I/O seams (overridable in tests)
 	diffFn                   func(path string) (task.BranchDiffResult, error)
@@ -254,7 +255,7 @@ func (m Model) selectedStatus() (worktree.WorktreeStatus, bool) {
 }
 
 func (m *Model) rebuildRows() {
-	m.rows = buildRows(m.statuses, m.collapsed, m.filter.Text)
+	m.rows = buildRows(m.statuses, m.collapsed, m.filter.Value())
 	// Keep cursor on a valid worktree row
 	m.cursor = tuicomponents.ClampCursor(worktreeIndices(m.rows), m.cursor)
 }
@@ -316,6 +317,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case statusesMsg:
 		m.statuses = []worktree.WorktreeStatus(msg)
+		m.loaded = true
 		m.rebuildRows()
 		if sel, ok := m.selectedStatus(); ok {
 			return m, m.computeDiffCmd(sel)
@@ -897,6 +899,16 @@ func (m Model) renderDivider(height int) string {
 }
 
 func (m Model) renderRight(width int) string {
+	// Empty dashboard: once the first List() is in and there are no worktrees,
+	// there is nothing to diff, so show guidance instead of the "(loading...)"
+	// that renderDiffContent would otherwise display forever (it only ever
+	// clears when a worktree row is selected, which can't happen here).
+	if m.loaded && len(m.statuses) == 0 {
+		return m.palette.Inactive.Render(
+			ansi.Truncate("No worktrees yet — press n to create one.", width, ""),
+		)
+	}
+
 	header := m.palette.DiffStatLine(m.diffFiles, m.diffAdded, m.diffRemoved)
 	// GitHub-style "base ← compare" label, shown once for the whole diff.
 	if m.diffBase != "" && m.diffBranch != "" {

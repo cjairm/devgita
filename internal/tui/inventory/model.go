@@ -61,7 +61,7 @@ func newModel(items []inventory.Item, opts Options) model {
 }
 
 func (m *model) rebuildRows() {
-	m.rows = buildRows(m.items, m.groupMode, m.collapsed, m.filter.Text, m.problemsOnly)
+	m.rows = buildRows(m.items, m.groupMode, m.collapsed, m.filter.Value(), m.problemsOnly)
 	m.cursor = tuicomponents.ClampCursor(itemIndices(m.rows), m.cursor)
 }
 
@@ -202,7 +202,7 @@ func (m model) renderContent() string {
 	}
 
 	// Problems-only with nothing wrong would render an empty pane; say so instead.
-	if len(lines) == 0 && m.problemsOnly && m.filter.Text == "" {
+	if len(lines) == 0 && m.problemsOnly && m.filter.Value() == "" {
 		lines = []string{
 			"",
 			m.palette.Inactive.Render(

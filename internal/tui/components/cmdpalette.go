@@ -13,13 +13,20 @@ type PaletteItem struct {
 
 // CommandPalette renders the K3 command palette overlay.
 // Layout: ": query█" input line followed by items with right-aligned hints.
-// selectedIdx out of range → no item highlighted. width < 6 → returns "".
-func (p *Palette) CommandPalette(query string, items []PaletteItem, selectedIdx, width int) string {
+// queryCursor is the caret's rune offset in query, drawn as a block cursor so
+// mid-query editing is visible. selectedIdx out of range → no item
+// highlighted. width < 6 → returns "".
+func (p *Palette) CommandPalette(
+	query string,
+	queryCursor int,
+	items []PaletteItem,
+	selectedIdx, width int,
+) string {
 	if width < 6 {
 		return ""
 	}
 
-	inputLine := ansi.Truncate(": "+p.PaletteInput.Render(query)+"█", width, "")
+	inputLine := ansi.Truncate(": "+renderCaret(query, queryCursor, p.PaletteInput), width, "")
 
 	lines := []string{inputLine}
 	for i, item := range items {

@@ -1,6 +1,9 @@
 package tuicomponents
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestSanitizePaste(t *testing.T) {
 	t.Run("strips embedded newlines and carriage returns", func(t *testing.T) {
@@ -35,28 +38,85 @@ func TestSanitizePaste(t *testing.T) {
 	})
 }
 
-func TestTrimLastRune(t *testing.T) {
-	t.Run("empty string is a no-op", func(t *testing.T) {
-		if got := TrimLastRune(""); got != "" {
-			t.Errorf("expected empty, got %q", got)
+func TestTextInputEditing(t *testing.T) {
+	t.Run("types characters and advances the caret", func(t *testing.T) {
+		var ti TextInput
+		for _, k := range []string{"f", "e", "a", "t"} {
+			ti.HandleKey(k)
+		}
+		if ti.Value != "feat" || ti.Cursor() != 4 {
+			t.Errorf("expected %q caret 4, got %q caret %d", "feat", ti.Value, ti.Cursor())
 		}
 	})
 
-	t.Run("removes one ASCII rune", func(t *testing.T) {
-		if got := TrimLastRune("feat"); got != "fea" {
-			t.Errorf("expected %q, got %q", "fea", got)
+	t.Run("left/right move the caret and insert mid-string", func(t *testing.T) {
+		var ti TextInput
+		ti.SetValue("feat")
+		ti.HandleKey("left")
+		ti.HandleKey("left")
+		if _, changed := ti.HandleKey("X"); !changed {
+			t.Error("mid-string insert should report a change")
+		}
+		if ti.Value != "feXat" {
+			t.Errorf("expected %q, got %q", "feXat", ti.Value)
 		}
 	})
 
-	t.Run("removes one multi-byte rune without corrupting the rest", func(t *testing.T) {
-		if got := TrimLastRune("café"); got != "caf" {
-			t.Errorf("expected %q, got %q", "caf", got)
+	t.Run("backspace deletes before the caret, delete deletes at it", func(t *testing.T) {
+		var ti TextInput
+		ti.SetValue("feat")
+		ti.Home()
+		ti.MoveRight() // caret after 'f'
+		if !ti.Backspace() {
+			t.Error("backspace should report a change")
+		}
+		if ti.Value != "eat" { // 'f' removed
+			t.Errorf("after backspace expected %q, got %q", "eat", ti.Value)
+		}
+		if !ti.Delete() {
+			t.Error("delete should report a change")
+		}
+		if ti.Value != "at" { // 'e' at caret removed
+			t.Errorf("after delete expected %q, got %q", "at", ti.Value)
 		}
 	})
 
-	t.Run("removes one emoji rune", func(t *testing.T) {
-		if got := TrimLastRune("hi🎉"); got != "hi" {
-			t.Errorf("expected %q, got %q", "hi", got)
+	t.Run("caret clamps at both ends", func(t *testing.T) {
+		var ti TextInput
+		ti.SetValue("ab")
+		ti.Home()
+		if ti.Backspace() {
+			t.Error("backspace at start should be a no-op")
+		}
+		ti.End()
+		if ti.Delete() {
+			t.Error("delete at end should be a no-op")
 		}
 	})
+
+	t.Run("deletes a multi-byte rune without corrupting the rest", func(t *testing.T) {
+		var ti TextInput
+		ti.SetValue("café")
+		if !ti.Backspace() {
+			t.Error("backspace should report a change")
+		}
+		if ti.Value != "caf" {
+			t.Errorf("expected %q, got %q", "caf", ti.Value)
+		}
+	})
+}
+
+func TestTextInputRenderCaret(t *testing.T) {
+	// The caret cell must always be present so the user sees where typing
+	// lands, both at the end of the text and in the middle of it.
+	var ti TextInput
+	ti.SetValue("ab")
+	if end := ti.RenderPlain(); !strings.Contains(end, "a") || !strings.Contains(end, "b") {
+		t.Errorf("end-caret render should contain the text, got %q", end)
+	}
+	ti.Home()
+	mid := ti.RenderPlain()
+	if !strings.Contains(mid, "a") || !strings.Contains(mid, "b") {
+		t.Errorf("mid-caret render should contain the text, got %q", mid)
+	}
 }

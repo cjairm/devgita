@@ -264,8 +264,8 @@ func TestNameInputTypingAccumulates(t *testing.T) {
 		m2, _ := m.Update(tea.KeyPressMsg{Code: ch})
 		m = m2.(Model)
 	}
-	if m.createName != "feat" {
-		t.Errorf("expected createName 'feat', got %q", m.createName)
+	if m.createInput.Value != "feat" {
+		t.Errorf("expected createName 'feat', got %q", m.createInput.Value)
 	}
 }
 
@@ -276,8 +276,8 @@ func TestNameInputPasteInsertsInOneShot(t *testing.T) {
 
 	m2, _ := m.Update(tea.PasteMsg{Content: "feat/pasted-branch"})
 	m3 := m2.(Model)
-	if m3.createName != "feat/pasted-branch" {
-		t.Errorf("expected createName %q, got %q", "feat/pasted-branch", m3.createName)
+	if m3.createInput.Value != "feat/pasted-branch" {
+		t.Errorf("expected createName %q, got %q", "feat/pasted-branch", m3.createInput.Value)
 	}
 }
 
@@ -285,12 +285,12 @@ func TestNameInputPasteStripsControlChars(t *testing.T) {
 	m := makeTestModel(testStatuses())
 	m.createMode = createNameInput
 	m.createRepo = "/repos/alpha"
-	m.createName = "feat"
+	m.createInput.SetValue("feat")
 
 	m2, _ := m.Update(tea.PasteMsg{Content: "/branch\n"})
 	m3 := m2.(Model)
-	if m3.createName != "feat/branch" {
-		t.Errorf("expected createName %q, got %q", "feat/branch", m3.createName)
+	if m3.createInput.Value != "feat/branch" {
+		t.Errorf("expected createName %q, got %q", "feat/branch", m3.createInput.Value)
 	}
 }
 
@@ -298,12 +298,12 @@ func TestNameInputBackspaceRemovesLastRuneNotLastByte(t *testing.T) {
 	m := makeTestModel(testStatuses())
 	m.createMode = createNameInput
 	m.createRepo = "/repos/alpha"
-	m.createName = "café"
+	m.createInput.SetValue("café")
 
 	m2, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
 	m3 := m2.(Model)
-	if m3.createName != "caf" {
-		t.Errorf("expected createName %q, got %q", "caf", m3.createName)
+	if m3.createInput.Value != "caf" {
+		t.Errorf("expected createName %q, got %q", "caf", m3.createInput.Value)
 	}
 }
 
@@ -354,7 +354,7 @@ func TestNameInputEscCancels(t *testing.T) {
 	m := makeTestModel(testStatuses())
 	m.createMode = createNameInput
 	m.createRepo = "/repos/alpha"
-	m.createName = "feat"
+	m.createInput.SetValue("feat")
 	m.createFn = func(_, _ string) (string, error) {
 		createCalled = true
 		return "", nil
@@ -365,7 +365,7 @@ func TestNameInputEscCancels(t *testing.T) {
 	if m3.createMode != createNone {
 		t.Error("esc should return to normal mode")
 	}
-	if m3.createRepo != "" || m3.createName != "" {
+	if m3.createRepo != "" || m3.createInput.Value != "" {
 		t.Error("esc should clear create state")
 	}
 	if createCalled {
@@ -381,7 +381,7 @@ func TestCreateSuccessAttachesAndQuits(t *testing.T) {
 	m.mgr = &worktree.WorktreeManager{}
 	m.createMode = createNameInput
 	m.createRepo = "/repos/alpha"
-	m.createName = "feat"
+	m.createInput.SetValue("feat")
 	m.createFn = func(repoPath, name string) (string, error) {
 		gotRepo = repoPath
 		gotName = name
@@ -442,7 +442,7 @@ func TestCreateFnFailureSetsStatusNoAttachNoQuit(t *testing.T) {
 	m := makeTestModel(testStatuses())
 	m.createMode = createNameInput
 	m.createRepo = "/repos/alpha"
-	m.createName = "feat"
+	m.createInput.SetValue("feat")
 	m.createFn = func(_, _ string) (string, error) {
 		return "", fmt.Errorf("worktree already exists")
 	}
@@ -527,7 +527,7 @@ func TestNameInputEnterWithHookWarningRequiresSecondEnter(t *testing.T) {
 	m := makeTestModel(testStatuses())
 	m.createMode = createNameInput
 	m.createRepo = "/repos/alpha"
-	m.createName = "feat"
+	m.createInput.SetValue("feat")
 	m.checkHookCompatibilityFn = func(repoPath string) []string {
 		if repoPath != "/repos/alpha" {
 			t.Errorf("expected checkHookCompatibilityFn called with createRepo, got %q", repoPath)
@@ -581,7 +581,7 @@ func TestNameInputEnterWithoutHookWarningCreatesImmediately(t *testing.T) {
 	m := makeTestModel(testStatuses())
 	m.createMode = createNameInput
 	m.createRepo = "/repos/alpha"
-	m.createName = "feat"
+	m.createInput.SetValue("feat")
 	m.checkHookCompatibilityFn = func(_ string) []string { return nil }
 	m.createFn = func(_, _ string) (string, error) {
 		createCalled = true
@@ -606,7 +606,7 @@ func TestNameInputEditingNameDearmsHookWarning(t *testing.T) {
 	m := makeTestModel(testStatuses())
 	m.createMode = createNameInput
 	m.createRepo = "/repos/alpha"
-	m.createName = "feat"
+	m.createInput.SetValue("feat")
 	m.checkHookCompatibilityFn = func(_ string) []string {
 		return []string{"pre-commit (contains \"[ -d .git\")"}
 	}

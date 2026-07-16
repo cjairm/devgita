@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -113,7 +112,7 @@ func (m *Model) resolveAndValidateRepoPath(candidate string) {
 	}
 	m.createRepo = root
 	m.createMode = createNameInput
-	m.createName = ""
+	m.createInput.Reset()
 }
 
 // handleRepoPickKey delegates to the FuzzyPicker for everything except the
@@ -143,9 +142,10 @@ func (m Model) handleRepoPickKey(key string) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// handleNameInputKey drives the floating single-line name prompt: printable
-// characters and backspace edit createName, esc cancels the whole create
-// flow, and enter with a non-empty name kicks off createFn. Auto-naming on a
+// handleNameInputKey drives the floating single-line name prompt: esc cancels
+// the whole create flow, enter with a non-empty name kicks off createFn, and
+// every other key is a name edit delegated to the shared TextInput (typing,
+// backspace/delete, and left/right/home/end caret movement). Auto-naming on a
 // blank name is out of scope for this cycle, so enter with no text is a
 // no-op rather than falling back to a generated name.
 //
@@ -155,8 +155,8 @@ func (m Model) handleRepoPickKey(key string) (tea.Model, tea.Cmd) {
 // worktree.go's own force=false prompt, which raw-prints and blocks on
 // os.Stdin and would corrupt or hang the running bubbletea alt-screen
 // program. The first enter arms pendingHookWarning and shows the warning as
-// a status; a second enter proceeds. Editing the name (or any other key)
-// de-arms it, same as confirmThenRemove clearing pendingDelete.
+// a status; a second enter proceeds. Editing the name de-arms it, same as
+// confirmThenRemove clearing pendingDelete.
 func (m Model) handleNameInputKey(key string) (tea.Model, tea.Cmd) {
 	switch key {
 	case "esc":
@@ -164,7 +164,7 @@ func (m Model) handleNameInputKey(key string) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case "enter":
-		if m.createName == "" {
+		if m.createInput.Value == "" {
 			return m, nil
 		}
 		if !m.pendingHookWarning {
@@ -176,7 +176,7 @@ func (m Model) handleNameInputKey(key string) (tea.Model, tea.Cmd) {
 			}
 		}
 		repoPath := m.createRepo
-		name := m.createName
+		name := m.createInput.Value
 		createFn := m.createFn
 		m.clearCreateState()
 		// Armed here, before the tea.Cmd below ever runs: Bubble Tea runs
@@ -196,16 +196,15 @@ func (m Model) handleNameInputKey(key string) (tea.Model, tea.Cmd) {
 			return createdMsg{repoPath: repoPath, name: name, warning: warning}
 		}
 
-	case "backspace":
-		m.pendingHookWarning = false
-		if len(m.createName) > 0 {
-			m.createName = tuicomponents.TrimLastRune(m.createName)
-		}
-
 	default:
-		m.pendingHookWarning = false
-		if utf8.RuneCountInString(key) == 1 && key >= " " {
-			m.createName += key
+		// Everything else is a name edit delegated to the shared TextInput:
+		// backspace/delete, caret movement (left/right/home/end), and printable
+		// insertion. A change to the text de-arms a pending hook-warning confirm
+		// (same as confirmThenRemove clearing pendingDelete on an edit); a bare
+		// caret move leaves the warning armed since the name it applies to
+		// hasn't changed.
+		if _, changed := m.createInput.HandleKey(key); changed {
+			m.pendingHookWarning = false
 		}
 	}
 	return m, nil
@@ -216,10 +215,8 @@ func (m Model) handleNameInputKey(key string) (tea.Model, tea.Cmd) {
 // whole clipboard content as one string, which handleNameInputKey's
 // per-rune default case would otherwise drop except for its first rune.
 func (m Model) handleNameInputPaste(text string) (tea.Model, tea.Cmd) {
-	text = tuicomponents.SanitizePaste(text)
-	if text != "" {
+	if m.createInput.InsertText(text) {
 		m.pendingHookWarning = false
-		m.createName += text
 	}
 	return m, nil
 }
@@ -234,7 +231,7 @@ func (m *Model) clearCreateState() {
 	m.createMode = createNone
 	m.repoPicker = nil
 	m.createRepo = ""
-	m.createName = ""
+	m.createInput.Reset()
 	m.pendingHookWarning = false
 }
 
@@ -272,6 +269,6 @@ func (m Model) renderRepoPickPopup() string {
 // content; composited over the dashboard background via Overlay.
 func (m Model) renderNameInputPopup() string {
 	maxW := min(m.width-2, 64)
-	lines := []string{"> " + m.createName + "█"}
+	lines := []string{"> " + m.createInput.RenderPlain()}
 	return m.palette.BorderedPane("New worktree — name", maxW, lines)
 }

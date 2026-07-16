@@ -201,13 +201,13 @@ func TestFilterMode(t *testing.T) {
 	// Type a char
 	m4, _ := m3.Update(tea.KeyPressMsg{Code: 'b'})
 	m5 := m4.(Model)
-	if m5.filter.Text != "b" {
-		t.Errorf("expected filter 'b', got %q", m5.filter.Text)
+	if m5.filter.Value() != "b" {
+		t.Errorf("expected filter 'b', got %q", m5.filter.Value())
 	}
 	// Esc clears and exits
 	m6, _ := m5.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
 	m7 := m6.(Model)
-	if m7.filter.Active || m7.filter.Text != "" {
+	if m7.filter.Active || m7.filter.Value() != "" {
 		t.Error("esc should clear filter and exit filtering mode")
 	}
 }
@@ -219,8 +219,8 @@ func TestFilterModePaste(t *testing.T) {
 
 	m4, _ := m3.Update(tea.PasteMsg{Content: "repo-a"})
 	m5 := m4.(Model)
-	if m5.filter.Text != "repo-a" {
-		t.Errorf("expected filter %q, got %q", "repo-a", m5.filter.Text)
+	if m5.filter.Value() != "repo-a" {
+		t.Errorf("expected filter %q, got %q", "repo-a", m5.filter.Value())
 	}
 }
 
@@ -451,7 +451,7 @@ func TestFilterHidesNonMatchingRows(t *testing.T) {
 	// Esc clears filter and restores all rows
 	m4, _ := m3.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
 	m5 := m4.(Model)
-	if m5.filter.Text != "" {
+	if m5.filter.Value() != "" {
 		t.Error("esc should clear filter string")
 	}
 	if len(m5.rows) != totalBefore {
@@ -593,6 +593,28 @@ func TestDiffHeaderShowsComparison(t *testing.T) {
 	}
 	if !strings.Contains(header, "±2 +96 -14") {
 		t.Errorf("expected stat line in header, got %q", header)
+	}
+}
+
+func TestEmptyDashboardShowsGuidance(t *testing.T) {
+	m := makeTestModel(nil)
+
+	// Before the first List() result arrives, an empty pane is genuinely
+	// still loading.
+	if got := ansi.Strip(m.renderRight(100)); !strings.Contains(got, "(loading...)") {
+		t.Errorf("before first load, expected loading state, got %q", got)
+	}
+
+	// Once List() returns zero worktrees, the pane must switch to create
+	// guidance rather than showing "(loading...)" forever (nothing will ever
+	// select a worktree to clear it on an empty dashboard).
+	m2, _ := m.Update(statusesMsg(nil))
+	got := ansi.Strip(m2.(Model).renderRight(100))
+	if strings.Contains(got, "(loading...)") {
+		t.Errorf("empty loaded dashboard must not show loading, got %q", got)
+	}
+	if !strings.Contains(got, "press n to create one") {
+		t.Errorf("expected create guidance on empty dashboard, got %q", got)
 	}
 }
 

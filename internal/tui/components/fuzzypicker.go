@@ -3,7 +3,6 @@ package tuicomponents
 import (
 	"sort"
 	"strings"
-	"unicode/utf8"
 )
 
 // FuzzyPickerAction reports what happened after a keypress, letting a caller
@@ -31,9 +30,9 @@ type FuzzyPicker struct {
 
 	palette  *Palette
 	items    []PaletteItem
-	query    string
-	filtered []int // indices into items, ranked best match first
-	cursor   int   // index into filtered, not items
+	input    TextInput // the search query and its caret
+	filtered []int     // indices into items, ranked best match first
+	cursor   int       // index into filtered, not items
 }
 
 // NewFuzzyPicker builds a picker over items, titled for its bordered box.
@@ -52,21 +51,18 @@ func (p *FuzzyPicker) SetItems(items []PaletteItem) {
 
 // Query returns the current search text.
 func (p *FuzzyPicker) Query() string {
-	return p.query
+	return p.input.Value
 }
 
 // InsertText inserts pasted text into the query in one shot and refilters
 // once, the paste counterpart to HandleKey: a tea.PasteMsg carries the whole
-// clipboard content as one string, and HandleKey's default case only accepts
+// clipboard content as one string, and HandleKey's editing only accepts
 // single-rune keys, so a multi-rune paste would otherwise be silently
 // dropped rune-by-rune.
 func (p *FuzzyPicker) InsertText(text string) {
-	text = SanitizePaste(text)
-	if text == "" {
-		return
+	if p.input.InsertText(text) {
+		p.refilter()
 	}
-	p.query += text
-	p.refilter()
 }
 
 // Selected returns the item under the cursor in the filtered list, if any.
@@ -82,10 +78,12 @@ func (p *FuzzyPicker) Selected() (PaletteItem, bool) {
 // Unlike the dashboard, this is a type-to-filter picker: every printable
 // character, including "j" and "k", must be available for the query text, or
 // names starting with those letters ("kafka", "json-tool") could never be
-// filtered down. So cursor nav is arrow keys only (plus ctrl+j/ctrl+k as
+// filtered down. So list navigation is arrow keys only (plus ctrl+j/ctrl+k as
 // chorded vim-style equivalents, which don't collide with typing since they
-// carry the ctrl modifier), and bare "j"/"k" fall through to the default case
-// like any other character.
+// carry the ctrl modifier); every other key is a query edit delegated to the
+// shared TextInput — bare "j"/"k" insert, arrows/home/end move the caret, and
+// backspace/delete edit. The query is re-ranked only when the text actually
+// changed, so a caret move doesn't needlessly refilter.
 func (p *FuzzyPicker) HandleKey(key string) FuzzyPickerResult {
 	switch key {
 	case "esc":
@@ -94,23 +92,12 @@ func (p *FuzzyPicker) HandleKey(key string) FuzzyPickerResult {
 		if item, ok := p.Selected(); ok {
 			return FuzzyPickerResult{Action: FuzzyPickerSelected, Item: item}
 		}
-	case "backspace":
-		if len(p.query) > 0 {
-			p.query = TrimLastRune(p.query)
-			p.refilter()
-		}
 	case "up", "ctrl+k":
 		p.cursor = MoveCursor(p.navIndices(), p.cursor, -1)
 	case "down", "ctrl+j":
 		p.cursor = MoveCursor(p.navIndices(), p.cursor, 1)
 	default:
-		// len() counts bytes, so a non-ASCII rune (e.g. "é", "日") arriving as a
-		// multi-byte UTF-8 string would fail this check and be silently
-		// dropped. Every control-key string this switch matches ("esc",
-		// "backspace", "ctrl+j", ...) has more than one rune, so counting
-		// runes still excludes them from falling into the default case.
-		if utf8.RuneCountInString(key) == 1 && key >= " " {
-			p.query += key
+		if _, changed := p.input.HandleKey(key); changed {
 			p.refilter()
 		}
 	}
@@ -140,7 +127,7 @@ func (p *FuzzyPicker) refilter() {
 	}
 	matches := make([]ranked, 0, len(p.items))
 	for i, item := range p.items {
-		if rank := FuzzyMatch(p.query, item.Command); rank != FuzzyNoMatch {
+		if rank := FuzzyMatch(p.input.Value, item.Command); rank != FuzzyNoMatch {
 			matches = append(matches, ranked{idx: i, rank: rank})
 		}
 	}
@@ -174,7 +161,7 @@ func (p *FuzzyPicker) View(width int) string {
 	}
 	innerWidth -= 2
 
-	body := p.palette.CommandPalette(p.query, items, p.cursor, innerWidth)
+	body := p.palette.CommandPalette(p.input.Value, p.input.Cursor(), items, p.cursor, innerWidth)
 	if len(items) == 0 {
 		body += "\n" + p.palette.Inactive.Render("(no matches)")
 	}
