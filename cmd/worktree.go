@@ -52,6 +52,12 @@ This command:
   3. Creates a new tmux window named wt-<repo>-<name> in the current session
   4. Launches the selected AI coder in the window
 
+If a branch named <name> already exists locally, create adopts it into the
+worktree instead of failing. If that branch is currently checked out in the
+main clone, the source checkout is moved to the repo's default branch first
+(git can't have the same branch checked out in two places at once) — a note
+is printed so the switch isn't a surprise.
+
 With --repo you don't need to be inside the repository: the worktree is
 created for the repo at the given path, and the window opens in a tmux
 session named after the repo (created if missing, reused otherwise). When run

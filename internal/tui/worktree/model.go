@@ -13,6 +13,7 @@ import (
 	"github.com/cjairm/devgita/internal/apps/tmux"
 	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/internal/tooling/task"
+	"github.com/cjairm/devgita/internal/tooling/terminal/dev_tools/githubcli"
 	"github.com/cjairm/devgita/internal/tooling/worktree"
 	tuicomponents "github.com/cjairm/devgita/internal/tui/components"
 )
@@ -24,6 +25,9 @@ const (
 	dividerWidth         = 1
 	refreshInterval      = 3 * time.Second
 	maxDiffBytes         = 64 * 1024
+	// prTitleTimeout bounds the best-effort gh PR-title lookup so a hung or slow
+	// gh can't outlive one refresh interval and stall the diff pane.
+	prTitleTimeout = 2 * time.Second
 )
 
 // --- Messages ---
@@ -35,7 +39,12 @@ type (
 		files, added, removed int
 		fileLines             []int  // line indexes of per-file headers, for [ / ] jumps
 		base                  string // comparison base label, e.g. "main @3e90667"
-		branch                string // worktree branch the diff belongs to
+		branch                string // worktree branch the diff belongs to (display only)
+		path                  string // worktree path the diff belongs to (PR-title cache key)
+	}
+	prTitleMsg struct {
+		path  string // worktree path — the cache key (unique; branch names collide across repos)
+		title string
 	}
 )
 
@@ -68,7 +77,11 @@ type Model struct {
 	diffFocused   bool
 	diffFileLines []int
 	diffBase      string
-	diffBranch    string
+	diffBranch    string // display branch for the "base ← branch" label
+	diffPath      string // worktree path the current diff belongs to; PR-title cache lookup key
+
+	prTitles       map[string]string // path -> PR title; "" cached means "looked up, no PR"
+	prTitlePending map[string]bool   // path -> lookup in flight, so we don't double-dispatch
 
 	filter tuicomponents.FilterField
 
@@ -106,6 +119,7 @@ type Model struct {
 	validateRepoPathFn       func(path string) (string, error)
 	checkHookCompatibilityFn func(repoPath string) []string
 	createFn                 func(repoPath, name string) (warning string, err error)
+	prTitleFn                func(branch, path string) string
 }
 
 func newModel(
@@ -115,13 +129,15 @@ func newModel(
 	gc *config.GlobalConfig,
 ) Model {
 	m := Model{
-		mgr:           mgr,
-		tmuxApp:       tmuxApp,
-		gitApp:        gitApp,
-		gc:            gc,
-		collapsed:     map[string]bool{},
-		palette:       tuicomponents.NewPalette(),
-		leftPaneWidth: defaultLeftPaneWidth,
+		mgr:            mgr,
+		tmuxApp:        tmuxApp,
+		gitApp:         gitApp,
+		gc:             gc,
+		collapsed:      map[string]bool{},
+		palette:        tuicomponents.NewPalette(),
+		leftPaneWidth:  defaultLeftPaneWidth,
+		prTitles:       map[string]string{},
+		prTitlePending: map[string]bool{},
 	}
 	m.diffFn = func(path string) (task.BranchDiffResult, error) {
 		return task.BranchDiffAt(gitApp, path)
@@ -181,6 +197,15 @@ func newModel(
 		}
 		return warning, nil
 	}
+	// Reuse the shared gh wrapper rather than shelling out to gh here, so the
+	// diff pane's PR-title lookup goes through the same executor as every other
+	// gh call. PRTitleAt is best-effort and bounded: it returns "" (never an
+	// error) when gh is absent, unauthenticated, times out, or the branch has
+	// no PR — all of which the header treats as "no title".
+	gh := githubcli.New()
+	m.prTitleFn = func(_, path string) string {
+		return gh.PRTitleAt(path, prTitleTimeout)
+	}
 	return m
 }
 
@@ -208,14 +233,24 @@ func (m Model) tickCmd() tea.Cmd {
 	})
 }
 
+// branchLabel returns the display branch for a worktree status: s.Branch,
+// falling back to s.Name when the worktree has no tracked branch. Used both
+// for the diff header's "base ← branch" label and as the branch argument
+// passed into prTitleFn, so the two can never drift apart. It is NOT a cache
+// key — branch names can collide across repos (see maybePRTitleCmd, which
+// keys its cache by path instead).
+func branchLabel(s worktree.WorktreeStatus) string {
+	if s.Branch != "" {
+		return s.Branch
+	}
+	return s.Name
+}
+
 func (m Model) computeDiffCmd(s worktree.WorktreeStatus) tea.Cmd {
 	df := m.diffFn
 	p := m.palette
 	path := s.Path
-	branch := s.Branch
-	if branch == "" {
-		branch = s.Name
-	}
+	branch := branchLabel(s)
 	return func() tea.Msg {
 		res, err := df(path)
 		content := res.Content
@@ -239,8 +274,55 @@ func (m Model) computeDiffCmd(s worktree.WorktreeStatus) tea.Cmd {
 			fileLines: diffFileHeaderLines(content),
 			base:      base,
 			branch:    branch,
+			path:      path,
 		}
 	}
+}
+
+// prTitleCmd looks up branch's PR title via m.prTitleFn, run in path. The
+// returned message is keyed by path (see maybePRTitleCmd for why). It is
+// dispatched separately from computeDiffCmd so a slow or hung `gh` can never
+// stall the 3s diff-refresh tick.
+func (m Model) prTitleCmd(branch, path string) tea.Cmd {
+	fn := m.prTitleFn
+	return func() tea.Msg { return prTitleMsg{path: path, title: fn(branch, path)} }
+}
+
+// maybePRTitleCmd returns a command to look up s's PR title, or nil if it is
+// already cached or a lookup is already in flight. Marks the path pending so
+// a later selection/tick won't dispatch a duplicate.
+//
+// The cache (and pending set) is keyed by s.Path, not branch name: the
+// dashboard aggregates worktrees across multiple repos, and two different
+// repos can have worktrees on identically-named branches (e.g. "main", or a
+// coincidental "feature/x") — keying by branch would let the second one's
+// lookup get skipped as "cached" and render the first repo's title. Path is
+// unique per worktree, so it can't collide. branchLabel(s) is still what
+// gets passed to prTitleFn as the branch argument gh needs.
+func (m *Model) maybePRTitleCmd(s worktree.WorktreeStatus) tea.Cmd {
+	if _, cached := m.prTitles[s.Path]; cached {
+		return nil
+	}
+	if m.prTitlePending[s.Path] {
+		return nil
+	}
+	m.prTitlePending[s.Path] = true
+	return m.prTitleCmd(branchLabel(s), s.Path)
+}
+
+// selectionChangedCmd builds the batch of commands to run whenever the
+// selected worktree changes (statusesMsg reload, or j/k moving the cursor):
+// always recompute the diff, and additionally kick off a PR-title lookup
+// when s's path has no cache entry and none is pending. Pointer receiver is
+// required so maybePRTitleCmd's pending-flag mutation lands on the
+// addressable local m in the three call sites (all of which operate on a
+// value-receiver Update/handleKey's local m before returning it).
+func (m *Model) selectionChangedCmd(sel worktree.WorktreeStatus) tea.Cmd {
+	cmds := []tea.Cmd{m.computeDiffCmd(sel)}
+	if c := m.maybePRTitleCmd(sel); c != nil {
+		cmds = append(cmds, c)
+	}
+	return tea.Batch(cmds...)
 }
 
 func (m Model) selectedStatus() (worktree.WorktreeStatus, bool) {
@@ -320,7 +402,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.loaded = true
 		m.rebuildRows()
 		if sel, ok := m.selectedStatus(); ok {
-			return m, m.computeDiffCmd(sel)
+			return m, m.selectionChangedCmd(sel)
 		}
 		return m, nil
 
@@ -332,6 +414,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.diffFileLines = msg.fileLines
 		m.diffBase = msg.base
 		m.diffBranch = msg.branch
+		m.diffPath = msg.path
+		return m, nil
+
+	case prTitleMsg:
+		m.prTitles[msg.path] = msg.title
+		delete(m.prTitlePending, msg.path)
 		return m, nil
 
 	case tickMsg:
@@ -442,7 +530,7 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.diffScroll = 0
 		m.moveCursor(1)
 		if sel, ok := m.selectedStatus(); ok {
-			return m, m.computeDiffCmd(sel)
+			return m, m.selectionChangedCmd(sel)
 		}
 		return m, nil
 
@@ -450,7 +538,7 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.diffScroll = 0
 		m.moveCursor(-1)
 		if sel, ok := m.selectedStatus(); ok {
-			return m, m.computeDiffCmd(sel)
+			return m, m.selectionChangedCmd(sel)
 		}
 		return m, nil
 
@@ -917,9 +1005,27 @@ func (m Model) renderRight(width int) string {
 			m.palette.DiffFileHeader.Render(m.diffBranch) +
 			"  " + header
 	}
-	contentHeight := max(m.height-4, 0) // height minus hint, status, header, blank line
+
+	// PR title, when known, is its own line above the base/branch header.
+	// Keyed by diffPath, not diffBranch: branch names can collide across
+	// repos, but the worktree path is unique (see maybePRTitleCmd).
+	title := m.prTitles[m.diffPath]
+	extraLines := 0
+	if title != "" {
+		extraLines = 1
+	}
+
+	contentHeight := max(
+		m.height-4-extraLines,
+		0,
+	) // height minus hint, status, header, blank line (and title line, if shown)
 	content := m.renderDiffContent(width, contentHeight)
-	return ansi.Truncate(header, width, "") + "\n" + content
+
+	out := ansi.Truncate(header, width, "") + "\n" + content
+	if title != "" {
+		out = ansi.Truncate(m.palette.DiffFileHeader.Render(title), width, "") + "\n" + out
+	}
+	return out
 }
 
 func (m Model) renderDiffContent(width, height int) string {

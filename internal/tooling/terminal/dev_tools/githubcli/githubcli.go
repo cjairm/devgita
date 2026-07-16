@@ -29,6 +29,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"time"
 
 	cmd "github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/pkg/constants"
@@ -378,6 +379,25 @@ func (g *GithubCli) PRView(prNumber string, fields ...string) (string, error) {
 	}
 	args = append(args, "--json", strings.Join(fields, ","))
 	return g.RunWithOutput(args...)
+}
+
+// PRTitleAt returns the title of the pull request for the current branch of the
+// repository checked out at dir. It is best-effort: it returns "" (never an
+// error) when gh is absent, unauthenticated, times out, or the branch has no
+// PR — all outcomes the caller treats as "no title". timeout bounds the gh
+// call so a hung gh can't stall the caller; dir runs gh against a specific
+// worktree without depending on the process's current directory.
+func (g *GithubCli) PRTitleAt(dir string, timeout time.Duration) string {
+	stdout, _, err := g.Base.ExecCommand(cmd.CommandParams{
+		Command: constants.GithubCli,
+		Args:    []string{"pr", "view", "--json", "title", "-q", ".title"},
+		Dir:     dir,
+		Timeout: timeout,
+	})
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(stdout)
 }
 
 // PRChecks returns the CI check status for a pull request as JSON, for stable

@@ -1,17 +1,17 @@
-# Cycle: `dg wt ui` polish — empty state, cursor editing, adopt, PR title
+# Cycle: `dg wt ui` polish — empty state, cursor editing, existing-branch create, PR title
 
 **Date:** 2026-07-16
-**Estimated Duration:** Steps 1–2 shipped; remaining Steps 3–4 ~3 hours (adopt ~1.5h,
-PR title ~1.5h). Split as two follow-up commits so each stays within the ~3h cycle-slice
-guidance.
-**Status:** In Progress
+**Estimated Duration:** Steps 1–2 shipped; remaining Steps 3–4 ~3 hours (existing-branch
+create ~1.5h, PR title ~1.5h). Split as two follow-up commits so each stays within the
+~3h cycle-slice guidance.
+**Status:** Done (implementation + automated verification; manual TUI checks 3–5 pending hands-on confirmation)
 
 ---
 
 ## 1. Domain Context
 
 `dg wt ui` is the worktree dashboard (list + attach/destroy/repair/filter/diff pane, plus
-in-TUI create from cycle `2026-07-15-wt-ui-create-flow.md`). Three rough edges surfaced in
+in-TUI create from cycle `2026-07-15-wt-ui-create-flow.md`). Four rough edges surfaced in
 use:
 
 1. **Empty dashboard shows `(loading...)` forever.** With no worktrees, no row is ever
@@ -24,10 +24,11 @@ use:
    Per-file dividers already exist (`rewriteFileHeaders`), but there's no PR title, so the
    pane doesn't connect to the change being reviewed.
 
-Also raised: a way to take a branch created outside devgita and move it under worktree
-management. The building block already exists — `CreateWorktreeIn` (`git.go:388`) checks
-out an existing local/remote branch when one is present — but there's no discoverable verb
-for it and no handling of the "branch is checked out elsewhere" case.
+4. **Creating a worktree for an existing local branch fails.** Naming a worktree after a
+   branch that already exists locally and is checked out in the main clone dead-ends with
+   `git: Preparing worktree (checking out '<branch>')` — git refuses a branch already held
+   by another worktree, and nothing frees it first. This ordinary "I made a branch, now
+   give it a worktree" flow should just work, from both `dg wt create` and `dg wt ui`.
 
 Related: prior cycles `2026-06-07-worktree-v2-tui-dashboard.md`,
 `2026-07-15-wt-ui-create-flow.md`; ROADMAP Worktree Enhancements.
@@ -48,9 +49,12 @@ Related: prior cycles `2026-06-07-worktree-v2-tui-dashboard.md`,
     caret; left/right/home/end/backspace/delete/insert; `RenderPlain`).
   - `internal/tui/components/filter.go`, `cmdpalette.go`, `fuzzypicker.go` — the three
     fields that embed `TextInput`.
-  - `internal/tooling/worktree/worktree.go` — `Create` / `CreateAt` → shared `create`;
-    `internal/apps/git/git.go` — `CreateWorktreeIn(repoDir, path, branch)` already adopts an
-    existing branch via `git worktree add <path> <branch>`.
+  - `internal/tooling/worktree/worktree.go` — `Create` / `CreateAt` → shared `create`,
+    which calls `git.CreateWorktreeIn(repoRoot, wtPath, name)` (`worktree.go:216`).
+  - `internal/apps/git/git.go` — `CreateWorktreeIn(repoDir, path, branch)` (`git.go:388`)
+    runs `git worktree add <path> <branch>` when the branch exists; this is where the
+    checked-out-in-main-clone case must be handled. Helpers already present:
+    `ListWorktreesAt`, `IsWorktreeDirty`, `DefaultBranchIn`, `SwitchBranch`.
   - `internal/tooling/task/branchdiff.go` — `BranchDiffAt` produces the diff + base
     metadata; a natural home for an optional PR-title lookup.
 - **Testing:** [docs/guides/testing-patterns.md](../../guides/testing-patterns.md) —
@@ -70,8 +74,9 @@ Related: prior cycles `2026-06-07-worktree-v2-tui-dashboard.md`,
 ## 3. Objective
 
 An empty dashboard tells the user what to do; every text field supports mid-string
-editing; a branch created outside devgita can be adopted into a managed worktree with one
-discoverable command; and the diff pane shows the PR title when the branch has a PR.
+editing; naming a worktree after an existing local branch adopts that branch instead of
+failing (from both `dg wt create` and the TUI); and the diff pane shows the PR title when
+the branch has a PR.
 
 ---
 
@@ -85,19 +90,23 @@ discoverable command; and the diff pane shows the PR title when the branch has a
 - [x] Shared `TextInput` editor (value + caret, left/right/home/end, mid-string
       insert/delete), adopted by the name prompt, filter, and repo-picker query. Removes
       the old append-only `TrimLastRune` path.
-- [ ] `dg wt adopt <branch>` (see Step 3) — adopt an existing branch into a managed
-      worktree + window, with the checked-out-elsewhere and uncommitted-work cases handled.
-- [ ] PR title in the diff-pane header (see Step 4) — best-effort, cached, shown only when
+- [x] `create` converts an existing local branch (see Step 3) — when the worktree name
+      matches a branch already checked out in the main clone, free that branch (switch the
+      clone to its default branch) and create the worktree on it, instead of failing.
+      Covers both `dg wt create` and the TUI create flow; refuses on an uncommitted-work
+      tree rather than move it.
+- [x] PR title in the diff-pane header (see Step 4) — best-effort, cached, shown only when
       a PR exists; runs off the refresh path with a bounded timeout.
-- [ ] Docs updated for `adopt` (required, not optional): `cmd/worktree.go` help for both
-      `create` and `adopt`, and the worktree subcommand list in `docs/spec.md`.
+- [x] Docs updated for the existing-branch behavior (required, not optional):
+      `cmd/worktree.go` create help and the worktree section of `docs/spec.md`.
 
 ### Explicitly Out of Scope
 
 - Making the per-file dividers "louder" — they already exist; revisit only if the PR-title
   header lands and the file headers then look weak by comparison.
-- Adopting multiple branches at once, or a picker of adoptable branches in the TUI (CLI
-  verb first; a TUI entry point is a later cycle).
+- A dedicated command or TUI picker for existing branches — the behavior is folded into
+  the normal create path (name matches a branch → adopt it); a separate entry point is a
+  later cycle if ever needed.
 - Creating/opening a PR from the TUI — read-only title lookup only.
 
 **Scope is locked.** New needs → document for a future cycle.
@@ -126,45 +135,62 @@ discoverable command; and the diff pane shows the PR title when the branch has a
 - Tests: `TestTextInputEditing`, `TestTextInputRenderCaret`, updated filter/create/picker
   tests; call sites in the inventory TUI migrated to `Value()`.
 
-### Step 3 — `dg wt adopt <branch>` (PLANNED)
+### Step 3 — `create` converts an existing local branch (PLANNED)
 
-- New Cobra subcommand `adopt` (alias none for now) under `worktreeCmd`, `--repo` flag like
-  `create`. Delegates to a new `WorktreeManager.Adopt(repoPath, branch, coder)` that reuses
-  the shared `create` flow but requires the branch to already exist (local or remote) —
-  `CreateWorktreeIn` already does the `git worktree add <path> <branch>` checkout in that
-  case, so `Adopt` is `create` with an "existing branch required" precondition plus the two
-  guards below. No new worktree layout or window logic.
-- **Checked-out-elsewhere guard:** git refuses `worktree add` for a branch already checked
-  out in another worktree (typically the user's main clone, where they created it). Detect
-  this before calling git via `git worktree list --porcelain` with precise matching:
-  - Each worktree block ends with `branch refs/heads/<name>`; strip the `refs/heads/`
-    prefix and compare against the target branch by exact name.
-  - A block with no `branch` line (detached HEAD, or a bare repo entry) is skipped — it
-    holds no branch and can't collide.
-  - Block **only** when the branch is checked out at a path **different from** this
-    adopt's target worktree path. The same-path case is a re-run and is already covered by
-    `create`'s existing "worktree already exists" state check, so it must not be reported
-    as a checked-out-elsewhere conflict.
-  - Error names the conflicting path and tells the user to switch that checkout off the
-    branch first. Never `--force` silently — that would detach the other checkout.
-- **Uncommitted-work caveat:** `worktree add` brings only committed history; uncommitted
-  changes stay in the origin checkout. `adopt` prints a plain-language note that uncommitted
-  work does not move, so nobody assumes it did.
-- **Required docs update (not optional):** `create`'s help text currently states it
-  "Creates a new branch with the same name" (`cmd/worktree.go:51`). Adding `adopt` without
-  updating that is contradictory UX. Update `cmd/worktree.go` (create's long help notes the
-  existing-branch-adopts behavior; new `adopt` help) and `docs/spec.md`'s worktree
-  subcommand list in the same change.
-- Tests: `Adopt` happy path (existing local branch → worktree + window, via mocks),
-  branch-not-found error, checked-out-elsewhere error (different path), same-path re-run
-  falls through to the existing state check, `VerifyNoRealCommands`.
-- **Open decision (needs author sign-off before build):** after `adopt` exists, does
-  `dg wt create <existing-branch>` keep adopting the existing branch (current behavior,
-  non-breaking, but two verbs do the overlapping thing), or does `create` become
-  new-branch-only for a cleaner mental model (clearer, but a behavior change subject to
-  change discipline — deprecation note + spec update)? Recommendation: **keep `create`'s
-  current behavior** (non-breaking; `adopt` is the discoverable explicit verb), and only
-  tighten `create` if a future cycle deprecates it deliberately.
+**The bug.** Giving a new worktree the same name as a branch that already exists locally and
+is checked out in the main clone fails:
+
+```
+create failed: failed to create worktree: git: Preparing worktree (checking out 'feature/gh-546-...')
+```
+
+Root cause: both `dg wt create` and the `dg wt ui` create flow funnel through
+`git.CreateWorktreeIn` (`git.go:388`, reached via `worktree.go:216`). When the branch exists
+locally it runs `git worktree add <path> <branch>`. Git refuses to check out a branch that
+is already checked out in another worktree — here the user's main clone, where they created
+it — and aborts with `fatal: '<branch>' is already used by worktree at '<path>'`. Nothing
+frees the branch first, so an ordinary "I made a branch, now give it a worktree" flow
+dead-ends.
+
+**The fix (one place, both surfaces).** In `CreateWorktreeIn`'s `localExists` branch, before
+`git worktree add`, detect whether the branch is already checked out in an existing worktree
+of the same repo and, when it is, free it first:
+
+- Enumerate the repo's worktrees with `ListWorktreesAt(repoDir)` (already parses
+  `git worktree list --porcelain` into `{Path, Branch}`, with `refs/heads/` stripped). Find
+  the entry whose `Branch` equals the target branch (exact match).
+- No entry holds it → unchanged; `worktree add` proceeds exactly as today.
+- The holder's path equals the new worktree `path` → cannot happen here: the upstream state
+  check in `worktree.go`'s `create` already rejects an existing worktree before git is
+  called, so no special case is needed.
+- Otherwise the holder is the source checkout (the main clone). Free the branch by switching
+  that checkout to the repo's default branch (`DefaultBranchIn(repoDir)`, then
+  `git -C <holderPath> checkout <default>`), then run `worktree add`.
+
+**Dirty-tree guard (never move uncommitted work).** Before switching the holder off the
+branch, check `IsWorktreeDirty(holderPath)`. If it's dirty, do nothing and return a plain
+error: the branch has uncommitted changes in `<holderPath>`; commit or stash them, then
+retry. `worktree add` only carries committed history, and switching a dirty checkout could
+carry changes across or fail mid-way — so refuse up front rather than risk it.
+
+**Default-branch edge:** if the target branch _is_ the repo default, there is nothing to
+switch the holder to; leave the existing git error to surface (adopting the default branch
+into a side worktree isn't a real workflow and isn't worth special-casing).
+
+**What the user sees:** create succeeds; the branch now lives in the managed worktree +
+window, and the main clone is left on its default branch. Print a one-line note that the
+source checkout was moved to `<default>`, so the switch isn't a surprise.
+
+**Required docs update (not optional):** `create`'s long help (`cmd/worktree.go:51`) says it
+"Creates a new branch with the same name". Extend it to note that when a branch of that name
+already exists, create adopts it into the worktree (moving the source checkout to the
+default branch). Update the worktree section of `docs/spec.md` in the same change.
+
+- Tests (in `internal/apps/git/` with `testutil.MockApp` + `VerifyNoRealCommands`): branch
+  checked out in the main clone with a clean tree → holder switched to default, `worktree
+add` runs, success; dirty holder → error, no switch and no add; branch checked out
+  nowhere → unchanged existing path; branch absent locally and remotely → still creates a
+  new branch as before.
 
 ### Step 4 — PR title in the diff header (PLANNED)
 
@@ -211,33 +237,37 @@ make lint
 
 ### Manual
 
+> Steps 3–5 require running `dg wt ui` against a real repo (and, for 5, a branch
+> with an open PR). They are covered by automated tests but still need hands-on
+> confirmation before the cycle is fully closed.
+
 1. [x] `dg wt ui` with no worktrees → right pane shows the create guidance, not `(loading...)`.
 2. [x] `n` → name prompt → paste a path → move the caret with ←/→ and fix a character mid-string.
-3. [ ] Create a branch in a normal clone, switch that clone off it, then `dg wt adopt <branch>` → worktree + window on the existing branch.
-4. [ ] `dg wt adopt <branch>` while the branch is still checked out in the main clone → clear error naming where it's checked out; nothing changed.
+3. [ ] In a repo, create a branch and stay on it. In `dg wt ui` pick that repo and name the worktree the same as the branch → worktree + window created on it; the main clone is left on its default branch.
+4. [ ] Same as 3 but with uncommitted changes in the main clone → clear error saying the branch has uncommitted changes; nothing moved.
 5. [ ] A worktree whose branch has an open PR → diff header shows the PR title; a branch with no PR → no title line, no delay.
 
 ### Regression Check
 
 - [x] Attach/destroy/repair/filter/diff-pane and the `n` create flow unchanged.
-- [ ] `dg wt create`, `new`, `rm`, `ls`, `repair`, `prune` unchanged.
+- [x] `dg wt new`, `rm`, `ls`, `repair`, `prune` unchanged; `create` unchanged except that a name matching an existing local branch now adopts it instead of erroring. (Confirmed by the full `go test ./...` suite passing.)
 
 ---
 
 ## 7. Risks & Trade-offs
 
-| Risk                                                 | Likelihood | Mitigation                                                                 |
-| ---------------------------------------------------- | ---------- | -------------------------------------------------------------------------- |
-| `adopt` `--force`-checks out a branch already in use | Med        | Detect checked-out-elsewhere before git runs; return an error, never force |
-| Users expect uncommitted work to move with `adopt`   | Med        | Explicit plain-language note; document in help + spec                      |
-| `gh pr view` adds latency to the diff pane           | Med        | Only when `gh` present; cache per branch; never block the diff on it       |
-| Reverse-video caret renders oddly on some terminals  | Low        | Standard SGR reverse; block caret at end preserves the old visible cursor  |
+| Risk                                                       | Likelihood | Mitigation                                                                                 |
+| ---------------------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------ |
+| Switching the main clone off the branch surprises the user | Med        | Only done to free a branch for its worktree; print a one-line note; refuse on a dirty tree |
+| Uncommitted work in the main clone could be disturbed      | Med        | Guard with `IsWorktreeDirty`; refuse and do nothing when dirty                             |
+| `gh pr view` adds latency to the diff pane                 | Med        | Only when `gh` present; cache per branch; never block the diff on it                       |
+| Reverse-video caret renders oddly on some terminals        | Low        | Standard SGR reverse; block caret at end preserves the old visible cursor                  |
 
 ### Trade-offs
 
-- **`adopt` as a thin verb over `create`'s existing-branch path** rather than a new
-  subsystem — the checkout logic already exists; the value is discoverability + the two
-  guards, not new plumbing.
+- **Fold the behavior into `create` rather than a new command** — the checkout logic already
+  lives in `CreateWorktreeIn`; the only gap is freeing a branch that's checked out in the
+  main clone. Fixing it there covers both the CLI and the TUI in one place.
 - **PR title via `gh` rather than a git API client** — `gh` is already the project's GitHub
   surface elsewhere; no new dependency, and absence degrades to "no title" cleanly.
 
@@ -248,5 +278,6 @@ make lint
 - Steps 1–2 are shipped. Steps 3–4 need approval before implementation (this cycle doc is
   the request for that).
 - Commit after each step once its verify check passes.
-- If `adopt` needs to grow beyond the two guards, stop and document a follow-up rather than
-  widening scope.
+- The Step 3 fix belongs in `git.CreateWorktreeIn` (the single funnel both surfaces use),
+  not in the CLI or TUI layers. If it needs to grow beyond the dirty-tree guard, stop and
+  document a follow-up rather than widening scope.

@@ -650,13 +650,17 @@ func TestCreateWorktree(t *testing.T) {
 	t.Run("existing local branch is fast-forwarded to remote", func(t *testing.T) {
 		mockApp.Base.ResetExecCommand()
 		// 1. fetch origin
-		// 2. BranchExists(branch)        -> exists
-		// 3. worktree add path branch
-		// 4. RemoteBranchExists(branch)  -> exists
-		// 5. merge --ff-only origin/branch
+		// 2. BranchExists(branch)             -> exists
+		// 3. ListWorktreesAt("")               -> no holder for "feature-branch"
+		//    (DefaultBranchIn is never called: freeBranchIfHeldElsewhere short-circuits
+		//    as soon as no holder is found, before computing the default branch)
+		// 4. worktree add path branch
+		// 5. RemoteBranchExists(branch)        -> exists
+		// 6. merge --ff-only origin/branch
 		mockApp.Base.SetExecCommandResults(
 			commands.ExecCommandResult("", "", nil),
 			commands.ExecCommandResult("  feature-branch\n", "", nil),
+			commands.ExecCommandResult("", "", nil),
 			commands.ExecCommandResult("", "", nil),
 			commands.ExecCommandResult("  origin/feature-branch\n", "", nil),
 			commands.ExecCommandResult("Updating abc..def\n", "", nil),
@@ -688,6 +692,11 @@ func TestCreateWorktree(t *testing.T) {
 				"",
 				nil,
 			), // BranchExists -> exists
+			commands.ExecCommandResult(
+				"",
+				"",
+				nil,
+			), // ListWorktreesAt -> no holder (DefaultBranchIn never called)
 			commands.ExecCommandResult("", "", nil), // worktree add
 			commands.ExecCommandResult(
 				"  origin/feature-branch\n",
@@ -712,8 +721,13 @@ func TestCreateWorktree(t *testing.T) {
 		mockApp.Base.SetExecCommandResults(
 			commands.ExecCommandResult("", "", nil),               // fetch
 			commands.ExecCommandResult("  local-only\n", "", nil), // BranchExists -> exists
-			commands.ExecCommandResult("", "", nil),               // worktree add
-			commands.ExecCommandResult("", "", nil),               // RemoteBranchExists -> none
+			commands.ExecCommandResult(
+				"",
+				"",
+				nil,
+			), // ListWorktreesAt -> no holder (DefaultBranchIn never called)
+			commands.ExecCommandResult("", "", nil), // worktree add
+			commands.ExecCommandResult("", "", nil), // RemoteBranchExists -> none
 		)
 
 		if err := app.CreateWorktree("/path/to/worktree", "local-only"); err != nil {
@@ -749,6 +763,301 @@ func TestCreateWorktree(t *testing.T) {
 		}
 		if !strings.Contains(err.Error(), "worktree exists") {
 			t.Errorf("Expected error to contain 'worktree exists', got: %v", err)
+		}
+	})
+}
+
+func TestCreateWorktreeIn_AdoptsBranchHeldElsewhere(t *testing.T) {
+	mockApp := testutil.NewMockApp()
+	app := &Git{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+	t.Run(
+		"branch checked out in main clone with clean tree is freed then adopted",
+		func(t *testing.T) {
+			mockApp.Base.ResetExecCommand()
+			const porcelain = "worktree /repo\nHEAD abc123\nbranch refs/heads/feature-branch\n\n" +
+				"worktree /repo/.worktrees/other\nHEAD def456\nbranch refs/heads/other-branch\n\n"
+			mockApp.Base.SetExecCommandResults(
+				commands.ExecCommandResult("", "", nil), // fetch origin
+				commands.ExecCommandResult(
+					"  feature-branch\n",
+					"",
+					nil,
+				), // BranchExistsIn -> exists
+				commands.ExecCommandResult(
+					porcelain,
+					"",
+					nil,
+				), // ListWorktreesAt -> holder is /repo
+				commands.ExecCommandResult(
+					"origin/main\n",
+					"",
+					nil,
+				), // DefaultBranchIn symbolic-ref -> main
+				commands.ExecCommandResult(
+					"",
+					"",
+					nil,
+				), // IsWorktreeDirty(/repo) -> clean
+				commands.ExecCommandResult("", "", nil), // checkout main at /repo
+				commands.ExecCommandResult("", "", nil), // worktree add
+				commands.ExecCommandResult(
+					"",
+					"",
+					nil,
+				), // RemoteBranchExistsIn (sync) -> none
+			)
+
+			err := app.CreateWorktreeIn(
+				"/repo",
+				"/repo/.worktrees/feature-branch",
+				"feature-branch",
+			)
+			if err != nil {
+				t.Fatalf("CreateWorktreeIn failed: %v", err)
+			}
+
+			calls := mockApp.Base.ExecCommandCalls
+			if len(calls) != 8 {
+				t.Fatalf("expected 8 exec calls, got %d: %+v", len(calls), calls)
+			}
+
+			checkoutCall := calls[5]
+			if checkoutCall.Args[0] != "-C" || checkoutCall.Args[1] != "/repo" ||
+				checkoutCall.Args[2] != "checkout" || checkoutCall.Args[3] != "main" {
+				t.Fatalf("expected checkout main at /repo, got args: %v", checkoutCall.Args)
+			}
+
+			worktreeAddCall := calls[6]
+			joined := strings.Join(worktreeAddCall.Args, " ")
+			if !strings.Contains(
+				joined,
+				"worktree add /repo/.worktrees/feature-branch feature-branch",
+			) {
+				t.Fatalf(
+					"expected worktree add for the new path, got args: %v",
+					worktreeAddCall.Args,
+				)
+			}
+		},
+	)
+
+	t.Run("dirty holder blocks the switch and returns an error", func(t *testing.T) {
+		mockApp.Base.ResetExecCommand()
+		const porcelain = "worktree /repo\nHEAD abc123\nbranch refs/heads/feature-branch\n\n"
+		mockApp.Base.SetExecCommandResults(
+			commands.ExecCommandResult("", "", nil),                   // fetch origin
+			commands.ExecCommandResult("  feature-branch\n", "", nil), // BranchExistsIn -> exists
+			commands.ExecCommandResult(
+				porcelain,
+				"",
+				nil,
+			), // ListWorktreesAt -> holder is /repo
+			commands.ExecCommandResult(
+				"origin/main\n",
+				"",
+				nil,
+			), // DefaultBranchIn symbolic-ref -> main
+			commands.ExecCommandResult(
+				" M dirty-file.go\n",
+				"",
+				nil,
+			), // IsWorktreeDirty(/repo) -> dirty
+		)
+
+		err := app.CreateWorktreeIn("/repo", "/repo/.worktrees/feature-branch", "feature-branch")
+		if err == nil {
+			t.Fatal("expected an error for a dirty holder, got none")
+		}
+		if !strings.Contains(err.Error(), "uncommitted changes") {
+			t.Errorf("expected error to mention uncommitted changes, got: %v", err)
+		}
+
+		calls := mockApp.Base.ExecCommandCalls
+		if len(calls) != 5 {
+			t.Fatalf(
+				"expected exactly 5 exec calls (no checkout, no worktree add), got %d: %+v",
+				len(calls),
+				calls,
+			)
+		}
+		for _, call := range calls {
+			joined := strings.Join(call.Args, " ")
+			if strings.Contains(joined, "checkout") {
+				t.Errorf("expected no checkout call when holder is dirty, got: %v", call.Args)
+			}
+			if strings.Contains(joined, "worktree add") {
+				t.Errorf("expected no worktree add call when holder is dirty, got: %v", call.Args)
+			}
+		}
+	})
+
+	t.Run("branch checked out nowhere behaves exactly as before", func(t *testing.T) {
+		mockApp.Base.ResetExecCommand()
+		const porcelain = "worktree /repo\nHEAD abc123\nbranch refs/heads/main\n\n"
+		mockApp.Base.SetExecCommandResults(
+			commands.ExecCommandResult("", "", nil),                   // fetch origin
+			commands.ExecCommandResult("  feature-branch\n", "", nil), // BranchExistsIn -> exists
+			commands.ExecCommandResult(
+				porcelain,
+				"",
+				nil,
+			), // ListWorktreesAt -> no holder (DefaultBranchIn never called)
+			commands.ExecCommandResult("", "", nil), // worktree add
+			commands.ExecCommandResult(
+				"",
+				"",
+				nil,
+			), // RemoteBranchExistsIn (sync) -> none
+		)
+
+		err := app.CreateWorktreeIn("/repo", "/repo/.worktrees/feature-branch", "feature-branch")
+		if err != nil {
+			t.Fatalf("CreateWorktreeIn failed: %v", err)
+		}
+
+		calls := mockApp.Base.ExecCommandCalls
+		if len(calls) != 5 {
+			t.Fatalf("expected 5 exec calls (no checkout switch), got %d: %+v", len(calls), calls)
+		}
+		for _, call := range calls {
+			joined := strings.Join(call.Args, " ")
+			if strings.Contains(joined, "checkout") {
+				t.Errorf(
+					"expected no checkout call when branch is held nowhere, got: %v",
+					call.Args,
+				)
+			}
+		}
+	})
+
+	t.Run("branch absent locally and remotely still creates a new branch", func(t *testing.T) {
+		mockApp.Base.ResetExecCommand()
+		mockApp.Base.SetExecCommandResults(
+			commands.ExecCommandResult("", "", nil), // fetch origin
+			commands.ExecCommandResult("", "", nil), // BranchExistsIn -> none
+			commands.ExecCommandResult("", "", nil), // RemoteBranchExistsIn -> none
+			commands.ExecCommandResult("", "", nil), // DefaultBranchIn symbolic-ref -> unset
+			commands.ExecCommandResult("", "", nil), // probe RemoteBranchExistsIn(main) -> none
+			commands.ExecCommandResult("", "", nil), // probe RemoteBranchExistsIn(master) -> none
+			commands.ExecCommandResult("", "", nil), // probe RemoteBranchExistsIn(develop) -> none
+			commands.ExecCommandResult(
+				"",
+				"",
+				nil,
+			), // baseExists = RemoteBranchExistsIn(repoDir, "main") -> none
+			commands.ExecCommandResult("", "", nil), // worktree add -b
+		)
+
+		err := app.CreateWorktreeIn("/repo", "/repo/.worktrees/new-branch", "new-branch")
+		if err != nil {
+			t.Fatalf("CreateWorktreeIn failed: %v", err)
+		}
+
+		calls := mockApp.Base.ExecCommandCalls
+		if len(calls) != 9 {
+			t.Fatalf("expected 9 exec calls, got %d: %+v", len(calls), calls)
+		}
+
+		lastCall := mockApp.Base.GetLastExecCommandCall()
+		if lastCall == nil {
+			t.Fatal("expected a worktree add call")
+		}
+		joined := strings.Join(lastCall.Args, " ")
+		if !strings.Contains(joined, "worktree add") || !strings.Contains(joined, "-b") {
+			t.Fatalf("expected a new-branch worktree add, got args: %v", lastCall.Args)
+		}
+	})
+
+	t.Run(
+		"branch held elsewhere but equal to the default branch is left to git",
+		func(t *testing.T) {
+			mockApp.Base.ResetExecCommand()
+			const porcelain = "worktree /repo\nHEAD abc123\nbranch refs/heads/main\n\n"
+			mockApp.Base.SetExecCommandResults(
+				commands.ExecCommandResult("", "", nil),         // fetch origin
+				commands.ExecCommandResult("  main\n", "", nil), // BranchExistsIn -> exists
+				commands.ExecCommandResult(
+					porcelain,
+					"",
+					nil,
+				), // ListWorktreesAt -> holder is /repo
+				commands.ExecCommandResult(
+					"origin/main\n",
+					"",
+					nil,
+				), // DefaultBranchIn symbolic-ref -> main
+				commands.ExecCommandResult(
+					"",
+					"fatal: 'main' is already used by worktree at '/repo'",
+					fmt.Errorf("already used"),
+				), // worktree add -> git's own refusal surfaces unmodified
+			)
+
+			err := app.CreateWorktreeIn("/repo", "/repo/.worktrees/main", "main")
+			if err == nil {
+				t.Fatal("expected the existing git error to surface, got none")
+			}
+			if !strings.Contains(err.Error(), "already used") {
+				t.Errorf("expected the original git error to surface, got: %v", err)
+			}
+
+			calls := mockApp.Base.ExecCommandCalls
+			if len(calls) != 5 {
+				t.Fatalf(
+					"expected 5 exec calls (short-circuit, no dirty check), got %d: %+v",
+					len(calls),
+					calls,
+				)
+			}
+			for _, call := range calls {
+				joined := strings.Join(call.Args, " ")
+				if strings.Contains(joined, "checkout") {
+					t.Errorf(
+						"expected no checkout call when branch equals the default branch, got: %v",
+						call.Args,
+					)
+				}
+			}
+		},
+	)
+
+	t.Run("ListWorktreesAt error is propagated and blocks worktree add", func(t *testing.T) {
+		mockApp.Base.ResetExecCommand()
+		mockApp.Base.SetExecCommandResults(
+			commands.ExecCommandResult("", "", nil),                   // fetch origin
+			commands.ExecCommandResult("  feature-branch\n", "", nil), // BranchExistsIn -> exists
+			commands.ExecCommandResult(
+				"",
+				"fatal: not a git repository",
+				fmt.Errorf("boom"),
+			), // ListWorktreesAt -> error
+		)
+
+		err := app.CreateWorktreeIn("/repo", "/repo/.worktrees/feature-branch", "feature-branch")
+		if err == nil {
+			t.Fatal("expected an error when ListWorktreesAt fails, got none")
+		}
+		if !strings.Contains(err.Error(), "failed to list worktrees") {
+			t.Errorf("expected a wrapped list-worktrees error, got: %v", err)
+		}
+
+		calls := mockApp.Base.ExecCommandCalls
+		if len(calls) != 3 {
+			t.Fatalf(
+				"expected exactly 3 exec calls (no worktree add), got %d: %+v",
+				len(calls),
+				calls,
+			)
+		}
+		for _, call := range calls {
+			joined := strings.Join(call.Args, " ")
+			if strings.Contains(joined, "worktree add") {
+				t.Errorf(
+					"expected no worktree add call when ListWorktreesAt fails, got: %v",
+					call.Args,
+				)
+			}
 		}
 	})
 }
