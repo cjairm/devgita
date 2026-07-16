@@ -272,6 +272,14 @@ dg wt <subcommand> [flags]     # alias
 
 - `--force` / `-f` — Force removal even if the worktree has uncommitted changes.
 
+**Adopting an existing branch (`create`)**: if a branch named `<name>` already exists locally,
+`create` adopts it into the worktree instead of failing. If that branch is currently checked out
+in the main clone, git refuses to check it out again in the new worktree — `create` frees it
+first by switching the main clone to the repo's default branch (printing a one-line note so the
+switch isn't a surprise), then proceeds. If the main clone's checkout of that branch has
+uncommitted changes, `create` refuses up front with an error telling you to commit or stash them
+first, rather than risk carrying or losing that work.
+
 **Examples**:
 
 ```

@@ -396,9 +396,14 @@ func (g *Git) CreateWorktreeIn(repoDir, path, branch string) error {
 		return fmt.Errorf("failed to check if local branch exists: %w", err)
 	}
 
-	// If local branch exists, check it out in the worktree, then bring it up to
-	// date with its remote counterpart.
+	// If local branch exists, free it first if another worktree (typically the
+	// main clone) already has it checked out — git refuses to check out a
+	// branch that's checked out elsewhere — then check it out in the worktree
+	// and bring it up to date with its remote counterpart.
 	if localExists {
+		if err := g.freeBranchIfHeldElsewhere(repoDir, path, branch); err != nil {
+			return err
+		}
 		if err := g.ExecuteCommand(
 			dirArgs(repoDir, "worktree", "add", path, branch)...,
 		); err != nil {
@@ -432,6 +437,65 @@ func (g *Git) CreateWorktreeIn(repoDir, path, branch string) error {
 		return g.ExecuteCommand(dirArgs(repoDir, "worktree", "add", path, "-b", branch, base)...)
 	}
 	return g.ExecuteCommand(dirArgs(repoDir, "worktree", "add", path, "-b", branch)...)
+}
+
+// freeBranchIfHeldElsewhere checks whether branch is already checked out in
+// another worktree of the repo at repoDir (typically the main clone) and, if
+// so, frees it by switching that checkout to the repo's default branch. Git
+// refuses `worktree add` for a branch checked out elsewhere, so without this
+// an ordinary "I made a branch, now give it a worktree" flow dead-ends.
+//
+// Returns nil when there is nothing to free — branch held nowhere, held by
+// the target path itself (can't happen in practice: worktree.go rejects an
+// existing worktree before git is invoked, but guarded defensively here), or
+// branch is the repo default (adopting the default branch into a side
+// worktree isn't a real workflow, so we leave the existing git error to
+// surface) — and the caller proceeds to `worktree add` exactly as before.
+func (g *Git) freeBranchIfHeldElsewhere(repoDir, path, branch string) error {
+	worktrees, err := g.ListWorktreesAt(repoDir)
+	if err != nil {
+		return fmt.Errorf("failed to list worktrees at %s: %w", repoDir, err)
+	}
+
+	var holderPath string
+	for _, wt := range worktrees {
+		if wt.Branch == branch {
+			holderPath = wt.Path
+			break
+		}
+	}
+	if holderPath == "" || holderPath == path {
+		return nil
+	}
+
+	// Only compute the default branch once we know there's actually a holder
+	// to free — this check is meaningless (and the git call wasted) otherwise.
+	defaultBranch := g.DefaultBranchIn(repoDir)
+	if branch == defaultBranch {
+		return nil
+	}
+
+	dirty, err := g.IsWorktreeDirty(holderPath)
+	if err != nil {
+		return fmt.Errorf("failed to check worktree status at %s: %w", holderPath, err)
+	}
+	if dirty {
+		return fmt.Errorf(
+			"branch %q has uncommitted changes in %s; commit or stash them, then retry",
+			branch, holderPath,
+		)
+	}
+
+	if err := g.ExecuteCommandAt(holderPath, "checkout", defaultBranch); err != nil {
+		return fmt.Errorf("failed to switch %s off %q: %w", holderPath, branch, err)
+	}
+	fmt.Printf(
+		"Note: source checkout at %s was moved to %s so %q could be adopted into the new worktree.\n",
+		holderPath,
+		defaultBranch,
+		branch,
+	)
+	return nil
 }
 
 // syncExistingBranch brings a worktree's already-existing local branch up to
