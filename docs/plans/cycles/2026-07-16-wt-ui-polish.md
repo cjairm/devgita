@@ -1,7 +1,9 @@
 # Cycle: `dg wt ui` polish — empty state, cursor editing, adopt, PR title
 
 **Date:** 2026-07-16
-**Estimated Duration:** ~6 hours
+**Estimated Duration:** Steps 1–2 shipped; remaining Steps 3–4 ~3 hours (adopt ~1.5h,
+PR title ~1.5h). Split as two follow-up commits so each stays within the ~3h cycle-slice
+guidance.
 **Status:** In Progress
 
 ---
@@ -86,7 +88,9 @@ discoverable command; and the diff pane shows the PR title when the branch has a
 - [ ] `dg wt adopt <branch>` (see Step 3) — adopt an existing branch into a managed
       worktree + window, with the checked-out-elsewhere and uncommitted-work cases handled.
 - [ ] PR title in the diff-pane header (see Step 4) — best-effort, cached, shown only when
-      a PR exists.
+      a PR exists; runs off the refresh path with a bounded timeout.
+- [ ] Docs updated for `adopt` (required, not optional): `cmd/worktree.go` help for both
+      `create` and `adopt`, and the worktree subcommand list in `docs/spec.md`.
 
 ### Explicitly Out of Scope
 
@@ -132,31 +136,66 @@ discoverable command; and the diff pane shows the PR title when the branch has a
   guards below. No new worktree layout or window logic.
 - **Checked-out-elsewhere guard:** git refuses `worktree add` for a branch already checked
   out in another worktree (typically the user's main clone, where they created it). Detect
-  this before calling git (parse `git worktree list --porcelain` for the branch) and return
-  an actionable error: name the worktree/path holding it and tell the user to switch that
-  checkout off the branch first. Never `--force` silently — that would detach the other
-  checkout.
+  this before calling git via `git worktree list --porcelain` with precise matching:
+  - Each worktree block ends with `branch refs/heads/<name>`; strip the `refs/heads/`
+    prefix and compare against the target branch by exact name.
+  - A block with no `branch` line (detached HEAD, or a bare repo entry) is skipped — it
+    holds no branch and can't collide.
+  - Block **only** when the branch is checked out at a path **different from** this
+    adopt's target worktree path. The same-path case is a re-run and is already covered by
+    `create`'s existing "worktree already exists" state check, so it must not be reported
+    as a checked-out-elsewhere conflict.
+  - Error names the conflicting path and tells the user to switch that checkout off the
+    branch first. Never `--force` silently — that would detach the other checkout.
 - **Uncommitted-work caveat:** `worktree add` brings only committed history; uncommitted
   changes stay in the origin checkout. `adopt` prints a plain-language note that uncommitted
   work does not move, so nobody assumes it did.
-- Help text on `create` updated to mention that naming an existing branch adopts it, so the
-  capability is discoverable even without `adopt`.
+- **Required docs update (not optional):** `create`'s help text currently states it
+  "Creates a new branch with the same name" (`cmd/worktree.go:51`). Adding `adopt` without
+  updating that is contradictory UX. Update `cmd/worktree.go` (create's long help notes the
+  existing-branch-adopts behavior; new `adopt` help) and `docs/spec.md`'s worktree
+  subcommand list in the same change.
 - Tests: `Adopt` happy path (existing local branch → worktree + window, via mocks),
-  branch-not-found error, checked-out-elsewhere error, `VerifyNoRealCommands`.
+  branch-not-found error, checked-out-elsewhere error (different path), same-path re-run
+  falls through to the existing state check, `VerifyNoRealCommands`.
+- **Open decision (needs author sign-off before build):** after `adopt` exists, does
+  `dg wt create <existing-branch>` keep adopting the existing branch (current behavior,
+  non-breaking, but two verbs do the overlapping thing), or does `create` become
+  new-branch-only for a cleaner mental model (clearer, but a behavior change subject to
+  change discipline — deprecation note + spec update)? Recommendation: **keep `create`'s
+  current behavior** (non-breaking; `adopt` is the discoverable explicit verb), and only
+  tighten `create` if a future cycle deprecates it deliberately.
 
 ### Step 4 — PR title in the diff header (PLANNED)
 
-- `BranchDiffResult` gains an optional `PRTitle string`. A new best-effort lookup runs
-  `gh pr view <branch> --json title -q .title` (only when `gh` is on PATH), populated
-  alongside the diff. Empty when `gh` is absent, unauthenticated, or the branch has no PR —
-  never an error, never blocks the diff.
-- Cache by branch for the session (the diff recomputes on tick/selection; the PR title
-  should not re-shell every 3s). A small map on the model keyed by branch, or a TTL, so the
-  common case adds zero latency after the first lookup.
-- `renderRight`: when `PRTitle != ""`, show it as the first header line (styled like a
-  title), with the existing `base ← branch  ±f +a -r` line beneath it.
-- Tests: header renders the title when present and omits the line when empty; lookup is
-  mocked (`VerifyNoRealCommands`); absent-`gh` path yields empty title without error.
+The lookup is **its own async message, not part of `diffFn`/`computeDiffCmd`.** The
+dashboard reloads every 3s (`refreshInterval`, `model.go:25`) and re-derives the selected
+worktree's diff each time; folding a shell-out to `gh` into that path would make a slow or
+hung `gh` stall every perceived diff update. So the PR title runs on a separate, cached,
+bounded command instead.
+
+- **Model state:** `prTitles map[string]string` keyed by branch, plus a
+  `prTitlePending map[string]bool` (or a small set) so the same branch isn't looked up
+  twice concurrently. Session-only cache: a branch is looked up once; the entry is never
+  invalidated during the session (a stale title is a far smaller cost than re-shelling on
+  every tick). `computeDiffCmd`/`diffFn` are unchanged.
+- **Trigger:** when the selected worktree changes (`j`/`k`/`statusesMsg`) and its branch
+  has no cache entry and none is pending, dispatch `prTitleCmd(branch, path)`. The 3s tick
+  never triggers a lookup for an already-cached or pending branch, so steady state does
+  zero `gh` calls.
+- **The command:** best-effort `gh pr view --json title -q .title` run in the worktree dir,
+  **wrapped in a 2s `context.WithTimeout` via `exec.CommandContext`** so a hung `gh` can't
+  outlive one refresh interval. Returns empty (never an error surfaced to the user) when
+  `gh` is absent from PATH, unauthenticated, times out, or the branch has no PR. Result
+  flows back as `prTitleMsg{branch, title}`; Update stores it (empty title still cached, so
+  a no-PR branch isn't retried every selection).
+- **Render:** `renderRight` shows `PRTitle` as the first header line (title style) with the
+  existing `base ← branch  ±f +a -r` line beneath it; nothing extra when the title is empty.
+- **Injectable seam:** add a `prTitleFn func(branch, path string) string` alongside the
+  other seams (`diffFn`, `attachFn`, …) so tests never shell out.
+- Tests: header renders the title when present and omits the line when empty; a cached or
+  pending branch is not re-looked-up on tick; `prTitleFn` mocked with
+  `VerifyNoRealCommands`; absent-`gh`/timeout path yields empty title without error.
 
 ---
 
