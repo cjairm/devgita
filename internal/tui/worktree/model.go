@@ -351,6 +351,41 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyPressMsg:
 		return m.handleKey(msg)
+
+	case tea.PasteMsg:
+		return m.handlePaste(msg.Content)
+	}
+
+	return m, nil
+}
+
+// handlePaste routes a bracketed-paste event to whichever text field is
+// currently active, mirroring handleKey's mode dispatch (help overlay,
+// repo-pick, name-input, filter) but inserting the whole clipboard content
+// in one shot rather than one rune at a time. Bubble Tea delivers a paste as
+// a single tea.PasteMsg regardless of length, and handleKey's per-key
+// handlers only accept single-rune keys — routing it through handleKey
+// instead would silently drop all but the paste's first rune. Falls through
+// to a no-op everywhere else (diff-focused, plain dashboard), where there is
+// no text field for pasted content to go.
+func (m Model) handlePaste(text string) (tea.Model, tea.Cmd) {
+	if m.showHelp {
+		return m, nil
+	}
+
+	if m.createMode == createRepoPick {
+		m.repoPicker.InsertText(text)
+		return m, nil
+	}
+	if m.createMode == createNameInput {
+		return m.handleNameInputPaste(text)
+	}
+
+	if m.filter.Active {
+		if m.filter.InsertText(text) {
+			m.rebuildRows()
+		}
+		return m, nil
 	}
 
 	return m, nil

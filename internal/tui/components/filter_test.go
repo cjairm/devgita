@@ -64,6 +64,36 @@ func TestFilterFieldHandleKey(t *testing.T) {
 	})
 }
 
+func TestFilterFieldInsertText(t *testing.T) {
+	t.Run("inserts pasted text in one shot and reports a change", func(t *testing.T) {
+		f := FilterField{Active: true, Text: "ab"}
+		if !f.InsertText("cd/ef") {
+			t.Error("expected InsertText to report a change")
+		}
+		if f.Text != "abcd/ef" {
+			t.Errorf("expected text %q, got %q", "abcd/ef", f.Text)
+		}
+	})
+
+	t.Run("strips control characters from the pasted content", func(t *testing.T) {
+		f := FilterField{Active: true}
+		f.InsertText("feat\nname\r")
+		if f.Text != "featname" {
+			t.Errorf("expected control chars stripped, got %q", f.Text)
+		}
+	})
+
+	t.Run("all-control paste reports no change", func(t *testing.T) {
+		f := FilterField{Active: true, Text: "ab"}
+		if f.InsertText("\n\r") {
+			t.Error("expected no change when pasted content is entirely control chars")
+		}
+		if f.Text != "ab" {
+			t.Errorf("expected text unchanged, got %q", f.Text)
+		}
+	})
+}
+
 func TestHelpOverlayContainsEntriesAndCloseHint(t *testing.T) {
 	p := NewPalette()
 	out := p.HelpOverlay("Keys", []WhichKeyEntry{{Key: "q", Desc: "quit"}}, 80, 24)

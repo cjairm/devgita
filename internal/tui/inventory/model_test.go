@@ -161,6 +161,18 @@ func TestUpdate_FilterMode(t *testing.T) {
 	}
 }
 
+func TestUpdate_FilterModePaste(t *testing.T) {
+	m := newModel(testItems(), Options{})
+	m2, _ := m.Update(tea.KeyPressMsg{Code: '/'})
+	m3 := m2.(model)
+
+	m4, _ := m3.Update(tea.PasteMsg{Content: "git"})
+	m5 := m4.(model)
+	if m5.filter.Text != "git" {
+		t.Errorf("expected filter %q, got %q", "git", m5.filter.Text)
+	}
+}
+
 // testItems() groups into rows: [group Packages(2), git, tmux, group Desktop
 // Apps(1), docker] — item rows at indices 1 (git), 2 (tmux), 4 (docker).
 // newModel starts the cursor on the first item row (git, index 1).

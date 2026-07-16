@@ -51,9 +51,10 @@ type createFailedMsg struct {
 }
 
 // handleNewWorktree opens the repo picker for the n keybinding, offering the
-// cursor row's repo first. RepoCandidates already orders that repo first
-// when present, matching FuzzyPicker's initial cursor at index 0, so no
-// extra pre-selection logic is needed here.
+// cursor row's repo first. RepoCandidates already ranks candidates (cwd repo,
+// then cursor repo, then recents, then zoxide) with the top-ranked one first,
+// matching FuzzyPicker's initial cursor at index 0, so no extra
+// pre-selection logic is needed here.
 //
 // Guarded by m.creating: clearCreateState runs synchronously in
 // handleNameInputKey's enter branch, before the async createFn tea.Cmd it
@@ -198,7 +199,7 @@ func (m Model) handleNameInputKey(key string) (tea.Model, tea.Cmd) {
 	case "backspace":
 		m.pendingHookWarning = false
 		if len(m.createName) > 0 {
-			m.createName = m.createName[:len(m.createName)-1]
+			m.createName = tuicomponents.TrimLastRune(m.createName)
 		}
 
 	default:
@@ -206,6 +207,19 @@ func (m Model) handleNameInputKey(key string) (tea.Model, tea.Cmd) {
 		if utf8.RuneCountInString(key) == 1 && key >= " " {
 			m.createName += key
 		}
+	}
+	return m, nil
+}
+
+// handleNameInputPaste inserts pasted text into the name field in one shot,
+// the paste counterpart to handleNameInputKey: a tea.PasteMsg carries the
+// whole clipboard content as one string, which handleNameInputKey's
+// per-rune default case would otherwise drop except for its first rune.
+func (m Model) handleNameInputPaste(text string) (tea.Model, tea.Cmd) {
+	text = tuicomponents.SanitizePaste(text)
+	if text != "" {
+		m.pendingHookWarning = false
+		m.createName += text
 	}
 	return m, nil
 }

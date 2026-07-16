@@ -269,6 +269,63 @@ func TestNameInputTypingAccumulates(t *testing.T) {
 	}
 }
 
+func TestNameInputPasteInsertsInOneShot(t *testing.T) {
+	m := makeTestModel(testStatuses())
+	m.createMode = createNameInput
+	m.createRepo = "/repos/alpha"
+
+	m2, _ := m.Update(tea.PasteMsg{Content: "feat/pasted-branch"})
+	m3 := m2.(Model)
+	if m3.createName != "feat/pasted-branch" {
+		t.Errorf("expected createName %q, got %q", "feat/pasted-branch", m3.createName)
+	}
+}
+
+func TestNameInputPasteStripsControlChars(t *testing.T) {
+	m := makeTestModel(testStatuses())
+	m.createMode = createNameInput
+	m.createRepo = "/repos/alpha"
+	m.createName = "feat"
+
+	m2, _ := m.Update(tea.PasteMsg{Content: "/branch\n"})
+	m3 := m2.(Model)
+	if m3.createName != "feat/branch" {
+		t.Errorf("expected createName %q, got %q", "feat/branch", m3.createName)
+	}
+}
+
+func TestNameInputBackspaceRemovesLastRuneNotLastByte(t *testing.T) {
+	m := makeTestModel(testStatuses())
+	m.createMode = createNameInput
+	m.createRepo = "/repos/alpha"
+	m.createName = "café"
+
+	m2, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
+	m3 := m2.(Model)
+	if m3.createName != "caf" {
+		t.Errorf("expected createName %q, got %q", "caf", m3.createName)
+	}
+}
+
+func TestRepoPickPasteInsertsIntoQuery(t *testing.T) {
+	m := makeTestModel(testStatuses())
+	m.repoCandidatesFn = func(string) ([]string, error) {
+		return []string{"/repos/repo-a", "/repos/other"}, nil
+	}
+
+	m2, _ := m.Update(tea.KeyPressMsg{Code: 'n'})
+	m3 := m2.(Model)
+	if m3.createMode != createRepoPick {
+		t.Fatalf("expected repo-pick mode, got mode=%d", m3.createMode)
+	}
+
+	m4, _ := m3.Update(tea.PasteMsg{Content: "other"})
+	m5 := m4.(Model)
+	if m5.repoPicker.Query() != "other" {
+		t.Errorf("expected query %q, got %q", "other", m5.repoPicker.Query())
+	}
+}
+
 func TestNameInputEnterEmptyIsNoop(t *testing.T) {
 	createCalled := false
 	m := makeTestModel(testStatuses())

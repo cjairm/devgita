@@ -370,3 +370,32 @@ func TestFuzzyPickerHandleKeyAcceptsUnicodeRunes(t *testing.T) {
 		}
 	})
 }
+
+func TestFuzzyPickerInsertText(t *testing.T) {
+	t.Run("inserts pasted text in one shot and refilters", func(t *testing.T) {
+		p := NewFuzzyPicker("Repo", testItems())
+		p.InsertText("git")
+		if p.Query() != "git" {
+			t.Fatalf("expected query %q, got %q", "git", p.Query())
+		}
+		if len(p.filtered) != 2 {
+			t.Fatalf("expected refiltered to 2 matches, got %d: %v", len(p.filtered), p.filtered)
+		}
+	})
+
+	t.Run("strips control characters from the pasted content", func(t *testing.T) {
+		p := NewFuzzyPicker("Repo", testItems())
+		p.InsertText("dev\ngita\r")
+		if p.Query() != "devgita" {
+			t.Fatalf("expected control chars stripped, got %q", p.Query())
+		}
+	})
+
+	t.Run("all-control paste is a no-op", func(t *testing.T) {
+		p := NewFuzzyPicker("Repo", testItems())
+		p.InsertText("\n\r")
+		if p.Query() != "" {
+			t.Fatalf("expected empty query, got %q", p.Query())
+		}
+	})
+}

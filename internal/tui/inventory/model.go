@@ -79,6 +79,25 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case tea.KeyPressMsg:
 		return m.handleKey(msg)
+	case tea.PasteMsg:
+		return m.handlePaste(msg.Content)
+	}
+	return m, nil
+}
+
+// handlePaste inserts bracketed-paste content into the active filter in one
+// shot. Bubble Tea delivers a paste as a single tea.PasteMsg carrying the
+// whole clipboard content, and FilterField.HandleKey's default case only
+// accepts single-rune keys, so routing a paste through handleKey would
+// silently drop all but its first rune.
+func (m model) handlePaste(text string) (tea.Model, tea.Cmd) {
+	if m.showHelp {
+		return m, nil
+	}
+	if m.filter.Active {
+		if m.filter.InsertText(text) {
+			m.rebuildRows()
+		}
 	}
 	return m, nil
 }

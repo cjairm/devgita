@@ -212,6 +212,18 @@ func TestFilterMode(t *testing.T) {
 	}
 }
 
+func TestFilterModePaste(t *testing.T) {
+	m := makeTestModel(testStatuses())
+	m2, _ := m.Update(tea.KeyPressMsg{Code: '/'})
+	m3 := m2.(Model)
+
+	m4, _ := m3.Update(tea.PasteMsg{Content: "repo-a"})
+	m5 := m4.(Model)
+	if m5.filter.Text != "repo-a" {
+		t.Errorf("expected filter %q, got %q", "repo-a", m5.filter.Text)
+	}
+}
+
 func TestAttachOutsideTmux(t *testing.T) {
 	os.Unsetenv("TMUX") //nolint:errcheck
 	m := makeTestModel(testStatuses())

@@ -55,6 +55,20 @@ func (p *FuzzyPicker) Query() string {
 	return p.query
 }
 
+// InsertText inserts pasted text into the query in one shot and refilters
+// once, the paste counterpart to HandleKey: a tea.PasteMsg carries the whole
+// clipboard content as one string, and HandleKey's default case only accepts
+// single-rune keys, so a multi-rune paste would otherwise be silently
+// dropped rune-by-rune.
+func (p *FuzzyPicker) InsertText(text string) {
+	text = SanitizePaste(text)
+	if text == "" {
+		return
+	}
+	p.query += text
+	p.refilter()
+}
+
 // Selected returns the item under the cursor in the filtered list, if any.
 func (p *FuzzyPicker) Selected() (PaletteItem, bool) {
 	if p.cursor < 0 || p.cursor >= len(p.filtered) {
@@ -82,7 +96,7 @@ func (p *FuzzyPicker) HandleKey(key string) FuzzyPickerResult {
 		}
 	case "backspace":
 		if len(p.query) > 0 {
-			p.query = p.query[:len(p.query)-1]
+			p.query = TrimLastRune(p.query)
 			p.refilter()
 		}
 	case "up", "ctrl+k":

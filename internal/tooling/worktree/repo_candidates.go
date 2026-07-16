@@ -1,6 +1,7 @@
 // Repo discovery and validation for the worktree create-flow's repo picker:
-// ranking candidate repos from the cursor repo, recent-repos store, and
-// zoxide, plus validating a free-typed repo path at selection time.
+// ranking candidate repos from the cwd, the cursor repo, the recent-repos
+// store, and zoxide, plus validating a free-typed repo path at selection
+// time.
 
 package worktree
 
@@ -16,12 +17,14 @@ import (
 )
 
 // RepoCandidates returns a ranked, deduped list of candidate repo paths for a
-// repo picker: the cursor repo (the repo owning cursorRepoSlug's worktrees)
-// first, then stored recent repos in most-recently-used order, then zoxide's
-// tracked directories when zoxide is installed. Every candidate is
-// canonicalized before deduping (config.CanonicalRepoPath — the same
-// contract every source must use) so the same repo is never offered twice
-// regardless of which source produced it.
+// repo picker: the repo containing the process's current working directory
+// first (so `n` suggests the repo you're already sitting in), then the
+// cursor repo (the repo owning cursorRepoSlug's worktrees), then stored
+// recent repos in most-recently-used order, then zoxide's tracked
+// directories when zoxide is installed. Every candidate is canonicalized
+// before deduping (config.CanonicalRepoPath — the same contract every source
+// must use) so the same repo is never offered twice regardless of which
+// source produced it.
 //
 // A failure in one source never blanks the others: the recent-repos config
 // may not exist yet on a fresh install, and zoxide may error transiently, but
@@ -29,6 +32,10 @@ import (
 // remaining sources found.
 func (w *WorktreeManager) RepoCandidates(cursorRepoSlug string) ([]string, error) {
 	var raw []string
+
+	if cwdRoot := w.cwdRepoRoot(); cwdRoot != "" {
+		raw = append(raw, cwdRoot)
+	}
 
 	if cursorRoot := w.cursorRepoRoot(cursorRepoSlug); cursorRoot != "" {
 		raw = append(raw, cursorRoot)
@@ -62,6 +69,27 @@ func (w *WorktreeManager) RepoCandidates(cursorRepoSlug string) ([]string, error
 		candidates = append(candidates, canonical)
 	}
 	return candidates, nil
+}
+
+// cwdRepoRoot resolves the main repo root for the process's current working
+// directory, so `n` suggests "the repo you're sitting in" first when dg wt
+// ui was launched from inside one — ranked ahead of the cursor repo, recent
+// repos, and zoxide. Uses the same GetMainWorktree resolution as
+// cursorRepoRoot (rather than a plain rev-parse --show-toplevel) so cwd
+// being a linked worktree still resolves to its main repo root, matching
+// what create actually needs. Returns "" (no error) when cwd can't be read
+// or isn't inside a git repo at all — the cwd source is simply skipped, the
+// same as every other candidate source in RepoCandidates.
+func (w *WorktreeManager) cwdRepoRoot() string {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+	root, err := w.Git.GetMainWorktree(cwd)
+	if err != nil {
+		return ""
+	}
+	return root
 }
 
 // cursorRepoRoot resolves the root of the repo that owns cursorRepoSlug's

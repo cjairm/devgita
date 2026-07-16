@@ -287,10 +287,12 @@ dg wt prune                                 # Remove all worktrees (prompts for 
 **Creating from the dashboard (`n`)**:
 
 - `n` opens a floating repo picker over the dashboard — the background stays visible, matching
-  the `?` help overlay. Candidates are ranked: the repo under the cursor first, then repos from
-  the recent-repos store (most-recently-used first), then `zoxide query -l` results when zoxide
-  is installed. Typing filters the list; if the query matches nothing, Enter validates it
-  directly as a free-typed repo path instead.
+  the `?` help overlay. Candidates are ranked: the repo containing the directory `dg wt ui` was
+  launched from first (when that directory is inside a git repo — otherwise this source is
+  skipped), then the repo under the cursor, then repos from the recent-repos store
+  (most-recently-used first), then `zoxide query -l` results when zoxide is installed. Typing
+  filters the list; if the query matches nothing, Enter validates it directly as a free-typed
+  repo path instead.
 - Enter on a repo opens a floating name prompt. Enter creates the worktree (same as `create
 --repo`) and attaches into the new window — the TUI exits, identical to pressing Enter on an
   existing row. If the create's pre-flight hook-compatibility check finds warnings, they're

@@ -194,6 +194,97 @@ func TestRepoCandidates(t *testing.T) {
 		}
 	})
 
+	t.Run("cwd repo is suggested first when cwd is inside a git repo", func(t *testing.T) {
+		cleanupPaths := testutil.SetupIsolatedPaths(t)
+		defer cleanupPaths()
+		failingLookPath(t)
+
+		wm, mockGitBase, _, _ := newRecordingWM()
+
+		cwdRoot := t.TempDir()
+		t.Chdir(cwdRoot)
+		actualCwd, err := os.Getwd()
+		if err != nil {
+			t.Fatalf("setup: %v", err)
+		}
+
+		cursorRoot := filepath.Join(t.TempDir(), "cursor-repo")
+		mockGitBase.SetExecCommandResults(
+			commands.ExecCommandResult(
+				"worktree "+actualCwd+"\nHEAD abc123\nbranch refs/heads/main\n\n", "", nil,
+			), // GetMainWorktree(cwd)
+			commands.ExecCommandResult(
+				"worktree "+cursorRoot+"\nHEAD abc123\nbranch refs/heads/main\n\n", "", nil,
+			), // GetMainWorktree(cursor worktree dir)
+		)
+
+		repoSlug := "cwd-slug"
+		wtDir := filepath.Join(GetWorktreeBasePath(), repoSlug, "some-worktree")
+		if err := os.MkdirAll(wtDir, 0o755); err != nil {
+			t.Fatalf("setup: %v", err)
+		}
+		t.Cleanup(func() {
+			if err := os.RemoveAll(filepath.Join(GetWorktreeBasePath(), repoSlug)); err != nil {
+				t.Logf("cleanup: %v", err)
+			}
+		})
+
+		candidates, err := wm.RepoCandidates(repoSlug)
+		if err != nil {
+			t.Fatalf("RepoCandidates failed: %v", err)
+		}
+		wantCwd := config.CanonicalRepoPath(actualCwd)
+		wantCursor := config.CanonicalRepoPath(cursorRoot)
+		if len(candidates) != 2 || candidates[0] != wantCwd || candidates[1] != wantCursor {
+			t.Fatalf("expected [%q, %q], got %+v", wantCwd, wantCursor, candidates)
+		}
+
+		if len(mockGitBase.ExecCommandCalls) == 0 {
+			t.Fatal("expected at least one git call")
+		}
+		firstArgs := mockGitBase.ExecCommandCalls[0].Args
+		if len(firstArgs) < 2 || firstArgs[0] != "-C" || firstArgs[1] != actualCwd {
+			t.Errorf(
+				"expected first git call to target cwd %q via -C, got args %+v",
+				actualCwd,
+				firstArgs,
+			)
+		}
+	})
+
+	t.Run("cwd falls back to today's behavior when it is not a git repo", func(t *testing.T) {
+		cleanupPaths := testutil.SetupIsolatedPaths(t)
+		defer cleanupPaths()
+		failingLookPath(t)
+
+		wm, mockGitBase, _, _ := newRecordingWM()
+
+		t.Chdir(t.TempDir())
+		mockGitBase.SetExecCommandResult("", "fatal: not a git repository", os.ErrNotExist)
+
+		dirA := t.TempDir()
+		canonicalA := config.CanonicalRepoPath(dirA)
+		gc := &config.GlobalConfig{}
+		if err := gc.Create(); err != nil {
+			t.Fatalf("setup: %v", err)
+		}
+		gc.Worktree.RecentRepos = []config.RecentRepo{{Path: canonicalA, LastUsed: time.Now()}}
+		if err := gc.Save(); err != nil {
+			t.Fatalf("setup: %v", err)
+		}
+
+		candidates, err := wm.RepoCandidates("")
+		if err != nil {
+			t.Fatalf("RepoCandidates failed: %v", err)
+		}
+		if len(candidates) != 1 || candidates[0] != canonicalA {
+			t.Fatalf(
+				"expected [%q] (cwd skipped, existing sources unaffected), got %+v",
+				canonicalA, candidates,
+			)
+		}
+	})
+
 	t.Run("empty cursor slug is skipped without error", func(t *testing.T) {
 		cleanupPaths := testutil.SetupIsolatedPaths(t)
 		defer cleanupPaths()
