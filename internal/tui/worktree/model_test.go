@@ -18,11 +18,13 @@ func init() { testutil.InitLogger() }
 
 func makeTestModel(statuses []worktree.WorktreeStatus) Model {
 	m := Model{
-		collapsed:     map[string]bool{},
-		palette:       tuicomponents.NewPalette(),
-		leftPaneWidth: minLeftPaneWidth,
-		width:         120,
-		height:        40,
+		collapsed:      map[string]bool{},
+		palette:        tuicomponents.NewPalette(),
+		leftPaneWidth:  minLeftPaneWidth,
+		width:          120,
+		height:         40,
+		prTitles:       map[string]string{},
+		prTitlePending: map[string]bool{},
 	}
 	m.diffFn = func(_ string) (task.BranchDiffResult, error) {
 		return task.BranchDiffResult{Content: "diff content", Files: 1, Added: 5, Removed: 2}, nil
@@ -36,6 +38,7 @@ func makeTestModel(statuses []worktree.WorktreeStatus) Model {
 	m.validateRepoPathFn = func(path string) (string, error) { return path, nil }
 	m.checkHookCompatibilityFn = func(_ string) []string { return nil }
 	m.createFn = func(_, _ string) (string, error) { return "", nil }
+	m.prTitleFn = func(_, _ string) string { return "" }
 	m.statuses = statuses
 	m.rebuildRows()
 	return m
