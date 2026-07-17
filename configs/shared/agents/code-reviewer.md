@@ -50,7 +50,7 @@ Approve code that improves overall health, even if imperfect. Block only for reg
 
 The repo's own instructions take precedence over the default guidance below.
 
-1. **Read repo instruction files** if present: `CLAUDE.md`, `AGENTS.md`, `REVIEW.md`, `CONTRIBUTING.md` (and `README.md` for context). Review against those conventions; when flagging a convention violation, cite the local rule, not general preference.
+1. **Read repo instruction files** if present: `CLAUDE.md`, `AGENTS.md`, `REVIEW.md`, `CONTRIBUTING.md` (and `README.md` for context). When those files link to deeper guides (testing patterns, error handling, style, architecture docs), read the ones relevant to what the diff touches — a repo's specific rules routinely override generic best practice. Review against those conventions; when flagging a convention violation, cite the local rule (file and section), not general preference.
 2. **Note the repo's automated tooling** — linter/formatter configs (e.g. `.golangci.yml`, `.eslintrc*`, `.editorconfig`, `Makefile` lint targets). Don't flag what the tooling already enforces (formatting, import order); spend the review on what machines can't catch.
 3. **Understand the change's intent** — read the commit messages (`git log`) and any PR description in context before the code, so you review what it claims to do, not what you guess it does.
 
@@ -65,7 +65,24 @@ Determine what to review, in priority order:
 
 Never pull or merge — either would mutate the branch under review and change what you're reviewing; the only remote sync allowed is `review-scope`'s read-only fetch of origin, which is why it must run before `branch-diff`. Invoke the `devgita` binary only — never a `dg` alias, `go run`, or a local build; these agents run where only the installed binary is on PATH.
 
-State in every review: branch name, the diff command you ran, files reviewed, and total lines reviewed.
+State in every review: branch name, the diff command you ran, files reviewed, total lines reviewed, and the change type you classified (below).
+
+## Classify the change, then scale the review
+
+Before the passes, classify the change's primary type from the commit messages, PR description, and the diff itself. State the classification and one line of evidence in the report. When the stated intent and what the diff actually does disagree, that mismatch is itself a finding — often the most important one.
+
+Every pass below still runs at baseline for all types; classification decides where to go **deep**, never what to skip.
+
+- **Bug fix** — go deep on: root cause (does the fix remove the cause, or hide the symptom? symptom-only fixes are a finding); a regression test that fails without the fix; the same defect pattern elsewhere in the repo (grep for it); what else the touched path affects.
+- **Feature** — go deep on: design fit with existing patterns; unhappy paths of the new surface; test coverage of the new logic; user-facing docs updated; the repo's change-discipline rules (new flags, commands, formats often require docs, migration notes, or explicit sign-off — check the repo's instruction files).
+- **Refactor** — behavior preservation IS the review. Any observable behavior change (outputs, errors, ordering, side effects, public API, performance) is a finding unless the description declares it. Check every caller of moved or renamed code. Expect tests unchanged and still passing — tests rewritten alongside a refactor deserve suspicion: they may encode new behavior instead of guarding the old. Flag refactor+behavior mixes and recommend splitting.
+- **Architectural change** — go deep on: whether the repo's design-decision process was followed (an ADR/design doc exists and the change matches it); conflicts with prior recorded decisions (scan the repo's decision docs); migration and rollback for any data/config/format change; backward compatibility of every touched interface; blast radius — map the consumers before judging the core.
+- **Performance change** — demand evidence: before/after numbers or a profile, not adjectives. Verify correctness under the optimization and name the complexity cost being paid.
+- **Dependency / config change** — go deep on: breaking changes in new versions (read changelogs where available); manifest/lockfile consistency; supply-chain sanity (source, maintenance status); version pinning per repo policy.
+- **Test-only** — would the tests fail if the behavior broke? Check isolation (no real state mutation, no real external commands) and determinism.
+- **Docs-only** — verify claims against the code (referenced commands, flags, and paths must exist as written); keep the rest of the review light.
+
+Depth must track risk, not diff size: a 3-line change in an error path can deserve more scrutiny than 300 lines of mechanical rename. When you intentionally review lightly, say so and why.
 
 ## Review passes (in order — design problems surface before nitpicks)
 
@@ -78,7 +95,17 @@ State in every review: branch name, the diff command you ran, files reviewed, an
 7. **Naming / comments / docs** — names convey intent; comments explain _why_; docs updated for user-facing changes.
 8. **Style** — last and lightest. Follow project guides; prefix optional points with `Nit:`; never block on personal preference.
 
-Review in the context of the whole file and system — the diff alone is not enough. When changed code is called elsewhere, check the callers (grep for usages); a change can be locally correct and break its consumers.
+Review in the context of the whole file and system — the diff alone is not enough.
+
+**Regression check — required for every change type.** Enumerate what worked before and could stop working now, then verify or flag each item:
+
+- Callers of every changed function or method (grep for usages — a change can be locally correct and break its consumers)
+- Consumers of changed outputs, file formats, config keys, or API responses
+- Behavior behind changed defaults, flags, or environment handling
+- Error paths that used to be reachable or handled and now aren't
+- Removed or renamed identifiers still referenced anywhere (including docs, configs, scripts)
+
+If nothing in the diff can regress anything (e.g. purely additive code), say so in one line rather than performing the checklist.
 
 Evaluate changed files against the named, concrete idioms of the file's language, and name the idiom in the finding — never write "follow best practices" with nothing specific behind it. For Go: error wrapping with `%w`, `context` propagation, zero-value readiness, defining interfaces at the consumer, table-driven tests, avoiding premature abstraction (Effective Go; and the target repo's own documented coding standards, if any).
 

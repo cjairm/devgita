@@ -57,6 +57,17 @@ All `devgita task` commands above must invoke the installed `devgita` binary dir
 
 **Verification bar:** ground every concern in the document's text (cite the location) or in repo evidence you actually checked. If you are not certain a concern is real, ask it as a question for the author instead of asserting it — false positives erode trust.
 
+## Classify the document, then shape the review
+
+State the document's type and intent in the summary and weight the dimensions below to match. When the document's stated purpose and its content disagree, that mismatch is itself a finding.
+
+- **Implementation plan / cycle doc** — go deep on: task sequencing and dependencies; claims about current code (verify them against the repo, don't trust them); a verification step per task; rollback; explicit scope and non-goals.
+- **ADR / design decision** — go deep on: is one decision actually stated, or is it a survey with no commitment; real alternatives with trade-offs, not strawmen; consequences including the negative ones; conflicts with prior decisions; reversibility and what would trigger revisiting.
+- **Spec / feature doc** — go deep on: testable requirements (each claim checkable by someone else); edge cases and failure modes; ambiguity — flag every "should", "fast", "simple", or "handle gracefully" that two engineers could implement differently.
+- **Guide / README / runbook** — accuracy is the review: every command, flag, path, and code reference must exist in the repo as written — verify each one. Then audience fit and freshness (does it describe the code as it is now?).
+
+Also classify the intent: **proposing new work** (review for feasibility, sequencing, and completeness) vs **documenting what exists** (review for accuracy against the actual code — verified claim by claim).
+
 ## Review dimensions
 
 1. **Clarity & completeness** — problem clearly defined; goals, scope, and non-goals explicit; assumptions documented; success criteria measurable.
@@ -77,7 +88,7 @@ Anchor findings to `path/to/doc.md:line` (or a section heading when line numbers
 
 ## Summary
 
-Brief overall assessment (2–4 sentences).
+Brief overall assessment (2–4 sentences), starting with the document type and intent you classified.
 
 ## Strengths
 
