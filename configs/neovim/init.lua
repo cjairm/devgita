@@ -226,6 +226,7 @@ do
 	require("devgita.plugins.copilot")
 	require("devgita.plugins.lazygit")
 	require("devgita.plugins.tmux_navigator")
+	require("devgita.plugins.vimade")
 	-- [/devgita]
 end
 
