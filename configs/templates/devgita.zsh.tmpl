@@ -2,6 +2,17 @@
 # Devgita Shell Configuration
 # Auto-generated from template - DO NOT EDIT MANUALLY
 # ============================================================================
+{{if .IsMac}}
+# Resolve the Homebrew prefix once. Each `brew --prefix` forks a process
+# (~100ms) and the sources below reference it several times. Homebrew's own
+# `brew shellenv` exports HOMEBREW_PREFIX for exactly this reason, so reuse
+# it when already set and fall back to a single `brew --prefix` call.
+# Exported so child shells (e.g. new tmux panes) inherit it and skip even
+# that one call.
+if [[ -z "$HOMEBREW_PREFIX" ]] && command -v brew &> /dev/null; then
+  export HOMEBREW_PREFIX="$(brew --prefix)"
+fi
+{{end}}
 
 # Core Tools
 # ----------------------------------------------------------------------------
@@ -24,8 +35,8 @@ fi
 {{if .ZshAutosuggestions}}
 # Zsh Autosuggestions - Fish-like autosuggestions
 {{if .IsMac}}
-if [[ -f $(brew --prefix)/share/zsh-autosuggestions/zsh-autosuggestions.zsh ]]; then
-    source $(brew --prefix)/share/zsh-autosuggestions/zsh-autosuggestions.zsh
+if [[ -f ${HOMEBREW_PREFIX}/share/zsh-autosuggestions/zsh-autosuggestions.zsh ]]; then
+    source ${HOMEBREW_PREFIX}/share/zsh-autosuggestions/zsh-autosuggestions.zsh
 fi
 {{else}}
 if [[ -f /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh ]]; then
@@ -37,8 +48,8 @@ fi
 {{if .ZshSyntaxHighlighting}}
 # Zsh Syntax Highlighting - Fish-like syntax highlighting
 {{if .IsMac}}
-if [[ -f $(brew --prefix)/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ]]; then
-    source $(brew --prefix)/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+if [[ -f ${HOMEBREW_PREFIX}/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ]]; then
+    source ${HOMEBREW_PREFIX}/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
 fi
 {{else}}
 if [[ -f /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ]]; then
@@ -52,8 +63,8 @@ fi
 {{if .Powerlevel10k}}
 # Powerlevel10k - Fast and flexible Zsh theme
 {{if .IsMac}}
-if [[ -f $(brew --prefix)/share/powerlevel10k/powerlevel10k.zsh-theme ]]; then
-    source $(brew --prefix)/share/powerlevel10k/powerlevel10k.zsh-theme
+if [[ -f ${HOMEBREW_PREFIX}/share/powerlevel10k/powerlevel10k.zsh-theme ]]; then
+    source ${HOMEBREW_PREFIX}/share/powerlevel10k/powerlevel10k.zsh-theme
 fi
 {{else}}
 if [[ -f ~/powerlevel10k/powerlevel10k.zsh-theme ]]; then
