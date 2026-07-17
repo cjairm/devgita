@@ -218,6 +218,7 @@ do
 	require("devgita.plugins.coffee_script")
 	require("devgita.plugins.copilot")
 	require("devgita.plugins.lazygit")
+	require("devgita.plugins.obsession")
 	require("devgita.plugins.tmux_navigator")
 	require("devgita.plugins.vimade")
 	-- [/devgita]
