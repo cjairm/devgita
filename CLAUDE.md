@@ -444,6 +444,13 @@ Where to find and add code:
 5. Register in appropriate category in `internal/tooling/{category}/`
 6. Document in `docs/apps/{appname}.md`
 
+### Changing an embedded config
+
+1. Edit the file under `configs/`
+2. Rebuild and reinstall the binary before deploying — `dg configure` extracts configs from the running binary, so an old binary silently deploys the old config
+3. Deploy with `dg configure <app> --force`
+4. If the config must satisfy a constraint imposed by an external tool (a plugin or program that parses, splices, or re-executes the value), enforce that constraint with a test against the embedded configs FS — a comment in the config alone will not survive future edits
+
 ---
 
 ## Quick Reference: Common Commands
@@ -484,7 +491,7 @@ Quick reference to where things live:
 
 ## Recent Changes & Active Work
 
-**Last updated:** 2026-07-14
+**Last updated:** 2026-07-20
 
 **Recent specs completed:**
 
