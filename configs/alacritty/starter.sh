@@ -7,6 +7,9 @@
 # and every plugin script (tmux-continuum autosave needs `tmux` on PATH)
 # resolves commands through it. Rebuild the system PATH here, at server
 # birth, so all of that works. No-op on Linux (no path_helper).
+# Per-shell PATH self-repair (for panes/sessions born from a broken-PATH
+# client rather than this script) lives in configs/zsh/zshenv.zsh, wired into
+# ~/.zshenv by `dg configure`.
 if [ -x /usr/libexec/path_helper ]; then
 	eval "$(/usr/libexec/path_helper -s)"
 fi

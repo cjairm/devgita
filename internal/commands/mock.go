@@ -216,10 +216,11 @@ type MockBaseCommand struct {
 	IsMacResult bool
 
 	// Return values for other methods
-	SetupError          error
-	MaybeSetupError     error
-	MaybeInstallError   error
-	InstallFontURLError error
+	SetupError            error
+	MaybeSetupError       error
+	MaybeSetupInFileError error
+	MaybeInstallError     error
+	InstallFontURLError   error
 }
 
 // NewMockBaseCommand creates a new MockBaseCommand with sensible defaults
@@ -235,6 +236,7 @@ func NewMockBaseCommand() *MockBaseCommand {
 		IsMacResult:               false,
 		SetupError:                nil,
 		MaybeSetupError:           nil,
+		MaybeSetupInFileError:     nil,
 		MaybeInstallError:         nil,
 		InstallFontURLError:       nil,
 	}
@@ -282,6 +284,11 @@ func (m *MockBaseCommand) Setup(line string) error {
 // MaybeSetup mocks the BaseCommand.MaybeSetup method
 func (m *MockBaseCommand) MaybeSetup(line, toSearch string) error {
 	return m.MaybeSetupError
+}
+
+// MaybeSetupInFile mocks the BaseCommand.MaybeSetupInFile method
+func (m *MockBaseCommand) MaybeSetupInFile(line, toSearch, filePath string) error {
+	return m.MaybeSetupInFileError
 }
 
 // IsDesktopAppPresent mocks the BaseCommand.IsDesktopAppPresent method

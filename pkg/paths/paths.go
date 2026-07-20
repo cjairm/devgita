@@ -254,8 +254,10 @@ var Paths = struct {
 // Files contains all file path structures
 var Files = struct {
 	ShellConfig string
+	ZshEnv      string
 }{
 	ShellConfig: GetShellConfigFile(),
+	ZshEnv:      GetZshEnvFile(),
 }
 
 // Public API functions
@@ -364,6 +366,14 @@ func GetShellConfigFile() string {
 	}
 	// If none exist, default to .zshrc
 	return filepath.Join(home, ".zshrc")
+}
+
+// GetZshEnvFile returns the user's ~/.zshenv path. Unlike GetShellConfigFile,
+// this never falls back to searching alternate candidates: ~/.zshenv is the
+// one place zsh sources before anything else (login or not), whether or not
+// the file exists yet.
+func GetZshEnvFile() string {
+	return filepath.Join(userHome(), ".zshenv")
 }
 
 // Returns user-level fonts dir

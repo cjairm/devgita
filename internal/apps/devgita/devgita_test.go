@@ -8,11 +8,42 @@ import (
 	"testing"
 
 	"github.com/cjairm/devgita/internal/apps"
+	"github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/internal/embedded"
 	"github.com/cjairm/devgita/internal/testutil"
 	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/paths"
 )
+
+// fakePlatform is a minimal commands.CustomizablePlatform so tests can build a
+// real *commands.BaseCommand — MaybeSetupInFile is a file-only operation, so
+// exercising it with the real BaseCommand (against sandboxed paths) doesn't
+// violate the no-real-commands testing rule, and it's the only way to assert
+// on the actual file content the wiring produces (MockBaseCommand no-ops it).
+type fakePlatform struct{}
+
+func (fakePlatform) IsLinux() bool { return false }
+func (fakePlatform) IsMac() bool   { return true }
+
+// setupZshenvPaths isolates paths.Files.ShellConfig and paths.Files.ZshEnv to
+// sandboxed temp files and restores the originals on cleanup, per the testing
+// checklist requirement to save/restore every paths.Files.* mutation.
+func setupZshenvPaths(t *testing.T, shellConfigBasename string) (zshenvPath string) {
+	t.Helper()
+
+	dir := t.TempDir()
+	origShellConfig := paths.Files.ShellConfig
+	origZshEnv := paths.Files.ZshEnv
+	t.Cleanup(func() {
+		paths.Files.ShellConfig = origShellConfig
+		paths.Files.ZshEnv = origZshEnv
+	})
+
+	paths.Files.ShellConfig = filepath.Join(dir, shellConfigBasename)
+	zshenvPath = filepath.Join(dir, ".zshenv")
+	paths.Files.ZshEnv = zshenvPath
+	return zshenvPath
+}
 
 func init() {
 	testutil.InitLogger()
@@ -380,6 +411,175 @@ shell:
 
 	if !strings.Contains(string(content), "Custom config marker") {
 		t.Error("Expected custom config marker to be preserved")
+	}
+
+	testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
+}
+
+// assertZshenvWiredOnce reads zshenvPath and asserts it contains the guarded,
+// quoted source line for scriptPath exactly once. The guarded line references
+// scriptPath twice ("[ -f "X" ] && source "X""), so one write produces 2
+// occurrences of the path; a duplicate write would produce 4. Callers use
+// this both right after wiring and again after a second, idempotent run.
+func assertZshenvWiredOnce(t *testing.T, zshenvPath, scriptPath string) {
+	t.Helper()
+
+	content, err := os.ReadFile(zshenvPath)
+	if err != nil {
+		t.Fatalf("Expected ~/.zshenv to exist, got error reading it: %v", err)
+	}
+
+	expectedLine := fmt.Sprintf(`[ -f "%s" ] && source "%s"`, scriptPath, scriptPath)
+	if !strings.Contains(string(content), expectedLine) {
+		t.Errorf("Expected ~/.zshenv to contain %q, got: %q", expectedLine, string(content))
+	}
+	if occurrences := strings.Count(string(content), scriptPath); occurrences != 2 {
+		t.Errorf(
+			"Expected the guarded line to appear exactly once (2 occurrences of the script path), got %d in: %q",
+			occurrences,
+			string(content),
+		)
+	}
+}
+
+func TestForceConfigure_WiresZshenv_WhenShellIsZsh(t *testing.T) {
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
+	zshenvPath := setupZshenvPaths(t, ".zshrc")
+
+	// Real BaseCommand: MaybeSetupInFile only touches files, so this is safe
+	// against the sandboxed paths above, and it's the only way to see the
+	// actual line written (MockBaseCommand no-ops MaybeSetupInFile).
+	dg := &Devgita{
+		Base:            commands.NewBaseCommandCustom(fakePlatform{}),
+		ExtractEmbedded: mockExtractor,
+	}
+
+	if err := dg.ForceConfigure(); err != nil {
+		t.Fatalf("ForceConfigure() failed: %v", err)
+	}
+	assertZshenvWiredOnce(t, zshenvPath, getZshenvScriptPath())
+
+	// Running ForceConfigure again must not duplicate the line.
+	if err := dg.ForceConfigure(); err != nil {
+		t.Fatalf("Second ForceConfigure() failed: %v", err)
+	}
+	assertZshenvWiredOnce(t, zshenvPath, getZshenvScriptPath())
+}
+
+func TestForceConfigure_ReturnsWrappedError_WhenZshenvWiringFails(t *testing.T) {
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
+	// ShellConfig must look like .zshrc so the gate in setupZshenv is passed
+	// and dg.Base.MaybeSetupInFile actually gets called.
+	setupZshenvPaths(t, ".zshrc")
+
+	tc.MockApp.Base.MaybeSetupInFileError = fmt.Errorf("injected zshenv wiring failure")
+	dg := &Devgita{
+		Base:            tc.MockApp.Base,
+		ExtractEmbedded: mockExtractor,
+	}
+
+	err := dg.ForceConfigure()
+	if err == nil {
+		t.Fatal("Expected ForceConfigure() to return an error when zshenv wiring fails, got nil")
+	}
+	if !strings.Contains(err.Error(), "injected zshenv wiring failure") {
+		t.Errorf("Expected error to wrap the underlying MaybeSetupInFile error, got: %v", err)
+	}
+
+	testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
+}
+
+func TestForceConfigure_NoZshenv_WhenShellIsNotZsh(t *testing.T) {
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
+	zshenvPath := setupZshenvPaths(t, ".bashrc")
+
+	dg := &Devgita{
+		Base:            commands.NewBaseCommandCustom(fakePlatform{}),
+		ExtractEmbedded: mockExtractor,
+	}
+
+	if err := dg.ForceConfigure(); err != nil {
+		t.Fatalf("ForceConfigure() failed: %v", err)
+	}
+
+	if _, err := os.Stat(zshenvPath); !os.IsNotExist(err) {
+		t.Errorf("Expected no ~/.zshenv to be created for a bash shell config, but it exists")
+	}
+}
+
+func TestSoftConfigure_WiresZshenv_OnExistingInstall(t *testing.T) {
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
+	zshenvPath := setupZshenvPaths(t, ".zshrc")
+
+	// Existing install with extended_capabilities already enabled, so
+	// SoftConfigure takes its early-return path instead of ForceConfigure.
+	existingContent := `app_path: /custom/path
+config_path: ""
+shell:
+  mise: false
+  zoxide: false
+  zsh_autosuggestions: false
+  zsh_syntax_highlighting: false
+  powerlevel10k: false
+  extended_capabilities: true
+  lazy_git: false
+  lazy_docker: false
+  fzf: false
+  neovim: false
+  tmux: false
+  eza: false
+  bat: false
+`
+	if err := os.WriteFile(tc.ConfigPath, []byte(existingContent), 0o644); err != nil {
+		t.Fatalf("Failed to create existing config: %v", err)
+	}
+	actualZshPath := getZshConfigPath()
+	if err := os.WriteFile(actualZshPath, []byte("# existing\n"), 0o644); err != nil {
+		t.Fatalf("Failed to create existing zsh config: %v", err)
+	}
+
+	dg := &Devgita{
+		Base:            commands.NewBaseCommandCustom(fakePlatform{}),
+		ExtractEmbedded: mockExtractor,
+	}
+
+	if err := dg.SoftConfigure(); err != nil {
+		t.Fatalf("SoftConfigure() failed: %v", err)
+	}
+	assertZshenvWiredOnce(t, zshenvPath, getZshenvScriptPath())
+
+	// Running SoftConfigure again must not duplicate the line.
+	if err := dg.SoftConfigure(); err != nil {
+		t.Fatalf("Second SoftConfigure() failed: %v", err)
+	}
+	assertZshenvWiredOnce(t, zshenvPath, getZshenvScriptPath())
+}
+
+func TestSoftConfigure_ReturnsWrappedError_WhenZshenvWiringFails(t *testing.T) {
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
+	// ShellConfig must look like .zshrc so the gate in setupZshenv is passed
+	// and dg.Base.MaybeSetupInFile actually gets called. setupZshenv runs
+	// before SoftConfigure's early-return checks, so this fails immediately
+	// regardless of whether the global config / zsh config already exist.
+	setupZshenvPaths(t, ".zshrc")
+
+	tc.MockApp.Base.MaybeSetupInFileError = fmt.Errorf("injected zshenv wiring failure")
+	dg := &Devgita{
+		Base:            tc.MockApp.Base,
+		ExtractEmbedded: mockExtractor,
+	}
+
+	err := dg.SoftConfigure()
+	if err == nil {
+		t.Fatal("Expected SoftConfigure() to return an error when zshenv wiring fails, got nil")
+	}
+	if !strings.Contains(err.Error(), "injected zshenv wiring failure") {
+		t.Errorf("Expected error to wrap the underlying MaybeSetupInFile error, got: %v", err)
 	}
 
 	testutil.VerifyNoRealCommands(t, tc.MockApp.Base)

@@ -40,6 +40,26 @@ func getZshConfigPath() string {
 	return filepath.Join(paths.Paths.App.Root, fmt.Sprintf("%s.zsh", constants.App.Name))
 }
 
+func getZshenvScriptPath() string {
+	return filepath.Join(paths.Paths.App.Root, "configs", "zsh", "zshenv.zsh")
+}
+
+// setupZshenv wires devgita's PATH self-repair script (configs/zsh/zshenv.zsh)
+// into the user's ~/.zshenv. ~/.zshenv runs before /etc/zshrc for every zsh —
+// login or not — which is what lets it fix a PATH a non-login tmux pane
+// inherited broken, before oh-my-zsh/p10k get a chance to spew "command not
+// found". The "[ -f ... ] &&" guard means uninstalling devgita leaves a dead
+// line instead of a broken shell startup. Only zsh reads ~/.zshenv, so bash
+// users are skipped — wiring it in would just create a file nothing sources.
+func (dg *Devgita) setupZshenv() error {
+	if filepath.Base(paths.Files.ShellConfig) != ".zshrc" {
+		return nil
+	}
+	scriptPath := getZshenvScriptPath()
+	line := fmt.Sprintf(`[ -f "%s" ] && source "%s"`, scriptPath, scriptPath)
+	return dg.Base.MaybeSetupInFile(line, scriptPath, paths.Files.ZshEnv)
+}
+
 func New() *Devgita {
 	return &Devgita{
 		Base:            commands.NewBaseCommand(),
@@ -162,9 +182,12 @@ func (dg *Devgita) ForceConfigure() error {
 	if err := gc.RegenerateShellConfig(); err != nil {
 		return fmt.Errorf("failed to create global config file: %w", err)
 	}
-	devgitaConfigLine := fmt.Sprintf("source %s", getZshConfigPath())
+	devgitaConfigLine := fmt.Sprintf(`source "%s"`, getZshConfigPath())
 	if err := dg.Base.MaybeSetup(devgitaConfigLine, getZshConfigPath()); err != nil {
 		return err
+	}
+	if err := dg.setupZshenv(); err != nil {
+		return fmt.Errorf("failed to wire PATH self-repair into ~/.zshenv: %w", err)
 	}
 	logger.L().Infow("Shell config regenerated", "path", getZshConfigPath())
 	fmt.Printf("Run `source %s` to apply shell changes.\n", getZshConfigPath())
@@ -172,6 +195,11 @@ func (dg *Devgita) ForceConfigure() error {
 }
 
 func (dg *Devgita) SoftConfigure() error {
+	// Cheap and idempotent, so existing installs pick up the PATH self-repair
+	// wiring on a plain `dg configure`, not just a fresh `--force` one.
+	if err := dg.setupZshenv(); err != nil {
+		return fmt.Errorf("failed to wire PATH self-repair into ~/.zshenv: %w", err)
+	}
 	if !files.FileAlreadyExist(getGlobalConfigPath()) ||
 		!files.FileAlreadyExist(getZshConfigPath()) {
 		return dg.ForceConfigure()

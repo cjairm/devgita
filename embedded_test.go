@@ -43,3 +43,30 @@ func TestTmuxDefaultCommandStaysResurrectSafe(t *testing.T) {
 		}
 	}
 }
+
+// configs/zsh/zshenv.zsh is sourced from ~/.zshenv on every zsh startup
+// (login or not), before /etc/zshrc runs. zsh startup semantics — not a
+// convention we control — impose the guard shape this test checks: without
+// the PATH probe the script would eval path_helper unconditionally on every
+// shell (including already-healthy ones), and without the executable check
+// it would blow up on Linux, where path_helper doesn't exist.
+func TestZshenvStaysPathRepairSafe(t *testing.T) {
+	data, err := fs.ReadFile(ConfigsFS, "configs/zsh/zshenv.zsh")
+	if err != nil {
+		t.Fatalf("failed to read embedded zshenv.zsh: %v", err)
+	}
+	content := string(data)
+
+	if !strings.Contains(content, `":$PATH:" != *":/usr/bin:"*`) {
+		t.Error(
+			"zshenv.zsh must guard on PATH missing /usr/bin — without it, the script would " +
+				"re-run path_helper on every shell startup instead of only broken ones",
+		)
+	}
+	if !strings.Contains(content, "/usr/libexec/path_helper") {
+		t.Error(
+			"zshenv.zsh must check for /usr/libexec/path_helper — without it, the script " +
+				"would fail on Linux, where path_helper doesn't exist",
+		)
+	}
+}

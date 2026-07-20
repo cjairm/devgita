@@ -4,8 +4,10 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -38,6 +40,7 @@ type BaseCommandExecutor interface {
 	// Shell configuration
 	Setup(line string) error
 	MaybeSetup(line, toSearch string) error
+	MaybeSetupInFile(line, toSearch, filePath string) error
 
 	// System checks
 	IsDesktopAppPresent(dirPath, appName string) (bool, error)
@@ -105,14 +108,26 @@ func (b *BaseCommand) Setup(line string) error {
 }
 
 func (b *BaseCommand) MaybeSetup(line, toSearch string) error {
-	isAlreadySetup, err := files.ContentExistsInFile(paths.Files.ShellConfig, toSearch)
+	return b.MaybeSetupInFile(line, toSearch, paths.Files.ShellConfig)
+}
+
+// MaybeSetupInFile is MaybeSetup generalized to an arbitrary file, so callers
+// that need to wire a line into a shell startup file other than
+// paths.Files.ShellConfig (e.g. ~/.zshenv) don't need a second code path.
+// The target file is allowed not to exist yet: a missing file has never had
+// the line added, so it's treated as "not set up" and gets created.
+func (b *BaseCommand) MaybeSetupInFile(line, toSearch, filePath string) error {
+	isAlreadySetup, err := files.ContentExistsInFile(filePath, toSearch)
 	if err != nil {
-		return err
+		if !errors.Is(err, fs.ErrNotExist) {
+			return err
+		}
+		isAlreadySetup = false
 	}
-	if isAlreadySetup == true {
+	if isAlreadySetup {
 		return nil
 	}
-	return b.Setup(line)
+	return files.AddLineToFile(line, filePath)
 }
 
 func (b *BaseCommand) IsDesktopAppPresent(dirPath, appName string) (bool, error) {
