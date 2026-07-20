@@ -355,6 +355,15 @@ dg wt prune                                 # Remove all worktrees (prompts for 
   `global_config.yaml`'s `worktree.recent_repos` (MRU-ordered, capped at 20). This is what lets
   the picker offer a repo that currently has zero worktrees.
 
+**In-progress feedback**: any dashboard action that builds or tears down tmux state shows a
+status line at the bottom while it runs, so the dashboard is never silently unresponsive during
+the (occasionally slow) git/tmux work: `creating worktree: <name> (<layout>)…` on create,
+`repairing: <name> (<layout>)…` on `r` (and on attaching to a worktree whose window is missing,
+which auto-repairs), and `deleting: <name>…` on the confirming `d`/`D` press. The layout is named
+by its tools (`claude`, `opencode`, `neovim`, `claude + neovim`). Each message is replaced by the
+result the moment the action finishes (and is moot inside tmux on a create/attach that succeeds,
+since the TUI then attaches and exits).
+
 **Planned commands**: See [ROADMAP.md](ROADMAP.md) for planned features and future commands.
 
 #### `dg list`

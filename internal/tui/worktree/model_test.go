@@ -656,3 +656,99 @@ func TestHelpOverlayShowsDashboardBackground(t *testing.T) {
 
 // Create-flow (n → repo-pick → name-input → create) tests live in
 // create_flow_test.go, mirroring the create_flow.go/model.go split.
+
+// --- In-progress status feedback (shared with the create flow) ---
+
+func TestDeleteShowsDeletingStatusOnConfirm(t *testing.T) {
+	m := makeTestModel(testStatuses())
+	m.removeFn = func(_, _ string, _ bool) error { return nil }
+
+	// First d arms the confirm — no "deleting" status yet.
+	m2, _ := m.Update(tea.KeyPressMsg{Code: 'd'})
+	m3 := m2.(Model)
+	if strings.Contains(m3.status, "deleting") {
+		t.Errorf("the arming press should not show a deleting status, got %q", m3.status)
+	}
+
+	// Second d confirms and runs the removal — status shows now.
+	m4, cmd := m3.Update(tea.KeyPressMsg{Code: 'd'})
+	m5 := m4.(Model)
+	if !strings.Contains(m5.status, "deleting: ") {
+		t.Errorf("the confirming press should show a deleting status, got %q", m5.status)
+	}
+	if cmd == nil {
+		t.Fatal("the confirming press should return the async remove command")
+	}
+}
+
+func TestDeleteStatusReplacedAfterCompletion(t *testing.T) {
+	m := makeTestModel(testStatuses())
+	m.removeFn = func(_, _ string, _ bool) error { return nil }
+
+	// Arm, then confirm — the transient "deleting…" status is up.
+	m2, _ := m.Update(tea.KeyPressMsg{Code: 'd'})
+	m4, cmd := m2.(Model).Update(tea.KeyPressMsg{Code: 'd'})
+	m5 := m4.(Model)
+	if !strings.Contains(m5.status, "deleting: ") {
+		t.Fatalf("expected a deleting status while removing, got %q", m5.status)
+	}
+	if cmd == nil {
+		t.Fatal("confirming press should return the async remove command")
+	}
+
+	// Run the async removal and feed its result back: the transient status must
+	// be replaced (this is the bug — statusesMsg used to leave it lingering).
+	m6, _ := m5.Update(cmd())
+	m7 := m6.(Model)
+	if strings.Contains(m7.status, "deleting") {
+		t.Errorf("deleting status must not linger after the removal completes, got %q", m7.status)
+	}
+	if !strings.Contains(m7.status, "removed: ") {
+		t.Errorf("expected a removed confirmation after delete, got %q", m7.status)
+	}
+}
+
+func TestRepairShowsRepairingStatus(t *testing.T) {
+	m := makeTestModel(testStatuses())
+	m.repairFn = func(_, _ string, _ worktree.Layout) error { return nil }
+
+	m2, cmd := m.Update(tea.KeyPressMsg{Code: 'r'})
+	m3 := m2.(Model)
+	if !strings.Contains(m3.status, "repairing: ") {
+		t.Errorf("r should show a repairing status, got %q", m3.status)
+	}
+	if cmd == nil {
+		t.Fatal("r should return the async repair command")
+	}
+}
+
+func TestAttachShowsRepairingStatusWhenWindowMissing(t *testing.T) {
+	t.Setenv("TMUX", "1") // handleAttach only acts inside tmux
+	m := makeTestModel(testStatuses())
+	// makeTestModel's windowSessionFn reports the window missing, so attach
+	// falls into the (slow) auto-repair path.
+
+	m2, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m3 := m2.(Model)
+	if !strings.Contains(m3.status, "repairing: ") {
+		t.Errorf("attach with a missing window should show a repairing status, got %q", m3.status)
+	}
+	if cmd == nil {
+		t.Fatal("attach should return a command")
+	}
+}
+
+func TestAttachNoRepairingStatusWhenWindowPresent(t *testing.T) {
+	t.Setenv("TMUX", "1")
+	m := makeTestModel(testStatuses())
+	m.windowSessionFn = func(string) (string, bool) { return "misc", true } // window present
+
+	m2, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m3 := m2.(Model)
+	if strings.Contains(m3.status, "repairing") {
+		t.Errorf(
+			"attach with a present window attaches instantly; no repairing status expected, got %q",
+			m3.status,
+		)
+	}
+}

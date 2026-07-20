@@ -62,16 +62,18 @@ func (l Layout) EnsureInstalled() error {
 	return nil
 }
 
-// ensureNvimInstalled checks that nvim is on PATH. Neovim has no AICoder
-// wrapper (it isn't an AI coder), so it can't call an existing
-// coder.EnsureInstalled() directly - but it reuses the same
-// ensureToolInstalled helper aicoder.go's OpenCodeCoder/ClaudeCoder use,
-// rather than a third hand-rolled "LookPath + format an install hint" copy.
-// Neovim installs under the "terminal" category (see
-// internal/tooling/terminal/terminal.go), matching the hint
-// ensureToolInstalled already gives for opencode/claude.
+// ensureNvimInstalled checks that nvim resolves in the user's interactive
+// shell. Neovim has no AICoder wrapper (it isn't an AI coder), so it can't call
+// an existing coder.EnsureInstalled() directly - but it reuses the same
+// ensureToolInstalled helper aicoder.go's OpenCodeCoder/ClaudeCoder use (an
+// interactive-shell probe, not exec.LookPath - see ensureToolInstalled for
+// why), rather than a third hand-rolled copy. Neovim installs under the
+// "terminal" category (see internal/tooling/terminal/terminal.go), matching the
+// hint ensureToolInstalled already gives for opencode/claude.
 func ensureNvimInstalled() error {
-	return ensureToolInstalled(nvimCommand)
+	// nvim's launch token and display name are the same - it's the raw binary,
+	// with no cc/oc-style alias indirection.
+	return ensureToolInstalled(nvimCommand, nvimCommand)
 }
 
 // newLayout pairs panes with their install checkers at construction time.

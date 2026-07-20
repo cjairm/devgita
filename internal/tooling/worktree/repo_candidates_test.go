@@ -37,6 +37,17 @@ func okLookPath(t *testing.T) {
 	})
 }
 
+// setShellCommandExistsFn swaps commands.ShellCommandExistsFn for the duration
+// of a test, so the coder/nvim install checks (which resolve tools through the
+// interactive shell, not exec.LookPath) can be driven to present/absent without
+// spawning a real shell. Same swap-and-restore pattern as setLookPathFn.
+func setShellCommandExistsFn(t *testing.T, fn func(string) bool) {
+	t.Helper()
+	orig := commands.ShellCommandExistsFn
+	commands.ShellCommandExistsFn = fn
+	t.Cleanup(func() { commands.ShellCommandExistsFn = orig })
+}
+
 // newRecordingWM builds a WorktreeManager wired to fresh mocks, mirroring the
 // construction pattern already used across worktree_test.go.
 func newRecordingWM() (wm *WorktreeManager, mockGitBase, mockTmuxBase, mockBase *commands.MockBaseCommand) {

@@ -923,3 +923,87 @@ func TestEnterLayoutPickResolveLayoutErrorStaysInNameInput(t *testing.T) {
 		t.Error("expected a status message describing the resolve failure")
 	}
 }
+
+// --- Create flow (loading status) ---
+
+func TestFriendlyLayoutName(t *testing.T) {
+	cases := map[string]string{
+		"nvim":               "neovim",             // config token reads as the real name
+		"claude-nvim":        "claude + neovim",    // two-pane layout
+		"opencode":           "opencode",           // already friendly, unchanged
+		"claude":             "claude",             // already friendly, unchanged
+		"some-future-custom": "some-future-custom", // unknown falls back to the raw name
+	}
+	for in, want := range cases {
+		if got := friendlyLayoutName(in); got != want {
+			t.Errorf("friendlyLayoutName(%q) = %q, want %q", in, want, got)
+		}
+	}
+}
+
+func TestLayoutActionStatusNamesResolvedLayout(t *testing.T) {
+	// N-path create: an explicit layout name, friendly-mapped.
+	if got := layoutActionStatus(
+		"creating worktree",
+		"feat",
+		"nvim",
+		nil,
+	); got != "creating worktree: feat (neovim)…" {
+		t.Errorf("N-path create status = %q", got)
+	}
+	// n-path: "" resolves the default the same way the action will (nil gc falls
+	// all the way through to the opencode built-in), so the status still names it.
+	if got := layoutActionStatus(
+		"creating worktree",
+		"feat",
+		"",
+		nil,
+	); got != "creating worktree: feat (opencode)…" {
+		t.Errorf("n-path create status = %q", got)
+	}
+	// Reused for repair with a different verb, same layout naming.
+	if got := layoutActionStatus(
+		"repairing",
+		"feat",
+		"nvim",
+		nil,
+	); got != "repairing: feat (neovim)…" {
+		t.Errorf("repair status = %q", got)
+	}
+	// An unresolvable layout name drops the tool label rather than erroring here;
+	// the action's own ResolveLayout call surfaces the real error afterward.
+	if got := layoutActionStatus(
+		"creating worktree",
+		"feat",
+		"bogus-xyz",
+		nil,
+	); got != "creating worktree: feat…" {
+		t.Errorf("unresolvable-layout status = %q", got)
+	}
+}
+
+func TestActionStatus(t *testing.T) {
+	if got := actionStatus("deleting", "feat"); got != "deleting: feat…" {
+		t.Errorf("actionStatus = %q", got)
+	}
+}
+
+// The dashboard must show immediate feedback the moment a create is dispatched,
+// not sit blank while the worktree + tmux window are built.
+func TestDispatchCreateSetsCreatingStatus(t *testing.T) {
+	m := makeTestModel(testStatuses())
+	m.createMode = createNameInput
+	m.createRepo = "/repos/alpha"
+	m.createInput.SetValue("feat")
+	// wantsLayoutPick is false → the n-path dispatches immediately on enter.
+
+	m2, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m3 := m2.(Model)
+
+	if !strings.Contains(m3.status, "creating worktree: feat") {
+		t.Errorf("expected a creating-status while the create runs, got %q", m3.status)
+	}
+	if cmd == nil {
+		t.Fatal("expected the async create command to be returned")
+	}
+}

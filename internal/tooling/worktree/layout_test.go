@@ -1,7 +1,6 @@
 package worktree
 
 import (
-	"os"
 	"strings"
 	"testing"
 
@@ -19,21 +18,21 @@ func TestBuiltinLayoutShapes(t *testing.T) {
 		{
 			name: "opencode",
 			wantPanes: []Pane{
-				{Command: "opencode", Split: ""},
+				{Command: "oc", Split: ""},
 			},
 			wantChecks: 1,
 		},
 		{
 			name: "claude",
 			wantPanes: []Pane{
-				{Command: "CLAUDE_CODE_NO_FLICKER=1 claude", Split: ""},
+				{Command: "cc", Split: ""},
 			},
 			wantChecks: 1,
 		},
 		{
 			name: "claude-nvim",
 			wantPanes: []Pane{
-				{Command: "CLAUDE_CODE_NO_FLICKER=1 claude", Split: ""},
+				{Command: "cc", Split: ""},
 				{Command: "nvim", Split: "vertical"},
 			},
 			wantChecks: 2,
@@ -118,7 +117,7 @@ func TestResolveLayoutAliasBeatsDefaultLayoutAndDefaultAI(t *testing.T) {
 			layout.Name,
 		)
 	}
-	if len(layout.Panes) != 1 || layout.Panes[0].Command != "opencode" {
+	if len(layout.Panes) != 1 || layout.Panes[0].Command != "oc" {
 		t.Errorf("expected single-pane opencode layout, got %+v", layout.Panes)
 	}
 }
@@ -156,7 +155,7 @@ func TestResolveLayoutDefaultAIOnlyDerivesSinglePaneLayout(t *testing.T) {
 	if layout.Name != "claude" {
 		t.Errorf("expected derived layout name 'claude', got %q", layout.Name)
 	}
-	if len(layout.Panes) != 1 || layout.Panes[0].Command != "CLAUDE_CODE_NO_FLICKER=1 claude" {
+	if len(layout.Panes) != 1 || layout.Panes[0].Command != "cc" {
 		t.Errorf("expected single-pane claude layout, got %+v", layout.Panes)
 	}
 	if layout.Panes[0].Split != "" {
@@ -174,7 +173,7 @@ func TestResolveLayoutEmptyEverythingFallsBackToOpencode(t *testing.T) {
 	if layout.Name != "opencode" {
 		t.Errorf("expected fallback layout 'opencode', got %q", layout.Name)
 	}
-	if len(layout.Panes) != 1 || layout.Panes[0].Command != "opencode" {
+	if len(layout.Panes) != 1 || layout.Panes[0].Command != "oc" {
 		t.Errorf("expected single-pane opencode layout, got %+v", layout.Panes)
 	}
 }
@@ -216,18 +215,18 @@ func TestResolveLayoutInvalidAliasErrors(t *testing.T) {
 
 // --- install-check surface ---
 
-// setLookPathFn, failingLookPath, and okLookPath already exist in
-// repo_candidates_test.go (same package) and swap commands.LookPathFn for
-// the duration of a test; reused here rather than re-implemented.
+// setShellCommandExistsFn (in repo_candidates_test.go, same package) swaps
+// commands.ShellCommandExistsFn — the interactive-shell probe every coder/nvim
+// install check now routes through (see aicoder.go's ensureToolInstalled).
+// allToolsPresent/noToolsPresent are the two common stubs. Checks resolve the
+// underlying binary name (opencode/claude/nvim), not the cc/oc launch alias.
 
 func TestNvimEnsureInstalledSurfacesActionableError(t *testing.T) {
-	setLookPathFn(t, func(string) (string, error) {
-		return "", os.ErrNotExist
-	})
+	setShellCommandExistsFn(t, func(string) bool { return false })
 
 	err := ensureNvimInstalled()
 	if err == nil {
-		t.Fatal("expected error when nvim is not on PATH, got nil")
+		t.Fatal("expected error when nvim does not resolve in the shell, got nil")
 	}
 	if got := err.Error(); got == "" {
 		t.Fatal("expected a non-empty, actionable error message")
@@ -235,24 +234,20 @@ func TestNvimEnsureInstalledSurfacesActionableError(t *testing.T) {
 }
 
 func TestNvimEnsureInstalledOK(t *testing.T) {
-	setLookPathFn(t, func(string) (string, error) {
-		return "/usr/bin/nvim", nil
-	})
+	setShellCommandExistsFn(t, func(name string) bool { return name == "nvim" })
 
 	if err := ensureNvimInstalled(); err != nil {
-		t.Fatalf("unexpected error when nvim is on PATH: %v", err)
+		t.Fatalf("unexpected error when nvim resolves in the shell: %v", err)
 	}
 }
 
 // Layout.EnsureInstalled aggregates all pane checks and names which pane
-// failed. All built-ins (opencode, claude, nvim) now route their install
-// checks through the shared ensureToolInstalled helper in aicoder.go, which
-// itself goes through the swappable commands.LookPathFn - so every built-in
+// failed. All built-ins (opencode, claude, nvim) route their install checks
+// through the shared ensureToolInstalled helper in aicoder.go, which goes
+// through the swappable commands.ShellCommandExistsFn - so every built-in
 // layout's failure path is exercisable here, not just nvim's.
 func TestLayoutEnsureInstalledReportsFailingPane(t *testing.T) {
-	setLookPathFn(t, func(string) (string, error) {
-		return "", os.ErrNotExist
-	})
+	setShellCommandExistsFn(t, func(string) bool { return false })
 
 	layout, err := ResolveLayout("nvim", "", nil)
 	if err != nil {
@@ -266,9 +261,7 @@ func TestLayoutEnsureInstalledReportsFailingPane(t *testing.T) {
 }
 
 func TestLayoutEnsureInstalledOK(t *testing.T) {
-	setLookPathFn(t, func(string) (string, error) {
-		return "/usr/bin/nvim", nil
-	})
+	setShellCommandExistsFn(t, func(name string) bool { return name == "nvim" })
 
 	layout, err := ResolveLayout("nvim", "", nil)
 	if err != nil {
@@ -284,12 +277,7 @@ func TestLayoutEnsureInstalledOK(t *testing.T) {
 // tools (claude, nvim). Simulate only the second pane's tool being missing
 // and confirm EnsureInstalled names pane 2, not pane 1, in its error.
 func TestLayoutEnsureInstalledReportsCorrectPaneIndexInMultiPaneLayout(t *testing.T) {
-	setLookPathFn(t, func(name string) (string, error) {
-		if name == "nvim" {
-			return "", os.ErrNotExist
-		}
-		return "/usr/bin/" + name, nil
-	})
+	setShellCommandExistsFn(t, func(name string) bool { return name != "nvim" })
 
 	layout, err := ResolveLayout("claude-nvim", "", nil)
 	if err != nil {
@@ -305,14 +293,12 @@ func TestLayoutEnsureInstalledReportsCorrectPaneIndexInMultiPaneLayout(t *testin
 	}
 }
 
-// opencode's and claude's install checks now go through the same swappable
-// commands.LookPathFn as nvim's (via aicoder.go's shared ensureToolInstalled
-// helper), so their failure paths are exercisable here too - this used to be
-// a documented gap when each coder called exec.LookPath directly.
+// opencode's and claude's install checks go through the same swappable
+// commands.ShellCommandExistsFn as nvim's (via aicoder.go's shared
+// ensureToolInstalled helper), so their failure paths are exercisable here too
+// - this used to be a documented gap when each coder called exec.LookPath.
 func TestLayoutEnsureInstalledFailsForOpencodeBuiltin(t *testing.T) {
-	setLookPathFn(t, func(string) (string, error) {
-		return "", os.ErrNotExist
-	})
+	setShellCommandExistsFn(t, func(string) bool { return false })
 
 	layout, err := ResolveLayout("opencode", "", nil)
 	if err != nil {
@@ -329,9 +315,7 @@ func TestLayoutEnsureInstalledFailsForOpencodeBuiltin(t *testing.T) {
 }
 
 func TestLayoutEnsureInstalledFailsForClaudeBuiltin(t *testing.T) {
-	setLookPathFn(t, func(string) (string, error) {
-		return "", os.ErrNotExist
-	})
+	setShellCommandExistsFn(t, func(string) bool { return false })
 
 	layout, err := ResolveLayout("claude", "", nil)
 	if err != nil {

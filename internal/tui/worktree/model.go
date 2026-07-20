@@ -53,6 +53,16 @@ type (
 	statusMsg string
 )
 
+// deletedMsg reports a successful removal so Update can both refresh the list
+// (drop the removed row) and replace the transient "deleting…" status with a
+// "removed:" confirmation. A plain statusesMsg would refresh the list but leave
+// the "deleting…" status lingering, since its handler never touches m.status
+// (it's also the periodic-refresh message, which must not clobber statuses).
+type deletedMsg struct {
+	name     string
+	statuses []worktree.WorktreeStatus
+}
+
 // --- Model ---
 
 // Model is the Bubble Tea model for the worktree TUI dashboard.
@@ -350,6 +360,21 @@ func (m *Model) rebuildRows() {
 	m.cursor = tuicomponents.ClampCursor(worktreeIndices(m.rows), m.cursor)
 }
 
+// applyStatuses installs a refreshed worktree list, rebuilds the rows, and
+// re-derives the selected worktree's diff. Shared by the statusesMsg (periodic
+// refresh, delete-result) and deletedMsg handlers so they can't drift; it does
+// not touch m.status, leaving that to the caller (statusesMsg keeps whatever
+// status is up; deletedMsg sets a "removed:" confirmation first).
+func (m Model) applyStatuses(statuses []worktree.WorktreeStatus) (tea.Model, tea.Cmd) {
+	m.statuses = statuses
+	m.loaded = true
+	m.rebuildRows()
+	if sel, ok := m.selectedStatus(); ok {
+		return m, m.selectionChangedCmd(sel)
+	}
+	return m, nil
+}
+
 // navigableIndices returns row indices that j/k visit: all worktree rows plus
 // collapsed repo header rows (so the user can reach a collapsed header and press l).
 func (m *Model) navigableIndices() []int {
@@ -406,13 +431,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case statusesMsg:
-		m.statuses = []worktree.WorktreeStatus(msg)
-		m.loaded = true
-		m.rebuildRows()
-		if sel, ok := m.selectedStatus(); ok {
-			return m, m.selectionChangedCmd(sel)
-		}
-		return m, nil
+		return m.applyStatuses([]worktree.WorktreeStatus(msg))
+
+	case deletedMsg:
+		// Replace the transient "deleting…" status with a confirmation, then
+		// apply the refreshed (row-dropped) list the same way statusesMsg does.
+		m.status = "removed: " + msg.name
+		return m.applyStatuses(msg.statuses)
 
 	case diffMsg:
 		m.diffContent = msg.content
@@ -722,6 +747,16 @@ func (m Model) handleAttach() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	// A missing window makes attachToWindowCmd auto-repair — rebuilding the tmux
+	// window, as slow as a create — before it attaches. Surface the same
+	// "repairing…" feedback the r keybinding shows so the enter keypress isn't
+	// silent while that happens. A present window attaches instantly and quits,
+	// so it needs no status. This re-checks the window (the cmd checks again in
+	// its goroutine): a cheap read-only tmux lookup, kept here rather than
+	// restructuring the shared cmd the create-success path also uses.
+	if _, ok := m.windowSessionFn(worktree.GetWindowName(sel.Repo, sel.Name)); !ok {
+		m.status = layoutActionStatus("repairing", sel.Name, "", m.gc)
+	}
 	return m, m.attachToWindowCmd(sel.Repo, sel.Name)
 }
 
@@ -805,7 +840,9 @@ func (m Model) confirmThenRemove(
 				updated = append(updated, s)
 			}
 		}
-		return statusesMsg(updated)
+		// deletedMsg (not statusesMsg) so the "deleting…" status is replaced
+		// with a "removed:" confirmation, not left lingering on the refreshed list.
+		return deletedMsg{name: name, statuses: updated}
 	}
 }
 
@@ -815,12 +852,26 @@ func (m Model) handleDelete() (tea.Model, tea.Cmd) {
 		return removeFn(repo, name, true)
 	})
 	m.pendingDelete = pending
+	// cmd is non-nil only on the confirming (second) press, i.e. when the
+	// removal actually runs - so the "deleting…" status appears then, never on
+	// the first (arming) press. Superseded by the refreshed list / delete-failed
+	// status the moment it resolves, same as the create flow's status.
+	if cmd != nil {
+		if sel, ok := m.selectedStatus(); ok {
+			m.status = actionStatus("deleting", sel.Name)
+		}
+	}
 	return m, cmd
 }
 
 func (m Model) handleSessionDelete() (tea.Model, tea.Cmd) {
 	pending, cmd := m.confirmThenRemove(m.pendingSessionDelete, m.removeSessionFn)
 	m.pendingSessionDelete = pending
+	if cmd != nil {
+		if sel, ok := m.selectedStatus(); ok {
+			m.status = actionStatus("deleting + session", sel.Name)
+		}
+	}
 	return m, cmd
 }
 
@@ -833,6 +884,11 @@ func (m Model) handleRepair() (tea.Model, tea.Cmd) {
 	gc := m.gc
 	repo := sel.Repo
 	name := sel.Name
+	// Repair rebuilds a tmux window (same cost as create), so show the same
+	// in-progress feedback naming the layout it will rebuild ("" resolves the
+	// configured default, matching the ResolveLayout call below). Superseded by
+	// "repaired:"/"repair failed:" when the async work resolves.
+	m.status = layoutActionStatus("repairing", name, "", gc)
 	return m, func() tea.Msg {
 		// Same no-flags-given reasoning as attachToWindowCmd's auto-repair:
 		// "" for both layoutName and aiAlias lets ResolveLayout honor

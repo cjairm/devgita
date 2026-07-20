@@ -12,6 +12,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/internal/tooling/worktree"
 	tuicomponents "github.com/cjairm/devgita/internal/tui/components"
 )
@@ -321,12 +322,57 @@ func (m Model) dispatchCreate(layoutName string) (tea.Model, tea.Cmd) {
 	// createdMsg or createFailedMsg is processed (handleCreateSuccess /
 	// Update).
 	m.creating = true
+	// Show immediate feedback while the async create runs: building a worktree
+	// (git) + a multi-pane tmux window is not instant, and clearCreateState
+	// above just closed the popup, so without this the dashboard would sit with
+	// no indication anything is happening. Replaced by handleCreateSuccess /
+	// createFailedMsg the moment the create resolves (and moot inside tmux,
+	// where success attaches-and-quits) — so it never lingers.
+	m.status = layoutActionStatus("creating worktree", name, layoutName, m.gc)
 	return m, func() tea.Msg {
 		warning, err := createFn(repoPath, name, layoutName)
 		if err != nil {
 			return createFailedMsg{err: err}
 		}
 		return createdMsg{repoPath: repoPath, name: name, warning: warning}
+	}
+}
+
+// actionStatus is the base in-progress status line shared by every worktree
+// action (create/repair/delete): "<verb>: <name>…". Actions that build a tmux
+// window layer the layout name on via layoutActionStatus; delete uses this
+// bare form. Centralizing the shape keeps the feedback consistent across
+// actions and in one place to change.
+func actionStatus(verb, name string) string {
+	return verb + ": " + name + "…"
+}
+
+// layoutActionStatus is actionStatus plus the friendly name of the layout the
+// action will build — used by create and repair, which both stand up a window.
+// It names the tool(s) (claude, opencode, neovim, "claude + neovim") rather
+// than the internal config token, resolving layoutName the same way the action
+// itself will ("" = resolve the configured default). Resolution is best-effort:
+// if it fails (e.g. a free-typed unknown layout name), the action's own error
+// surfaces later, so here we just drop the tool label rather than duplicate it.
+func layoutActionStatus(verb, name, layoutName string, gc *config.GlobalConfig) string {
+	if layout, err := worktree.ResolveLayout(layoutName, "", gc); err == nil {
+		return verb + ": " + name + " (" + friendlyLayoutName(layout.Name) + ")…"
+	}
+	return actionStatus(verb, name)
+}
+
+// friendlyLayoutName maps a resolved layout's Name to a human label for the
+// status line: the "nvim" config token reads as "neovim", the two-pane layout
+// as "claude + neovim". opencode/claude already read fine and fall through, as
+// does any future custom layout name.
+func friendlyLayoutName(name string) string {
+	switch name {
+	case "nvim":
+		return "neovim"
+	case "claude-nvim":
+		return "claude + neovim"
+	default:
+		return name
 	}
 }
 
