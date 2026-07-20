@@ -116,6 +116,12 @@ alias lzd='lazydocker'
 {{if .Neovim}}
 # Neovim
 alias n='nvim'
+# Make Neovim the editor anything spawns (git commit, coders opening a file,
+# crontab -e, …). Without this, EDITOR/VISUAL are unset and tools fall back to
+# the system default vi/vim even though you use Neovim. Respect an editor you've
+# already chosen elsewhere (`:-`) rather than forcing nvim.
+export EDITOR="${EDITOR:-nvim}"
+export VISUAL="${VISUAL:-nvim}"
 {{if .Fzf}}
 alias ns="fd --type f --hidden --exclude .git | fzf-tmux -p  --reverse | xargs nvim"
 {{end}}
