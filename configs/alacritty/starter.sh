@@ -1,5 +1,16 @@
 #!/bin/bash
 
+# Alacritty launches this script straight from launchd's bare GUI
+# environment on macOS — no shell profile has run, so PATH may miss
+# /usr/local/bin, /opt/homebrew/bin, etc. The tmux SERVER started below
+# inherits this environment for its whole lifetime: every non-login pane
+# and every plugin script (tmux-continuum autosave needs `tmux` on PATH)
+# resolves commands through it. Rebuild the system PATH here, at server
+# birth, so all of that works. No-op on Linux (no path_helper).
+if [ -x /usr/libexec/path_helper ]; then
+	eval "$(/usr/libexec/path_helper -s)"
+fi
+
 # Get the list of existing tmux sessions
 sessions=$(tmux list-sessions -F "#{session_name}" 2>/dev/null)
 
