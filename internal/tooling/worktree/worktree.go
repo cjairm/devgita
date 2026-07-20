@@ -108,43 +108,49 @@ func GetWorktreeBasePath() string {
 	return filepath.Join(paths.Paths.Data.Root, "devgita", "worktrees")
 }
 
-// Create creates a new worktree with tmux window and launches the specified AI coder.
-// The repo is the one containing the current directory and the window opens in the
-// current tmux session. If force is false and the repo has hooks incompatible with
-// git worktrees, the user is prompted to confirm before proceeding.
-func (w *WorktreeManager) Create(name string, coder AICoder, force bool) error {
-	if err := validateCoder(coder); err != nil {
+// Create creates a new worktree with tmux window and builds the given window
+// layout in it (one pane per layout.Panes entry). The repo is the one
+// containing the current directory and the window opens in the current tmux
+// session. If force is false and the repo has hooks incompatible with git
+// worktrees, the user is prompted to confirm before proceeding.
+func (w *WorktreeManager) Create(name string, layout Layout, force bool) error {
+	if err := validateLayout(layout); err != nil {
 		return err
 	}
 	repoRoot, err := w.Git.GetRepoRoot()
 	if err != nil {
 		return fmt.Errorf("not in a git repository: %w", err)
 	}
-	return w.create(repoRoot, name, coder, force, false)
+	return w.create(repoRoot, name, layout, force, false)
 }
 
 // CreateAt is Create for a repository the caller is not inside: repoPath ("~"
 // expanded) locates the repo, the window opens in the repo-slug tmux session
 // (created when missing, reused otherwise), and the attached client follows
 // it when running inside tmux.
-func (w *WorktreeManager) CreateAt(repoPath, name string, coder AICoder, force bool) error {
-	if err := validateCoder(coder); err != nil {
+func (w *WorktreeManager) CreateAt(repoPath, name string, layout Layout, force bool) error {
+	if err := validateLayout(layout); err != nil {
 		return err
 	}
 	repoRoot, err := w.Git.GetRepoRootIn(paths.ExpandHome(repoPath))
 	if err != nil {
 		return fmt.Errorf("no git repository at %s: %w", repoPath, err)
 	}
-	return w.create(repoRoot, name, coder, force, true)
+	return w.create(repoRoot, name, layout, force, true)
 }
 
-// validateCoder guards the shared create flow: a coder is required and must
-// be installed before any git or tmux state is touched.
-func validateCoder(coder AICoder) error {
-	if coder == nil {
-		return fmt.Errorf("AI coder is required")
+// validateLayout guards the shared create/repair flow: a layout with at
+// least one pane is required, and every pane's underlying tool must be
+// installed before any git or tmux state is touched. layout.EnsureInstalled
+// already runs every pane's checker and fails on the first bad one, so this
+// gives the same "one actionable message before anything is touched"
+// guarantee validateCoder gave for a single coder - a layout is just N of
+// those checks instead of one.
+func validateLayout(layout Layout) error {
+	if len(layout.Panes) == 0 {
+		return fmt.Errorf("a layout with at least one pane is required")
 	}
-	return coder.EnsureInstalled()
+	return layout.EnsureInstalled()
 }
 
 // create is the shared worktree-creation flow. useRepoSession selects where
@@ -152,7 +158,7 @@ func validateCoder(coder AICoder) error {
 // session (CreateAt).
 func (w *WorktreeManager) create(
 	repoRoot, name string,
-	coder AICoder,
+	layout Layout,
 	force, useRepoSession bool,
 ) error {
 	repoSlug := filepath.Base(repoRoot)
@@ -222,7 +228,7 @@ func (w *WorktreeManager) create(
 						repoSlug,
 						windowName,
 						wtPath,
-						coder,
+						layout,
 						useRepoSession,
 					)
 				}
@@ -231,7 +237,7 @@ func (w *WorktreeManager) create(
 		return fmt.Errorf("failed to create worktree: %w", err)
 	}
 
-	return w.launchWindowAndRecord(repoRoot, repoSlug, windowName, wtPath, coder, useRepoSession)
+	return w.launchWindowAndRecord(repoRoot, repoSlug, windowName, wtPath, layout, useRepoSession)
 }
 
 // launchWindowAndRecord wraps launchWindow so both create() call sites (the
@@ -239,30 +245,31 @@ func (w *WorktreeManager) create(
 // success without duplicating that logic at each call site.
 func (w *WorktreeManager) launchWindowAndRecord(
 	repoRoot, repoSlug, windowName, wtPath string,
-	coder AICoder,
+	layout Layout,
 	useRepoSession bool,
 ) error {
-	if err := w.launchWindow(repoSlug, windowName, wtPath, coder, useRepoSession); err != nil {
+	if err := w.launchWindow(repoSlug, windowName, wtPath, layout, useRepoSession); err != nil {
 		return err
 	}
 	w.recordRepoUsed(repoRoot)
 	return nil
 }
 
-// launchWindow creates the worktree's tmux window and starts the AI coder in
-// it, rolling the worktree back if the window cannot be created. The window
-// goes to the current session or the repo-slug session (created when missing,
-// reused otherwise); in the latter case the attached client follows it.
+// launchWindow creates the worktree's tmux window and builds layout's panes in
+// it, rolling the worktree back if the window cannot be created or built. The
+// window goes to the current session or the repo-slug session (created when
+// missing, reused otherwise); in the latter case the attached client follows
+// it.
 func (w *WorktreeManager) launchWindow(
 	repoSlug, windowName, wtPath string,
-	coder AICoder,
+	layout Layout,
 	useRepoSession bool,
 ) error {
 	if !useRepoSession {
-		return w.createWindowAndLaunch(windowName, wtPath, coder)
+		return w.buildWindowFromLayout(windowName, wtPath, layout)
 	}
 
-	if err := w.ensureWindow(repoSlug, windowName, wtPath, coder); err != nil {
+	if err := w.ensureWindow(repoSlug, windowName, wtPath, layout); err != nil {
 		_ = w.Git.RemoveWorktree(wtPath, true, "")
 		return err
 	}
@@ -275,14 +282,86 @@ func (w *WorktreeManager) launchWindow(
 	return nil
 }
 
-func (w *WorktreeManager) createWindowAndLaunch(windowName, wtPath string, coder AICoder) error {
+// buildWindowFromLayout creates windowName (pane 0 only) and then builds the
+// rest of layout's panes into it. If the window can't be created at all, or
+// any later step fails partway (pane 0's launch, a split, or a later pane's
+// launch/reselect), the partially built window is killed (best-effort) and
+// the worktree is rolled back - the same "all or nothing" guarantee the
+// single-pane path gave, never a window with some panes up alongside a
+// worktree that's still there.
+func (w *WorktreeManager) buildWindowFromLayout(windowName, wtPath string, layout Layout) error {
 	if err := w.Tmux.CreateWindow(windowName, wtPath); err != nil {
 		_ = w.Git.RemoveWorktree(wtPath, true, "")
 		return fmt.Errorf("failed to create tmux window: %w", err)
 	}
 
-	if err := w.Tmux.SendKeysToWindow(windowName, coder.Command()); err != nil {
-		return fmt.Errorf("failed to launch %s: %w", coder.Name(), err)
+	sendKeys := func(command string) error {
+		return w.Tmux.SendKeysToWindow(windowName, command)
+	}
+	if err := w.buildWindowPanes(windowName, wtPath, layout, sendKeys); err != nil {
+		_ = w.Tmux.KillWindow(windowName)
+		_ = w.Git.RemoveWorktree(wtPath, true, "")
+		return err
+	}
+	return nil
+}
+
+// buildWindowPanes builds every pane of layout into a window that already
+// exists with exactly one (pane 0) pane - i.e. right after CreateWindow,
+// CreateWindowInSession, or CreateSessionWithWindow. target is how the window
+// is addressed for SplitWindow/ActivePaneID: a bare window name (current
+// session) or "session:window" (qualified, for a window that may not be in
+// the attached client's session). sendKeys sends a command to target's
+// currently active pane, mirroring whichever of SendKeysToWindow /
+// SendKeysToWindowInSession target's form matches.
+func (w *WorktreeManager) buildWindowPanes(
+	target, wtPath string,
+	layout Layout,
+	sendKeys func(command string) error,
+) error {
+	// Pane 0's tmux pane_id must be captured now, before any split, while it
+	// is still the window's only (and therefore unambiguously "active") pane.
+	// It's needed only when there's more than one pane to reselect it later.
+	var pane0ID string
+	if len(layout.Panes) > 1 {
+		id, err := w.Tmux.ActivePaneID(target)
+		if err != nil {
+			return fmt.Errorf("layout %q: failed to identify pane 0: %w", layout.Name, err)
+		}
+		pane0ID = id
+	}
+
+	for i, pane := range layout.Panes {
+		if i > 0 {
+			// split-window always splits the CURRENTLY ACTIVE pane and makes
+			// the new pane active, so building panes strictly in order (pane
+			// 0 first, no explicit pane index anywhere) is enough for each
+			// pane's command to land in the right place: right after this
+			// split, the new pane is active, and sendKeys below (send-keys
+			// with no pane index) always targets whichever pane in the
+			// window is currently active.
+			if err := w.Tmux.SplitWindow(target, wtPath, pane.Split); err != nil {
+				return fmt.Errorf(
+					"layout %q, pane %d: failed to split window: %w",
+					layout.Name, i+1, err,
+				)
+			}
+		}
+		if err := sendKeys(pane.Command); err != nil {
+			return fmt.Errorf("layout %q, pane %d: failed to launch: %w", layout.Name, i+1, err)
+		}
+	}
+
+	if pane0ID != "" {
+		// Land the user on pane 0 (e.g. the AI coder), not whichever pane was
+		// split last (e.g. an editor pane), when they attach. Re-targeting by
+		// tmux pane index (e.g. target+".0") is NOT reliable: devgita's own
+		// shipped tmux.conf sets pane-base-index to 1 (configs/tmux/tmux.conf),
+		// so a window's first pane is index 1, not 0 - pane_id is tmux's own
+		// stable, globally-unique identifier and is unaffected by that option.
+		if err := w.Tmux.SelectPane(pane0ID); err != nil {
+			return fmt.Errorf("layout %q: failed to select pane 0: %w", layout.Name, err)
+		}
 	}
 
 	return nil
@@ -474,16 +553,12 @@ func (w *WorktreeManager) repoSlugForWorktree(name string) string {
 	return w.findRepoForWorktree(name)
 }
 
-// Repair recreates the missing window for an existing worktree and re-sends the
-// AI command. The window is created in a tmux session named after the worktree's
-// parent folder (the repo slug), creating that session if it does not exist.
-// Works from any directory or session.
-func (w *WorktreeManager) Repair(name string, coder AICoder) error {
-	if coder == nil {
-		return fmt.Errorf("AI coder is required")
-	}
-
-	if err := coder.EnsureInstalled(); err != nil {
+// Repair recreates the missing window for an existing worktree and rebuilds
+// layout in it. The window is created in a tmux session named after the
+// worktree's parent folder (the repo slug), creating that session if it does
+// not exist. Works from any directory or session.
+func (w *WorktreeManager) Repair(name string, layout Layout) error {
+	if err := validateLayout(layout); err != nil {
 		return err
 	}
 
@@ -512,7 +587,7 @@ func (w *WorktreeManager) Repair(name string, coder AICoder) error {
 		)
 	}
 
-	return w.ensureWindow(repoSlug, windowName, wtPath, coder)
+	return w.ensureWindow(repoSlug, windowName, wtPath, layout)
 }
 
 // RemoveInRepo deletes a worktree disambiguated by repo slug.
@@ -571,11 +646,8 @@ func (w *WorktreeManager) RemoveWithSessionInRepo(repoSlug, name string) error {
 }
 
 // RepairInRepo repairs a worktree in a specific repo, bypassing the slug-search ambiguity.
-func (w *WorktreeManager) RepairInRepo(repoSlug, name string, coder AICoder) error {
-	if coder == nil {
-		return fmt.Errorf("AI coder is required")
-	}
-	if err := coder.EnsureInstalled(); err != nil {
+func (w *WorktreeManager) RepairInRepo(repoSlug, name string, layout Layout) error {
+	if err := validateLayout(layout); err != nil {
 		return err
 	}
 	wtPath := w.worktreePath(repoSlug, name)
@@ -594,32 +666,51 @@ func (w *WorktreeManager) RepairInRepo(repoSlug, name string, coder AICoder) err
 			name,
 		)
 	}
-	return w.ensureWindow(repoSlug, windowName, wtPath, coder)
+	return w.ensureWindow(repoSlug, windowName, wtPath, layout)
 }
 
-// ensureWindow guarantees a tmux window for the worktree exists and launches the
-// AI coder in it. If the window already lives in some session, it is reused; if
-// not, it is created in the worktree's repo-slug session (creating that session
+// ensureWindow guarantees a tmux window for the worktree exists and reflects
+// layout. If the window already lives in some session, it is reused - but
+// only pane 0's command is (re)launched into it, never a full rebuild: an
+// existing window may already have panes from a prior create/repair, and
+// there is no way to tell from here whether those panes match layout's shape,
+// so re-splitting would risk duplicating panes on every repair. Building the
+// full layout (split, launch every pane, reselect pane 0) only happens when
+// the window doesn't exist yet, in the worktree's repo-slug session (created
 // when absent).
-func (w *WorktreeManager) ensureWindow(repoSlug, windowName, wtPath string, coder AICoder) error {
+func (w *WorktreeManager) ensureWindow(repoSlug, windowName, wtPath string, layout Layout) error {
 	session, exists := w.Tmux.WindowSession(windowName)
-	if !exists {
-		session = tmuxSessionName(repoSlug)
-		if w.Tmux.HasSession(session) {
-			if err := w.Tmux.CreateWindowInSession(session, windowName, wtPath); err != nil {
-				return fmt.Errorf("failed to create tmux window: %w", err)
-			}
-		} else {
-			if err := w.Tmux.CreateSessionWithWindow(session, windowName, wtPath); err != nil {
-				return fmt.Errorf("failed to create tmux session: %w", err)
-			}
+	if exists {
+		if err := w.Tmux.SendKeysToWindowInSession(
+			session,
+			windowName,
+			layout.Panes[0].Command,
+		); err != nil {
+			return fmt.Errorf("failed to launch %s: %w", layout.Name, err)
+		}
+		return nil
+	}
+
+	session = tmuxSessionName(repoSlug)
+	if w.Tmux.HasSession(session) {
+		if err := w.Tmux.CreateWindowInSession(session, windowName, wtPath); err != nil {
+			return fmt.Errorf("failed to create tmux window: %w", err)
+		}
+	} else {
+		if err := w.Tmux.CreateSessionWithWindow(session, windowName, wtPath); err != nil {
+			return fmt.Errorf("failed to create tmux session: %w", err)
 		}
 	}
 
-	if err := w.Tmux.SendKeysToWindowInSession(session, windowName, coder.Command()); err != nil {
-		return fmt.Errorf("failed to launch %s: %w", coder.Name(), err)
+	sendKeys := func(command string) error {
+		return w.Tmux.SendKeysToWindowInSession(session, windowName, command)
 	}
-
+	if err := w.buildWindowPanes(session+":"+windowName, wtPath, layout, sendKeys); err != nil {
+		// Kill only the window, never the session: other worktrees' windows
+		// may already live in this same repo-slug session.
+		_ = w.Tmux.KillWindow(windowName)
+		return err
+	}
 	return nil
 }
 

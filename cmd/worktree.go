@@ -11,6 +11,7 @@ import (
 	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/internal/tooling/worktree"
 	tuiworktree "github.com/cjairm/devgita/internal/tui/worktree"
+	"github.com/cjairm/devgita/pkg/logger"
 	"github.com/cjairm/devgita/pkg/paths"
 	"github.com/cjairm/devgita/pkg/utils"
 	"github.com/spf13/cobra"
@@ -29,15 +30,16 @@ Worktrees are stored in ~/.local/share/devgita/worktrees/<repo-slug>/,
 and tmux windows are prefixed with "wt-" for easy identification.
 
 Examples:
-  dg worktree create feature-login              # Create worktree + window with default AI
-  dg worktree create feature-login --ai claude  # Create with Claude Code
-  dg wt c feature-login                         # Same, using short form
-  dg wt new fix-auth --repo ~/code/api          # Create for another repo (window opens in its session)
-  dg wt l                                       # List all worktrees
-  dg wt ui                                      # Open the TUI dashboard
-  dg wt rm                                      # Remove worktree (fzf selection)
-  dg wt repair feature-login                    # Repair missing window
-  dg wt prune                                   # Remove all worktrees`,
+  dg worktree create feature-login                # Create worktree + window with default AI/layout
+  dg worktree create feature-login --ai claude    # Create with Claude Code
+  dg worktree create feature-login --layout nvim  # Create with the nvim-only layout
+  dg wt c feature-login                           # Same, using short form
+  dg wt new fix-auth --repo ~/code/api            # Create for another repo (window opens in its session)
+  dg wt l                                         # List all worktrees
+  dg wt ui                                        # Open the TUI dashboard
+  dg wt rm                                        # Remove worktree (fzf selection)
+  dg wt repair feature-login                      # Repair missing window
+  dg wt prune                                     # Remove all worktrees`,
 }
 
 var worktreeCreateCmd = &cobra.Command{
@@ -63,22 +65,23 @@ created for the repo at the given path, and the window opens in a tmux
 session named after the repo (created if missing, reused otherwise). When run
 inside tmux, the client switches to the new window.
 
-AI coder selection precedence:
-  1. --ai flag
-  2. DEVGITA_WORKTREE_AI environment variable
-  3. worktree.default_ai in global_config.yaml
-  4. Default: opencode
+Window layout selection precedence (--layout and --ai are mutually exclusive):
+  1. --layout flag (explicit layout name)
+  2. --ai flag, derived into a single-pane layout
+  3. DEVGITA_WORKTREE_AI environment variable, derived into a single-pane layout
+  4. worktree.default_layout in global_config.yaml
+  5. worktree.default_ai in global_config.yaml, derived into a single-pane layout
+  6. Default: opencode, single-pane
 
 Valid AI coders: opencode (oc), claude (cc, claudecode)
+Valid layouts: opencode, claude, claude-nvim, nvim
 
 After creation, switch to the window with:
   <prefix> + [window number] or <prefix> + w to see all windows`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		name := args[0]
-		aiAlias := resolveAIAlias(aiFlag, &globalConfig)
-
-		coder, err := worktree.ResolveAICoder(aiAlias)
+		layout, err := resolveWorktreeLayout(createLayoutFlag, createAIFlag)
 		if err != nil {
 			return err
 		}
@@ -86,12 +89,12 @@ After creation, switch to the window with:
 		wm := worktree.New()
 		var repoRoot string
 		if repoFlag != "" {
-			if err := wm.CreateAt(repoFlag, name, coder, forceFlag); err != nil {
+			if err := wm.CreateAt(repoFlag, name, layout, forceFlag); err != nil {
 				return err
 			}
 			repoRoot, _ = wm.Git.GetRepoRootIn(paths.ExpandHome(repoFlag))
 		} else {
-			if err := wm.Create(name, coder, forceFlag); err != nil {
+			if err := wm.Create(name, layout, forceFlag); err != nil {
 				return err
 			}
 			repoRoot, _ = wm.Git.GetRepoRoot()
@@ -218,23 +221,34 @@ This command:
   2. Creates a new tmux window if missing
   3. Launches the selected AI coder in the window
 
-AI coder selection follows the same precedence as create:
-  1. --ai flag
-  2. DEVGITA_WORKTREE_AI environment variable
-  3. worktree.default_ai in global_config.yaml
-  4. Default: opencode`,
+Window layout selection follows the same precedence as create (--layout and
+--ai are mutually exclusive):
+  1. --layout flag (explicit layout name)
+  2. --ai flag, derived into a single-pane layout
+  3. DEVGITA_WORKTREE_AI environment variable, derived into a single-pane layout
+  4. worktree.default_layout in global_config.yaml
+  5. worktree.default_ai in global_config.yaml, derived into a single-pane layout
+  6. Default: opencode, single-pane
+
+Valid AI coders: opencode (oc), claude (cc, claudecode)
+Valid layouts: opencode, claude, claude-nvim, nvim
+
+Note: repair does not remember the layout a worktree was created with. If the
+window is missing, it is rebuilt from scratch using the precedence above,
+same as create. If the window already exists (e.g. only a pane inside it was
+closed), repair only relaunches the AI coder in the existing window — it does
+not add or recreate missing panes, since there is no way to tell whether the
+surviving panes already match the requested layout.`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		name := args[0]
-		aiAlias := resolveAIAlias(aiFlag, &globalConfig)
-
-		coder, err := worktree.ResolveAICoder(aiAlias)
+		layout, err := resolveWorktreeLayout(repairLayoutFlag, repairAIFlag)
 		if err != nil {
 			return err
 		}
 
 		wm := worktree.New()
-		if err := wm.Repair(name, coder); err != nil {
+		if err := wm.Repair(name, layout); err != nil {
 			return err
 		}
 
@@ -274,10 +288,20 @@ Example:
 	},
 }
 
+// createAIFlag/createLayoutFlag and repairAIFlag/repairLayoutFlag are
+// deliberately command-local rather than shared: a single shared var bound
+// to both commands' flags (the old aiFlag) works today only because cobra
+// re-populates it fresh on every invocation, but it's a state-bleed smell
+// that bites any test running more than one of these commands in-process.
+// forceFlag/repoFlag stay shared package vars — untouched by this change,
+// out of scope.
 var (
-	aiFlag    string
-	forceFlag bool
-	repoFlag  string
+	createAIFlag     string
+	createLayoutFlag string
+	repairAIFlag     string
+	repairLayoutFlag string
+	forceFlag        bool
+	repoFlag         string
 )
 
 func init() {
@@ -290,7 +314,10 @@ func init() {
 	worktreeCmd.AddCommand(worktreePruneCmd)
 
 	worktreeCreateCmd.Flags().
-		StringVarP(&aiFlag, "ai", "a", "", "AI coder to launch (opencode, oc, claude, cc, claudecode)")
+		StringVarP(&createAIFlag, "ai", "a", "", "AI coder to launch (opencode, oc, claude, cc, claudecode)")
+	worktreeCreateCmd.Flags().
+		StringVarP(&createLayoutFlag, "layout", "l", "", "Window layout to build (opencode, claude, claude-nvim, nvim)")
+	worktreeCreateCmd.MarkFlagsMutuallyExclusive("ai", "layout")
 	worktreeCreateCmd.Flags().
 		BoolVarP(&forceFlag, "force", "f", false, "Skip hook compatibility check")
 	worktreeCreateCmd.Flags().
@@ -303,15 +330,54 @@ func init() {
 		},
 	)
 	worktreeRepairCmd.Flags().
-		StringVarP(&aiFlag, "ai", "a", "", "AI coder to launch (opencode, oc, claude, cc, claudecode)")
+		StringVarP(&repairAIFlag, "ai", "a", "", "AI coder to launch (opencode, oc, claude, cc, claudecode)")
+	worktreeRepairCmd.Flags().
+		StringVarP(&repairLayoutFlag, "layout", "l", "", "Window layout to build (opencode, claude, claude-nvim, nvim)")
+	worktreeRepairCmd.MarkFlagsMutuallyExclusive("ai", "layout")
 	worktreeRemoveCmd.Flags().
 		BoolVarP(&forceFlag, "force", "f", false, "Force removal even if worktree has uncommitted changes")
 }
 
 var globalConfig config.GlobalConfig
 
-func resolveAIAlias(flagValue string, gc *config.GlobalConfig) string {
-	return worktree.ResolveAIAlias(flagValue, gc)
+// resolveWorktreeLayout is the single load+resolve sequence create's and
+// repair's RunE both need - they differ only in which flag vars they pass,
+// so this is the one place that sequence is written.
+func resolveWorktreeLayout(layoutFlag, aiFlag string) (worktree.Layout, error) {
+	loadWorktreeGlobalConfig()
+	return worktree.ResolveLayout(layoutFlag, resolveWorktreeAIFlag(aiFlag), &globalConfig)
+}
+
+// loadWorktreeGlobalConfig loads global_config.yaml into the package-level
+// globalConfig so ResolveLayout can see worktree.default_ai/default_layout
+// from the CLI path (dg wt ui loads its own gc elsewhere and never hit this
+// gap). A missing file is expected on a fresh install - not fatal, mirroring
+// RepoCandidates' "if err := gc.Load(); err == nil" fallback in
+// repo_candidates.go, so create/repair keep working with globalConfig at its
+// zero value (empty DefaultAI/DefaultLayout). But Load() returns the same
+// error type for "file missing" and "file exists but is corrupt/unreadable
+// YAML" - silently ignoring both would hide a real config problem, so only
+// the missing-file case is swallowed; anything else is surfaced as a
+// warning (still non-fatal: a corrupt config shouldn't block create/repair,
+// but it also shouldn't be invisible).
+func loadWorktreeGlobalConfig() {
+	if err := globalConfig.Load(); err != nil && !os.IsNotExist(err) {
+		logger.L().Warnw("worktree: failed to load global config, using defaults", "error", err)
+	}
+}
+
+// resolveWorktreeAIFlag resolves an aiAlias from ONLY --ai/DEVGITA_WORKTREE_AI
+// (not through ResolveAIAlias's folded flag->env->default_ai->opencode
+// chain), leaving it "" when neither is given - that "" is what lets
+// ResolveLayout consult worktree.default_layout before falling back to
+// worktree.default_ai and then opencode. See ResolveLayout's doc comment for
+// why a folded alias (one that always resolves to at least "opencode") must
+// never be passed here instead.
+func resolveWorktreeAIFlag(flagValue string) string {
+	if flagValue != "" {
+		return flagValue
+	}
+	return os.Getenv("DEVGITA_WORKTREE_AI")
 }
 
 func findLastSlash(s string) int {

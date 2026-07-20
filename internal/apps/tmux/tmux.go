@@ -262,6 +262,64 @@ func (t *Tmux) CreateWindow(name, workdir string) error {
 	return t.ExecuteCommand("new-window", "-n", name, "-c", workdir)
 }
 
+// SplitWindow splits an existing window, rooting the new pane at workdir.
+// direction describes the resulting pane arrangement (this cycle's Layout
+// model's language), not tmux's own flag letters: "vertical" means panes
+// side by side (tmux's -h), "horizontal" means panes stacked (tmux's -v).
+func (t *Tmux) SplitWindow(window, workdir, direction string) error {
+	switch direction {
+	case "vertical":
+		return t.ExecuteCommand("split-window", "-h", "-t", window, "-c", workdir)
+	case "horizontal":
+		return t.ExecuteCommand("split-window", "-v", "-t", window, "-c", workdir)
+	default:
+		return fmt.Errorf(
+			"unknown split direction %q (want \"vertical\" or \"horizontal\")",
+			direction,
+		)
+	}
+}
+
+// ActivePaneID returns the tmux pane_id (e.g. "%12") of window's currently
+// active pane. window may be a bare window name (resolved in the current/
+// attached session, matching SendKeysToWindow's target form) or a qualified
+// "session:window" target (matching SendKeysToWindowInSession's form) -
+// whichever form the caller already has.
+//
+// Pane IDs, not pane indexes, are the only reliable way to re-target a
+// specific pane once other panes may have been created around it: tmux
+// numbers a window's panes starting from the "pane-base-index" option, which
+// devgita's own shipped tmux.conf sets to 1 (configs/tmux/tmux.conf) - so on
+// a devgita-configured server, pane index 0 does not exist, and even a
+// correctly-computed base-index is only a snapshot that stops matching once
+// panes are added/removed/reordered. Pane IDs are assigned by tmux in
+// creation order and are unique server-wide regardless of that option, so
+// capturing the id right after the window is created (while its sole pane is
+// unambiguously "the active one") and re-selecting by that id later is
+// robust to all of the above.
+func (t *Tmux) ActivePaneID(window string) (string, error) {
+	execCommand := cmd.CommandParams{
+		Command: constants.Tmux,
+		Args:    []string{"display-message", "-t", window, "-p", "#{pane_id}"},
+	}
+	stdout, _, err := t.Base.ExecCommand(execCommand)
+	if err != nil {
+		return "", fmt.Errorf("failed to query active pane for %s: %w", window, err)
+	}
+	id := strings.TrimSpace(stdout)
+	if id == "" {
+		return "", fmt.Errorf("tmux returned no pane id for %s", window)
+	}
+	return id, nil
+}
+
+// SelectPane makes the pane identified by paneID (a tmux pane_id like "%12",
+// as returned by ActivePaneID) the active pane in its window. Pane IDs are
+// unique server-wide, so no window or session qualification is needed.
+func (t *Tmux) SelectPane(paneID string) error {
+	return t.ExecuteCommand("select-pane", "-t", paneID)
+}
+
 // HasWindow checks if a window exists in the current session
 func (t *Tmux) HasWindow(name string) bool {
 	if os.Getenv("TMUX") == "" {

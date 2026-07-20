@@ -2,9 +2,8 @@ package worktree
 
 import (
 	"os"
+	"strings"
 	"testing"
-
-	"github.com/cjairm/devgita/internal/config"
 )
 
 func TestResolveAICoder(t *testing.T) {
@@ -59,54 +58,56 @@ func TestClaudeCoderCommand(t *testing.T) {
 	}
 }
 
-func TestResolveAIAlias(t *testing.T) {
-	// Ensure a clean env for every sub-test.
-	t.Cleanup(func() { os.Unsetenv("DEVGITA_WORKTREE_AI") })
+// OpenCodeCoder/ClaudeCoder.EnsureInstalled route through the shared
+// ensureToolInstalled helper, which itself goes through the swappable
+// commands.LookPathFn (see setLookPathFn in repo_candidates_test.go) rather
+// than calling exec.LookPath directly - so both the success and failure
+// paths are exercisable here without executing a real command.
 
-	t.Run("flag takes highest priority", func(t *testing.T) {
-		os.Setenv("DEVGITA_WORKTREE_AI", "claude")
-		gc := &config.GlobalConfig{}
-		gc.Worktree.DefaultAI = "claude"
-		got := ResolveAIAlias("opencode", gc)
-		if got != "opencode" {
-			t.Errorf("expected flag value 'opencode', got %q", got)
-		}
+func TestOpenCodeCoderEnsureInstalledOK(t *testing.T) {
+	setLookPathFn(t, func(string) (string, error) {
+		return "/usr/bin/opencode", nil
 	})
 
-	t.Run("env var used when no flag", func(t *testing.T) {
-		os.Setenv("DEVGITA_WORKTREE_AI", "claude")
-		gc := &config.GlobalConfig{}
-		gc.Worktree.DefaultAI = "opencode"
-		got := ResolveAIAlias("", gc)
-		if got != "claude" {
-			t.Errorf("expected env value 'claude', got %q", got)
-		}
+	if err := (&OpenCodeCoder{}).EnsureInstalled(); err != nil {
+		t.Fatalf("unexpected error when opencode is on PATH: %v", err)
+	}
+}
+
+func TestOpenCodeCoderEnsureInstalledMissing(t *testing.T) {
+	setLookPathFn(t, func(string) (string, error) {
+		return "", os.ErrNotExist
 	})
 
-	t.Run("global config used when no flag or env", func(t *testing.T) {
-		os.Unsetenv("DEVGITA_WORKTREE_AI")
-		gc := &config.GlobalConfig{}
-		gc.Worktree.DefaultAI = "claude"
-		got := ResolveAIAlias("", gc)
-		if got != "claude" {
-			t.Errorf("expected config value 'claude', got %q", got)
-		}
+	err := (&OpenCodeCoder{}).EnsureInstalled()
+	if err == nil {
+		t.Fatal("expected error when opencode is not on PATH, got nil")
+	}
+	if got := err.Error(); !strings.Contains(got, "opencode") {
+		t.Errorf("expected error to mention opencode, got %q", got)
+	}
+}
+
+func TestClaudeCoderEnsureInstalledOK(t *testing.T) {
+	setLookPathFn(t, func(string) (string, error) {
+		return "/usr/bin/claude", nil
 	})
 
-	t.Run("defaults to opencode when nothing set", func(t *testing.T) {
-		os.Unsetenv("DEVGITA_WORKTREE_AI")
-		gc := &config.GlobalConfig{}
-		got := ResolveAIAlias("", gc)
-		if got != "opencode" {
-			t.Errorf("expected default 'opencode', got %q", got)
-		}
+	if err := (&ClaudeCoder{}).EnsureInstalled(); err != nil {
+		t.Fatalf("unexpected error when claude is on PATH: %v", err)
+	}
+}
+
+func TestClaudeCoderEnsureInstalledMissing(t *testing.T) {
+	setLookPathFn(t, func(string) (string, error) {
+		return "", os.ErrNotExist
 	})
 
-	t.Run("nil gc falls back to default", func(t *testing.T) {
-		os.Unsetenv("DEVGITA_WORKTREE_AI")
-		got := ResolveAIAlias("", nil)
-		if got != "opencode" {
-			t.Errorf("expected default 'opencode' with nil gc, got %q", got)
-		}
-	})
+	err := (&ClaudeCoder{}).EnsureInstalled()
+	if err == nil {
+		t.Fatal("expected error when claude is not on PATH, got nil")
+	}
+	if got := err.Error(); !strings.Contains(got, "claude") {
+		t.Errorf("expected error to mention claude, got %q", got)
+	}
 }

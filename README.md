@@ -181,7 +181,9 @@ dg install --skip databases,desktop
   - `--skip <categories>` - Install everything except specified categories
   - `--verbose` - Enable verbose logging
 - `dg worktree` (alias: `dg wt`) - Manage git worktrees with tmux windows and AI coders
-  - `dg wt create <name> [--ai claude|opencode]` - Create a worktree + tmux window + launch AI
+  - `dg wt create <name>` - Create a worktree + tmux window + launch AI
+    - `--ai <opencode|claude>` - AI coder to launch (mutually exclusive with `--layout`)
+    - `--layout <opencode|claude|claude-nvim|nvim>` - Window layout to build (mutually exclusive with `--ai`)
   - `dg wt ui` (alias: `dash`, `dashboard`) - Open full-screen TUI dashboard (`j/k` nav, `Enter` attach, `d` delete, `r` repair, `/` filter, `q` quit)
   - `dg wt list` - List all managed worktrees
   - `dg wt remove [name]` - Remove a worktree (fzf picker if name omitted)

@@ -78,8 +78,11 @@ const maxRecentRepos = 20
 
 // WorktreeConfig stores worktree-specific settings
 type WorktreeConfig struct {
-	DefaultAI   string       `yaml:"default_ai"`             // "opencode" | "claude"; empty = fallback to "opencode"
-	RecentRepos []RecentRepo `yaml:"recent_repos,omitempty"` // MRU-ordered; new field, absent in old configs
+	DefaultAI     string       `yaml:"default_ai"`               // "opencode" | "claude"; empty = fallback to "opencode"
+	RecentRepos   []RecentRepo `yaml:"recent_repos,omitempty"`   // MRU-ordered; new field, absent in old configs
+	SearchPaths   []string     `yaml:"search_paths,omitempty"`   // dirs to scan for git repos for the worktree picker; empty = scanning disabled (the only off-switch)
+	ScanDepth     int          `yaml:"scan_depth,omitempty"`     // max dir depth for the repo scan; 0 (or unset) = use the default of 4
+	DefaultLayout string       `yaml:"default_layout,omitempty"` // default tmux window layout for `dg wt ui`'s create; empty = derive a single-pane layout from DefaultAI
 }
 
 // UpsertRecentRepo records path as the most-recently-used repo: if path is

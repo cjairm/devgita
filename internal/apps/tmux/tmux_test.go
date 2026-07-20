@@ -1075,6 +1075,70 @@ func TestCreateWindow(t *testing.T) {
 	}
 }
 
+func TestSplitWindow(t *testing.T) {
+	t.Run("vertical direction splits with -h", func(t *testing.T) {
+		mockApp := testutil.NewMockApp()
+		mockApp.Base.SetExecCommandResult("", "", nil)
+		app := &tmux.Tmux{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+		if err := app.SplitWindow("wt-feature", "/tmp/repo", "vertical"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		last := mockApp.Base.GetLastExecCommandCall()
+		if last == nil {
+			t.Fatal("no ExecCommand call recorded")
+		}
+		expectedArgs := []string{"split-window", "-h", "-t", "wt-feature", "-c", "/tmp/repo"}
+		if len(last.Args) != len(expectedArgs) {
+			t.Fatalf("Expected %d args, got %d: %v", len(expectedArgs), len(last.Args), last.Args)
+		}
+		for i, arg := range expectedArgs {
+			if last.Args[i] != arg {
+				t.Errorf("Expected arg[%d] to be %q, got %q", i, arg, last.Args[i])
+			}
+		}
+	})
+
+	t.Run("horizontal direction splits with -v", func(t *testing.T) {
+		mockApp := testutil.NewMockApp()
+		mockApp.Base.SetExecCommandResult("", "", nil)
+		app := &tmux.Tmux{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+		if err := app.SplitWindow("wt-feature", "/tmp/repo", "horizontal"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		last := mockApp.Base.GetLastExecCommandCall()
+		if last == nil {
+			t.Fatal("no ExecCommand call recorded")
+		}
+		expectedArgs := []string{"split-window", "-v", "-t", "wt-feature", "-c", "/tmp/repo"}
+		if len(last.Args) != len(expectedArgs) {
+			t.Fatalf("Expected %d args, got %d: %v", len(expectedArgs), len(last.Args), last.Args)
+		}
+		for i, arg := range expectedArgs {
+			if last.Args[i] != arg {
+				t.Errorf("Expected arg[%d] to be %q, got %q", i, arg, last.Args[i])
+			}
+		}
+	})
+
+	t.Run("unknown direction returns error without executing a command", func(t *testing.T) {
+		mockApp := testutil.NewMockApp()
+		app := &tmux.Tmux{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+		err := app.SplitWindow("wt-feature", "/tmp/repo", "diagonal")
+		if err == nil {
+			t.Fatal("expected error for unknown direction")
+		}
+		if mockApp.Base.GetExecCommandCallCount() != 0 {
+			t.Errorf(
+				"expected no ExecCommand calls, got %d",
+				mockApp.Base.GetExecCommandCallCount(),
+			)
+		}
+	})
+}
+
 func TestCreateWindowInSession(t *testing.T) {
 	mockApp := testutil.NewMockApp()
 	mockApp.Base.SetExecCommandResult("", "", nil)
@@ -1253,5 +1317,93 @@ func TestSwitchToSession(t *testing.T) {
 	}
 	if !found {
 		t.Errorf("expected target 'misc' in args %v", last.Args)
+	}
+}
+
+func TestActivePaneID(t *testing.T) {
+	t.Run("returns trimmed pane id", func(t *testing.T) {
+		mockApp := testutil.NewMockApp()
+		mockApp.Base.SetExecCommandResult("%67\n", "", nil)
+		app := &tmux.Tmux{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+		id, err := app.ActivePaneID("wt-feature")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if id != "%67" {
+			t.Errorf("expected %%67, got %q", id)
+		}
+		last := mockApp.Base.GetLastExecCommandCall()
+		if last == nil || last.Args[0] != "display-message" {
+			t.Fatalf("expected 'display-message', got %v", last)
+		}
+		found := false
+		for _, arg := range last.Args {
+			if arg == "wt-feature" {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("expected target 'wt-feature' in args %v", last.Args)
+		}
+	})
+
+	t.Run("accepts a qualified session:window target", func(t *testing.T) {
+		mockApp := testutil.NewMockApp()
+		mockApp.Base.SetExecCommandResult("%12\n", "", nil)
+		app := &tmux.Tmux{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+		id, err := app.ActivePaneID("my-session:wt-feature")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if id != "%12" {
+			t.Errorf("expected %%12, got %q", id)
+		}
+	})
+
+	t.Run("exec error is returned", func(t *testing.T) {
+		mockApp := testutil.NewMockApp()
+		mockApp.Base.SetExecCommandResult("", "no server", errors.New("no server"))
+		app := &tmux.Tmux{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+		if _, err := app.ActivePaneID("wt-feature"); err == nil {
+			t.Error("expected error on exec failure")
+		}
+	})
+
+	t.Run("empty stdout is an error", func(t *testing.T) {
+		mockApp := testutil.NewMockApp()
+		mockApp.Base.SetExecCommandResult("", "", nil)
+		app := &tmux.Tmux{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+		if _, err := app.ActivePaneID("wt-feature"); err == nil {
+			t.Error("expected error when tmux returns no pane id")
+		}
+	})
+}
+
+func TestSelectPane(t *testing.T) {
+	mockApp := testutil.NewMockApp()
+	mockApp.Base.SetExecCommandResult("", "", nil)
+	app := &tmux.Tmux{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+	if err := app.SelectPane("%67"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	last := mockApp.Base.GetLastExecCommandCall()
+	if last == nil || last.Args[0] != "select-pane" {
+		t.Fatalf("expected 'select-pane', got %v", last)
+	}
+	found := false
+	for _, arg := range last.Args {
+		if arg == "%67" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected target '%%67' in args %v", last.Args)
 	}
 }

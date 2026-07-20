@@ -51,6 +51,15 @@ then attach-and-quit on success. Every create (TUI or CLI) records the repo root
 `global_config.yaml`'s `worktree.recent_repos`, which is what lets the picker rank repos
 that have no live worktrees. Cycle doc:
 [docs/plans/cycles/2026-07-15-wt-ui-create-flow.md](docs/plans/cycles/2026-07-15-wt-ui-create-flow.md).
+
+Also shipped: filesystem repo discovery via `worktree.search_paths` (opt-in; the picker
+also offers repos it's never seen a worktree or zoxide entry for), and window layouts —
+built-in `opencode`/`claude`/`claude-nvim`/`nvim` layouts selectable via
+`worktree.default_layout`, `--layout` on `dg wt new`/`dg wt repair` (mutually exclusive
+with `--ai`), and `N` in `dg wt ui` (same flow as `n`, plus a layout-picker step). Cycle
+doc:
+[docs/plans/cycles/2026-07-17-wt-ui-repo-scan-and-layouts.md](docs/plans/cycles/2026-07-17-wt-ui-repo-scan-and-layouts.md).
+
 Next steps below come from a July 2026 investigation of how competing multi-session tools
 (Claude Squad, worktrunk, uzi, sesh, gwq, Crystal) minimize keystrokes for session
 creation — the common winning patterns are single-key in-TUI create, create+attach
@@ -63,6 +72,13 @@ inferred."
 - ⚪ **Auto-naming** — Generate a branch/worktree name when none is given (uzi generates
   names automatically; gwq/ccmanager derive paths from templates so the branch name is the
   only input).
+- ⚪ **User-defined custom layouts** — Let users declare their own named layouts in
+  `global_config.yaml` beyond the built-in `opencode`/`claude`/`claude-nvim`/`nvim` set,
+  once that built-in set and the pane model have proven out in practice.
+- ⚪ **Per-worktree layout memory** — Have `dg wt repair` (and TUI auto-repair) rebuild the
+  layout a worktree was originally *created* with, instead of always re-resolving via
+  `--layout`/`--ai`/env/`default_layout`/`default_ai`. Requires storing a layout name per
+  worktree in `global_config.yaml`.
 
 ---
 

@@ -105,20 +105,22 @@ type Model struct {
 	repoPicker         *tuicomponents.FuzzyPicker
 	createRepo         string                  // resolved repo path chosen in repo-pick mode
 	createInput        tuicomponents.TextInput // in-progress name text + caret in name-input mode
-	pendingHookWarning bool                    // armed by a first enter when CheckHookCompatibility found warnings; a second enter confirms, any other key (or edited name) de-arms it
-	creating           bool                    // true from the moment the create tea.Cmd is dispatched until its result (createdMsg/createFailedMsg) is processed; the ONLY thing that actually enforces "one create at a time" (see createFn's WarnFn-swap comment below) — handleNewWorktree checks this and ignores n while it's true
+	wantsLayoutPick    bool                    // set when the flow was started via N (handleNewWorktreeWithLayoutPick) rather than n; read once, after a successful name-input enter, to decide whether to dispatch createFn immediately (n) or transition into createLayoutPick (N) first
+	layoutPicker       *tuicomponents.FuzzyPicker
+	pendingHookWarning bool // armed by a first enter when CheckHookCompatibility found warnings; a second enter confirms, any other key (or edited name) de-arms it
+	creating           bool // true from the moment the create tea.Cmd is dispatched until its result (createdMsg/createFailedMsg) is processed; the ONLY thing that actually enforces "one create at a time" (see createFn's WarnFn-swap comment below) — handleNewWorktree checks this and ignores n while it's true
 
 	// Injected I/O seams (overridable in tests)
 	diffFn                   func(path string) (task.BranchDiffResult, error)
 	attachFn                 func(session, window string) error
 	removeFn                 func(repo, name string, force bool) error
 	removeSessionFn          func(repo, name string) error
-	repairFn                 func(repo, name string, coder worktree.AICoder) error
+	repairFn                 func(repo, name string, layout worktree.Layout) error
 	windowSessionFn          func(window string) (string, bool)
 	repoCandidatesFn         func(cursorRepoSlug string) ([]string, error)
 	validateRepoPathFn       func(path string) (string, error)
 	checkHookCompatibilityFn func(repoPath string) []string
-	createFn                 func(repoPath, name string) (warning string, err error)
+	createFn                 func(repoPath, name, layoutName string) (warning string, err error)
 	prTitleFn                func(branch, path string) string
 }
 
@@ -151,8 +153,8 @@ func newModel(
 	m.removeSessionFn = func(repo, name string) error {
 		return mgr.RemoveWithSessionInRepo(repo, name)
 	}
-	m.repairFn = func(repo, name string, coder worktree.AICoder) error {
-		return mgr.RepairInRepo(repo, name, coder)
+	m.repairFn = func(repo, name string, layout worktree.Layout) error {
+		return mgr.RepairInRepo(repo, name, layout)
 	}
 	m.windowSessionFn = tmuxApp.WindowSession
 	m.repoCandidatesFn = mgr.RepoCandidates
@@ -165,9 +167,15 @@ func newModel(
 	// gets the warning, just through a TUI-safe confirm (see
 	// handleNameInputKey), instead of losing it to a hardcoded force=true.
 	m.checkHookCompatibilityFn = gitApp.CheckHookCompatibility
-	m.createFn = func(repoPath, name string) (string, error) {
-		alias := worktree.ResolveAIAlias("", gc)
-		coder, err := worktree.ResolveAICoder(alias)
+	m.createFn = func(repoPath, name, layoutName string) (string, error) {
+		// layoutName is "" for the n path (today's default behavior) and the
+		// N-picked name for the N path. aiAlias is always "" here — no flag or
+		// env var reaches this closure — which is exactly what lets
+		// ResolveLayout consult gc.Worktree.DefaultLayout before falling back
+		// to gc.Worktree.DefaultAI and then opencode when layoutName is also
+		// empty. See ResolveLayout's doc comment for why the folded
+		// ResolveAIAlias output must NOT be passed here instead.
+		layout, err := worktree.ResolveLayout(layoutName, "", gc)
 		if err != nil {
 			return "", err
 		}
@@ -192,7 +200,7 @@ func newModel(
 		// worktree.go's raw fmt.Println/stdin-read version of it is just
 		// redundant by this point and would otherwise corrupt or hang the
 		// running bubbletea alt-screen display.
-		if err := mgr.CreateAt(repoPath, name, coder, true); err != nil {
+		if err := mgr.CreateAt(repoPath, name, layout, true); err != nil {
 			return "", err
 		}
 		return warning, nil
@@ -470,6 +478,10 @@ func (m Model) handlePaste(text string) (tea.Model, tea.Cmd) {
 	if m.createMode == createNameInput {
 		return m.handleNameInputPaste(text)
 	}
+	if m.createMode == createLayoutPick {
+		m.layoutPicker.InsertText(text)
+		return m, nil
+	}
 
 	if m.filter.Active {
 		if m.filter.InsertText(text) {
@@ -497,6 +509,9 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 	if m.createMode == createNameInput {
 		return m.handleNameInputKey(key)
+	}
+	if m.createMode == createLayoutPick {
+		return m.handleLayoutPickKey(key)
 	}
 
 	if m.filter.Active {
@@ -623,6 +638,9 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "n":
 		return m.handleNewWorktree()
 
+	case "N":
+		return m.handleNewWorktreeWithLayoutPick()
+
 	case "ctrl+d":
 		m.diffScroll = min(m.diffScroll+m.diffPageSize(), m.maxDiffScroll())
 		return m, nil
@@ -728,13 +746,17 @@ func (m Model) attachToWindowCmd(repo, name string) tea.Cmd {
 			}
 			return tea.QuitMsg{}
 		}
-		// Auto-repair: window missing
-		alias := worktree.ResolveAIAlias("", gc)
-		coder, err := worktree.ResolveAICoder(alias)
+		// Auto-repair: window missing. No --layout flag/picker reaches this
+		// path (that's a later step), so layoutName and aiAlias are both ""
+		// here, letting ResolveLayout rebuild gc.Worktree.DefaultLayout when
+		// set, else derive from gc.Worktree.DefaultAI, else opencode - see
+		// ResolveLayout's doc comment for why the folded ResolveAIAlias
+		// output must NOT be passed here instead.
+		layout, err := worktree.ResolveLayout("", "", gc)
 		if err != nil {
 			return statusMsg("repair failed: " + err.Error())
 		}
-		if err := repairFn(repo, name, coder); err != nil {
+		if err := repairFn(repo, name, layout); err != nil {
 			return statusMsg("repair failed: " + err.Error())
 		}
 		session, ok = windowSessionFn(window)
@@ -812,12 +834,14 @@ func (m Model) handleRepair() (tea.Model, tea.Cmd) {
 	repo := sel.Repo
 	name := sel.Name
 	return m, func() tea.Msg {
-		alias := worktree.ResolveAIAlias("", gc)
-		coder, err := worktree.ResolveAICoder(alias)
+		// Same no-flags-given reasoning as attachToWindowCmd's auto-repair:
+		// "" for both layoutName and aiAlias lets ResolveLayout honor
+		// gc.Worktree.DefaultLayout, then gc.Worktree.DefaultAI, then opencode.
+		layout, err := worktree.ResolveLayout("", "", gc)
 		if err != nil {
 			return statusMsg("repair failed: " + err.Error())
 		}
-		if err := repairFn(repo, name, coder); err != nil {
+		if err := repairFn(repo, name, layout); err != nil {
 			return statusMsg("repair failed: " + err.Error())
 		}
 		return statusMsg("repaired: " + name)
@@ -847,6 +871,9 @@ func (m Model) renderContent() string {
 	}
 	if m.createMode == createNameInput {
 		return tuicomponents.Overlay(background, m.renderNameInputPopup(), m.width, m.height)
+	}
+	if m.createMode == createLayoutPick {
+		return tuicomponents.Overlay(background, m.renderLayoutPickPopup(), m.width, m.height)
 	}
 	return background
 }
@@ -1064,7 +1091,10 @@ func (m Model) renderHint(width int) string {
 	if m.pendingDelete != "" {
 		return m.armedDeleteHint(m.pendingDelete, "d", "", width)
 	}
-	if m.createMode == createRepoPick {
+	// createRepoPick and createLayoutPick are both plain FuzzyPicker
+	// interactions (list nav + select + cancel), so they share one hint set
+	// instead of two copy-pasted literals.
+	if m.createMode == createRepoPick || m.createMode == createLayoutPick {
 		hints := []tuicomponents.KeyHint{
 			{Key: "esc", Desc: "cancel"},
 			{Key: "enter", Desc: "select"},
@@ -1097,6 +1127,7 @@ func (m Model) renderHint(width int) string {
 	hints := []tuicomponents.KeyHint{
 		{Key: "↵", Desc: "attach"},
 		{Key: "n", Desc: "new"},
+		{Key: "N", Desc: "new w/ layout"},
 		{Key: "spc", Desc: "diff"},
 		{Key: "j/k", Desc: "move"},
 		{Key: "h/l", Desc: "fold"},
@@ -1124,6 +1155,7 @@ func (m Model) renderHelpPopup() string {
 	entries := []tuicomponents.WhichKeyEntry{
 		{Key: "enter", Desc: "attach (auto-repairs missing window)"},
 		{Key: "n", Desc: "create a new worktree (repo picker → name prompt)"},
+		{Key: "N", Desc: "create a new worktree (repo picker → name prompt → layout picker)"},
 		{Key: "j / k", Desc: "move cursor down / up"},
 		{Key: "h / l", Desc: "collapse / expand repo"},
 		{Key: "z", Desc: "toggle collapse all repos"},

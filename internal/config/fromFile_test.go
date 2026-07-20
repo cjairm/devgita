@@ -325,6 +325,91 @@ worktree:
 	}
 	assert.Equal(t, "opencode", gc.Worktree.DefaultAI)
 	assert.Nil(t, gc.Worktree.RecentRepos)
+	assert.Nil(t, gc.Worktree.SearchPaths)
+	assert.Equal(t, 0, gc.Worktree.ScanDepth)
+	assert.Equal(t, "", gc.Worktree.DefaultLayout)
+}
+
+// TestLoad_LegacyConfigWithoutScanFieldsLoadsUnchanged proves a
+// pre-repo-scan global_config.yaml (worktree section has only default_ai
+// and recent_repos, no search_paths/scan_depth/default_layout keys) still
+// loads: the three new fields must come back at their zero values instead
+// of failing to unmarshal or defaulting to something non-zero.
+func TestLoad_LegacyConfigWithoutScanFieldsLoadsUnchanged(t *testing.T) {
+	setupIsolatedConfigPaths(t)
+
+	legacyContent := `app_path: ""
+config_path: ""
+current_font: ""
+current_theme: ""
+shell:
+  mise: false
+worktree:
+  default_ai: claude
+  recent_repos:
+    - path: /repo/one
+      last_used: 2026-07-15T10:30:00Z
+`
+	configPath := getGlobalConfigFilePath()
+	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
+		t.Fatalf("failed to create config dir: %v", err)
+	}
+	if err := os.WriteFile(configPath, []byte(legacyContent), 0o644); err != nil {
+		t.Fatalf("failed to write legacy config file: %v", err)
+	}
+
+	gc := &GlobalConfig{}
+	if err := gc.Load(); err != nil {
+		t.Fatalf("Load failed on legacy config without scan fields: %v", err)
+	}
+	assert.Equal(t, "claude", gc.Worktree.DefaultAI)
+	if assert.Len(t, gc.Worktree.RecentRepos, 1) {
+		assert.Equal(t, "/repo/one", gc.Worktree.RecentRepos[0].Path)
+	}
+	assert.Nil(
+		t,
+		gc.Worktree.SearchPaths,
+		"search_paths must be nil (scanning disabled) when absent from legacy config",
+	)
+	assert.Equal(
+		t,
+		0,
+		gc.Worktree.ScanDepth,
+		"scan_depth must be zero-value when absent from legacy config",
+	)
+	assert.Equal(
+		t,
+		"",
+		gc.Worktree.DefaultLayout,
+		"default_layout must be empty when absent from legacy config",
+	)
+}
+
+// TestWorktreeConfig_ScanAndLayoutFieldsRoundTrip proves Save/Load round-trips
+// SearchPaths, ScanDepth, and DefaultLayout once a user sets them, not just
+// that they default correctly when absent (covered above).
+func TestWorktreeConfig_ScanAndLayoutFieldsRoundTrip(t *testing.T) {
+	setupIsolatedConfigPaths(t)
+
+	gc := &GlobalConfig{}
+	if err := gc.Create(); err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+	gc.Worktree.SearchPaths = []string{"/code", "/work/repos"}
+	gc.Worktree.ScanDepth = 6
+	gc.Worktree.DefaultLayout = "main-vertical"
+
+	if err := gc.Save(); err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
+
+	loaded := &GlobalConfig{}
+	if err := loaded.Load(); err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+	assert.Equal(t, gc.Worktree.SearchPaths, loaded.Worktree.SearchPaths)
+	assert.Equal(t, gc.Worktree.ScanDepth, loaded.Worktree.ScanDepth)
+	assert.Equal(t, gc.Worktree.DefaultLayout, loaded.Worktree.DefaultLayout)
 }
 
 func TestUpsertRecentRepo(t *testing.T) {

@@ -20,11 +20,12 @@ import (
 // repo picker: the repo containing the process's current working directory
 // first (so `n` suggests the repo you're already sitting in), then the
 // cursor repo (the repo owning cursorRepoSlug's worktrees), then stored
-// recent repos in most-recently-used order, then zoxide's tracked
-// directories when zoxide is installed. Every candidate is canonicalized
-// before deduping (config.CanonicalRepoPath — the same contract every source
-// must use) so the same repo is never offered twice regardless of which
-// source produced it.
+// recent repos in most-recently-used order, then repos found by scanning
+// Worktree.SearchPaths (opt-in — empty by default, so scanning contributes
+// nothing until a user configures it), then zoxide's tracked directories when
+// zoxide is installed. Every candidate is canonicalized before deduping
+// (config.CanonicalRepoPath — the same contract every source must use) so the
+// same repo is never offered twice regardless of which source produced it.
 //
 // A failure in one source never blanks the others: the recent-repos config
 // may not exist yet on a fresh install, and zoxide may error transiently, but
@@ -46,6 +47,11 @@ func (w *WorktreeManager) RepoCandidates(cursorRepoSlug string) ([]string, error
 		for _, r := range gc.Worktree.PrunedRecentRepos() {
 			raw = append(raw, r.Path)
 		}
+
+		// Filesystem scan is opt-in: SearchPaths is empty until a user
+		// configures it, and scanRepos returns nothing for an empty slice, so
+		// this is zero behavior change for anyone who hasn't set it up.
+		raw = append(raw, scanRepos(gc.Worktree.SearchPaths, gc.Worktree.ScanDepth)...)
 	}
 
 	if _, err := cmd.LookPathFn("zoxide"); err == nil {

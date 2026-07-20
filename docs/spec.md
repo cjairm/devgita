@@ -247,18 +247,49 @@ dg wt <subcommand> [flags]     # alias
 
 **Subcommands**:
 
-| Subcommand      | Description                                                                                                                                                                                                                                                                                                                                                                              |
-| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `create <name>` | Create a new worktree + tmux window                                                                                                                                                                                                                                                                                                                                                      |
-| `list`          | List all managed worktrees                                                                                                                                                                                                                                                                                                                                                               |
-| `remove [name]` | Remove a worktree (interactive picker if name omitted)                                                                                                                                                                                                                                                                                                                                   |
-| `ui` / `dash`   | Full-screen TUI dashboard (NERDTree-style tree + branch-diff pane). The pane labels its comparison (`<default-branch> @<merge-base> ← <branch>`), renders one styled header per file with per-file +/- counts, and is focusable (Space) for vim-style scrolling; replaces `jump`. Press `n` to create a worktree without leaving the dashboard — see "Creating from the dashboard" below |
-| `repair <name>` | Recreate the tmux window for an existing worktree                                                                                                                                                                                                                                                                                                                                        |
-| `prune`         | Remove **all** managed worktrees after confirmation                                                                                                                                                                                                                                                                                                                                      |
+| Subcommand      | Description                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `create <name>` | Create a new worktree + tmux window                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `list`          | List all managed worktrees                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `remove [name]` | Remove a worktree (interactive picker if name omitted)                                                                                                                                                                                                                                                                                                                                                                                          |
+| `ui` / `dash`   | Full-screen TUI dashboard (NERDTree-style tree + branch-diff pane). The pane labels its comparison (`<default-branch> @<merge-base> ← <branch>`), renders one styled header per file with per-file +/- counts, and is focusable (Space) for vim-style scrolling; replaces `jump`. Press `n` to create a worktree with the default layout, or `N` to also pick a layout, without leaving the dashboard — see "Creating from the dashboard" below |
+| `repair <name>` | Recreate the tmux window for an existing worktree                                                                                                                                                                                                                                                                                                                                                                                               |
+| `prune`         | Remove **all** managed worktrees after confirmation                                                                                                                                                                                                                                                                                                                                                                                             |
 
 **Flags for `create` and `repair`**:
 
-- `--ai <alias>` / `-a <alias>` — AI coder to launch in the window. Accepted aliases: `opencode`, `oc`, `claude`, `cc`, `claudecode`. Resolution order: flag → `DEVGITA_WORKTREE_AI` env var → `worktree.default_ai` in `global_config.yaml`.
+- `--ai <alias>` / `-a <alias>` — AI coder to launch in the window. Accepted aliases: `opencode`, `oc`, `claude`, `cc`, `claudecode`.
+- `--layout <name>` / `-l <name>` — Window layout to build. Valid names: `opencode`, `claude`, `claude-nvim`, `nvim` (see "Window layouts" below). Mutually exclusive with `--ai` — passing both is a cobra error before either command runs.
+
+  **Resolution order** (highest wins; each rule below only applies when none of the rules above it fired):
+
+  1. `--layout` flag — explicit layout name, wins over everything.
+  2. `--ai` flag — derived into a single-pane layout running that coder.
+  3. `DEVGITA_WORKTREE_AI` env var — derived into a single-pane layout.
+  4. `worktree.default_layout` in `global_config.yaml`.
+  5. `worktree.default_ai` in `global_config.yaml` — derived into a single-pane layout.
+  6. Default: `opencode`, single-pane.
+
+  `repair` uses the exact same resolution order as `create` — it does **not** remember the layout a worktree was originally created with. If the window is missing, it is rebuilt from scratch using whatever `--layout`/`--ai`/env/config resolves to at that moment. If the window already exists (e.g. only one pane in it was closed), `repair` only relaunches the AI coder in the existing window — it does not add or recreate missing panes, since there's no way to tell whether the surviving panes already match the requested layout.
+
+**Window layouts**:
+
+A layout is a named, ordered set of tmux panes built when a worktree's window is created or repaired. Built-in layouts (no config required):
+
+| Layout        | Panes                                                |
+| ------------- | ---------------------------------------------------- |
+| `opencode`    | Single pane running OpenCode                         |
+| `claude`      | Single pane running Claude Code                      |
+| `claude-nvim` | Claude Code and Neovim side by side (vertical split) |
+| `nvim`        | Single pane running Neovim only                      |
+
+Before any tmux window is touched, every pane's underlying tool is checked for installation; a layout referencing a missing tool fails with an actionable error and the worktree is not created. If a multi-pane window fails to build partway through (e.g. a later pane's split fails), the partially built window is killed and the worktree is rolled back — never left half-created.
+
+**Worktree scan and layout config keys** (`global_config.yaml`, under `worktree:`):
+
+- `search_paths` — list of directories to scan for git repositories to offer in the `n`/`N` repo picker (see "Creating from the dashboard" below). Default: empty, which disables the scan entirely — this is the only off-switch. The scan walks each path with `filepath.WalkDir`, stops descending at a repo's `.git` boundary (so nested repos/submodules are not listed as separate entries), and skips `node_modules`, `.cache`, `vendor`, `target`, `dist`, and `.git` directories encountered during the walk (a configured root itself is still scanned even if its name matches one of these, e.g. a root literally named `vendor`).
+- `scan_depth` — max directory depth below each search path to descend. Unset, `0`, or negative all mean the default of `4` — there is no separate "unlimited" or "disabled via depth" mode; use an empty `search_paths` to disable scanning.
+- `default_layout` — default window layout name (see the resolution order above). Default: empty, which means rule 5 (`default_ai`-derived single-pane layout) or the built-in `opencode` fallback applies instead.
 
 **Flag for `create`**:
 
@@ -283,31 +314,43 @@ first, rather than risk carrying or losing that work.
 **Examples**:
 
 ```
-dg wt create feature-login                  # Create worktree, use default AI
+dg wt create feature-login                  # Create worktree, use default AI/layout
 dg wt create feature-login --ai claude      # Create with Claude Code
+dg wt create feature-login --layout nvim    # Create with the nvim-only layout
 dg wt new fix-auth --repo ~/code/api        # Create for another repo; window opens in its session
-dg wt ui                                    # Open TUI dashboard (j/k nav, Enter attach, n create, d delete, D delete + kill session, r repair,
+dg wt ui                                    # Open TUI dashboard (j/k nav, Enter attach, n create, N create + pick layout, d delete,
+                                            #   D delete + kill session, r repair,
                                             #   Space focuses the diff pane: j/k scroll, [/] jump between files, g/G top/bottom, Esc back)
-dg wt repair feature-login                  # Recreate missing tmux window
+dg wt repair feature-login                  # Recreate missing tmux window (rebuilds current layout resolution, not the original)
 dg wt prune                                 # Remove all worktrees (prompts for confirmation)
 ```
 
-**Creating from the dashboard (`n`)**:
+**Creating from the dashboard (`n` / `N`)**:
 
 - `n` opens a floating repo picker over the dashboard — the background stays visible, matching
   the `?` help overlay. Candidates are ranked: the repo containing the directory `dg wt ui` was
   launched from first (when that directory is inside a git repo — otherwise this source is
   skipped), then the repo under the cursor, then repos from the recent-repos store
-  (most-recently-used first), then `zoxide query -l` results when zoxide is installed. Typing
-  filters the list; if the query matches nothing, Enter validates it directly as a free-typed
-  repo path instead.
-- Enter on a repo opens a floating name prompt. Enter creates the worktree (same as `create
---repo`) and attaches into the new window — the TUI exits, identical to pressing Enter on an
-  existing row. If the create's pre-flight hook-compatibility check finds warnings, they're
-  shown as a status message and a second Enter confirms; any other key cancels the confirm.
-- A failed create (invalid path, duplicate name, etc.) is shown as a status message; the
-  dashboard keeps running rather than exiting.
-- Esc at the repo picker or the name prompt returns to the dashboard unchanged.
+  (most-recently-used first), then repos found by scanning `worktree.search_paths` (see above —
+  contributes nothing until configured), then `zoxide query -l` results when zoxide is
+  installed. Typing filters the list; if the query matches nothing, Enter validates it directly
+  as a free-typed repo path instead.
+- Enter on a repo opens a floating name prompt. For `n`, Enter on the name creates the worktree
+  immediately using the resolved default layout (same as `create --repo` with no `--layout`/
+  `--ai`) and attaches into the new window — the TUI exits, identical to pressing Enter on an
+  existing row.
+- `N` follows the same repo-pick → name-prompt flow as `n`, but after the name is entered it
+  opens one more floating picker: a layout picker listing the built-in layout names
+  (`opencode`, `claude`, `claude-nvim`, `nvim`), cursor pre-positioned on the resolved default so
+  accepting it is a single Enter. Picking a layout (or free-typing an unlisted name — `ResolveLayout`
+  validates it and reports an unknown name the same way the CLI does) creates the worktree with
+  that layout and attaches, same as `n`.
+- If the create's pre-flight hook-compatibility check finds warnings, they're shown as a status
+  message and a second Enter confirms; any other key cancels the confirm.
+- A failed create (invalid path, duplicate name, unknown/uninstalled layout, etc.) is shown as a
+  status message; the dashboard keeps running rather than exiting.
+- Esc at the repo picker, the name prompt, or (for `N`) the layout picker returns to the
+  dashboard unchanged; no worktree is created.
 - Every successful create — from `ui`, `create`, or `new` — records the repo's root path in
   `global_config.yaml`'s `worktree.recent_repos` (MRU-ordered, capped at 20). This is what lets
   the picker offer a repo that currently has zero worktrees.

@@ -104,7 +104,7 @@ func TestCreate(t *testing.T) {
 		mockGitBase.SetExecCommandResult(tempDir+"\n", "", nil)
 		mockTmuxBase.SetExecCommandResult("", "window not found", os.ErrNotExist)
 
-		err := wm.Create("feature-test", &OpenCodeCoder{}, true)
+		err := wm.Create("feature-test", stubLayout, true)
 		if err == nil {
 			if mockGitBase.GetExecCommandCallCount() < 1 {
 				t.Error("Expected git commands to be called")
@@ -112,11 +112,11 @@ func TestCreate(t *testing.T) {
 		}
 	})
 
-	t.Run("nil coder returns error", func(t *testing.T) {
+	t.Run("empty layout returns error", func(t *testing.T) {
 		wm := &WorktreeManager{}
-		err := wm.Create("test", nil, true)
+		err := wm.Create("test", Layout{}, true)
 		if err == nil {
-			t.Fatal("Expected error for nil coder")
+			t.Fatal("Expected error for a layout with no panes")
 		}
 	})
 
@@ -141,7 +141,7 @@ func TestCreate(t *testing.T) {
 
 		mockGitBase.SetExecCommandResult("", "fatal: not a git repository", os.ErrNotExist)
 
-		err := wm.Create("feature-test", &OpenCodeCoder{}, true)
+		err := wm.Create("feature-test", stubLayout, true)
 		if err == nil {
 			t.Fatal("Expected error when not in git repo")
 		}
@@ -449,7 +449,7 @@ func TestRepairStaleWorktree(t *testing.T) {
 
 	// Don't create the directory - it's missing
 	// Call Repair and expect error about missing worktree
-	err := wm.Repair("stale-feature", &OpenCodeCoder{})
+	err := wm.Repair("stale-feature", stubLayout)
 	if err == nil {
 		t.Fatal("Expected error for non-existent worktree")
 	}
@@ -529,15 +529,19 @@ func TestRemoveWithSessionInRepo(t *testing.T) {
 		windowName := GetWindowName(repoSlug, wtName)
 		windowList := "dev-session\t" + windowName + "\n"
 		mockTmuxBase.SetExecCommandResults(
-			commands.ExecCommandResult(windowList, "", nil),      // WindowSession (ours)
-			commands.ExecCommandResult(windowList, "", nil),      // WindowSession (worktreeState)
-			commands.ExecCommandResult(windowList, "", nil),      // WindowSession (KillWindow)
-			commands.ExecCommandResult("", "", nil),              // kill-window
-			commands.ExecCommandResult("", "", nil),              // has-session dev-session
-			commands.ExecCommandResult("dev-session\n", "", nil), // display-message (CurrentSession)
-			commands.ExecCommandResult("", "", nil),              // has-session misc
-			commands.ExecCommandResult("", "", nil),              // switch-client
-			commands.ExecCommandResult("", "", nil),              // kill-session
+			commands.ExecCommandResult(windowList, "", nil), // WindowSession (ours)
+			commands.ExecCommandResult(windowList, "", nil), // WindowSession (worktreeState)
+			commands.ExecCommandResult(windowList, "", nil), // WindowSession (KillWindow)
+			commands.ExecCommandResult("", "", nil),         // kill-window
+			commands.ExecCommandResult("", "", nil),         // has-session dev-session
+			commands.ExecCommandResult(
+				"dev-session\n",
+				"",
+				nil,
+			), // display-message (CurrentSession)
+			commands.ExecCommandResult("", "", nil), // has-session misc
+			commands.ExecCommandResult("", "", nil), // switch-client
+			commands.ExecCommandResult("", "", nil), // kill-session
 		)
 
 		if err := wm.RemoveWithSessionInRepo(repoSlug, wtName); err != nil {
@@ -633,7 +637,10 @@ func TestRemoveWithSessionInRepo(t *testing.T) {
 		}
 		for _, c := range tmuxCallArgs(mockTmuxBase) {
 			if strings.HasPrefix(c, "kill-session") {
-				t.Errorf("should not kill an already-destroyed session: %v", tmuxCallArgs(mockTmuxBase))
+				t.Errorf(
+					"should not kill an already-destroyed session: %v",
+					tmuxCallArgs(mockTmuxBase),
+				)
 			}
 		}
 	})
@@ -647,13 +654,21 @@ func TestRemoveWithSessionInRepo(t *testing.T) {
 			commands.ExecCommandResult(windowList, "", nil),
 			commands.ExecCommandResult(windowList, "", nil),
 			commands.ExecCommandResult(windowList, "", nil),
-			commands.ExecCommandResult("", "", nil),                           // kill-window
-			commands.ExecCommandResult("", "", nil),                           // has-session dev-session
-			commands.ExecCommandResult("dev-session\n", "", nil),              // display-message
-			commands.ExecCommandResult("", "no such session", os.ErrNotExist), // has-session misc fails
-			commands.ExecCommandResult("", "", nil),                           // new-session
-			commands.ExecCommandResult("", "", nil),                           // switch-client
-			commands.ExecCommandResult("", "", nil),                           // kill-session
+			commands.ExecCommandResult("", "", nil), // kill-window
+			commands.ExecCommandResult(
+				"",
+				"",
+				nil,
+			), // has-session dev-session
+			commands.ExecCommandResult("dev-session\n", "", nil), // display-message
+			commands.ExecCommandResult(
+				"",
+				"no such session",
+				os.ErrNotExist,
+			), // has-session misc fails
+			commands.ExecCommandResult("", "", nil), // new-session
+			commands.ExecCommandResult("", "", nil), // switch-client
+			commands.ExecCommandResult("", "", nil), // kill-session
 		)
 
 		if err := wm.RemoveWithSessionInRepo(repoSlug, wtName); err != nil {
@@ -672,13 +687,10 @@ func TestRemoveWithSessionInRepo(t *testing.T) {
 	})
 }
 
-// stubCoder is an AICoder that always installs successfully, for exercising
-// the create flow without touching the real system.
-type stubCoder struct{}
-
-func (stubCoder) Name() string           { return "stub" }
-func (stubCoder) Command() string        { return "stub-cmd" }
-func (stubCoder) EnsureInstalled() error { return nil }
+// stubLayout is a single-pane Layout with no install checkers (paneCheckers
+// is left nil, so EnsureInstalled no-ops), for exercising the create/repair
+// flow without touching the real system.
+var stubLayout = Layout{Name: "stub", Panes: []Pane{{Command: "stub-cmd"}}}
 
 func TestCreateAt(t *testing.T) {
 	t.Run("errors when path is not a git repository", func(t *testing.T) {
@@ -690,7 +702,7 @@ func TestCreateAt(t *testing.T) {
 			Base: commands.NewMockBaseCommand(),
 		}
 
-		if err := wm.CreateAt("/nowhere", "feat", stubCoder{}, true); err == nil {
+		if err := wm.CreateAt("/nowhere", "feat", stubLayout, true); err == nil {
 			t.Fatal("expected error for a non-repo path")
 		}
 	})
@@ -706,11 +718,23 @@ func TestCreateAt(t *testing.T) {
 		)
 		mockTmuxBase := commands.NewMockBaseCommand()
 		mockTmuxBase.SetExecCommandResults(
-			commands.ExecCommandResult("", "", nil),                           // worktreeState list-windows (no window)
-			commands.ExecCommandResult("", "", nil),                           // ensureWindow list-windows (no window)
-			commands.ExecCommandResult("", "no such session", os.ErrNotExist), // has-session → missing
-			commands.ExecCommandResult("", "", nil),                           // new-session
-			commands.ExecCommandResult("", "", nil),                           // send-keys
+			commands.ExecCommandResult(
+				"",
+				"",
+				nil,
+			), // worktreeState list-windows (no window)
+			commands.ExecCommandResult(
+				"",
+				"",
+				nil,
+			), // ensureWindow list-windows (no window)
+			commands.ExecCommandResult(
+				"",
+				"no such session",
+				os.ErrNotExist,
+			), // has-session → missing
+			commands.ExecCommandResult("", "", nil), // new-session
+			commands.ExecCommandResult("", "", nil), // send-keys
 		)
 
 		wm := &WorktreeManager{
@@ -719,7 +743,7 @@ func TestCreateAt(t *testing.T) {
 			Base: commands.NewMockBaseCommand(),
 		}
 
-		if err := wm.CreateAt(repoRoot, "feat", stubCoder{}, true); err != nil {
+		if err := wm.CreateAt(repoRoot, "feat", stubLayout, true); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
@@ -751,7 +775,8 @@ func TestCreateAt(t *testing.T) {
 		sawWorktreeAdd := false
 		for _, call := range mockGitBase.ExecCommandCalls {
 			joined := strings.Join(call.Args, " ")
-			if strings.Contains(joined, "worktree add") && strings.HasPrefix(joined, "-C "+repoRoot) {
+			if strings.Contains(joined, "worktree add") &&
+				strings.HasPrefix(joined, "-C "+repoRoot) {
 				sawWorktreeAdd = true
 			}
 		}

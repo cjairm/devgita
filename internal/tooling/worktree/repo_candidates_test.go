@@ -75,7 +75,7 @@ func TestCreateRecordsRepoOnSuccess(t *testing.T) {
 		}
 	})
 
-	if err := wm.Create("feature-test", stubCoder{}, true); err != nil {
+	if err := wm.Create("feature-test", stubLayout, true); err != nil {
 		t.Fatalf("Create failed: %v", err)
 	}
 
@@ -145,7 +145,7 @@ func TestCreateSucceedsDespiteRecordFailure(t *testing.T) {
 		}
 	})
 
-	err := wm.Create("feature-test", stubCoder{}, true)
+	err := wm.Create("feature-test", stubLayout, true)
 	if err != nil {
 		t.Fatalf("Create must succeed even when repo recording fails: %v", err)
 	}
@@ -374,6 +374,115 @@ func TestRepoCandidates(t *testing.T) {
 			}
 			testutil.VerifyNoRealCommands(t, mockBase)
 		})
+	})
+
+	t.Run("empty SearchPaths means scan contributes nothing", func(t *testing.T) {
+		cleanupPaths := testutil.SetupIsolatedPaths(t)
+		defer cleanupPaths()
+		failingLookPath(t)
+
+		wm, _, _, mockBase := newRecordingWM()
+
+		// A repo exists on disk, but it's never named in SearchPaths (the
+		// zero value / default global config), so scanRepos must never find
+		// it: scanning is opt-in and this proves the opt-out (default) case
+		// is truly zero behavior change, not just "recents/zoxide happen to
+		// dominate the list".
+		scanRoot := t.TempDir()
+		repoDir := filepath.Join(scanRoot, "some-repo")
+		if err := os.MkdirAll(filepath.Join(repoDir, ".git"), 0o755); err != nil {
+			t.Fatalf("setup: %v", err)
+		}
+
+		gc := &config.GlobalConfig{}
+		if err := gc.Create(); err != nil {
+			t.Fatalf("setup: %v", err)
+		}
+		// SearchPaths intentionally left unset (zero value).
+		if err := gc.Save(); err != nil {
+			t.Fatalf("setup: %v", err)
+		}
+
+		candidates, err := wm.RepoCandidates("")
+		if err != nil {
+			t.Fatalf("RepoCandidates failed: %v", err)
+		}
+		if len(candidates) != 0 {
+			t.Fatalf("expected no candidates when SearchPaths is empty, got %+v", candidates)
+		}
+		testutil.VerifyNoRealCommands(t, mockBase)
+	})
+
+	t.Run("SearchPaths set discovers a repo via scan", func(t *testing.T) {
+		cleanupPaths := testutil.SetupIsolatedPaths(t)
+		defer cleanupPaths()
+		failingLookPath(t)
+
+		wm, _, _, mockBase := newRecordingWM()
+
+		scanRoot := t.TempDir()
+		repoDir := filepath.Join(scanRoot, "scanned-repo")
+		if err := os.MkdirAll(filepath.Join(repoDir, ".git"), 0o755); err != nil {
+			t.Fatalf("setup: %v", err)
+		}
+		canonicalRepo := config.CanonicalRepoPath(repoDir)
+
+		gc := &config.GlobalConfig{}
+		if err := gc.Create(); err != nil {
+			t.Fatalf("setup: %v", err)
+		}
+		gc.Worktree.SearchPaths = []string{scanRoot}
+		if err := gc.Save(); err != nil {
+			t.Fatalf("setup: %v", err)
+		}
+
+		candidates, err := wm.RepoCandidates("")
+		if err != nil {
+			t.Fatalf("RepoCandidates failed: %v", err)
+		}
+		if len(candidates) != 1 || candidates[0] != canonicalRepo {
+			t.Fatalf("expected [%q], got %+v", canonicalRepo, candidates)
+		}
+		testutil.VerifyNoRealCommands(t, mockBase)
+	})
+
+	t.Run("scan result already offered by recents is not duplicated", func(t *testing.T) {
+		cleanupPaths := testutil.SetupIsolatedPaths(t)
+		defer cleanupPaths()
+		failingLookPath(t)
+
+		wm, _, _, mockBase := newRecordingWM()
+
+		scanRoot := t.TempDir()
+		repoDir := filepath.Join(scanRoot, "shared-repo")
+		if err := os.MkdirAll(filepath.Join(repoDir, ".git"), 0o755); err != nil {
+			t.Fatalf("setup: %v", err)
+		}
+		canonicalRepo := config.CanonicalRepoPath(repoDir)
+
+		gc := &config.GlobalConfig{}
+		if err := gc.Create(); err != nil {
+			t.Fatalf("setup: %v", err)
+		}
+		gc.Worktree.SearchPaths = []string{scanRoot}
+		gc.Worktree.RecentRepos = []config.RecentRepo{
+			{Path: canonicalRepo, LastUsed: time.Now()},
+		}
+		if err := gc.Save(); err != nil {
+			t.Fatalf("setup: %v", err)
+		}
+
+		candidates, err := wm.RepoCandidates("")
+		if err != nil {
+			t.Fatalf("RepoCandidates failed: %v", err)
+		}
+		// Recents rank ahead of scan, and end-to-end dedup (not just
+		// scanRepos' own internal dedup) must collapse the two sources'
+		// identical repo into a single entry.
+		if len(candidates) != 1 || candidates[0] != canonicalRepo {
+			t.Fatalf("expected [%q] deduped, got %+v", canonicalRepo, candidates)
+		}
+		testutil.VerifyNoRealCommands(t, mockBase)
 	})
 
 	t.Run("dedup across sources preserves priority order", func(t *testing.T) {

@@ -12,19 +12,26 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/cjairm/devgita/internal/tooling/worktree"
 	tuicomponents "github.com/cjairm/devgita/internal/tui/components"
 )
 
-// createMode tracks progress through the n → repo-pick → name-input → create
-// flow, layered on top of the dashboard's existing mode flags (showHelp,
-// filter.Active, diffFocused) the same way those are: a small explicit field
-// checked early in handleKey, not a deep state machine.
+// createMode tracks progress through the n/N → repo-pick → name-input →
+// (layout-pick) → create flow, layered on top of the dashboard's existing
+// mode flags (showHelp, filter.Active, diffFocused) the same way those are: a
+// small explicit field checked early in handleKey, not a deep state machine.
+//
+// createLayoutPick only appears in this progression when the flow was
+// started via N (see Model.wantsLayoutPick): n's flow goes
+// createRepoPick -> createNameInput -> dispatch, while N's goes
+// createRepoPick -> createNameInput -> createLayoutPick -> dispatch.
 type createMode int
 
 const (
 	createNone createMode = iota
 	createRepoPick
 	createNameInput
+	createLayoutPick
 )
 
 // createdMsg reports a successful createFn call so Update can trigger the
@@ -49,19 +56,35 @@ type createFailedMsg struct {
 	err error
 }
 
-// handleNewWorktree opens the repo picker for the n keybinding, offering the
-// cursor row's repo first. RepoCandidates already ranks candidates (cwd repo,
-// then cursor repo, then recents, then zoxide) with the top-ranked one first,
-// matching FuzzyPicker's initial cursor at index 0, so no extra
-// pre-selection logic is needed here.
+// handleNewWorktree opens the repo picker for the n keybinding: today's
+// default-layout create, with no layout picker step.
+func (m Model) handleNewWorktree() (tea.Model, tea.Cmd) {
+	return m.startNewWorktree(false)
+}
+
+// handleNewWorktreeWithLayoutPick opens the repo picker for the N keybinding:
+// the same repo-pick -> name-input flow as n, but once the name is entered it
+// continues into createLayoutPick instead of dispatching immediately (see
+// handleNameInputKey and enterLayoutPick).
+func (m Model) handleNewWorktreeWithLayoutPick() (tea.Model, tea.Cmd) {
+	return m.startNewWorktree(true)
+}
+
+// startNewWorktree is the shared n/N entry point: it offers the cursor row's
+// repo first. RepoCandidates already ranks candidates (cwd repo, then cursor
+// repo, then recents, then zoxide) with the top-ranked one first, matching
+// FuzzyPicker's initial cursor at index 0, so no extra pre-selection logic is
+// needed here. wantsLayoutPick records which keybinding started the flow so
+// handleNameInputKey knows, once the name step succeeds, whether to dispatch
+// createFn immediately (n) or transition into createLayoutPick first (N).
 //
 // Guarded by m.creating: clearCreateState runs synchronously in
 // handleNameInputKey's enter branch, before the async createFn tea.Cmd it
-// returns has run, so without this guard a user could press n again while a
+// returns has run, so without this guard a user could press n/N again while a
 // create is still in flight and start a second concurrent createFn call —
 // racing the mgr.WarnFn swap/restore in createFn (see newModel). m.creating
-// stays true for exactly that window, so a second n is a no-op instead.
-func (m Model) handleNewWorktree() (tea.Model, tea.Cmd) {
+// stays true for exactly that window, so a second n/N is a no-op instead.
+func (m Model) startNewWorktree(wantsLayoutPick bool) (tea.Model, tea.Cmd) {
 	if m.creating {
 		return m, nil
 	}
@@ -86,6 +109,7 @@ func (m Model) handleNewWorktree() (tea.Model, tea.Cmd) {
 
 	m.repoPicker = tuicomponents.NewFuzzyPicker("New worktree — pick a repo", items)
 	m.createMode = createRepoPick
+	m.wantsLayoutPick = wantsLayoutPick
 	return m, nil
 }
 
@@ -175,26 +199,17 @@ func (m Model) handleNameInputKey(key string) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 		}
-		repoPath := m.createRepo
-		name := m.createInput.Value
-		createFn := m.createFn
-		m.clearCreateState()
-		// Armed here, before the tea.Cmd below ever runs: Bubble Tea runs
-		// every returned tea.Cmd in its own goroutine, so without setting
-		// this now (synchronously, in the same Update call that clears
-		// createMode back to createNone) a user could press n again and
-		// start a second concurrent create before this one resolves.
-		// handleNewWorktree checks m.creating and refuses to open the
-		// picker while it's true; cleared again once createdMsg or
-		// createFailedMsg is processed (handleCreateSuccess / Update).
-		m.creating = true
-		return m, func() tea.Msg {
-			warning, err := createFn(repoPath, name)
-			if err != nil {
-				return createFailedMsg{err: err}
-			}
-			return createdMsg{repoPath: repoPath, name: name, warning: warning}
+		if m.wantsLayoutPick {
+			// N started this flow: don't clearCreateState or dispatch yet —
+			// createRepo/createInput are still needed one step later, once
+			// the layout picker resolves a selection (see enterLayoutPick and
+			// handleLayoutPickKey's dispatchCreate call). pendingHookWarning
+			// was already satisfied above, so clear it now rather than
+			// leaving it armed for a mode that never rechecks it.
+			m.pendingHookWarning = false
+			return m.enterLayoutPick()
 		}
+		return m.dispatchCreate("")
 
 	default:
 		// Everything else is a name edit delegated to the shared TextInput:
@@ -221,17 +236,113 @@ func (m Model) handleNameInputPaste(text string) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// clearCreateState resets the n → repo-pick → name-input flow back to
-// normal mode, used on cancellation and once a create has been kicked off.
-// It does not touch m.creating: that field's lifecycle is independent,
-// spanning from just before the create tea.Cmd is dispatched until its
-// result is processed, which outlives this reset (clearCreateState runs
-// synchronously before the async createFn call even starts).
+// enterLayoutPick transitions from name-input into the N-triggered layout
+// picker, once a name has been entered and any hook warning confirmed.
+// createRepo/createInput are deliberately left untouched here (no
+// clearCreateState) — dispatchCreate needs them at the final dispatch point,
+// one step later than the n path's immediate dispatch.
+//
+// The item list is ordered with the resolved default layout first (skipping
+// it from the rest to avoid a duplicate), then every other built-in name in
+// their existing stable order: FuzzyPicker's cursor always starts at index 0
+// of an unfiltered item list (see NewFuzzyPicker/SetItems/refilter), so this
+// ordering is what puts the cursor on the default without any extra
+// pre-selection logic — the same trick startNewWorktree's repo picker already
+// relies on for RepoCandidates' ranked output.
+func (m Model) enterLayoutPick() (tea.Model, tea.Cmd) {
+	def, err := worktree.ResolveLayout("", "", m.gc)
+	if err != nil {
+		m.status = err.Error()
+		return m, nil
+	}
+
+	names := worktree.BuiltinLayoutNames()
+	items := make([]tuicomponents.PaletteItem, 0, len(names))
+	items = append(items, tuicomponents.PaletteItem{Command: def.Name})
+	for _, name := range names {
+		if name == def.Name {
+			continue
+		}
+		items = append(items, tuicomponents.PaletteItem{Command: name})
+	}
+
+	m.layoutPicker = tuicomponents.NewFuzzyPicker("New worktree — pick a layout", items)
+	m.createMode = createLayoutPick
+	return m, nil
+}
+
+// handleLayoutPickKey delegates to the FuzzyPicker, mirroring
+// handleRepoPickKey's shape: a list selection or a free-typed query that
+// matches nothing (FuzzyPickerNone + enter) both reach dispatchCreate.
+// Free-typed layout names are allowed through unvalidated, same as the repo
+// picker allows a free-typed path through to validateRepoPathFn — here,
+// ResolveLayout itself is what validates the name (inside createFn), and its
+// "unknown layout" error already lists the valid names, so a second
+// unlisted-name check in this picker would just duplicate that message.
+func (m Model) handleLayoutPickKey(key string) (tea.Model, tea.Cmd) {
+	result := m.layoutPicker.HandleKey(key)
+	switch result.Action {
+	case tuicomponents.FuzzyPickerCancelled:
+		m.clearCreateState()
+
+	case tuicomponents.FuzzyPickerSelected:
+		return m.dispatchCreate(result.Item.Command)
+
+	case tuicomponents.FuzzyPickerNone:
+		if key != "enter" {
+			break
+		}
+		query := m.layoutPicker.Query()
+		if query == "" {
+			break
+		}
+		return m.dispatchCreate(query)
+	}
+	return m, nil
+}
+
+// dispatchCreate captures the flow's accumulated state (repo, name, and the
+// resolved layout name — "" for the n path, a picked/typed name for N) and
+// kicks off the async createFn call. It's the single dispatch point both the
+// n path (handleNameInputKey) and the N path (handleLayoutPickKey) funnel
+// through, so the m.creating-arming safety reasoning only has to live in one
+// place.
+func (m Model) dispatchCreate(layoutName string) (tea.Model, tea.Cmd) {
+	repoPath := m.createRepo
+	name := m.createInput.Value
+	createFn := m.createFn
+	m.clearCreateState()
+	// Armed here, before the tea.Cmd below ever runs: Bubble Tea runs every
+	// returned tea.Cmd in its own goroutine, so without setting this now
+	// (synchronously, in the same Update call that clears createMode back to
+	// createNone) a user could press n/N again and start a second concurrent
+	// create before this one resolves. startNewWorktree checks m.creating and
+	// refuses to open the picker while it's true; cleared again once
+	// createdMsg or createFailedMsg is processed (handleCreateSuccess /
+	// Update).
+	m.creating = true
+	return m, func() tea.Msg {
+		warning, err := createFn(repoPath, name, layoutName)
+		if err != nil {
+			return createFailedMsg{err: err}
+		}
+		return createdMsg{repoPath: repoPath, name: name, warning: warning}
+	}
+}
+
+// clearCreateState resets the n/N → repo-pick → name-input → (layout-pick)
+// flow back to normal mode, used on cancellation and once a create has been
+// kicked off. It does not touch m.creating: that field's lifecycle is
+// independent, spanning from just before the create tea.Cmd is dispatched
+// until its result is processed, which outlives this reset (clearCreateState
+// runs synchronously before the async createFn call even starts).
 func (m *Model) clearCreateState() {
 	m.createMode = createNone
 	m.repoPicker = nil
+	m.layoutPicker = nil
 	m.createRepo = ""
 	m.createInput.Reset()
+	m.wantsLayoutPick = false
 	m.pendingHookWarning = false
 }
 
@@ -271,4 +382,12 @@ func (m Model) renderNameInputPopup() string {
 	maxW := min(m.width-2, 64)
 	lines := []string{"> " + m.createInput.RenderPlain()}
 	return m.palette.BorderedPane("New worktree — name", maxW, lines)
+}
+
+// renderLayoutPickPopup builds the raw (uncentered) layout-picker popup
+// content; the caller composites it over the dashboard background via
+// Overlay, same as renderRepoPickPopup.
+func (m Model) renderLayoutPickPopup() string {
+	maxW := min(m.width-2, 64)
+	return m.layoutPicker.View(maxW)
 }

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/internal/tooling/worktree"
 )
 
@@ -135,7 +136,7 @@ func TestRepoPickSelectedInvalidStaysInPicker(t *testing.T) {
 		return "", fmt.Errorf("not a git repository: %s", path)
 	}
 	createCalled := false
-	m.createFn = func(_, _ string) (string, error) {
+	m.createFn = func(_, _, _ string) (string, error) {
 		createCalled = true
 		return "", nil
 	}
@@ -205,7 +206,7 @@ func TestRepoPickFreeTypedPathInvalidStaysInPicker(t *testing.T) {
 		return "", fmt.Errorf("not a git repository: %s", path)
 	}
 	createCalled := false
-	m.createFn = func(_, _ string) (string, error) {
+	m.createFn = func(_, _, _ string) (string, error) {
 		createCalled = true
 		return "", nil
 	}
@@ -331,7 +332,7 @@ func TestNameInputEnterEmptyIsNoop(t *testing.T) {
 	m := makeTestModel(testStatuses())
 	m.createMode = createNameInput
 	m.createRepo = "/repos/alpha"
-	m.createFn = func(_, _ string) (string, error) {
+	m.createFn = func(_, _, _ string) (string, error) {
 		createCalled = true
 		return "", nil
 	}
@@ -355,7 +356,7 @@ func TestNameInputEscCancels(t *testing.T) {
 	m.createMode = createNameInput
 	m.createRepo = "/repos/alpha"
 	m.createInput.SetValue("feat")
-	m.createFn = func(_, _ string) (string, error) {
+	m.createFn = func(_, _, _ string) (string, error) {
 		createCalled = true
 		return "", nil
 	}
@@ -382,7 +383,7 @@ func TestCreateSuccessAttachesAndQuits(t *testing.T) {
 	m.createMode = createNameInput
 	m.createRepo = "/repos/alpha"
 	m.createInput.SetValue("feat")
-	m.createFn = func(repoPath, name string) (string, error) {
+	m.createFn = func(repoPath, name, _ string) (string, error) {
 		gotRepo = repoPath
 		gotName = name
 		return "", nil
@@ -443,7 +444,7 @@ func TestCreateFnFailureSetsStatusNoAttachNoQuit(t *testing.T) {
 	m.createMode = createNameInput
 	m.createRepo = "/repos/alpha"
 	m.createInput.SetValue("feat")
-	m.createFn = func(_, _ string) (string, error) {
+	m.createFn = func(_, _, _ string) (string, error) {
 		return "", fmt.Errorf("worktree already exists")
 	}
 	m.attachFn = func(_, _ string) error {
@@ -495,9 +496,9 @@ func TestCreateSuccessAttachFailureTriggersRefresh(t *testing.T) {
 
 	m := makeTestModel(testStatuses())
 	m.mgr = &worktree.WorktreeManager{}
-	m.createFn = func(_, _ string) (string, error) { return "", nil }
+	m.createFn = func(_, _, _ string) (string, error) { return "", nil }
 	m.windowSessionFn = func(_ string) (string, bool) { return "", false }
-	m.repairFn = func(_, _ string, _ worktree.AICoder) error {
+	m.repairFn = func(_, _ string, _ worktree.Layout) error {
 		return fmt.Errorf("repair unavailable")
 	}
 
@@ -534,7 +535,7 @@ func TestNameInputEnterWithHookWarningRequiresSecondEnter(t *testing.T) {
 		}
 		return []string{"pre-commit (contains \"[ -d .git\")"}
 	}
-	m.createFn = func(_, _ string) (string, error) {
+	m.createFn = func(_, _, _ string) (string, error) {
 		createCalled = true
 		return "", nil
 	}
@@ -583,7 +584,7 @@ func TestNameInputEnterWithoutHookWarningCreatesImmediately(t *testing.T) {
 	m.createRepo = "/repos/alpha"
 	m.createInput.SetValue("feat")
 	m.checkHookCompatibilityFn = func(_ string) []string { return nil }
-	m.createFn = func(_, _ string) (string, error) {
+	m.createFn = func(_, _, _ string) (string, error) {
 		createCalled = true
 		return "", nil
 	}
@@ -652,5 +653,273 @@ func TestCreateSuccessWarningSurfacesAsStatus(t *testing.T) {
 	}
 	if !foundQuit {
 		t.Error("a create warning must not prevent the attach/quit flow from proceeding")
+	}
+}
+
+// --- Create flow (N — layout picker) ---
+
+func TestNewWorktreeWithLayoutPickArmsWantsLayoutPick(t *testing.T) {
+	m := makeTestModel(testStatuses())
+	m.repoCandidatesFn = func(_ string) ([]string, error) {
+		return []string{"/repos/alpha"}, nil
+	}
+
+	m2, _ := m.Update(tea.KeyPressMsg{Code: 'N'})
+	m3 := m2.(Model)
+
+	if m3.createMode != createRepoPick {
+		t.Fatalf("N should enter repo-pick mode like n, got mode=%d", m3.createMode)
+	}
+	if !m3.wantsLayoutPick {
+		t.Error("N should arm wantsLayoutPick so name-input's enter continues into layout-pick")
+	}
+}
+
+func TestNameInputEnterWithoutWantsLayoutPickDispatchesImmediately(t *testing.T) {
+	// The n path (wantsLayoutPick == false): enter dispatches createFn
+	// directly with layoutName == "" and never touches the layout picker —
+	// today's default-layout behavior must stay unchanged.
+	var gotLayout string
+	layoutArgSeen := false
+	m := makeTestModel(testStatuses())
+	m.createMode = createNameInput
+	m.createRepo = "/repos/alpha"
+	m.createInput.SetValue("feat")
+	m.createFn = func(_, _, layoutName string) (string, error) {
+		gotLayout = layoutName
+		layoutArgSeen = true
+		return "", nil
+	}
+
+	m2, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m3 := m2.(Model)
+	if m3.createMode != createNone {
+		t.Error("n path enter should dispatch immediately, not enter layout-pick")
+	}
+	if m3.layoutPicker != nil {
+		t.Error("n path must never build a layout picker")
+	}
+	if cmd == nil {
+		t.Fatal("expected a command after enter")
+	}
+	cmd()
+	if !layoutArgSeen || gotLayout != "" {
+		t.Errorf("expected createFn called with empty layoutName for the n path, got %q", gotLayout)
+	}
+}
+
+func TestNameInputEnterWithWantsLayoutPickEntersLayoutPick(t *testing.T) {
+	createCalled := false
+	m := makeTestModel(testStatuses())
+	m.createMode = createNameInput
+	m.createRepo = "/repos/alpha"
+	m.createInput.SetValue("feat")
+	m.wantsLayoutPick = true
+	m.createFn = func(_, _, _ string) (string, error) {
+		createCalled = true
+		return "", nil
+	}
+
+	m2, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m3 := m2.(Model)
+
+	if cmd != nil {
+		t.Error("entering layout-pick must not dispatch createFn yet")
+	}
+	if createCalled {
+		t.Error("createFn must not be called until a layout is chosen")
+	}
+	if m3.createMode != createLayoutPick {
+		t.Fatalf("expected createLayoutPick mode, got mode=%d", m3.createMode)
+	}
+	if m3.layoutPicker == nil {
+		t.Fatal("expected a layout picker to be built")
+	}
+	if m3.createRepo != "/repos/alpha" {
+		t.Error("createRepo must survive into layout-pick mode for the later dispatch")
+	}
+	if m3.createInput.Value != "feat" {
+		t.Error("createInput must survive into layout-pick mode for the later dispatch")
+	}
+	// No gc is set on the test model, so ResolveLayout("", "", nil) falls all
+	// the way to the opencode built-in fallback — the same default n's own
+	// createFn closure would resolve to.
+	sel, ok := m3.layoutPicker.Selected()
+	if !ok || sel.Command != "opencode" {
+		t.Errorf(
+			"expected the resolved default layout (opencode) pre-selected, got %+v ok=%v",
+			sel,
+			ok,
+		)
+	}
+}
+
+func TestLayoutPickSelectedDispatchesCreateWithChosenLayout(t *testing.T) {
+	var gotRepo, gotName, gotLayout string
+	m := makeTestModel(testStatuses())
+	m.createMode = createNameInput
+	m.createRepo = "/repos/alpha"
+	m.createInput.SetValue("feat")
+	m.wantsLayoutPick = true
+	m.createFn = func(repoPath, name, layoutName string) (string, error) {
+		gotRepo = repoPath
+		gotName = name
+		gotLayout = layoutName
+		return "", nil
+	}
+
+	m2, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m3 := m2.(Model)
+	if m3.createMode != createLayoutPick {
+		t.Fatalf("expected createLayoutPick mode, got mode=%d", m3.createMode)
+	}
+
+	// Move off the pre-selected default (opencode) onto the next built-in and
+	// select that one, so the test actually exercises a non-default choice
+	// flowing through to createFn.
+	m4, _ := m3.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	m5 := m4.(Model)
+	m6, cmd := m5.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m7 := m6.(Model)
+
+	if m7.createMode != createNone {
+		t.Error("selecting a layout should leave layout-pick mode immediately")
+	}
+	if !m7.creating {
+		t.Error("selecting a layout should set creating=true before the async create resolves")
+	}
+	if m7.layoutPicker != nil {
+		t.Error("selecting a layout should clear the layout picker")
+	}
+	if cmd == nil {
+		t.Fatal("expected a command after selecting a layout")
+	}
+	cmd()
+	if gotRepo != "/repos/alpha" || gotName != "feat" {
+		t.Errorf("createFn called with wrong repo/name: repo=%q name=%q", gotRepo, gotName)
+	}
+	if gotLayout == "" || gotLayout == "opencode" {
+		t.Errorf("expected a non-default layout name to reach createFn, got %q", gotLayout)
+	}
+}
+
+func TestLayoutPickEscCancelsWholeCreate(t *testing.T) {
+	createCalled := false
+	m := makeTestModel(testStatuses())
+	m.createMode = createNameInput
+	m.createRepo = "/repos/alpha"
+	m.createInput.SetValue("feat")
+	m.wantsLayoutPick = true
+	m.createFn = func(_, _, _ string) (string, error) {
+		createCalled = true
+		return "", nil
+	}
+
+	m2, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m3 := m2.(Model)
+	if m3.createMode != createLayoutPick {
+		t.Fatal("expected createLayoutPick mode before esc")
+	}
+
+	m4, cmd := m3.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	m5 := m4.(Model)
+
+	if m5.createMode != createNone {
+		t.Error("esc at layout-pick should return to normal mode")
+	}
+	if m5.createRepo != "" || m5.createInput.Value != "" {
+		t.Error("esc at layout-pick should clear create state, same as the other two steps")
+	}
+	if m5.layoutPicker != nil {
+		t.Error("esc at layout-pick should clear the layout picker")
+	}
+	if m5.wantsLayoutPick {
+		t.Error("esc at layout-pick should clear wantsLayoutPick")
+	}
+	if createCalled {
+		t.Error("esc at layout-pick must not call createFn")
+	}
+	if cmd != nil {
+		t.Error("esc at layout-pick should return no command")
+	}
+}
+
+func TestLayoutPickFreeTypedQueryDispatchesUnlistedName(t *testing.T) {
+	// Mirrors the repo picker's free-typed-path precedent: a query that
+	// matches no built-in name is passed through to createFn as-is, and
+	// ResolveLayout (inside createFn) is what ultimately validates it.
+	var gotLayout string
+	m := makeTestModel(testStatuses())
+	m.createMode = createNameInput
+	m.createRepo = "/repos/alpha"
+	m.createInput.SetValue("feat")
+	m.wantsLayoutPick = true
+	m.createFn = func(_, _, layoutName string) (string, error) {
+		gotLayout = layoutName
+		return "", nil
+	}
+
+	m2, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m3 := m2.(Model)
+	if m3.createMode != createLayoutPick {
+		t.Fatal("expected createLayoutPick mode before typing")
+	}
+
+	for _, ch := range "totally-custom" {
+		m4, _ := m3.Update(tea.KeyPressMsg{Code: ch})
+		m3 = m4.(Model)
+	}
+	m5, cmd := m3.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m6 := m5.(Model)
+
+	if m6.createMode != createNone {
+		t.Fatalf("expected dispatch after a free-typed layout enter, got mode=%d", m6.createMode)
+	}
+	if cmd == nil {
+		t.Fatal("expected a command after a free-typed layout enter")
+	}
+	cmd()
+	if gotLayout != "totally-custom" {
+		t.Errorf("expected the free-typed layout name to reach createFn, got %q", gotLayout)
+	}
+}
+
+func TestEnterLayoutPickResolveLayoutErrorStaysInNameInput(t *testing.T) {
+	// Only reachable with an invalid gc.Worktree.DefaultLayout: enterLayoutPick
+	// resolves the default via ResolveLayout("", "", gc) before it can build the
+	// picker, and an unknown configured default_layout makes that resolution
+	// fail. The picker must never open in that case.
+	createCalled := false
+	m := makeTestModel(testStatuses())
+	m.createMode = createNameInput
+	m.createRepo = "/repos/alpha"
+	m.createInput.SetValue("feat")
+	m.wantsLayoutPick = true
+	m.gc = &config.GlobalConfig{Worktree: config.WorktreeConfig{DefaultLayout: "not-a-real-layout"}}
+	m.createFn = func(_, _, _ string) (string, error) {
+		createCalled = true
+		return "", nil
+	}
+
+	m2, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m3 := m2.(Model)
+
+	if cmd != nil {
+		t.Error("a ResolveLayout failure must not dispatch createFn")
+	}
+	if createCalled {
+		t.Error("createFn must not be called when the default layout fails to resolve")
+	}
+	if m3.createMode != createNameInput {
+		t.Errorf(
+			"expected to stay in name-input mode on resolve failure, got mode=%d",
+			m3.createMode,
+		)
+	}
+	if m3.layoutPicker != nil {
+		t.Error("a ResolveLayout failure must not build a layout picker")
+	}
+	if m3.status == "" {
+		t.Error("expected a status message describing the resolve failure")
 	}
 }

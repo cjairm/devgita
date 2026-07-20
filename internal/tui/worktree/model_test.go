@@ -32,12 +32,12 @@ func makeTestModel(statuses []worktree.WorktreeStatus) Model {
 	m.attachFn = func(_, _ string) error { return nil }
 	m.removeFn = func(_, _ string, _ bool) error { return nil }
 	m.removeSessionFn = func(_, _ string) error { return nil }
-	m.repairFn = func(_, _ string, _ worktree.AICoder) error { return nil }
+	m.repairFn = func(_, _ string, _ worktree.Layout) error { return nil }
 	m.windowSessionFn = func(_ string) (string, bool) { return "", false }
 	m.repoCandidatesFn = func(_ string) ([]string, error) { return nil, nil }
 	m.validateRepoPathFn = func(path string) (string, error) { return path, nil }
 	m.checkHookCompatibilityFn = func(_ string) []string { return nil }
-	m.createFn = func(_, _ string) (string, error) { return "", nil }
+	m.createFn = func(_, _, _ string) (string, error) { return "", nil }
 	m.prTitleFn = func(_, _ string) string { return "" }
 	m.statuses = statuses
 	m.rebuildRows()
@@ -410,7 +410,7 @@ func TestRepairCallsRepairFn(t *testing.T) {
 	repairCalled := false
 	var repairedRepo, repairedName string
 	m := makeTestModel(testStatuses())
-	m.repairFn = func(repo, name string, coder worktree.AICoder) error {
+	m.repairFn = func(repo, name string, layout worktree.Layout) error {
 		repairCalled = true
 		repairedRepo = repo
 		repairedName = name
