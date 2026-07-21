@@ -125,7 +125,7 @@ func TestLoadWorktreeGlobalConfig_MissingFileIsNonFatal(t *testing.T) {
 // gap fix: when global_config.yaml does exist and sets worktree.default_ai /
 // worktree.default_layout, loadWorktreeGlobalConfig must actually populate
 // them - this is precisely the CLI-path behavior that was silently broken
-// before this fix (dg wt ui loaded gc correctly elsewhere; dg wt
+// before this fix (dg ws loaded gc correctly elsewhere; dg wt
 // create/repair never did).
 func TestLoadWorktreeGlobalConfig_LoadsExistingConfig(t *testing.T) {
 	resetWorktreeFlags(t)

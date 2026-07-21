@@ -1,4 +1,4 @@
-// Layout model and built-in registry for `dg wt ui` window creation/repair.
+// Layout model and built-in registry for `dg ws` window creation/repair.
 //
 // This file owns the layout resolution contract that later steps (tmux
 // window building, the TUI's N picker, and CLI --layout flags) all call
@@ -30,7 +30,7 @@ type Pane struct {
 }
 
 // Layout is a named collection of panes describing a tmux window shape for
-// `dg wt ui` create/repair.
+// `dg ws` create/repair.
 //
 // paneCheckers mirrors Panes 1:1 and holds the install-check for each pane's
 // underlying tool. It's unexported: the plan mandates the exported shape be

@@ -1,7 +1,8 @@
-// Package tuiworktree provides the Bubble Tea TUI dashboard for dg wt ui.
+// Package tuiworktree provides the Bubble Tea TUI dashboard for dg ws.
 package tuiworktree
 
 import (
+	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -28,12 +29,19 @@ const (
 	// prTitleTimeout bounds the best-effort gh PR-title lookup so a hung or slow
 	// gh can't outlive one refresh interval and stall the diff pane.
 	prTitleTimeout = 2 * time.Second
+	// notInsideTmuxStatus is shown by both handleAttach and
+	// handleSwitchToSession (session_flow.go): switching a tmux client only
+	// makes sense from inside a tmux session.
+	notInsideTmuxStatus = "not inside tmux; run `dg ws` from a tmux session"
 )
 
 // --- Messages ---
 
 type (
 	statusesMsg []worktree.WorktreeStatus
+	// sessionsMsg carries a successful WorktreeManager.ListSessions() result;
+	// see sessionsLoadCmd for the success/failure split.
+	sessionsMsg []worktree.SessionStatus
 	diffMsg     struct {
 		content               string
 		files, added, removed int
@@ -72,10 +80,13 @@ type Model struct {
 	gitApp  *git.Git
 	gc      *config.GlobalConfig
 
-	statuses     []worktree.WorktreeStatus
+	statuses []worktree.WorktreeStatus
+	// sessions holds standalone tmux sessions with no worktree-backed window;
+	// see sessionsLoadCmd for refresh cadence and failure handling.
+	sessions     []worktree.SessionStatus
 	loaded       bool // true once the first List() result is in, so an empty dashboard shows guidance instead of a permanent "(loading...)"
 	rows         []row
-	cursor       int // index into rows (always a rowWorktree)
+	cursor       int // index into rows (a leaf row — rowWorktree or rowSession — or a collapsed rowRepo header)
 	collapsed    map[string]bool
 	allCollapsed bool
 
@@ -109,7 +120,16 @@ type Model struct {
 
 	pendingDelete        string // "repo/name" or ""
 	pendingSessionDelete string // "repo/name" or ""
+	pendingKillSession   string // armed session name (sessions have no repo) or ""
 	showHelp             bool
+
+	// creatingSession/sessionNameInput back the s → name-prompt → CreateSession
+	// flow, kept deliberately separate from createMode/createInput: that
+	// machinery belongs to the n/N worktree flow (repo-pick, hook-check,
+	// layout-pick) and none of those steps apply to a plain session. See
+	// session_flow.go.
+	creatingSession  bool
+	sessionNameInput tuicomponents.TextInput
 
 	createMode         createMode
 	repoPicker         *tuicomponents.FuzzyPicker
@@ -127,6 +147,9 @@ type Model struct {
 	removeSessionFn          func(repo, name string) error
 	repairFn                 func(repo, name string, layout worktree.Layout) error
 	windowSessionFn          func(window string) (string, bool)
+	createSessionFn          func(name, workdir string) error
+	switchToSessionFn        func(name string) error
+	killSessionFn            func(name string) error
 	repoCandidatesFn         func(cursorRepoSlug string) ([]string, error)
 	validateRepoPathFn       func(path string) (string, error)
 	checkHookCompatibilityFn func(repoPath string) []string
@@ -167,6 +190,9 @@ func newModel(
 		return mgr.RepairInRepo(repo, name, layout)
 	}
 	m.windowSessionFn = tmuxApp.WindowSession
+	m.createSessionFn = tmuxApp.CreateSession
+	m.switchToSessionFn = tmuxApp.SwitchToSession
+	m.killSessionFn = tmuxApp.KillSession
 	m.repoCandidatesFn = mgr.RepoCandidates
 	m.validateRepoPathFn = mgr.ValidateRepoPath
 	// CheckHookCompatibility only stats/reads hook files (and reads
@@ -231,6 +257,7 @@ func newModel(
 func (m Model) Init() tea.Cmd {
 	return tea.Batch(
 		m.loadCmd(),
+		m.sessionsLoadCmd(),
 		m.tickCmd(),
 	)
 }
@@ -242,6 +269,28 @@ func (m Model) loadCmd() tea.Cmd {
 			return statusMsg("failed to list worktrees: " + err.Error())
 		}
 		return statusesMsg(statuses)
+	}
+}
+
+// sessionsLoadCmd fetches standalone tmux sessions, dispatched alongside
+// loadCmd (Init and every tickMsg) so the two stay in sync on the same 3s
+// refresh. It's a separate tea.Cmd/message pair rather than folded into
+// loadCmd's result: worktrees load from the filesystem/git and sessions from
+// tmux, so a failure in either source must never affect the other's rows.
+//
+// On a real error, this returns a statusMsg (not a sessionsMsg) exactly like
+// loadCmd does above - the statusMsg case only sets m.status, so m.sessions
+// is never touched and the last-good session rows keep rendering. A genuinely
+// empty result (WorktreeManager.ListSessions' no-server case is (nil, nil))
+// is not an error: it produces a sessionsMsg, which the Update case below
+// applies with no status warning.
+func (m Model) sessionsLoadCmd() tea.Cmd {
+	return func() tea.Msg {
+		sessions, err := m.mgr.ListSessions()
+		if err != nil {
+			return statusMsg("failed to list sessions: " + err.Error())
+		}
+		return sessionsMsg(sessions)
 	}
 }
 
@@ -354,10 +403,25 @@ func (m Model) selectedStatus() (worktree.WorktreeStatus, bool) {
 	return r.status, true
 }
 
+// selectedSession mirrors selectedStatus for rowSession rows: it reports the
+// cursor's session (ok=true) only when the cursor sits on a rowSession leaf,
+// so handleKey can branch enter/d on row kind the same way selectedStatus lets
+// it branch on rowWorktree today.
+func (m Model) selectedSession() (worktree.SessionStatus, bool) {
+	if m.cursor < 0 || m.cursor >= len(m.rows) {
+		return worktree.SessionStatus{}, false
+	}
+	r := m.rows[m.cursor]
+	if r.kind != rowSession {
+		return worktree.SessionStatus{}, false
+	}
+	return r.session, true
+}
+
 func (m *Model) rebuildRows() {
-	m.rows = buildRows(m.statuses, m.collapsed, m.filter.Value())
-	// Keep cursor on a valid worktree row
-	m.cursor = tuicomponents.ClampCursor(worktreeIndices(m.rows), m.cursor)
+	m.rows = buildRows(m.statuses, m.sessions, m.collapsed, m.filter.Value())
+	// Keep cursor on a valid leaf row (worktree or session)
+	m.cursor = tuicomponents.ClampCursor(leafIndices(m.rows), m.cursor)
 }
 
 // applyStatuses installs a refreshed worktree list, rebuilds the rows, and
@@ -375,12 +439,14 @@ func (m Model) applyStatuses(statuses []worktree.WorktreeStatus) (tea.Model, tea
 	return m, nil
 }
 
-// navigableIndices returns row indices that j/k visit: all worktree rows plus
-// collapsed repo header rows (so the user can reach a collapsed header and press l).
+// navigableIndices returns row indices that j/k visit: all worktree rows,
+// all session rows, plus collapsed repo header rows (so the user can reach a
+// collapsed header and press l).
 func (m *Model) navigableIndices() []int {
 	var out []int
 	for i, r := range m.rows {
-		if r.kind == rowWorktree || (r.kind == rowRepo && m.collapsed[r.repo]) {
+		if r.kind == rowWorktree || r.kind == rowSession ||
+			(r.kind == rowRepo && m.collapsed[r.repo]) {
 			out = append(out, i)
 		}
 	}
@@ -433,6 +499,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case statusesMsg:
 		return m.applyStatuses([]worktree.WorktreeStatus(msg))
 
+	case sessionsMsg:
+		// Only reached on a successful ListSessions() (see sessionsLoadCmd);
+		// a failure produces a statusMsg instead, which never reaches this
+		// case and so never touches m.sessions - see that comment for why.
+		m.sessions = []worktree.SessionStatus(msg)
+		m.rebuildRows()
+		return m, nil
+
 	case deletedMsg:
 		// Replace the transient "deleting…" status with a confirmation, then
 		// apply the refreshed (row-dropped) list the same way statusesMsg does.
@@ -456,9 +530,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tickMsg:
-		// Periodic refresh: reload statuses, which re-derives the selected
-		// worktree's diff via the statusesMsg handler.
-		return m, tea.Batch(m.loadCmd(), m.tickCmd())
+		// Periodic refresh: reload statuses (re-deriving the selected
+		// worktree's diff via the statusesMsg handler) and sessions, kept in
+		// sync on the same 3s cadence.
+		return m, tea.Batch(m.loadCmd(), m.sessionsLoadCmd(), m.tickCmd())
 
 	case statusMsg:
 		m.status = string(msg)
@@ -470,6 +545,26 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case createFailedMsg:
 		m.creating = false
 		m.status = "create failed: " + msg.err.Error()
+		return m, nil
+
+	case sessionCreatedMsg:
+		// Only reached for a successful createSessionFn call made outside
+		// tmux (see dispatchSessionCreate) - inside tmux, success
+		// switches-and-quits directly from that tea.Cmd without ever
+		// producing this message.
+		m.status = "session created: " + msg.name
+		return m, m.sessionsLoadCmd()
+
+	case sessionKilledMsg:
+		var updated []worktree.SessionStatus
+		for _, s := range m.sessions {
+			if s.Name != msg.name {
+				updated = append(updated, s)
+			}
+		}
+		m.sessions = updated
+		m.rebuildRows()
+		m.status = "removed: " + msg.name
 		return m, nil
 
 	case tea.KeyPressMsg:
@@ -507,6 +602,9 @@ func (m Model) handlePaste(text string) (tea.Model, tea.Cmd) {
 		m.layoutPicker.InsertText(text)
 		return m, nil
 	}
+	if m.creatingSession {
+		return m.handleSessionNameInputPaste(text)
+	}
 
 	if m.filter.Active {
 		if m.filter.InsertText(text) {
@@ -538,6 +636,9 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.createMode == createLayoutPick {
 		return m.handleLayoutPickKey(key)
 	}
+	if m.creatingSession {
+		return m.handleSessionNameInputKey(key)
+	}
 
 	if m.filter.Active {
 		if m.filter.HandleKey(key) {
@@ -556,6 +657,9 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 	if key != "D" && m.pendingSessionDelete != "" {
 		m.pendingSessionDelete = ""
+	}
+	if key != "d" && m.pendingKillSession != "" {
+		m.pendingKillSession = ""
 	}
 
 	switch key {
@@ -649,9 +753,15 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case "enter":
+		if _, ok := m.selectedSession(); ok {
+			return m.handleSwitchToSession()
+		}
 		return m.handleAttach()
 
 	case "d":
+		if _, ok := m.selectedSession(); ok {
+			return m.handleKillSession()
+		}
 		return m.handleDelete()
 
 	case "D":
@@ -659,6 +769,9 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	case "r":
 		return m.handleRepair()
+
+	case "s":
+		return m.handleNewSession()
 
 	case "n":
 		return m.handleNewWorktree()
@@ -743,7 +856,7 @@ func (m Model) handleAttach() (tea.Model, tea.Cmd) {
 	}
 
 	if os.Getenv("TMUX") == "" {
-		m.status = "not inside tmux; run `dg wt ui` from a tmux session"
+		m.status = notInsideTmuxStatus
 		return m, nil
 	}
 
@@ -931,6 +1044,9 @@ func (m Model) renderContent() string {
 	if m.createMode == createLayoutPick {
 		return tuicomponents.Overlay(background, m.renderLayoutPickPopup(), m.width, m.height)
 	}
+	if m.creatingSession {
+		return tuicomponents.Overlay(background, m.renderSessionNameInputPopup(), m.width, m.height)
+	}
 	return background
 }
 
@@ -1014,12 +1130,53 @@ func (m Model) renderLeft(width int) string {
 				collapse = "▶"
 			}
 			text := collapse + " " + r.repo
-			pad := strings.Repeat(" ", max(0, width-ansi.StringWidth(text)))
+			// Right-aligned "N trees"/"1 tree" badge. Truncate the header text
+			// first (leaving room for at least one separating space) so the
+			// badge is never pushed past width, then pad the remainder — the
+			// same fixed-width layout the rowWorktree branch below uses.
+			badge := fmt.Sprintf("%d trees", r.worktreeCount)
+			if r.worktreeCount == 1 {
+				badge = "1 tree"
+			}
+			badgeW := ansi.StringWidth(badge)
+			text = ansi.Truncate(text, max(0, width-badgeW-1), "")
+			pad := strings.Repeat(" ", max(0, width-ansi.StringWidth(text)-badgeW))
 			if i == m.cursor {
 				// Cursor landed here after h — show repo header with selection highlight.
-				line = m.palette.Selected.Render(text + pad)
+				line = m.palette.Selected.Render(text + pad + badge)
 			} else {
-				line = m.palette.RepoHeader.Render(text) + pad
+				line = m.palette.RepoHeader.Render(
+					text,
+				) + pad + m.palette.HintDesc.Render(
+					badge,
+				)
+			}
+		} else if r.kind == rowSession {
+			const label = "session"
+			labelW := ansi.StringWidth(label)
+			// prefix = square(1) + space(1) = 2 display cols — same width as the
+			// "▼ "/"▶ " chevron above, so session rows (flat top-level leaves,
+			// no tree connector) line up with repo headers in the left column.
+			// The square (■/□) is a different shape from the worktree ●/○ circle
+			// so the two row kinds are distinguishable at a glance, not just by
+			// the trailing "session" label.
+			name := ansi.Truncate(r.session.Name, max(0, width-2-labelW-1), "")
+			pad := strings.Repeat(" ", max(0, width-2-ansi.StringWidth(name)-labelW))
+
+			if i == m.cursor {
+				g := m.palette.SessionGlyph(r.session.Attached)
+				plainText := g + " " + name
+				if m.pendingKillSession == r.session.Name {
+					line = m.palette.Armed.Render(plainText + pad + label)
+				} else {
+					line = m.palette.Selected.Render(plainText + pad + label)
+				}
+			} else {
+				line = m.palette.SessionDot(
+					r.session.Attached,
+				) + " " + name + pad + m.palette.HintDesc.Render(
+					label,
+				)
 			}
 		} else {
 			state := tuicomponents.SessionStateFromWorktree(r.status, false, 0)
@@ -1080,6 +1237,16 @@ func (m Model) renderRight(width int) string {
 		)
 	}
 
+	// Session rows have no diff: selectedStatus (and so selectionChangedCmd)
+	// never fires for them, so without this check the pane would keep
+	// showing whichever worktree's diff was selected last instead of
+	// something that reflects the current row.
+	if m.cursor >= 0 && m.cursor < len(m.rows) && m.rows[m.cursor].kind == rowSession {
+		return m.palette.Inactive.Render(
+			ansi.Truncate("Sessions have no diff — enter switches, d d kills.", width, ""),
+		)
+	}
+
 	header := m.palette.DiffStatLine(m.diffFiles, m.diffAdded, m.diffRemoved)
 	// GitHub-style "base ← compare" label, shown once for the whole diff.
 	if m.diffBase != "" && m.diffBranch != "" {
@@ -1127,25 +1294,36 @@ func (m Model) renderDiffContent(width, height int) string {
 	return strings.Join(truncated, "\n")
 }
 
-// armedDeleteHint renders the confirmation hint for a two-press delete.
-// pending is the armed "repo/name" key, key the keypress to repeat, and
-// suffix an optional description of extra effects beyond the worktree delete.
-func (m Model) armedDeleteHint(pending, key, suffix string, width int) string {
+// armedDeleteHint renders the confirmation hint for a two-press delete/kill.
+// pending is the armed key — a "repo/name" worktree key, or a bare session
+// name (strings.SplitN degrades gracefully to len(parts)==1, falling back to
+// the full pending string) — key is the keypress to repeat, verb is "delete"
+// or "kill", and suffix an optional description of extra effects.
+func (m Model) armedDeleteHint(pending, key, verb, suffix string, width int) string {
 	parts := strings.SplitN(pending, "/", 2)
 	name := pending
 	if len(parts) == 2 {
 		name = parts[1]
 	}
-	hint := "press " + key + " again to delete " + name + suffix + " · any other key cancels"
+	hint := "press " + key + " again to " + verb + " " + name + suffix + " · any other key cancels"
 	return m.palette.HintDesc.Render(ansi.Truncate(hint, width, ""))
 }
 
 func (m Model) renderHint(width int) string {
+	if m.pendingKillSession != "" {
+		return m.armedDeleteHint(m.pendingKillSession, "d", "kill", "", width)
+	}
 	if m.pendingSessionDelete != "" {
-		return m.armedDeleteHint(m.pendingSessionDelete, "D", " and kill its session", width)
+		return m.armedDeleteHint(
+			m.pendingSessionDelete,
+			"D",
+			"delete",
+			" and kill its session",
+			width,
+		)
 	}
 	if m.pendingDelete != "" {
-		return m.armedDeleteHint(m.pendingDelete, "d", "", width)
+		return m.armedDeleteHint(m.pendingDelete, "d", "delete", "", width)
 	}
 	// createRepoPick and createLayoutPick are both plain FuzzyPicker
 	// interactions (list nav + select + cancel), so they share one hint set
@@ -1180,10 +1358,18 @@ func (m Model) renderHint(width int) string {
 		}
 		return m.palette.HintBar(hints, width)
 	}
+	// "d" stays one generic "del" entry rather than a row-kind-aware pair
+	// ("del worktree" vs "del session"): the hint bar already documents d/D/r
+	// once each regardless of row-kind nuance (e.g. "D" doesn't clarify it
+	// only applies to worktree rows either), and the armed-kill/armed-delete
+	// hints above already disambiguate the moment a press actually arms —
+	// splitting "d" into two entries here would add width for a distinction
+	// the help popup (which has room) already covers.
 	hints := []tuicomponents.KeyHint{
 		{Key: "↵", Desc: "attach"},
 		{Key: "n", Desc: "new"},
 		{Key: "N", Desc: "new w/ layout"},
+		{Key: "s", Desc: "new session"},
 		{Key: "spc", Desc: "diff"},
 		{Key: "j/k", Desc: "move"},
 		{Key: "h/l", Desc: "fold"},
@@ -1209,13 +1395,20 @@ func (m Model) renderStatus(width int) string {
 // caller composites it over the dashboard background via Overlay.
 func (m Model) renderHelpPopup() string {
 	entries := []tuicomponents.WhichKeyEntry{
-		{Key: "enter", Desc: "attach (auto-repairs missing window)"},
+		{
+			Key:  "enter",
+			Desc: "attach (auto-repairs missing window); on a session row: switch to it",
+		},
 		{Key: "n", Desc: "create a new worktree (repo picker → name prompt)"},
 		{Key: "N", Desc: "create a new worktree (repo picker → name prompt → layout picker)"},
+		{Key: "s", Desc: "create a new tmux session (name prompt)"},
 		{Key: "j / k", Desc: "move cursor down / up"},
 		{Key: "h / l", Desc: "collapse / expand repo"},
 		{Key: "z", Desc: "toggle collapse all repos"},
-		{Key: "d d", Desc: "delete worktree (confirm twice)"},
+		{
+			Key:  "d d",
+			Desc: "delete worktree (confirm twice); on a session row: kill it (confirm twice)",
+		},
 		{Key: "D D", Desc: "delete worktree + kill its session"},
 		{Key: "r", Desc: "repair (recreate window + relaunch AI)"},
 		{Key: "/", Desc: "filter  esc:clear  enter:keep"},

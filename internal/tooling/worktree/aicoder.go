@@ -24,7 +24,7 @@ type AICoder interface {
 // It goes through commands.ShellCommandExistsFn, NOT commands.LookPathFn /
 // exec.LookPath, on purpose: a worktree window launches its coder by sending a
 // shell command to an interactive tmux pane, and that pane's PATH (repaired via
-// ~/.zshenv) can differ from dg's own process PATH when dg wt ui was started
+// ~/.zshenv) can differ from dg's own process PATH when dg ws was started
 // from a non-login pane. Checking with exec.LookPath there gives a false "not
 // installed" for a tool that would actually launch fine. Resolving the tool the
 // same way the pane will is the only check that matches reality. The seam is

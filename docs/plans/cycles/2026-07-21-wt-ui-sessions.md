@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-21
 **Estimated Duration:** ~8-10 hours
-**Status:** Draft
+**Status:** Done
 
 ---
 
@@ -133,26 +133,29 @@ is replaced by opening `dg ws`.
 
 ### In Scope
 
-- [ ] `docs/decisions/ADR-0003` — the design record this cycle implements.
+- [x] `docs/decisions/ADR-0003` — the design record this cycle implements.
       **Gate: ADR-0003 must be `ACCEPTED` before Step 1 begins.** It stays `PROPOSED`
       while this cycle is Draft; on cycle approval, flip it to `ACCEPTED`, then start coding.
-- [ ] `Tmux.ListSessions()` + test.
-- [ ] `WorktreeManager.ListSessions()` returning standalone sessions (no `wt-` window) + test.
-- [ ] Row model: `rowSession` kind; repo-header rows carry a worktree count; `buildRows`
+- [x] `Tmux.ListSessions()` + test.
+- [x] `WorktreeManager.ListSessions()` returning standalone sessions (no `wt-` window) + test.
+- [x] Row model: `rowSession` kind; repo-header rows carry a worktree count; `buildRows`
       emits one flat top-level list (repo workspaces + plain sessions) with the chevron +
       `N trees` badge / `session` leaf differentiation.
-- [ ] Session actions in the TUI: `s` (new session → name prompt → create in `$HOME`, then
+- [x] Session actions in the TUI: `s` (new session → name prompt → create in `$HOME`, then
       switch inside tmux / report detached outside tmux), `enter` (switch, `$TMUX`-guarded),
       `d` (kill session, two-press via `confirmThenRemove`). `D`/`r` are worktree-only no-ops
       on a session row.
-- [ ] Session status dot: attached vs detached.
-- [ ] New `cmd/workspace.go`: `dg ws` (alias `workspace`) calling `tuiworktree.Run()`,
+- [x] Session status dot: attached vs detached.
+- [x] New `cmd/workspace.go`: `dg ws` (alias `workspace`) calling `tuiworktree.Run()`,
       registered in `init()`.
-- [ ] Deprecate `dg wt ui`: cobra `Deprecated` notice pointing to `dg ws`; still runs.
-- [ ] `configs/tmux/tmux.conf`: retire the `choose-tree` popup; bind `ctrl+t` to open
+- [x] Deprecate `dg wt ui`: cobra `Deprecated` notice pointing to `dg ws`; still runs.
+- [x] `configs/tmux/tmux.conf`: retire the `choose-tree` popup; bind `ctrl+t` to open
       `dg ws`; keep `prefix+u` as a secondary alias (also pointing to `dg ws`).
 - [ ] Rebuild + `dg configure tmux --force` + verify end-to-end (embedded-config change).
-- [ ] Docs (all required): `docs/spec.md` (workspace model + `dg ws` in the features/commands
+      **Deliberately left undone by the implementing agent** — running this against the real
+      machine hosting the session would overwrite this machine's live tmux config and could
+      disrupt an in-use tmux server. The human running this session must do this step manually.
+- [x] Docs (all required): `docs/spec.md` (workspace model + `dg ws` in the features/commands
       section), `README.md` (command list — `dg ws` is a new top-level user-facing command),
       the TUI help overlay, and the `dg wt` long help (mention the `dg ws` rename). No file
       under `docs/apps/` — that directory is for app-installer docs, and `dg ws` is a command,
@@ -230,10 +233,12 @@ is replaced by opening `dg ws`.
 
 - `tree.go`: add `rowSession`; give the repo-header row a worktree count (for the `N trees`
   badge). `buildRows` emits, under one root: each repo workspace (header + children when
-  expanded) then each plain session as a leaf `rowSession`. `worktreeIndices` /
+  expanded) then each plain session as a leaf `rowSession`. `leafIndices` (renamed from
+  `worktreeIndices` during implementation, since it now covers both leaf kinds) /
   `navigableIndices` treat session rows as navigable but **not** worktree rows (so
   `selectedStatus`/diff/attach stay worktree-only).
 - Verify: `go test ./internal/tui/worktree/`.
+- Done: implemented in commits `603b548`, `c0f3dac`.
 
 #### Step 5: Load sessions into the model
 
@@ -248,6 +253,7 @@ is replaced by opening `dg ws`.
   the filesystem, so a tmux failure never hides them.
 - Verify: manual run shows the flat list; row tests; a test with a session-load error asserts
   the status line shows the warning and worktree rows still render.
+- Done: implemented in commit `a7e7b4d`.
 
 #### Step 6: Session actions — `enter`, `d`, `s`
 
@@ -280,6 +286,7 @@ is replaced by opening `dg ws`.
     TUI does not quit.
   - `d`: success (kill + row drops) **and** `KillSession` error → status line shows it, row
     stays.
+- Done: implemented in commit `69963df`.
 
 #### Step 7: Status dot, chevron/badge, hint bar, help
 
@@ -289,6 +296,7 @@ is replaced by opening `dg ws`.
 - `renderHint`: add `s: new session`; note `d` kills a session on a session row.
 - `renderHelpPopup`: add the session keys.
 - Verify: manual run; row tests.
+- Done: implemented in commit `e4955bf`.
 
 #### Step 8: `dg ws` command + deprecate `dg wt ui`
 
@@ -297,6 +305,7 @@ is replaced by opening `dg ws`.
 - `cmd/worktree.go`: set ``worktreeUICmd.Deprecated = "use `dg ws` instead"`` (cobra prints
   the notice and still runs). Update `dg wt` long help.
 - Verify: `go build ./cmd/`; `./devgita ws --help`; `./devgita wt ui` prints the notice.
+- Done: implemented in commit `da14ff0`.
 
 #### Step 9: Keybinding migration (embedded config)
 
@@ -311,6 +320,11 @@ is replaced by opening `dg ws`.
   `tmux source-file ~/.tmux.conf` — the embedded config is only re-applied on the next
   `dg configure`, so a hand edit holds until then.
 - Verify: manual — see below.
+- Done: `configs/tmux/tmux.conf` source change implemented in commits `4af9586`,
+  `e32ca46`. **Rebuild + redeploy is NOT done** — deliberately left for the human running
+  this session to do (a `dg configure tmux --force` here would overwrite this machine's
+  real tmux config and could disrupt a live tmux server hosting this very session). Run
+  the rebuild/redeploy/reload sequence above yourself when ready.
 
 #### Step 10: Docs
 
@@ -319,6 +333,7 @@ is replaced by opening `dg ws`.
   workspace model, the new keys, and the deprecation. No `docs/apps/` file — that directory
   is app-installer docs, and `dg ws` is a command, not an installed app.
 - Verify: read for clarity.
+- Done: implemented in commits `f7b7242`, `c585cd5`.
 
 ---
 
@@ -384,14 +399,27 @@ make lint
 
 ## 8. Cross-Model Review Notes
 
-- [ ] "Standalone session" defined unambiguously? (a session with **no** `wt-` window)
-- [ ] Does the row-kind split keep `selectedStatus`/diff/attach worktree-only?
-- [ ] All new tmux calls mocked and `VerifyNoRealCommands`-checked?
-- [ ] Embedded-config rebuild + reconfigure step explicit?
-- [ ] `dg wt ui` deprecation prints and still runs?
+- [x] "Standalone session" defined unambiguously? (a session with **no** `wt-` window)
+- [x] Does the row-kind split keep `selectedStatus`/diff/attach worktree-only?
+- [x] All new tmux calls mocked and `VerifyNoRealCommands`-checked?
+- [x] Embedded-config rebuild + reconfigure step explicit? (explicit in Step 9, but
+      deliberately not executed — see that step's Done note)
+- [x] `dg wt ui` deprecation prints and still runs?
 
 **Reviewer notes:**
-(Fill in during review.)
+
+Implemented via subagent-driven development: one implementer + spec-compliance review +
+code-quality review per step (Steps 5-10; Steps 1-4 were completed in a prior session), plus
+a final whole-branch review after all steps landed. The final review caught one real
+integration gap — the diff pane kept showing a stale worktree diff when the cursor moved onto
+a session row, instead of the guidance the plan's Out-of-Scope section promised — and two
+stale `dg wt ui` references left over from the Step 8 rename; both fixed
+(`daa1b04`). ADR-0003's `Status` field was `APPROVED`, not a value the ADR template
+permits (`PROPOSED | ACCEPTED | SUPERSEDED | DEPRECATED`) — corrected to `ACCEPTED`.
+No other issues found. `go build ./...`, `go test ./...`, and `gofmt -l` are clean
+end-to-end. Live deployment (`make build` → install → `dg configure tmux --force` → reload)
+is intentionally left for a human to run — the agent implementing this never had authorization
+to modify or reload this machine's real tmux config.
 
 ---
 

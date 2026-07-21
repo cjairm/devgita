@@ -49,6 +49,31 @@ func TestSessionStateFromWorktree(t *testing.T) {
 	}
 }
 
+func TestSessionGlyph(t *testing.T) {
+	p := tuicomponents.NewPalette()
+	// Sessions use squares, deliberately a different shape from the ●/○ circles
+	// StatusGlyph returns for worktrees, and never overlapping them.
+	if got := p.SessionGlyph(true); got != "■" {
+		t.Errorf("attached: got %q want ■", got)
+	}
+	if got := p.SessionGlyph(false); got != "□" {
+		t.Errorf("detached: got %q want □", got)
+	}
+	if strings.ContainsRune(p.SessionGlyph(true), '\x1b') {
+		t.Error("SessionGlyph must not contain ANSI escape bytes")
+	}
+}
+
+func TestSessionDotContainsGlyph(t *testing.T) {
+	p := tuicomponents.NewPalette()
+	if got := p.SessionDot(true); !strings.Contains(got, "■") {
+		t.Errorf("attached: SessionDot %q does not contain ■", got)
+	}
+	if got := p.SessionDot(false); !strings.Contains(got, "□") {
+		t.Errorf("detached: SessionDot %q does not contain □", got)
+	}
+}
+
 func TestStatusGlyphNoANSI(t *testing.T) {
 	p := tuicomponents.NewPalette()
 	cases := []struct {

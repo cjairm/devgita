@@ -1,6 +1,7 @@
 package worktree
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -785,4 +786,151 @@ func TestCreateAt(t *testing.T) {
 				repoRoot, mockGitBase.ExecCommandCalls)
 		}
 	})
+}
+
+func TestListSessions(t *testing.T) {
+	t.Run(
+		"excludes any session with at least one wt- window, keeps standalone sessions",
+		func(t *testing.T) {
+			mockTmuxBase := commands.NewMockBaseCommand()
+			mockTmuxBase.SetExecCommandResults(
+				// list-sessions
+				commands.ExecCommandResult("myrepo\t1\nmisc\t0\nnotes\t0\nmixed\t1\n", "", nil),
+				// list-windows -a
+				commands.ExecCommandResult(
+					"myrepo\twt-myrepo-feat\nmisc\tshell\nnotes\tnotes\nmixed\tshell\nmixed\twt-mixed-feat\n",
+					"",
+					nil,
+				),
+			)
+			wm := &WorktreeManager{
+				Tmux: &tmux.Tmux{Cmd: commands.NewMockCommand(), Base: mockTmuxBase},
+			}
+
+			statuses, err := wm.ListSessions()
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			expected := []SessionStatus{
+				{Name: "misc", Attached: false},
+				{Name: "notes", Attached: false},
+			}
+			if len(statuses) != len(expected) {
+				t.Fatalf(
+					"expected %d sessions, got %d: %+v",
+					len(expected),
+					len(statuses),
+					statuses,
+				)
+			}
+			for i, exp := range expected {
+				if statuses[i] != exp {
+					t.Errorf("status[%d] = %+v, want %+v", i, statuses[i], exp)
+				}
+			}
+
+			if mockTmuxBase.GetExecCommandCallCount() != 2 {
+				t.Errorf(
+					"expected a single list-sessions + a single list-windows -a scan, got %d calls: %+v",
+					mockTmuxBase.GetExecCommandCallCount(),
+					mockTmuxBase.ExecCommandCalls,
+				)
+			}
+		},
+	)
+
+	t.Run("no-server case flows through as empty list, not an error", func(t *testing.T) {
+		mockTmuxBase := commands.NewMockBaseCommand()
+		mockTmuxBase.SetExecCommandResult(
+			"",
+			"error connecting to /tmp/tmux-1000/default (No such file or directory)",
+			errors.New("exit status 1"),
+		)
+		wm := &WorktreeManager{
+			Tmux: &tmux.Tmux{Cmd: commands.NewMockCommand(), Base: mockTmuxBase},
+		}
+
+		statuses, err := wm.ListSessions()
+		if err != nil {
+			t.Fatalf("expected nil error, got: %v", err)
+		}
+		if statuses != nil {
+			t.Errorf("expected nil statuses, got %+v", statuses)
+		}
+		// No sessions means no windows to scan for either - the second
+		// (list-windows -a) call must not happen.
+		if mockTmuxBase.GetExecCommandCallCount() != 1 {
+			t.Errorf(
+				"expected only the list-sessions call, got %d calls: %+v",
+				mockTmuxBase.GetExecCommandCallCount(),
+				mockTmuxBase.ExecCommandCalls,
+			)
+		}
+	})
+
+	t.Run("real error from Tmux.ListSessions is propagated unchanged", func(t *testing.T) {
+		mockTmuxBase := commands.NewMockBaseCommand()
+		mockTmuxBase.SetExecCommandResult(
+			"",
+			"some unexpected tmux failure",
+			errors.New("exit status 1"),
+		)
+		wm := &WorktreeManager{
+			Tmux: &tmux.Tmux{Cmd: commands.NewMockCommand(), Base: mockTmuxBase},
+		}
+
+		statuses, err := wm.ListSessions()
+		if err == nil {
+			t.Fatal("expected error to be propagated, got nil")
+		}
+		if !strings.Contains(err.Error(), "failed to list tmux sessions") {
+			t.Errorf("expected the underlying tmux error to be preserved, got: %v", err)
+		}
+		if statuses != nil {
+			t.Errorf("expected nil statuses on error, got %+v", statuses)
+		}
+		if mockTmuxBase.GetExecCommandCallCount() != 1 {
+			t.Errorf(
+				"expected only the list-sessions call on error, got %d calls: %+v",
+				mockTmuxBase.GetExecCommandCallCount(),
+				mockTmuxBase.ExecCommandCalls,
+			)
+		}
+	})
+
+	// Documents an accepted trade-off: if Tmux.ListSessions() succeeds but the
+	// follow-up Tmux.SessionWindows() scan then fails, the exclusion set ends up
+	// empty and a worktree-backed session is reported as standalone - the exact
+	// double-listing this method exists to prevent. This mirrors the tolerant
+	// (best-effort, non-fatal) error handling already used elsewhere in this
+	// file for tmux queries (e.g. WindowSession, FindWindowsBySuffix), so it is
+	// not treated as an error here either. Not a design goal, just a documented
+	// limit of the current approach.
+	t.Run(
+		"SessionWindows failure after a successful ListSessions is tolerated, not surfaced as an error",
+		func(t *testing.T) {
+			mockTmuxBase := commands.NewMockBaseCommand()
+			mockTmuxBase.SetExecCommandResults(
+				// list-sessions: includes a session that (unbeknownst to us here) hosts a worktree window.
+				commands.ExecCommandResult("myrepo\t1\n", "", nil),
+				// list-windows -a fails.
+				commands.ExecCommandResult("", "error", errors.New("no server")),
+			)
+			wm := &WorktreeManager{
+				Tmux: &tmux.Tmux{Cmd: commands.NewMockCommand(), Base: mockTmuxBase},
+			}
+
+			statuses, err := wm.ListSessions()
+			if err != nil {
+				t.Fatalf("expected no error (tolerated failure), got: %v", err)
+			}
+			if len(statuses) != 1 || statuses[0].Name != "myrepo" {
+				t.Errorf(
+					"expected the worktree-backed session to incorrectly appear as standalone (documented trade-off), got %+v",
+					statuses,
+				)
+			}
+		},
+	)
 }

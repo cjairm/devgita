@@ -1,7 +1,7 @@
 # ADR-0003 — A single `dg ws` dashboard for sessions and worktrees
 
 **Date:** 2026-07-21
-**Status:** APPROVED
+**Status:** ACCEPTED
 
 ## Context
 

@@ -11,7 +11,7 @@ import (
 // the user's interactive shell — the same environment a tmux pane runs in.
 //
 // This exists because exec.LookPath (and LookPathFn) only sees the current
-// process's PATH. When `dg wt ui` is launched from a non-login tmux pane whose
+// process's PATH. When `dg ws` is launched from a non-login tmux pane whose
 // PATH was never repaired, that PATH can be truncated and miss tools that are
 // actually installed (e.g. ~/.local/bin/claude), producing a false "not
 // installed" error even though the coder would launch fine. Worktree windows

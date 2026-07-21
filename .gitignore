@@ -39,6 +39,7 @@ Icon?
 *.tmp
 
 # Devgita binaries (all platforms)
+/devgita
 devgita-darwin-*
 devgita-linux-*
 

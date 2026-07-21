@@ -39,6 +39,13 @@ const (
 	fallbackSession = "misc"
 )
 
+// isWorktreeWindow reports whether a tmux window name belongs to a worktree
+// (i.e. was produced by GetWindowName), rather than a window a user created
+// themselves in a plain session.
+func isWorktreeWindow(name string) bool {
+	return strings.HasPrefix(name, windowPrefix)
+}
+
 // flattenName converts a branch-style name (with slashes) to a flat directory name.
 // e.g. "feat/search-specs" → "feat-search-specs"
 func flattenName(name string) string {
@@ -59,6 +66,14 @@ type WorktreeStatus struct {
 	TmuxWindow   string
 	WindowActive bool
 	Repo         string
+}
+
+// SessionStatus describes a standalone tmux session for the workspace
+// dashboard - one with no worktree-backed window, so it doesn't already
+// appear via List().
+type SessionStatus struct {
+	Name     string
+	Attached bool
 }
 
 // WorktreeState holds the current state of a worktree
@@ -172,7 +187,7 @@ func (w *WorktreeManager) create(
 
 	if state.WtExists && state.WindowExists {
 		return fmt.Errorf(
-			"worktree '%s' already exists and has an active window; use `dg wt ui`",
+			"worktree '%s' already exists and has an active window; use `dg ws`",
 			name,
 		)
 	}
@@ -469,6 +484,41 @@ func (w *WorktreeManager) ListNames() ([]string, error) {
 	return names, nil
 }
 
+// ListSessions returns tmux sessions with no worktree-backed window - plain
+// sessions the workspace dashboard should list on their own, since a
+// worktree-backed session already appears via List(). A single
+// Tmux.SessionWindows() scan finds every wt-prefixed window across the
+// server; any session hosting at least one is excluded here.
+//
+// Errors from Tmux.ListSessions() propagate unchanged, including its (nil,
+// nil) no-server result, which flows through as an empty list here rather
+// than an error.
+func (w *WorktreeManager) ListSessions() ([]SessionStatus, error) {
+	sessions, err := w.Tmux.ListSessions()
+	if err != nil {
+		return nil, err
+	}
+	if len(sessions) == 0 {
+		return nil, nil
+	}
+
+	worktreeSessions := make(map[string]bool, len(sessions))
+	for _, sw := range w.Tmux.SessionWindows() {
+		if isWorktreeWindow(sw.Window) {
+			worktreeSessions[sw.Session] = true
+		}
+	}
+
+	var statuses []SessionStatus
+	for _, s := range sessions {
+		if worktreeSessions[s.Name] {
+			continue
+		}
+		statuses = append(statuses, SessionStatus{Name: s.Name, Attached: s.Attached})
+	}
+	return statuses, nil
+}
+
 // findRepoForWorktree searches the centralized base path for a worktree by name
 // and returns the repo slug that owns it. Returns "" if not found or ambiguous.
 func (w *WorktreeManager) findRepoForWorktree(name string) string {
@@ -519,7 +569,7 @@ func (w *WorktreeManager) Remove(name string, force bool) error {
 	// "-<flat-name>" segment, keeping only those with the wt- prefix.
 	var orphans []string
 	for _, window := range w.Tmux.FindWindowsBySuffix("-" + flattenName(name)) {
-		if strings.HasPrefix(window, windowPrefix) {
+		if isWorktreeWindow(window) {
 			orphans = append(orphans, window)
 		}
 	}

@@ -184,11 +184,11 @@ dg install --skip databases,desktop
   - `dg wt create <name>` - Create a worktree + tmux window + launch AI
     - `--ai <opencode|claude>` - AI coder to launch (mutually exclusive with `--layout`)
     - `--layout <opencode|claude|claude-nvim|nvim>` - Window layout to build (mutually exclusive with `--ai`)
-  - `dg wt ui` (alias: `dash`, `dashboard`) - Open full-screen TUI dashboard (`j/k` nav, `Enter` attach, `d` delete, `r` repair, `/` filter, `q` quit)
   - `dg wt list` - List all managed worktrees
   - `dg wt remove [name]` - Remove a worktree (fzf picker if name omitted)
   - `dg wt repair <name>` - Recreate the tmux window for an existing worktree
   - `dg wt prune` - Remove all managed worktrees
+- `dg ws` (alias: `dg workspace`) - Unified TUI dashboard: repo workspaces (worktrees, circle `●`/`○` marker, expandable, `N trees` badge) and standalone tmux sessions (square `■`/`□` marker) in one flat list (`enter` switch/attach, `d` delete/kill, `s` new session, `n`/`N` new worktree, `/` filter, `q` quit). Also bound to bare `ctrl+t` in tmux.
 - `dg list` (alias: `dg installed`) - Show everything Devgita has installed, grouped by category
   - `--category <name>` - Filter to one bucket (`packages`, `desktop_apps`, `fonts`, `themes`, `terminal_tools`, `dev_languages`, `databases`)
 - `dg task` (alias: `dg t`) - Developer utilities callable by agents and humans (mirrors `dge` shell function)

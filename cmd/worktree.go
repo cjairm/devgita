@@ -10,7 +10,6 @@ import (
 
 	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/internal/tooling/worktree"
-	tuiworktree "github.com/cjairm/devgita/internal/tui/worktree"
 	"github.com/cjairm/devgita/pkg/logger"
 	"github.com/cjairm/devgita/pkg/paths"
 	"github.com/cjairm/devgita/pkg/utils"
@@ -36,7 +35,6 @@ Examples:
   dg wt c feature-login                           # Same, using short form
   dg wt new fix-auth --repo ~/code/api            # Create for another repo (window opens in its session)
   dg wt l                                         # List all worktrees
-  dg wt ui                                        # Open the TUI dashboard
   dg wt rm                                        # Remove worktree (fzf selection)
   dg wt repair feature-login                      # Repair missing window
   dg wt prune                                     # Remove all worktrees`,
@@ -201,16 +199,6 @@ Warning: Any uncommitted changes in the worktree will be lost.`,
 	},
 }
 
-var worktreeUICmd = &cobra.Command{
-	Use:     "ui",
-	Aliases: []string{"dash", "dashboard"},
-	Short:   "Open the worktree dashboard (TUI)",
-	Args:    cobra.NoArgs,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		return tuiworktree.Run()
-	},
-}
-
 var worktreeRepairCmd = &cobra.Command{
 	Use:   "repair <name>",
 	Short: "Repair a worktree by recreating its tmux window",
@@ -309,7 +297,6 @@ func init() {
 	worktreeCmd.AddCommand(worktreeCreateCmd)
 	worktreeCmd.AddCommand(worktreeListCmd)
 	worktreeCmd.AddCommand(worktreeRemoveCmd)
-	worktreeCmd.AddCommand(worktreeUICmd)
 	worktreeCmd.AddCommand(worktreeRepairCmd)
 	worktreeCmd.AddCommand(worktreePruneCmd)
 
@@ -350,8 +337,8 @@ func resolveWorktreeLayout(layoutFlag, aiFlag string) (worktree.Layout, error) {
 
 // loadWorktreeGlobalConfig loads global_config.yaml into the package-level
 // globalConfig so ResolveLayout can see worktree.default_ai/default_layout
-// from the CLI path (dg wt ui loads its own gc elsewhere and never hit this
-// gap). A missing file is expected on a fresh install - not fatal, mirroring
+// from the CLI path (the dg ws dashboard loads its own gc elsewhere and never
+// hit this gap). A missing file is expected on a fresh install - not fatal, mirroring
 // RepoCandidates' "if err := gc.Load(); err == nil" fallback in
 // repo_candidates.go, so create/repair keep working with globalConfig at its
 // zero value (empty DefaultAI/DefaultLayout). But Load() returns the same

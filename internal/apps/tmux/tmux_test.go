@@ -938,6 +938,117 @@ func TestWindowSession(t *testing.T) {
 	})
 }
 
+func TestListSessions(t *testing.T) {
+	t.Run(
+		"parses tab-separated session lines, attached is a client count not a bool",
+		func(t *testing.T) {
+			mockApp := testutil.NewMockApp()
+			mockApp.Base.SetExecCommandResult("main\t1\nnotes\t0\nshared\t2\n", "", nil)
+			app := &tmux.Tmux{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+			sessions, err := app.ListSessions()
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			expected := []tmux.SessionInfo{
+				{Name: "main", Attached: true},
+				{Name: "notes", Attached: false},
+				{Name: "shared", Attached: true},
+			}
+			if len(sessions) != len(expected) {
+				t.Fatalf("expected %d sessions, got %d: %v", len(expected), len(sessions), sessions)
+			}
+			for i, exp := range expected {
+				if sessions[i] != exp {
+					t.Errorf("session[%d] = %+v, want %+v", i, sessions[i], exp)
+				}
+			}
+		},
+	)
+
+	t.Run("stale socket: stderr has no server running returns nil, nil", func(t *testing.T) {
+		mockApp := testutil.NewMockApp()
+		mockApp.Base.SetExecCommandResult(
+			"",
+			"no server running on /tmp/tmux-1000/default",
+			errors.New("exit status 1"),
+		)
+		app := &tmux.Tmux{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+		sessions, err := app.ListSessions()
+		if err != nil {
+			t.Fatalf("expected nil error, got: %v", err)
+		}
+		if sessions != nil {
+			t.Errorf("expected nil sessions, got %v", sessions)
+		}
+	})
+
+	t.Run(
+		"fresh machine: error connecting to plus no such file or directory returns nil, nil",
+		func(t *testing.T) {
+			mockApp := testutil.NewMockApp()
+			mockApp.Base.SetExecCommandResult(
+				"",
+				"error connecting to /tmp/tmux-1000/default (No such file or directory)",
+				errors.New("exit status 1"),
+			)
+			app := &tmux.Tmux{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+			sessions, err := app.ListSessions()
+			if err != nil {
+				t.Fatalf("expected nil error, got: %v", err)
+			}
+			if sessions != nil {
+				t.Errorf("expected nil sessions, got %v", sessions)
+			}
+		},
+	)
+
+	t.Run(
+		"regression: error connecting to without ENOENT is a real error, not swallowed",
+		func(t *testing.T) {
+			mockApp := testutil.NewMockApp()
+			mockApp.Base.SetExecCommandResult(
+				"",
+				"error connecting to /tmp/tmux-1000/default (Permission denied)",
+				errors.New("exit status 1"),
+			)
+			app := &tmux.Tmux{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+			sessions, err := app.ListSessions()
+			if err == nil {
+				t.Fatal("expected error to be returned, not swallowed")
+			}
+			if sessions != nil {
+				t.Errorf("expected nil sessions on error, got %v", sessions)
+			}
+		},
+	)
+
+	t.Run("generic unrelated error is wrapped and returned", func(t *testing.T) {
+		mockApp := testutil.NewMockApp()
+		mockApp.Base.SetExecCommandResult(
+			"",
+			"some unexpected tmux failure",
+			errors.New("exit status 1"),
+		)
+		app := &tmux.Tmux{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+		sessions, err := app.ListSessions()
+		if err == nil {
+			t.Fatal("expected error to be returned")
+		}
+		if !strings.Contains(err.Error(), "failed to list tmux sessions") {
+			t.Errorf("expected wrapped error message, got: %v", err)
+		}
+		if sessions != nil {
+			t.Errorf("expected nil sessions on error, got %v", sessions)
+		}
+	})
+}
+
 func TestFindWindowsBySuffix(t *testing.T) {
 	t.Run("returns all windows matching suffix across repos", func(t *testing.T) {
 		mockApp := testutil.NewMockApp()
@@ -974,6 +1085,54 @@ func TestFindWindowsBySuffix(t *testing.T) {
 
 		if matches := app.FindWindowsBySuffix("-CXE-35"); matches != nil {
 			t.Errorf("expected nil on exec error, got %v", matches)
+		}
+	})
+}
+
+func TestSessionWindows(t *testing.T) {
+	t.Run("parses tab-separated session/window pairs across the server", func(t *testing.T) {
+		mockApp := testutil.NewMockApp()
+		mockApp.Base.SetExecCommandResult(
+			"my-session\twt-feature-a\nmy-session\teditor\nother\tnotes\n",
+			"",
+			nil,
+		)
+		app := &tmux.Tmux{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+		pairs := app.SessionWindows()
+
+		expected := []tmux.SessionWindow{
+			{Session: "my-session", Window: "wt-feature-a"},
+			{Session: "my-session", Window: "editor"},
+			{Session: "other", Window: "notes"},
+		}
+		if len(pairs) != len(expected) {
+			t.Fatalf("expected %d pairs, got %d: %+v", len(expected), len(pairs), pairs)
+		}
+		for i, exp := range expected {
+			if pairs[i] != exp {
+				t.Errorf("pair[%d] = %+v, want %+v", i, pairs[i], exp)
+			}
+		}
+	})
+
+	t.Run("exec error returns nil", func(t *testing.T) {
+		mockApp := testutil.NewMockApp()
+		mockApp.Base.SetExecCommandResult("", "error", errors.New("no server"))
+		app := &tmux.Tmux{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+		if pairs := app.SessionWindows(); pairs != nil {
+			t.Errorf("expected nil on exec error, got %+v", pairs)
+		}
+	})
+
+	t.Run("no windows returns nil", func(t *testing.T) {
+		mockApp := testutil.NewMockApp()
+		mockApp.Base.SetExecCommandResult("", "", nil)
+		app := &tmux.Tmux{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+		if pairs := app.SessionWindows(); pairs != nil {
+			t.Errorf("expected nil when no windows exist, got %+v", pairs)
 		}
 	})
 }

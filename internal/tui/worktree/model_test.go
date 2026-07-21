@@ -1,13 +1,17 @@
 package tuiworktree
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/cjairm/devgita/internal/apps/tmux"
+	"github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/internal/testutil"
 	"github.com/cjairm/devgita/internal/tooling/task"
 	"github.com/cjairm/devgita/internal/tooling/worktree"
@@ -34,6 +38,9 @@ func makeTestModel(statuses []worktree.WorktreeStatus) Model {
 	m.removeSessionFn = func(_, _ string) error { return nil }
 	m.repairFn = func(_, _ string, _ worktree.Layout) error { return nil }
 	m.windowSessionFn = func(_ string) (string, bool) { return "", false }
+	m.createSessionFn = func(_, _ string) error { return nil }
+	m.switchToSessionFn = func(_ string) error { return nil }
+	m.killSessionFn = func(_ string) error { return nil }
 	m.repoCandidatesFn = func(_ string) ([]string, error) { return nil, nil }
 	m.validateRepoPathFn = func(path string) (string, error) { return path, nil }
 	m.checkHookCompatibilityFn = func(_ string) []string { return nil }
@@ -90,7 +97,7 @@ func testStatuses() []worktree.WorktreeStatus {
 
 func TestBuildRowsGrouping(t *testing.T) {
 	statuses := testStatuses()
-	rows := buildRows(statuses, map[string]bool{}, "")
+	rows := buildRows(statuses, nil, map[string]bool{}, "")
 	// Should have: repo-a header, feature-a, feature-b, repo-b header, feature-x
 	if len(rows) != 5 {
 		t.Fatalf("expected 5 rows, got %d", len(rows))
@@ -103,6 +110,181 @@ func TestBuildRowsGrouping(t *testing.T) {
 	}
 	if rows[3].kind != rowRepo || rows[3].repo != "repo-b" {
 		t.Error("expected fourth row to be repo-b header")
+	}
+}
+
+func testSessions() []worktree.SessionStatus {
+	return []worktree.SessionStatus{
+		{Name: "scratch", Attached: false},
+		{Name: "notes", Attached: true},
+	}
+}
+
+func TestBuildRowsRepoHeaderWorktreeCount(t *testing.T) {
+	rows := buildRows(testStatuses(), nil, map[string]bool{}, "")
+	if rows[0].kind != rowRepo || rows[0].repo != "repo-a" {
+		t.Fatal("expected first row to be repo-a header")
+	}
+	if rows[0].worktreeCount != 2 {
+		t.Errorf("expected repo-a header worktreeCount=2, got %d", rows[0].worktreeCount)
+	}
+	if rows[3].kind != rowRepo || rows[3].repo != "repo-b" {
+		t.Fatal("expected fourth row to be repo-b header")
+	}
+	if rows[3].worktreeCount != 1 {
+		t.Errorf("expected repo-b header worktreeCount=1, got %d", rows[3].worktreeCount)
+	}
+	// Collapsing a repo must not change its header's worktree count — the
+	// count describes the repo's children, not what's currently rendered.
+	collapsed := map[string]bool{"repo-a": true}
+	rowsCollapsed := buildRows(testStatuses(), nil, collapsed, "")
+	if rowsCollapsed[0].kind != rowRepo || rowsCollapsed[0].worktreeCount != 2 {
+		t.Errorf("collapsed repo-a header should still report worktreeCount=2, got %d",
+			rowsCollapsed[0].worktreeCount)
+	}
+}
+
+func TestBuildRowsSessionsAppendedAsLeavesAfterRepos(t *testing.T) {
+	rows := buildRows(testStatuses(), testSessions(), map[string]bool{}, "")
+	// repo-a header, feature-a, feature-b, repo-b header, feature-x, then
+	// sessions alpha-sorted: notes, scratch.
+	if len(rows) != 7 {
+		t.Fatalf("expected 7 rows (5 worktree rows + 2 sessions), got %d", len(rows))
+	}
+	for i := range 5 {
+		if rows[i].kind == rowSession {
+			t.Fatalf(
+				"row %d: session rows must come after all repo groups, got session at index %d",
+				i,
+				i,
+			)
+		}
+	}
+	if rows[5].kind != rowSession || rows[5].session.Name != "notes" {
+		t.Errorf("expected row 5 to be session 'notes' (alpha-sorted), got kind=%d name=%q",
+			rows[5].kind, rows[5].session.Name)
+	}
+	if rows[6].kind != rowSession || rows[6].session.Name != "scratch" {
+		t.Errorf("expected row 6 to be session 'scratch', got kind=%d name=%q",
+			rows[6].kind, rows[6].session.Name)
+	}
+}
+
+func TestBuildRowsSessionsWithNoWorktrees(t *testing.T) {
+	// Sessions must appear even when there are zero repos/worktrees.
+	rows := buildRows(nil, testSessions(), map[string]bool{}, "")
+	if len(rows) != 2 {
+		t.Fatalf("expected 2 session rows, got %d", len(rows))
+	}
+	for _, r := range rows {
+		if r.kind != rowSession {
+			t.Errorf("expected only session rows, got kind=%d", r.kind)
+		}
+		if r.repo != "" {
+			t.Errorf("session row must not carry a repo, got %q", r.repo)
+		}
+	}
+}
+
+func TestBuildRowsSessionRowUnaffectedByCollapse(t *testing.T) {
+	// Collapsing every repo must not hide or alter session rows — sessions
+	// have no expand/collapse state of their own.
+	collapsed := map[string]bool{"repo-a": true, "repo-b": true}
+	rows := buildRows(testStatuses(), testSessions(), collapsed, "")
+	var sessionCount int
+	for _, r := range rows {
+		if r.kind == rowSession {
+			sessionCount++
+		}
+	}
+	if sessionCount != 2 {
+		t.Errorf("expected 2 session rows regardless of repo collapse state, got %d", sessionCount)
+	}
+}
+
+func TestBuildRowsFilterMatchesSessionNames(t *testing.T) {
+	// Judgment call: filter matches session names too, consistent with the
+	// dashboard reading as one unified/filterable list.
+	rows := buildRows(testStatuses(), testSessions(), map[string]bool{}, "notes")
+	if len(rows) != 1 {
+		t.Fatalf(
+			"expected filter 'notes' to leave only the matching session row, got %d rows",
+			len(rows),
+		)
+	}
+	if rows[0].kind != rowSession || rows[0].session.Name != "notes" {
+		t.Errorf(
+			"expected the 'notes' session row, got kind=%d name=%q",
+			rows[0].kind,
+			rows[0].session.Name,
+		)
+	}
+}
+
+func TestLeafIndicesIncludesSessionRows(t *testing.T) {
+	rows := buildRows(testStatuses(), testSessions(), map[string]bool{}, "")
+	indices := leafIndices(rows)
+	// 3 worktree rows + 2 session rows = 5 leaf rows.
+	if len(indices) != 5 {
+		t.Fatalf("expected 5 leaf indices (worktree+session), got %d", len(indices))
+	}
+	for _, i := range indices {
+		if rows[i].kind == rowRepo {
+			t.Errorf("leafIndices must not include a repo header row, got index %d", i)
+		}
+	}
+}
+
+func TestNavigableIndicesIncludesSessionRows(t *testing.T) {
+	m := makeTestModel(testStatuses())
+	m.sessions = testSessions()
+	m.rebuildRows()
+	indices := m.navigableIndices()
+	for _, i := range indices {
+		if m.rows[i].kind == rowSession {
+			return
+		}
+	}
+	t.Error("expected navigableIndices to include at least one session row")
+}
+
+func TestSelectedStatusFalseForSessionRow(t *testing.T) {
+	m := makeTestModel(testStatuses())
+	m.sessions = testSessions()
+	m.rebuildRows()
+	// Land the cursor on a session row.
+	found := false
+	for i, r := range m.rows {
+		if r.kind == rowSession {
+			m.cursor = i
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("expected at least one session row after rebuildRows")
+	}
+	if _, ok := m.selectedStatus(); ok {
+		t.Error("selectedStatus must return false when cursor is on a session row")
+	}
+}
+
+// TestRenderLeftSessionRowShowsName is a regression test for a bug caught in
+// review: with rowSession falling through to the rowWorktree render branch,
+// a populated m.sessions rendered as a blank name with a stray "└" connector
+// (r.status is zero-valued for a session row). renderLeft now has its own
+// (placeholder, pending Step 7) rowSession branch that renders r.session.Name.
+func TestRenderLeftSessionRowShowsName(t *testing.T) {
+	m := makeTestModel(testStatuses())
+	m.sessions = testSessions()
+	m.rebuildRows()
+
+	out := ansi.Strip(m.renderLeft(40))
+	if !strings.Contains(out, "notes") {
+		t.Errorf("expected renderLeft output to contain session name %q, got:\n%s", "notes", out)
+	}
+	if !strings.Contains(out, "scratch") {
+		t.Errorf("expected renderLeft output to contain session name %q, got:\n%s", "scratch", out)
 	}
 }
 
@@ -464,7 +646,7 @@ func TestFilterHidesNonMatchingRows(t *testing.T) {
 
 func TestCursorWrapsAtBoundaries(t *testing.T) {
 	m := makeTestModel(testStatuses())
-	indices := worktreeIndices(m.rows)
+	indices := leafIndices(m.rows)
 	if len(indices) < 2 {
 		t.Skip("need at least 2 worktree rows")
 	}
@@ -596,6 +778,37 @@ func TestDiffHeaderShowsComparison(t *testing.T) {
 	}
 	if !strings.Contains(header, "±2 +96 -14") {
 		t.Errorf("expected stat line in header, got %q", header)
+	}
+}
+
+func TestSessionRowShowsGuidanceInsteadOfStaleDiff(t *testing.T) {
+	m := makeTestModel(testStatuses())
+	// Seed a stale worktree diff, as if the cursor sat on a worktree row
+	// before moving to the session row below.
+	m.diffContent = "stale diff content"
+	m.diffBase = "main @3e90667"
+	m.diffBranch = "feature-a"
+	m.sessions = []worktree.SessionStatus{{Name: "misc"}}
+	m.rebuildRows()
+
+	sessionIdx := -1
+	for i, r := range m.rows {
+		if r.kind == rowSession {
+			sessionIdx = i
+			break
+		}
+	}
+	if sessionIdx == -1 {
+		t.Fatal("expected a rowSession row after rebuildRows")
+	}
+	m.cursor = sessionIdx
+
+	got := ansi.Strip(m.renderRight(100))
+	if strings.Contains(got, "stale diff content") {
+		t.Errorf("session row must not render a stale worktree diff, got %q", got)
+	}
+	if !strings.Contains(got, "no diff") {
+		t.Errorf("expected session guidance text, got %q", got)
 	}
 }
 
@@ -749,6 +962,354 @@ func TestAttachNoRepairingStatusWhenWindowPresent(t *testing.T) {
 		t.Errorf(
 			"attach with a present window attaches instantly; no repairing status expected, got %q",
 			m3.status,
+		)
+	}
+}
+
+// mgrWithMockedTmux builds a real *worktree.WorktreeManager backed by a
+// mocked Tmux, mirroring the pattern internal/tooling/worktree's own tests
+// use (see TestListSessions in worktree_test.go). List() never touches Git
+// or Base here: the worktree base dir doesn't exist under the test sandbox,
+// so List() takes its os.IsNotExist short-circuit and returns an empty slice
+// without error - exactly what these tests need, since they're only
+// exercising the session-load side of loadCmd/sessionsLoadCmd.
+func mgrWithMockedTmux(mockTmuxBase *commands.MockBaseCommand) *worktree.WorktreeManager {
+	return &worktree.WorktreeManager{
+		Tmux: &tmux.Tmux{Cmd: commands.NewMockCommand(), Base: mockTmuxBase},
+	}
+}
+
+func TestInitBatchesWorktreeAndSessionLoads(t *testing.T) {
+	// Init()'s tea.Batch only bundles the commands - it doesn't invoke them -
+	// so this is safe even though makeTestModel leaves m.mgr nil (calling
+	// loadCmd/sessionsLoadCmd's returned closures would nil-dereference, but
+	// nothing here calls them).
+	m := makeTestModel(nil)
+	msg := m.Init()()
+	batch, ok := msg.(tea.BatchMsg)
+	if !ok {
+		t.Fatalf("expected Init() to return a tea.BatchMsg, got %T", msg)
+	}
+	if len(batch) != 3 {
+		t.Fatalf(
+			"expected Init() to batch 3 commands (worktree load, session load, tick), got %d",
+			len(batch),
+		)
+	}
+}
+
+func TestTickMsgBatchesWorktreeAndSessionLoads(t *testing.T) {
+	m := makeTestModel(nil)
+	_, cmd := m.Update(tickMsg(time.Now()))
+	if cmd == nil {
+		t.Fatal("tickMsg should return a batched command")
+	}
+	msg := cmd()
+	batch, ok := msg.(tea.BatchMsg)
+	if !ok {
+		t.Fatalf("expected tickMsg handling to return a tea.BatchMsg, got %T", msg)
+	}
+	if len(batch) != 3 {
+		t.Fatalf(
+			"expected tickMsg to re-batch 3 commands (worktree load, session load, tick), got %d",
+			len(batch),
+		)
+	}
+}
+
+// hasRow reports whether rows contains a rowSession leaf with the given name
+// (name is ignored for other kinds).
+func hasRow(rows []row, kind rowKind, name string) bool {
+	for _, r := range rows {
+		if r.kind != kind {
+			continue
+		}
+		if kind == rowSession && r.session.Name != name {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
+func TestSessionsLoadSuccessPopulatesSessionsAndRows(t *testing.T) {
+	mockTmuxBase := commands.NewMockBaseCommand()
+	mockTmuxBase.SetExecCommandResults(
+		// list-sessions
+		commands.ExecCommandResult("misc\t0\n", "", nil),
+		// list-windows -a: "misc" hosts no wt- window, so it's a standalone session.
+		commands.ExecCommandResult("misc\tshell\n", "", nil),
+	)
+	m := makeTestModel(testStatuses())
+	m.mgr = mgrWithMockedTmux(mockTmuxBase)
+
+	msg := m.sessionsLoadCmd()()
+	sm, ok := msg.(sessionsMsg)
+	if !ok {
+		t.Fatalf("expected sessionsMsg on a successful ListSessions, got %T: %+v", msg, msg)
+	}
+
+	m2, cmd := m.Update(sm)
+	m3 := m2.(Model)
+	if cmd != nil {
+		t.Error("sessionsMsg handling should not return a command")
+	}
+	if len(m3.sessions) != 1 || m3.sessions[0].Name != "misc" {
+		t.Fatalf("expected m.sessions populated with 'misc', got %+v", m3.sessions)
+	}
+
+	if !hasRow(m3.rows, rowSession, "misc") {
+		t.Errorf("expected a rowSession leaf for 'misc', got rows: %+v", m3.rows)
+	}
+	if !hasRow(m3.rows, rowWorktree, "") {
+		t.Errorf(
+			"expected worktree rows to still render alongside sessions, got rows: %+v",
+			m3.rows,
+		)
+	}
+}
+
+func TestSessionsLoadEmptyResultClearsSessionsWithoutWarning(t *testing.T) {
+	// A no-server tmux (ListSessions' (nil, nil) case) is a legitimate empty
+	// result, not an error - it must replace m.sessions (even a previously
+	// populated one) with no status-line warning, distinguishing "no
+	// sessions" from "query failed".
+	mockTmuxBase := commands.NewMockBaseCommand()
+	mockTmuxBase.SetExecCommandResult(
+		"",
+		"error connecting to /tmp/tmux-1000/default (No such file or directory)",
+		errors.New("exit status 1"),
+	)
+	m := makeTestModel(testStatuses())
+	m.sessions = []worktree.SessionStatus{{Name: "stale"}}
+	m.rebuildRows()
+	m.mgr = mgrWithMockedTmux(mockTmuxBase)
+
+	msg := m.sessionsLoadCmd()()
+	sm, ok := msg.(sessionsMsg)
+	if !ok {
+		t.Fatalf("expected sessionsMsg for the no-server case, got %T: %+v", msg, msg)
+	}
+
+	m2, _ := m.Update(sm)
+	m3 := m2.(Model)
+	if m3.status != "" {
+		t.Errorf(
+			"expected no status-line warning for a legitimately empty session list, got %q",
+			m3.status,
+		)
+	}
+	if len(m3.sessions) != 0 {
+		t.Errorf("expected m.sessions cleared to empty, got %+v", m3.sessions)
+	}
+}
+
+func TestSessionsLoadErrorPreservesLastGoodSessionsAndWarnsStatus(t *testing.T) {
+	// Seed a last-good sessions/rows state, as if a previous tick's load
+	// succeeded.
+	m := makeTestModel(testStatuses())
+	m.sessions = []worktree.SessionStatus{{Name: "misc"}}
+	m.rebuildRows()
+
+	mockTmuxBase := commands.NewMockBaseCommand()
+	mockTmuxBase.SetExecCommandResult(
+		"",
+		"some unexpected tmux failure",
+		errors.New("exit status 1"),
+	)
+	m.mgr = mgrWithMockedTmux(mockTmuxBase)
+
+	msg := m.sessionsLoadCmd()()
+	sm, ok := msg.(statusMsg)
+	if !ok {
+		t.Fatalf("expected a statusMsg on a real ListSessions error, got %T: %+v", msg, msg)
+	}
+	if !strings.Contains(string(sm), "failed to list sessions: ") {
+		t.Errorf("expected the 'failed to list sessions: ' prefix, got %q", sm)
+	}
+
+	m2, _ := m.Update(sm)
+	m3 := m2.(Model)
+	if !strings.Contains(m3.status, "failed to list sessions: ") {
+		t.Errorf("expected the status line to show the session-load warning, got %q", m3.status)
+	}
+	if len(m3.sessions) != 1 || m3.sessions[0].Name != "misc" {
+		t.Errorf(
+			"expected the last-good sessions to be preserved (not blanked), got %+v",
+			m3.sessions,
+		)
+	}
+
+	if !hasRow(m3.rows, rowWorktree, "") {
+		t.Errorf(
+			"expected worktree rows to still render despite the session-load failure, got rows: %+v",
+			m3.rows,
+		)
+	}
+	if !hasRow(m3.rows, rowSession, "misc") {
+		t.Errorf("expected the last-good session row to still render, got rows: %+v", m3.rows)
+	}
+}
+
+// --- Step 7: status dot, chevron/badge, hint bar, help ---
+
+func TestRenderLeftRepoHeaderShowsTreeCountBadge(t *testing.T) {
+	// testStatuses(): repo-a has 2 worktrees, repo-b has 1 - exercises both
+	// the plural and singular badge wording.
+	m := makeTestModel(testStatuses())
+	out := ansi.Strip(m.renderLeft(40))
+	lines := strings.Split(out, "\n")
+	if len(lines) != len(m.rows) {
+		t.Fatalf("expected %d rendered lines, got %d", len(m.rows), len(lines))
+	}
+
+	var repoALine, repoBLine string
+	for i, r := range m.rows {
+		if r.kind == rowRepo && r.repo == "repo-a" {
+			repoALine = lines[i]
+		}
+		if r.kind == rowRepo && r.repo == "repo-b" {
+			repoBLine = lines[i]
+		}
+	}
+	if !strings.Contains(repoALine, "2 trees") {
+		t.Errorf("expected repo-a header to show '2 trees' badge, got %q", repoALine)
+	}
+	if !strings.Contains(repoBLine, "1 tree") {
+		t.Errorf("expected repo-b header to show '1 tree' badge (singular), got %q", repoBLine)
+	}
+	if strings.Contains(repoBLine, "1 trees") {
+		t.Errorf("expected repo-b header to use singular 'tree', not plural, got %q", repoBLine)
+	}
+}
+
+func TestRenderLeftSessionRowShowsGlyphAndLabel(t *testing.T) {
+	m := makeTestModel(testStatuses())
+	m.sessions = testSessions() // notes: Attached=true, scratch: Attached=false
+	m.rebuildRows()
+
+	out := ansi.Strip(m.renderLeft(40))
+	lines := strings.Split(out, "\n")
+	if len(lines) != len(m.rows) {
+		t.Fatalf("expected %d rendered lines, got %d", len(m.rows), len(lines))
+	}
+
+	var notesLine, scratchLine string
+	for i, r := range m.rows {
+		if r.kind == rowSession && r.session.Name == "notes" {
+			notesLine = lines[i]
+		}
+		if r.kind == rowSession && r.session.Name == "scratch" {
+			scratchLine = lines[i]
+		}
+	}
+	if notesLine == "" || scratchLine == "" {
+		t.Fatalf("expected both session rows to render, got rows: %+v", m.rows)
+	}
+	// Sessions use squares (■ attached / □ detached), a different shape from
+	// the ●/○ circles worktree rows use.
+	if !strings.Contains(notesLine, "■") {
+		t.Errorf("expected attached session 'notes' to show the filled square ■, got %q", notesLine)
+	}
+	if strings.ContainsAny(notesLine, "●○") {
+		t.Errorf("session row must not use a worktree circle glyph, got %q", notesLine)
+	}
+	if !strings.Contains(scratchLine, "□") {
+		t.Errorf(
+			"expected detached session 'scratch' to show the hollow square □, got %q",
+			scratchLine,
+		)
+	}
+	if !strings.Contains(notesLine, "session") {
+		t.Errorf("expected session row to show the 'session' label, got %q", notesLine)
+	}
+	if !strings.Contains(scratchLine, "session") {
+		t.Errorf("expected session row to show the 'session' label, got %q", scratchLine)
+	}
+}
+
+// TestRenderLeftSessionRowCursorAndArmedStyling checks the raw (non-stripped)
+// ANSI prefixes lipgloss emits for Selected (bg ANSI 4: "97;44m") vs Armed
+// (bg ANSI 1: "97;41m") - captured once from the actual palette rather than
+// hardcoded from reading the source, so this fails loudly if the palette's
+// colors ever change instead of silently matching stale values.
+func TestRenderLeftSessionRowCursorAndArmedStyling(t *testing.T) {
+	m := makeTestModel(testStatuses())
+	m.sessions = testSessions()
+	m.rebuildRows()
+	selectedPrefix := strings.SplitN(m.palette.Selected.Render("X"), "X", 2)[0]
+	armedPrefix := strings.SplitN(m.palette.Armed.Render("X"), "X", 2)[0]
+
+	idx := -1
+	for i, r := range m.rows {
+		if r.kind == rowSession && r.session.Name == "notes" {
+			idx = i
+		}
+	}
+	if idx == -1 {
+		t.Fatal("expected a 'notes' session row")
+	}
+	m.cursor = idx
+
+	rawLines := strings.Split(m.renderLeft(40), "\n")
+	selectedLine := rawLines[idx]
+	if !strings.Contains(selectedLine, selectedPrefix) {
+		t.Errorf(
+			"expected cursor-selected (non-armed) session row to use the Selected style, got %q",
+			selectedLine,
+		)
+	}
+	if strings.Contains(selectedLine, armedPrefix) {
+		t.Errorf(
+			"expected cursor-selected (non-armed) session row not to use the Armed style, got %q",
+			selectedLine,
+		)
+	}
+
+	m.pendingKillSession = "notes"
+	rawLines2 := strings.Split(m.renderLeft(40), "\n")
+	armedLine := rawLines2[idx]
+	if !strings.Contains(armedLine, armedPrefix) {
+		t.Errorf(
+			"expected armed (pendingKillSession match) session row to use the Armed style, got %q",
+			armedLine,
+		)
+	}
+}
+
+func TestRenderHintShowsArmedKillSessionHint(t *testing.T) {
+	m := makeTestModel(testStatuses())
+	m.pendingKillSession = "notes"
+	out := ansi.Strip(m.renderHint(200))
+	if !strings.Contains(out, "press d again to kill notes") {
+		t.Errorf("expected armed-kill-session hint mentioning 'notes', got %q", out)
+	}
+}
+
+func TestRenderHintDefaultListIncludesNewSession(t *testing.T) {
+	m := makeTestModel(testStatuses())
+	out := ansi.Strip(m.renderHint(200))
+	if !strings.Contains(out, "new session") {
+		t.Errorf("expected default hint bar to include 's: new session', got %q", out)
+	}
+}
+
+func TestRenderHelpPopupIncludesSessionKeys(t *testing.T) {
+	m := makeTestModel(testStatuses())
+	out := ansi.Strip(m.renderHelpPopup())
+	if !strings.Contains(out, "create a new tmux session") {
+		t.Errorf("expected help popup to document the 's' key for new session, got:\n%s", out)
+	}
+	if !strings.Contains(out, "switch to it") {
+		t.Errorf(
+			"expected help popup's enter entry to clarify session-row behavior, got:\n%s",
+			out,
+		)
+	}
+	if !strings.Contains(out, "kill it") {
+		t.Errorf(
+			"expected help popup's d-d entry to clarify session-row kill behavior, got:\n%s",
+			out,
 		)
 	}
 }

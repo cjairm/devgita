@@ -32,7 +32,7 @@ type FileStat struct {
 // BranchDiffAt returns the diff of the worktree at dir against its
 // merge-base with the default branch — committed AND uncommitted work —
 // with the same lockfile exclusions and notes as BranchDiff. Output keeps
-// git's ANSI colors (--color=always): this exists for the `dg wt ui` diff
+// git's ANSI colors (--color=always): this exists for the `dg ws` diff
 // pane, which shows everything the worktree would merge. Untracked files
 // are invisible to `git diff`, so they are listed by name at the end and
 // counted in Files.

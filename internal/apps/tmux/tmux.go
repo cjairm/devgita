@@ -152,23 +152,65 @@ func (t *Tmux) CreateWindowInSession(session, name, workdir string) error {
 	return t.ExecuteCommand("new-window", "-t", session+":", "-n", name, "-c", workdir)
 }
 
+// SessionInfo describes one tmux session for listing purposes.
+type SessionInfo struct {
+	Name     string
+	Attached bool
+}
+
+// ListSessions returns every session on the tmux server. Unlike WindowSession,
+// which swallows errors to a bool because callers only care whether a specific
+// window was found, this distinguishes "genuinely no sessions" from "the query
+// failed": callers populate a UI region from this and need to tell the two
+// apart. tmux has two distinct ways of reporting "no server reachable", both
+// meaning zero sessions legitimately exist: a stale socket left behind by a
+// dead server ("no server running on <path>"), and no socket at all because
+// tmux has never been started for this user ("error connecting to <path>
+// (No such file or directory)" - the common case on a fresh machine). Both
+// return (nil, nil). "error connecting to" alone is not sufficient: tmux uses
+// that same prefix for permission-denied and non-socket-file errors on the
+// socket path, which are real, actionable failures and must not be swallowed
+// - so the ENOENT case is matched specifically by requiring "No such file or
+// directory" too. Any other non-zero exit returns the wrapped error.
+func (t *Tmux) ListSessions() ([]SessionInfo, error) {
+	execCommand := cmd.CommandParams{
+		Command: constants.Tmux,
+		Args:    []string{"list-sessions", "-F", "#{session_name}\t#{session_attached}"},
+	}
+	stdout, stderr, err := t.Base.ExecCommand(execCommand)
+	if err != nil {
+		noServerRunning := strings.Contains(stderr, "no server running")
+		noSocketFile := strings.Contains(stderr, "error connecting to") &&
+			strings.Contains(stderr, "No such file or directory")
+		if noServerRunning || noSocketFile {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to list tmux sessions: %w", err)
+	}
+	var sessions []SessionInfo
+	scanner := bufio.NewScanner(strings.NewReader(stdout))
+	for scanner.Scan() {
+		parts := strings.SplitN(strings.TrimSpace(scanner.Text()), "\t", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		sessions = append(sessions, SessionInfo{
+			Name: parts[0],
+			// session_attached is a count of attached clients, not a 0/1 flag
+			// (man tmux) - any non-zero count means the session is attached.
+			Attached: parts[1] != "0",
+		})
+	}
+	return sessions, nil
+}
+
 // WindowSession returns the session that contains a window with the given name,
 // searching across all sessions on the tmux server (not just the attached one).
 // Returns ("", false) when no such window exists or no server is reachable.
 func (t *Tmux) WindowSession(name string) (string, bool) {
-	execCommand := cmd.CommandParams{
-		Command: constants.Tmux,
-		Args:    []string{"list-windows", "-a", "-F", "#{session_name}\t#{window_name}"},
-	}
-	stdout, _, err := t.Base.ExecCommand(execCommand)
-	if err != nil {
-		return "", false
-	}
-	scanner := bufio.NewScanner(strings.NewReader(stdout))
-	for scanner.Scan() {
-		parts := strings.SplitN(strings.TrimSpace(scanner.Text()), "\t", 2)
-		if len(parts) == 2 && parts[1] == name {
-			return parts[0], true
+	for _, sw := range t.SessionWindows() {
+		if sw.Window == name {
+			return sw.Session, true
 		}
 	}
 	return "", false
@@ -199,6 +241,40 @@ func (t *Tmux) FindWindowsBySuffix(suffix string) []string {
 		}
 	}
 	return matches
+}
+
+// SessionWindow pairs one tmux window with the session that owns it.
+type SessionWindow struct {
+	Session string
+	Window  string
+}
+
+// SessionWindows returns every (session, window) pair on the tmux server from
+// a single list-windows -a scan. It is the shared shape callers reach for when
+// they need to correlate windows to their sessions in bulk - e.g.
+// WorktreeManager.ListSessions uses it to find every session hosting a
+// wt-prefixed window without one exec call per session. Returns nil when no
+// server is reachable or the query fails, matching WindowSession and
+// FindWindowsBySuffix's existing tolerance for this same command.
+func (t *Tmux) SessionWindows() []SessionWindow {
+	execCommand := cmd.CommandParams{
+		Command: constants.Tmux,
+		Args:    []string{"list-windows", "-a", "-F", "#{session_name}\t#{window_name}"},
+	}
+	stdout, _, err := t.Base.ExecCommand(execCommand)
+	if err != nil {
+		return nil
+	}
+	var pairs []SessionWindow
+	scanner := bufio.NewScanner(strings.NewReader(stdout))
+	for scanner.Scan() {
+		parts := strings.SplitN(strings.TrimSpace(scanner.Text()), "\t", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		pairs = append(pairs, SessionWindow{Session: parts[0], Window: parts[1]})
+	}
+	return pairs
 }
 
 // SwitchToWindow moves the attached client to the given session and selects the

@@ -247,14 +247,13 @@ dg wt <subcommand> [flags]     # alias
 
 **Subcommands**:
 
-| Subcommand      | Description                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `create <name>` | Create a new worktree + tmux window                                                                                                                                                                                                                                                                                                                                                                                                             |
-| `list`          | List all managed worktrees                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| `remove [name]` | Remove a worktree (interactive picker if name omitted)                                                                                                                                                                                                                                                                                                                                                                                          |
-| `ui` / `dash`   | Full-screen TUI dashboard (NERDTree-style tree + branch-diff pane). The pane labels its comparison (`<default-branch> @<merge-base> ← <branch>`), renders one styled header per file with per-file +/- counts, and is focusable (Space) for vim-style scrolling; replaces `jump`. Press `n` to create a worktree with the default layout, or `N` to also pick a layout, without leaving the dashboard — see "Creating from the dashboard" below |
-| `repair <name>` | Recreate the tmux window for an existing worktree                                                                                                                                                                                                                                                                                                                                                                                               |
-| `prune`         | Remove **all** managed worktrees after confirmation                                                                                                                                                                                                                                                                                                                                                                                             |
+| Subcommand      | Description                                            |
+| --------------- | ------------------------------------------------------ |
+| `create <name>` | Create a new worktree + tmux window                    |
+| `list`          | List all managed worktrees                             |
+| `remove [name]` | Remove a worktree (interactive picker if name omitted) |
+| `repair <name>` | Recreate the tmux window for an existing worktree      |
+| `prune`         | Remove **all** managed worktrees after confirmation    |
 
 **Flags for `create` and `repair`**:
 
@@ -318,9 +317,6 @@ dg wt create feature-login                  # Create worktree, use default AI/la
 dg wt create feature-login --ai claude      # Create with Claude Code
 dg wt create feature-login --layout nvim    # Create with the nvim-only layout
 dg wt new fix-auth --repo ~/code/api        # Create for another repo; window opens in its session
-dg wt ui                                    # Open TUI dashboard (j/k nav, Enter attach, n create, N create + pick layout, d delete,
-                                            #   D delete + kill session, r repair,
-                                            #   Space focuses the diff pane: j/k scroll, [/] jump between files, g/G top/bottom, Esc back)
 dg wt repair feature-login                  # Recreate missing tmux window (rebuilds current layout resolution, not the original)
 dg wt prune                                 # Remove all worktrees (prompts for confirmation)
 ```
@@ -328,7 +324,7 @@ dg wt prune                                 # Remove all worktrees (prompts for 
 **Creating from the dashboard (`n` / `N`)**:
 
 - `n` opens a floating repo picker over the dashboard — the background stays visible, matching
-  the `?` help overlay. Candidates are ranked: the repo containing the directory `dg wt ui` was
+  the `?` help overlay. Candidates are ranked: the repo containing the directory `dg ws` was
   launched from first (when that directory is inside a git repo — otherwise this source is
   skipped), then the repo under the cursor, then repos from the recent-repos store
   (most-recently-used first), then repos found by scanning `worktree.search_paths` (see above —
@@ -365,6 +361,47 @@ result the moment the action finishes (and is moot inside tmux on a create/attac
 since the TUI then attaches and exits).
 
 **Planned commands**: See [ROADMAP.md](ROADMAP.md) for planned features and future commands.
+
+#### `dg ws`
+
+```
+dg ws
+dg workspace   # alias
+```
+
+Unified full-screen TUI dashboard — the single entry point to the worktree/session UI (the
+old `dg wt ui` subcommand has been removed). Scoped to **workspaces** rather than worktrees
+only. Every top-level row in the dashboard is exactly one of two kinds:
+
+- **Repo workspace** (worktree-backed): a repo with git worktrees, sourced from the same
+  worktree scan `dg wt list` uses. Expandable to its worktree rows via `h`/`l` (or `z`
+  to toggle every repo at once), shown with a `▼`/`▶` chevron and an `N trees` badge. Shown even
+  when its repo-slug tmux session isn't live.
+- **Session workspace**: a standalone tmux session with no worktree-backed (`wt-`) window,
+  sourced from `tmux list-sessions`. A leaf row, labeled `session`.
+
+The two kinds carry different marker shapes so they're distinguishable at a glance, not just
+by their label: worktree rows use a circle (`●` running / `○` not), session rows use a square
+(`■` attached / `□` detached) — in both, a filled glyph means active and the color matches
+(green active, dim inactive). Both kinds share the existing worktree-row keys (`j`/`k` nav,
+`h`/`l` fold, `z` toggle-all, `n`/`N` create a worktree, `/` filter, `?` help, `q` quit).
+Session rows add:
+
+- `enter` — switch the attached tmux client to the session (guarded: only works inside tmux,
+  same guard message as attaching to a worktree) and quit the dashboard.
+- `d` `d` — kill the session (two-press confirm, same "press again" hint style as worktree
+  delete).
+- `s` (works from any row, not just a session row) — floating name prompt; on Enter, creates a
+  new standalone tmux session in the user's home directory (a plain session is deliberately not
+  tied to any repo). Inside tmux, the client switches to the new session and the dashboard
+  quits; outside tmux, the session is created detached and reported (`session created: <name>`)
+  without switching. A duplicate name surfaces tmux's own "duplicate session" error on the
+  status line — there's no separate pre-check.
+- `D`/`r` are worktree-only actions and are no-ops on a session row.
+
+Bare `ctrl+t` (no tmux prefix) opens `dg ws` (see `configs/tmux/tmux.conf`) — it previously
+opened tmux's native `choose-tree -Zs` popup, which this replaces. This is the only key bound
+to the dashboard.
 
 #### `dg list`
 

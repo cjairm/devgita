@@ -67,3 +67,28 @@ func (p *Palette) StatusGlyph(state SessionState) string {
 func (p *Palette) BranchLabel() string {
 	return p.BranchGlyph.Render("∕")
 }
+
+// SessionGlyph returns the raw glyph for a standalone tmux session row: a
+// square (■ attached, □ detached), deliberately a different shape from the ●/○
+// circle StatusGlyph uses for worktrees so the two row kinds read as distinct
+// at a glance, not just by their trailing label. Use when the caller wraps the
+// result in a parent style (e.g. Selected.Render(...)); use SessionDot for a
+// standalone styled glyph.
+func (p *Palette) SessionGlyph(attached bool) string {
+	if attached {
+		return "■"
+	}
+	return "□"
+}
+
+// SessionDot returns the styled session glyph: attached in the same green as a
+// running worktree, detached in the same dim gray as a worktree with no tmux
+// window — so color still reads as activity while the square shape signals
+// "session". Do NOT nest inside a parent style.Render() — use SessionGlyph.
+func (p *Palette) SessionDot(attached bool) string {
+	g := p.SessionGlyph(attached)
+	if attached {
+		return p.Running.Render(g)
+	}
+	return p.NoSession.Render(g)
+}
