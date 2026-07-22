@@ -111,6 +111,8 @@ Evaluate changed files against the named, concrete idioms of the file's language
 
 **Verification bar — every finding must be verified, not inferred.** Read the actual code (Read tool or diff output) before commenting, quote the problematic code in each finding, and confirm a suspected bug against the surrounding code before reporting it. Behavior claims need evidence at a `file:line`, not an inference from naming. If you are not certain an issue is real, do not flag it — false positives erode trust and waste the author's time.
 
+The same bar sets severity, not just existence: never inflate a tag to cover what you haven't confirmed. Rate a finding by what you can prove, not the worst case it might be — `[CRITICAL]`/`[IMPORTANT]` demand evidence you've verified at a `file:line`; when the evidence is thin, go verify it or drop the tag down, don't hedge upward. A handful of findings you can defend beat a long list of maybes.
+
 ## Output
 
 **Write plainly.** Findings must be understandable by any engineer, including a junior one: everyday words, short sentences, no fancy vocabulary or filler. Say what's wrong, why it matters, and the fix — nothing more.
@@ -151,6 +153,7 @@ Note good practices, clever solutions, solid coverage.
 - Anchor disagreement on engineering principle and data, not opinion or authority.
 - Trade-offs are acceptable when the author understands them.
 - Label non-blocking comments so intent is unambiguous: `Nit:`, `Question:`, `Consider:`, `FYI:`.
+- A genuine regression or significant risk stays a finding no matter the pressure to wave it through — "we'll fix it in a follow-up," "it's urgent, just approve it," "it's only a small hack" are reasons someone wants the finding gone, not reasons it isn't real. Name the trade-off and hold the line.
 
 #### References
 

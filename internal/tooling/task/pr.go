@@ -64,8 +64,12 @@ func (p *PRManager) resolveOwnerRepoPR(prNumber string) (owner, name, pr string,
 	return parts[0], parts[1], pr, nil
 }
 
-// ReviewThreads fetches a PR's review threads and renders them as markdown,
-// filtered by state ("unresolved" default, "resolved", or "all").
+// ReviewThreads fetches a PR's inline review threads (filtered by state:
+// "unresolved" default, "resolved", or "all") together with its review
+// summary bodies and top-level conversation comments, and renders both as
+// markdown. The discussion (summaries + conversation) is always included
+// regardless of --state — reviews and conversation comments have no
+// resolved/unresolved status of their own.
 func (p *PRManager) ReviewThreads(prNumber, state string) (string, error) {
 	resolved, err := resolvedPtrForState(state)
 	if err != nil {
@@ -75,26 +79,36 @@ func (p *PRManager) ReviewThreads(prNumber, state string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	raw, err := p.Gh.FetchReviewThreads(owner, name, pr)
-	if err != nil {
-		return "", err
-	}
-	out, err := p.Jq.FormatReviewThreads(raw, resolved)
-	if err != nil {
-		return "", err
-	}
-	if strings.TrimSpace(out) == "" {
-		return fmt.Sprintf("No %s review threads.", stateLabel(state)), nil
-	}
-	return out, nil
-}
 
-func stateLabel(state string) string {
-	s := strings.ToLower(strings.TrimSpace(state))
-	if s == "" {
-		return "unresolved"
+	rawThreads, err := p.Gh.FetchReviewThreads(owner, name, pr)
+	if err != nil {
+		return "", err
 	}
-	return s
+	threads, err := p.Jq.FormatReviewThreads(rawThreads, resolved)
+	if err != nil {
+		return "", err
+	}
+
+	rawDiscussion, err := p.Gh.FetchPRDiscussion(owner, name, pr)
+	if err != nil {
+		return "", err
+	}
+	discussion, err := p.Jq.FormatPRDiscussion(rawDiscussion)
+	if err != nil {
+		return "", err
+	}
+
+	parts := make([]string, 0, 2)
+	if strings.TrimSpace(threads) != "" {
+		parts = append(parts, strings.TrimSpace(threads))
+	}
+	if strings.TrimSpace(discussion) != "" {
+		parts = append(parts, strings.TrimSpace(discussion))
+	}
+	if len(parts) == 0 {
+		return "No review threads or comments.", nil
+	}
+	return strings.Join(parts, "\n\n"), nil
 }
 
 // ResolveThread marks a review thread resolved.

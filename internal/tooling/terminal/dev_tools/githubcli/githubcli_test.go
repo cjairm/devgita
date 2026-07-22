@@ -333,6 +333,12 @@ func TestFetchReviewThreads(t *testing.T) {
 		if !strings.Contains(joined, "pageInfo") {
 			t.Fatalf("expected pageInfo for pagination, got %v", call.Args)
 		}
+		if !strings.Contains(joined, "resolvedBy") {
+			t.Fatalf("expected resolvedBy field on reviewThread in query, got %v", call.Args)
+		}
+		if !strings.Contains(joined, "createdAt") {
+			t.Fatalf("expected createdAt field on comments in query, got %v", call.Args)
+		}
 		if !argSeq(call.Args, "-f", "owner=octocat") {
 			t.Fatalf("expected -f owner=octocat, got %v", call.Args)
 		}
@@ -353,6 +359,83 @@ func TestFetchReviewThreads(t *testing.T) {
 		}
 		if mockBase.GetExecCommandCallCount() != 0 {
 			t.Fatal("expected no gh call when validation fails")
+		}
+	})
+}
+
+func TestFetchPRDiscussion(t *testing.T) {
+	t.Run("assembles graphql query with vars, no pagination", func(t *testing.T) {
+		mockBase := commands.NewMockBaseCommand()
+		app := &GithubCli{Cmd: commands.NewMockCommand(), Base: mockBase}
+		mockBase.SetExecCommandResult(`{"data":{}}`, "", nil)
+
+		out, err := app.FetchPRDiscussion("octocat", "hello", "42")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if out != `{"data":{}}` {
+			t.Fatalf("unexpected output: %q", out)
+		}
+
+		call := mockBase.GetLastExecCommandCall()
+		if call.Command != "gh" {
+			t.Fatalf("expected gh, got %q", call.Command)
+		}
+		if !argSeq(call.Args, "api", "graphql") {
+			t.Fatalf("expected 'api graphql' in args, got %v", call.Args)
+		}
+		if argSeq(call.Args, "--paginate") {
+			t.Fatalf("expected no --paginate flag, got %v", call.Args)
+		}
+		joined := strings.Join(call.Args, " ")
+		if !strings.Contains(joined, "reviews") {
+			t.Fatalf("expected reviews field in query, got %v", call.Args)
+		}
+		if !strings.Contains(joined, "comments") {
+			t.Fatalf("expected comments field in query, got %v", call.Args)
+		}
+		if !strings.Contains(joined, "submittedAt") {
+			t.Fatalf("expected submittedAt field on reviews in query, got %v", call.Args)
+		}
+		if !strings.Contains(joined, "createdAt") {
+			t.Fatalf("expected createdAt field on comments in query, got %v", call.Args)
+		}
+		if !argSeq(call.Args, "-f", "owner=octocat") {
+			t.Fatalf("expected -f owner=octocat, got %v", call.Args)
+		}
+		if !argSeq(call.Args, "-f", "name=hello") {
+			t.Fatalf("expected -f name=hello, got %v", call.Args)
+		}
+		if !argSeq(call.Args, "-F", "pr=42") {
+			t.Fatalf("expected -F pr=42, got %v", call.Args)
+		}
+	})
+
+	t.Run("validates required args", func(t *testing.T) {
+		mockBase := commands.NewMockBaseCommand()
+		app := &GithubCli{Cmd: commands.NewMockCommand(), Base: mockBase}
+
+		if _, err := app.FetchPRDiscussion("", "hello", "42"); err == nil {
+			t.Fatal("expected error for empty owner")
+		}
+		if _, err := app.FetchPRDiscussion("octocat", "", "42"); err == nil {
+			t.Fatal("expected error for empty repo")
+		}
+		if _, err := app.FetchPRDiscussion("octocat", "hello", ""); err == nil {
+			t.Fatal("expected error for empty pr number")
+		}
+		if mockBase.GetExecCommandCallCount() != 0 {
+			t.Fatal("expected no gh call when validation fails")
+		}
+	})
+
+	t.Run("wraps error from gh", func(t *testing.T) {
+		mockBase := commands.NewMockBaseCommand()
+		app := &GithubCli{Cmd: commands.NewMockCommand(), Base: mockBase}
+		mockBase.SetExecCommandResult("", "unauthorized", fmt.Errorf("exit 1"))
+
+		if _, err := app.FetchPRDiscussion("octocat", "hello", "42"); err == nil {
+			t.Fatal("expected error")
 		}
 	})
 }

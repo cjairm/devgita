@@ -27,12 +27,17 @@ import (
 
 // reviewThreadsFilter turns a GitHub GraphQL pull-request reviewThreads
 // response into compact markdown intended to be fed to an LLM: one block per
-// thread, headed by "file:line (thread <id>)", an optional diff hunk for
-// context, then one line per comment as "**author** (<id>): body".
+// thread, headed by "file:line (thread <id>)" — with " (outdated)" appended
+// when GitHub's isOutdated flag says the code the thread was anchored to has
+// changed since, and " — resolved by <login>" appended when the thread is
+// resolved — an optional diff hunk for context, then one line per comment as
+// "**author** (<id>, <createdAt>): body".
 //
 // The layout is deliberately terse — no "## Location" / "### Comments" scaffold
 // — so it reads clearly while spending few tokens. Thread and comment ids are
-// kept because follow-up tasks (resolve, reply) act on them.
+// kept because follow-up tasks (resolve, reply) act on them. Comment createdAt
+// is rendered raw (the ISO-8601 string GitHub returns) so a caller (e.g. the
+// /review-pr dedup rule) can tell whether code changed since a given reply.
 //
 // The $resolved argument controls filtering:
 //   - true  → only resolved threads
@@ -40,27 +45,70 @@ import (
 //   - null  → all threads (no filtering)
 //
 // The GraphQL query feeding this MUST select, per reviewThread: id, isResolved,
-// path, line, originalLine; per comment: id, author.login, body; and the diff
-// hunk via a "firstComment: comments(first: 1) { nodes { diffHunk } }" alias
-// (kept separate so diffHunk isn't refetched for every comment). Missing fields
-// render as null/empty.
+// resolvedBy.login, path, line, originalLine; per comment: id, author.login,
+// body, createdAt; and the diff hunk via a "firstComment: comments(first: 1) {
+// nodes { diffHunk } }" alias (kept separate so diffHunk isn't refetched for
+// every comment). Missing fields render as null/empty.
 //
 // Triple backticks are concatenated in because Go raw string literals cannot
 // contain backticks; everything else stays raw so jq sees literal "\n" / "\(...)".
-const reviewThreadsFilter = `.data.repository.pullRequest.reviewThreads.nodes
+const reviewThreadsFilter = `(.data.repository.pullRequest.reviewThreads.nodes // [])
 | map(select(if $resolved == null then true else .isResolved == $resolved end))
 | .[]
-| "## \(.path):\(.line // .originalLine // "?") (thread \(.id))\n\n"
+| "## \(.path):\(.line // .originalLine // "?") (thread \(.id))"
+  + (if .isOutdated then " (outdated)" else "" end)
+  + (if .resolvedBy.login then " — resolved by \(.resolvedBy.login)" else "" end)
+  + "\n\n"
   + (
       .firstComment.nodes[0].diffHunk
       | if . then "` + "```" + `diff\n\(.)\n` + "```" + `\n\n" else "" end
     )
   + (
       .comments.nodes
-      | map("**\(.author.login)** (\(.id)): \(.body)")
+      | map("**\(.author.login // "unknown")** (\(.id), \(.createdAt // "?")): \(.body)")
       | join("\n\n")
     )
   + "\n\n---\n"`
+
+// prDiscussionFilter turns a GitHub GraphQL pull-request discussion response
+// (reviews + top-level comments; see githubcli.prDiscussionQuery) into compact
+// markdown, matching the terse style of reviewThreadsFilter: no scaffolding
+// beyond two "##" section headers.
+//
+//   - "## Review summaries": one entry per review that has a non-empty (not
+//     blank/whitespace-only) body — "**<login>** [<STATE>] (<submittedAt>):
+//     <body>". Reviews that carry only a state or only inline comments (no
+//     body) are skipped. The whole section, header included, is omitted when
+//     no review qualifies.
+//   - "## Conversation": one entry per top-level PR comment —
+//     "**<login>** (<createdAt>): <body>". Omitted entirely when there are no
+//     comments.
+//
+// submittedAt/createdAt are rendered raw (the ISO-8601 string GitHub returns)
+// so a caller (e.g. the /review-pr dedup rule) can tell whether code changed
+// since a given review or comment.
+//
+// Every path is guarded (`// []` / `// ""`) so missing fields never error.
+// When there is nothing to render, output is the empty string, so the caller
+// (task.PRManager.ReviewThreads) can decide what message to show.
+const prDiscussionFilter = `(.data.repository.pullRequest.reviews.nodes // []) as $reviews
+| (.data.repository.pullRequest.comments.nodes // []) as $comments
+| ($reviews | map(select((.body // "") | test("\\S")))) as $reviewsWithBody
+| (if ($reviewsWithBody | length) > 0 then
+    "## Review summaries\n\n"
+    + ($reviewsWithBody
+        | map("**\(.author.login // "unknown")** [\(.state // "?")] (\(.submittedAt // "?")): \(.body // "")")
+        | join("\n\n"))
+  else "" end) as $reviewSection
+| (if ($comments | length) > 0 then
+    "## Conversation\n\n"
+    + ($comments
+        | map("**\(.author.login // "unknown")** (\(.createdAt // "?")): \(.body // "")")
+        | join("\n\n"))
+  else "" end) as $conversationSection
+| [$reviewSection, $conversationSection]
+| map(select((. | length) > 0))
+| join("\n\n")`
 
 // prViewFilter renders `gh pr view --json ...` output (a single object) into a
 // compact three-line summary. Assumes the default field set selected by
@@ -185,6 +233,15 @@ func (j *Jq) FormatReviewThreads(ghJSON string, resolved *bool) (string, error) 
 		resolvedArg = strconv.FormatBool(*resolved)
 	}
 	return j.runFilter(ghJSON, reviewThreadsFilter, "--argjson", "resolved", resolvedArg)
+}
+
+// FormatPRDiscussion runs prDiscussionFilter over a GitHub GraphQL pr
+// discussion JSON payload (see githubcli.FetchPRDiscussion) and returns the
+// formatted markdown. Returns empty or whitespace-only output when there is
+// nothing to render (jq -r's join(...) still emits a trailing newline); the
+// caller (ReviewThreads) trims before its empty-check.
+func (j *Jq) FormatPRDiscussion(ghJSON string) (string, error) {
+	return j.runFilter(ghJSON, prDiscussionFilter)
 }
 
 // FormatPRView renders `gh pr view --json ...` output into a compact summary.

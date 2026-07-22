@@ -82,14 +82,20 @@ func emitPRResult(cmd *cobra.Command, out string, err error) error {
 var taskReviewThreadsCmd = &cobra.Command{
 	Use:   "review-threads",
 	Short: "Show PR review threads as compact markdown (for agents)",
-	Long: `Fetch a pull request's review threads and render them as compact markdown.
+	Long: `Fetch a pull request's review feedback and render it as compact markdown:
+inline review threads, review summary bodies (Approve/Request-changes/Comment
+text with no line anchor), and top-level conversation comments.
 
---state filters by resolution: unresolved (default), resolved, or all.
+--state filters only the inline review threads: unresolved (default), resolved,
+or all. Review summaries and conversation comments have no resolved state, so
+they are always included.
 --pr targets a PR number; omit it to use the current branch's PR.
 
-Each thread renders as "## file:line (thread <id>)", an optional diff hunk, and
-one line per comment "**author** (<id>): body". Thread and comment ids feed the
-resolve-thread / reply-thread commands.`,
+Each inline thread renders as "## file:line (thread <id>)", an optional diff
+hunk, and one line per comment "**author** (<id>): body" — thread and comment
+ids feed the resolve-thread / reply-thread commands. Review summaries render as
+"**author** [STATE]: body" under "## Review summaries"; conversation comments
+render as "**author**: body" under "## Conversation".`,
 	Example: `  dg task review-threads                 # unresolved on the current branch's PR
   dg task review-threads --state all
   dg task review-threads --pr 42 --state resolved`,

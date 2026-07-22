@@ -49,10 +49,15 @@ Read the PR's purpose first — the description and linked ticket — before any
 devgita task review-threads --state all
 ```
 
-This returns **resolved and unresolved** threads. Before posting, drop any finding that:
+This returns three surfaces: inline review threads (resolved and unresolved), a "## Review summaries" section (submitted review bodies), and a "## Conversation" section (top-level PR comments). All prior feedback lives in one of these three — dedup a finding against all of them, not just inline threads.
 
-- targets the same `path:line` as an existing thread making substantially the same point, or
-- is already **resolved** — a resolved thread is handled; re-raising it is noise.
+Drop a finding when ANY of these hold:
+
+- An existing thread or prior review already makes substantially the same point AND is **resolved** — resolved means handled; re-raising it is noise.
+- An existing **OPEN** thread already makes substantially the same point AND the author **replied rejecting it or explaining why it doesn't apply** — treat that as settled and drop it, UNLESS the code has changed since that reply in a way that makes their reasoning no longer hold (only then re-raise it, and say why in the finding). Judge "changed since" primarily from the thread header's `(outdated)` marker (GitHub's own signal that the anchored code has since changed); fall back to comparing reply timestamps against `git log <path>` when a thread isn't marked outdated but you suspect the surrounding code moved anyway.
+- The same point already appears in a review summary body or a conversation comment.
+
+Match on the finding's **identity, not its location**: the file plus the specific code construct plus the concern being raised, using the diff hunk shown in the thread — NOT the line number. Line numbers shift when new commits are pushed, so a `path:line` match misses the same finding after it moves to a new line. Two findings are "the same point" when they flag the same problem in the same code, regardless of the current line number or exact wording.
 
 Keep a count of what you skipped for the summary.
 
@@ -79,6 +84,8 @@ Severity tags drive the verdict: `[CRITICAL]` (data loss, security, correctness 
 
 Findings that point at a specific line become **inline comments** anchored to the diff; everything else goes in the summary **body**.
 
+**Re-verify each finding against the current file before anchoring it.** Read the cited file — don't trust the finding's quoted snippet — and confirm the code actually exists at (or near) the cited `file:line`. If the line drifted, re-anchor to where the code is now; if that new location isn't in the diff, it can't take an inline comment (see the note below), so move the finding to the body's "General notes" instead. If the cited code is gone or was never there — a hallucinated or already-resolved finding, common when findings come from another model — drop it.
+
 **Write plainly.** Everything posted must be understandable by any engineer, including a junior one: everyday words, short sentences, no fancy vocabulary or filler. Each comment says what's wrong, why it matters, and the fix — nothing more.
 
 **Body** — GitHub-Flavored Markdown, written to a scratch file (`/tmp/review.md`); pass it with `--body-file` so backticks and apostrophes survive:
@@ -102,7 +109,7 @@ Findings that point at a specific line become **inline comments** anchored to th
 
 ---
 
-<!-- footer when applicable: "Skipped N finding(s) already covered by existing threads." -->
+<!-- footer when applicable: "Skipped N finding(s) already addressed (resolved threads, author replies, review summaries, or conversation comments)." -->
 ```
 
 **Inline comments** — write a JSON array to a scratch file (`/tmp/comments.json`). Each entry anchors to a diff line; only lines present in the diff can carry one. Lead the body with the severity tag:
@@ -123,9 +130,14 @@ Findings that point at a specific line become **inline comments** anchored to th
 ]
 ```
 
-`line` is the line in the file (right side of the diff); add `start_line` for a multi-line range. Drop any finding already covered by an existing thread (step 3).
+`line` is the line in the file (right side of the diff); add `start_line` for a multi-line range. Drop any finding already covered by an existing thread, review summary, or conversation comment (step 3).
 
 ### 6. Submit one review
+
+**Before you submit:**
+
+- **Reflect the current state of the PR.** Review against the latest commit/diff, not a revision you looked at earlier. If new commits landed while you were reviewing, recheck that your findings still apply and drop any that a later commit already resolved — this is what the step 5 re-verification check is for; if you haven't run it since the latest commits landed, do it now.
+- **Credit prior reviewers, don't echo them.** If a finding you're keeping matches a point a prior reviewer already raised (kept per the step 3 dedup rules — new evidence or a different angle), say so and credit them instead of restating it as new.
 
 Post the body and the inline comments together as a single review, choosing the verdict:
 
@@ -157,7 +169,7 @@ Return a terse summary to the user:
 ## Review posted to PR #<num> — <request changes | approve | comment>
 
 - findings: <N posted>
-- skipped: <M already covered by existing threads>
+- skipped: <M already addressed (resolved, replied-to, or raised elsewhere)>
 
 <PR URL>
 ```
@@ -166,7 +178,7 @@ Return a terse summary to the user:
 
 - This command never edits code. It reads, then posts exactly one review.
 - Invoke the `devgita` binary only — never a `dg` alias, `go run`, or a local build. Only the installed binary is available in this environment.
-- **Dedup is mandatory**: never duplicate a finding already raised, and treat a resolved thread as handled.
+- **Dedup is mandatory**: never duplicate a finding already raised. Treat a resolved thread as handled, and treat an open thread as handled too once the author replied rejecting it or explaining why it doesn't apply — unless the code changed since in a way that reopens the concern.
 - A line that isn't part of the diff can't take an inline comment — move that finding to the body's "General notes" instead.
 
 ## References

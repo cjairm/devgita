@@ -57,6 +57,8 @@ All `devgita task` commands above must invoke the installed `devgita` binary dir
 
 **Verification bar:** ground every concern in the document's text (cite the location) or in repo evidence you actually checked. If you are not certain a concern is real, ask it as a question for the author instead of asserting it — false positives erode trust.
 
+The same bar governs severity: don't inflate a tag to cover uncertainty. Rate a concern by what you've actually checked, not the worst case it could turn into — `[CRITICAL]`/`[IMPORTANT]` need evidence you've verified at a location; when the evidence is thin, go check it or tag it lower (or turn it into a question) instead of rating it up. A few concerns you can back beat many inflated ones.
+
 ## Classify the document, then shape the review
 
 State the document's type and intent in the summary and weight the dimensions below to match. When the document's stated purpose and its content disagree, that mismatch is itself a finding.

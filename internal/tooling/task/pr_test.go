@@ -2,6 +2,7 @@ package task
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -62,14 +63,60 @@ func TestResolvedPtrForState(t *testing.T) {
 }
 
 func TestReviewThreads(t *testing.T) {
-	t.Run("explicit pr renders jq output", func(t *testing.T) {
+	t.Run("explicit pr renders threads and discussion combined", func(t *testing.T) {
 		pm, ghBase, jqBase := newPRSetup()
-		// gh: CurrentRepo, then FetchReviewThreads (pr given, so no CurrentPRNumber)
+		// gh: CurrentRepo, FetchReviewThreads, FetchPRDiscussion (pr given, so no CurrentPRNumber)
 		ghBase.SetExecCommandResults(
 			commands.ExecCommandResult("octocat/hello", "", nil),
 			commands.ExecCommandResult(`{"data":{}}`, "", nil),
+			commands.ExecCommandResult(`{"data":{}}`, "", nil),
 		)
-		jqBase.SetExecCommandResult("## a.go:1 (thread T1)", "", nil)
+		// jq: FormatReviewThreads, then FormatPRDiscussion
+		jqBase.SetExecCommandResults(
+			commands.ExecCommandResult("## a.go:1 (thread T1)", "", nil),
+			commands.ExecCommandResult("## Conversation\n\n**dave**: hi", "", nil),
+		)
+
+		out, err := pm.ReviewThreads("42", "all")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		want := "## a.go:1 (thread T1)\n\n## Conversation\n\n**dave**: hi"
+		if out != want {
+			t.Fatalf("unexpected output: %q", out)
+		}
+
+		// Both gh fetches must carry the resolved owner/name/pr
+		if ghBase.GetExecCommandCallCount() != 3 {
+			t.Fatalf("expected 3 gh calls (CurrentRepo, threads, discussion), got %d",
+				ghBase.GetExecCommandCallCount())
+		}
+		for _, call := range ghBase.ExecCommandCalls[1:] {
+			joined := strings.Join(call.Args, " ")
+			if !strings.Contains(joined, "owner=octocat") ||
+				!strings.Contains(joined, "name=hello") ||
+				!strings.Contains(joined, "pr=42") {
+				t.Fatalf("fetch missing resolved vars: %v", call.Args)
+			}
+		}
+		// The discussion fetch must NOT be paginated (distinct from the threads fetch).
+		discussionCall := ghBase.ExecCommandCalls[2]
+		if strings.Contains(strings.Join(discussionCall.Args, " "), "--paginate") {
+			t.Fatalf("discussion fetch must not paginate, got: %v", discussionCall.Args)
+		}
+	})
+
+	t.Run("only threads non-empty", func(t *testing.T) {
+		pm, ghBase, jqBase := newPRSetup()
+		ghBase.SetExecCommandResults(
+			commands.ExecCommandResult("octocat/hello", "", nil),
+			commands.ExecCommandResult(`{"data":{}}`, "", nil),
+			commands.ExecCommandResult(`{"data":{}}`, "", nil),
+		)
+		jqBase.SetExecCommandResults(
+			commands.ExecCommandResult("## a.go:1 (thread T1)", "", nil),
+			commands.ExecCommandResult("", "", nil),
+		)
 
 		out, err := pm.ReviewThreads("42", "all")
 		if err != nil {
@@ -78,30 +125,79 @@ func TestReviewThreads(t *testing.T) {
 		if out != "## a.go:1 (thread T1)" {
 			t.Fatalf("unexpected output: %q", out)
 		}
-
-		// gh fetch must carry the resolved owner/name/pr
-		fetch := ghBase.ExecCommandCalls[len(ghBase.ExecCommandCalls)-1]
-		joined := strings.Join(fetch.Args, " ")
-		if !strings.Contains(joined, "owner=octocat") || !strings.Contains(joined, "name=hello") ||
-			!strings.Contains(joined, "pr=42") {
-			t.Fatalf("fetch missing resolved vars: %v", fetch.Args)
-		}
 	})
 
-	t.Run("empty output yields friendly message", func(t *testing.T) {
+	t.Run("only discussion non-empty", func(t *testing.T) {
 		pm, ghBase, jqBase := newPRSetup()
 		ghBase.SetExecCommandResults(
 			commands.ExecCommandResult("octocat/hello", "", nil),
 			commands.ExecCommandResult(`{"data":{}}`, "", nil),
+			commands.ExecCommandResult(`{"data":{}}`, "", nil),
 		)
-		jqBase.SetExecCommandResult("", "", nil)
+		jqBase.SetExecCommandResults(
+			commands.ExecCommandResult("", "", nil),
+			commands.ExecCommandResult("## Conversation\n\n**dave**: hi", "", nil),
+		)
+
+		out, err := pm.ReviewThreads("42", "all")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if out != "## Conversation\n\n**dave**: hi" {
+			t.Fatalf("unexpected output: %q", out)
+		}
+	})
+
+	t.Run("both empty yields flat friendly message", func(t *testing.T) {
+		pm, ghBase, jqBase := newPRSetup()
+		ghBase.SetExecCommandResults(
+			commands.ExecCommandResult("octocat/hello", "", nil),
+			commands.ExecCommandResult(`{"data":{}}`, "", nil),
+			commands.ExecCommandResult(`{"data":{}}`, "", nil),
+		)
+		jqBase.SetExecCommandResults(
+			commands.ExecCommandResult("", "", nil),
+			commands.ExecCommandResult("", "", nil),
+		)
 
 		out, err := pm.ReviewThreads("42", "")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if out != "No unresolved review threads." {
+		if out != "No review threads or comments." {
 			t.Fatalf("unexpected message: %q", out)
+		}
+	})
+
+	t.Run("discussion shown regardless of --state", func(t *testing.T) {
+		pm, ghBase, jqBase := newPRSetup()
+		ghBase.SetExecCommandResults(
+			commands.ExecCommandResult("octocat/hello", "", nil),
+			commands.ExecCommandResult(`{"data":{}}`, "", nil),
+			commands.ExecCommandResult(`{"data":{}}`, "", nil),
+		)
+		// FormatReviewThreads returns empty (no threads match "resolved"), but
+		// discussion is still rendered.
+		jqBase.SetExecCommandResults(
+			commands.ExecCommandResult("", "", nil),
+			commands.ExecCommandResult("## Conversation\n\n**dave**: hi", "", nil),
+		)
+
+		out, err := pm.ReviewThreads("42", "resolved")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if out != "## Conversation\n\n**dave**: hi" {
+			t.Fatalf("unexpected output: %q", out)
+		}
+		// FormatReviewThreads must have been called with resolved=true, proving
+		// --state still filters only the threads path.
+		threadsCall := jqBase.ExecCommandCalls[0]
+		if !strings.Contains(strings.Join(threadsCall.Args, " "), "resolved true") {
+			t.Fatalf(
+				"expected resolved=true passed to threads formatter, got: %v",
+				threadsCall.Args,
+			)
 		}
 	})
 
@@ -130,6 +226,36 @@ func TestReviewThreads(t *testing.T) {
 		}
 		if ghBase.GetExecCommandCallCount() != 0 {
 			t.Fatal("expected no gh call when state is invalid")
+		}
+	})
+
+	t.Run("error from threads fetch propagates before discussion fetch", func(t *testing.T) {
+		pm, ghBase, _ := newPRSetup()
+		ghBase.SetExecCommandResults(
+			commands.ExecCommandResult("octocat/hello", "", nil),
+			commands.ExecCommandResult("", "boom", fmt.Errorf("exit 1")),
+		)
+
+		if _, err := pm.ReviewThreads("42", "all"); err == nil {
+			t.Fatal("expected error when threads fetch fails")
+		}
+		if ghBase.GetExecCommandCallCount() != 2 {
+			t.Fatalf("expected no discussion fetch after threads fetch failure, got %d calls",
+				ghBase.GetExecCommandCallCount())
+		}
+	})
+
+	t.Run("error from discussion fetch propagates", func(t *testing.T) {
+		pm, ghBase, jqBase := newPRSetup()
+		ghBase.SetExecCommandResults(
+			commands.ExecCommandResult("octocat/hello", "", nil),
+			commands.ExecCommandResult(`{"data":{}}`, "", nil),
+			commands.ExecCommandResult("", "boom", fmt.Errorf("exit 1")),
+		)
+		jqBase.SetExecCommandResult("## a.go:1 (thread T1)", "", nil)
+
+		if _, err := pm.ReviewThreads("42", "all"); err == nil {
+			t.Fatal("expected error when discussion fetch fails")
 		}
 	})
 }

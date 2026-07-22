@@ -139,10 +139,15 @@ func sortedKeys(m map[string]string) []string {
 }
 
 // reviewThreadsQuery selects every field jq.FormatReviewThreads needs: per
-// thread id/isResolved/path/line/originalLine, per comment id/author/body, and
-// the diff hunk via a dedicated firstComment alias so it isn't refetched for
-// every comment. It paginates threads via $endCursor + pageInfo (driven by
-// `gh api graphql --paginate`).
+// thread id/isResolved/resolvedBy.login/path/line/originalLine, per comment
+// id/author/body/createdAt, and the diff hunk via a dedicated firstComment
+// alias so it isn't refetched for every comment. It paginates threads via
+// $endCursor + pageInfo (driven by `gh api graphql --paginate`).
+//
+// resolvedBy is null for unresolved threads and lets the renderer show who
+// resolved a thread. Comment createdAt lets the renderer show when feedback
+// was posted, which the /review-pr dedup rule needs to decide whether code
+// changed since a reply.
 //
 // Note: comments(first: 100) is NOT paginated — a thread with >100 comments
 // truncates. That is far rarer than >100 threads and deferred for now.
@@ -154,6 +159,7 @@ const reviewThreadsQuery = `query($owner: String!, $name: String!, $pr: Int!, $e
           id
           isResolved
           isOutdated
+          resolvedBy { login }
           path
           line
           originalLine
@@ -162,6 +168,7 @@ const reviewThreadsQuery = `query($owner: String!, $name: String!, $pr: Int!, $e
               id
               author { login }
               body
+              createdAt
             }
           }
           firstComment: comments(first: 1) {
@@ -172,6 +179,39 @@ const reviewThreadsQuery = `query($owner: String!, $name: String!, $pr: Int!, $e
           hasNextPage
           endCursor
         }
+      }
+    }
+  }
+}`
+
+// prDiscussionQuery selects a pull request's review summary bodies (the
+// top-level body of a submitted review — Approve/Request-changes/Comment),
+// each with submittedAt, and its top-level conversation comments (`gh pr
+// comment`), each with createdAt. Both are feedback surfaces distinct from
+// inline review threads (reviewThreadsQuery above), which are anchored to a
+// diff line; these are not.
+//
+// submittedAt/createdAt let the renderer show when feedback was posted, which
+// the /review-pr dedup rule needs to decide whether code changed since a reply.
+//
+// This is a deliberately SEPARATE, non-paginated query. reviewThreadsQuery is
+// driven by `gh api graphql --paginate` over its reviewThreads connection,
+// which re-runs the whole query once per page — adding reviews/comments as
+// sibling fields there would refetch and re-render them on every thread page,
+// duplicating output.
+//
+// Note: reviews(first: 100) and comments(first: 100) are NOT paginated — a PR
+// with >100 reviews or >100 conversation comments truncates. That mirrors the
+// deferred-truncation stance already taken on reviewThreadsQuery's per-thread
+// comments(first: 100).
+const prDiscussionQuery = `query($owner: String!, $name: String!, $pr: Int!) {
+  repository(owner: $owner, name: $name) {
+    pullRequest(number: $pr) {
+      reviews(first: 100) {
+        nodes { author { login } body state submittedAt }
+      }
+      comments(first: 100) {
+        nodes { author { login } body createdAt }
       }
     }
   }
@@ -195,6 +235,22 @@ func (g *GithubCli) FetchReviewThreads(owner, repo, prNumber string) (string, er
 	return g.RunWithOutput(
 		"api", "graphql", "--paginate",
 		"-f", "query="+reviewThreadsQuery,
+		"-f", "owner="+owner,
+		"-f", "name="+repo,
+		"-F", "pr="+prNumber,
+	)
+}
+
+// FetchPRDiscussion returns the raw GraphQL JSON for a pull request's review
+// summary bodies and top-level conversation comments (see prDiscussionQuery).
+// Unlike FetchReviewThreads, this call is NOT paginated.
+func (g *GithubCli) FetchPRDiscussion(owner, repo, prNumber string) (string, error) {
+	if owner == "" || repo == "" || prNumber == "" {
+		return "", fmt.Errorf("fetch pr discussion requires owner, repo, and pr number")
+	}
+	return g.RunWithOutput(
+		"api", "graphql",
+		"-f", "query="+prDiscussionQuery,
 		"-f", "owner="+owner,
 		"-f", "name="+repo,
 		"-F", "pr="+prNumber,
