@@ -171,3 +171,23 @@ func (w *WorktreeManager) ValidateRepoPath(path string) (string, error) {
 	}
 	return root, nil
 }
+
+// ValidateDirPath is ValidateRepoPath's session counterpart: it validates a
+// picked or free-typed folder for a standalone tmux session, which — unlike a
+// worktree — is deliberately not tied to a git repo, so the only requirements
+// are that the path exists and is a directory. It does NOT require (or resolve
+// to) a repo root, so a plain folder like ~/Downloads is accepted as-is.
+// Returns the canonicalized path, which is what a caller should hand to
+// CreateSession as the session's working directory.
+func (w *WorktreeManager) ValidateDirPath(path string) (string, error) {
+	canonical := config.CanonicalRepoPath(path)
+
+	info, err := os.Stat(canonical)
+	if err != nil {
+		return "", fmt.Errorf("path does not exist: %s", canonical)
+	}
+	if !info.IsDir() {
+		return "", fmt.Errorf("path is not a directory: %s", canonical)
+	}
+	return canonical, nil
+}

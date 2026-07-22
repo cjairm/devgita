@@ -319,24 +319,149 @@ func TestDeleteOnWorktreeRowDoesNotArmKillSession(t *testing.T) {
 	}
 }
 
-// --- s: new session ---
+// --- s: new session (folder pick → name → create) ---
 
-func TestNewSessionOpensPrompt(t *testing.T) {
+// atSessionNameStep drives a fresh model through s → pick "root" so tests that
+// only care about the name step start from a resolved home workdir, the same
+// shortcut the old tests took by setting creatingSession directly (before the
+// folder-pick step existed).
+func atSessionNameStep(t *testing.T, m Model) Model {
+	t.Helper()
+	m2, _ := m.Update(tea.KeyPressMsg{Code: 's'})
+	m3, _ := m2.(Model).Update(tea.KeyPressMsg{Code: tea.KeyEnter}) // select pinned "root"
+	m4 := m3.(Model)
+	if m4.sessionMode != sessionNameInput {
+		t.Fatalf(
+			"expected to reach sessionNameInput after picking root, got mode %d",
+			m4.sessionMode,
+		)
+	}
+	if m4.sessionWorkdir != paths.Paths.Home.Root {
+		t.Fatalf("expected root pick to resolve workdir to home %q, got %q",
+			paths.Paths.Home.Root, m4.sessionWorkdir)
+	}
+	return m4
+}
+
+func TestNewSessionOpensFolderPicker(t *testing.T) {
 	m := makeTestModel(testStatuses())
 	m2, _ := m.Update(tea.KeyPressMsg{Code: 's'})
 	m3 := m2.(Model)
-	if !m3.creatingSession {
-		t.Fatal("s should enter the session-name-prompt mode")
+	if m3.sessionMode != sessionFolderPick {
+		t.Fatal("s should enter the folder-pick mode")
 	}
-	if m3.sessionNameInput.Value != "" {
-		t.Error("s should start with an empty session name input")
+	if m3.sessionFolderPicker == nil {
+		t.Fatal("s should build the folder picker")
+	}
+}
+
+func TestNewSessionRootPickResolvesToHome(t *testing.T) {
+	m := makeTestModel(testStatuses())
+	m2, _ := m.Update(tea.KeyPressMsg{Code: 's'})
+	// The pinned first item is "root"; enter selects it.
+	m3, _ := m2.(Model).Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m4 := m3.(Model)
+	if m4.sessionMode != sessionNameInput {
+		t.Fatalf("expected sessionNameInput after selecting root, got mode %d", m4.sessionMode)
+	}
+	if m4.sessionWorkdir != paths.Paths.Home.Root {
+		t.Errorf("expected workdir home %q, got %q", paths.Paths.Home.Root, m4.sessionWorkdir)
+	}
+}
+
+func TestNewSessionFolderPickSelectsCandidate(t *testing.T) {
+	m := makeTestModel(testStatuses())
+	m.repoCandidatesFn = func(_ string) ([]string, error) {
+		return []string{"/tmp/project"}, nil
+	}
+	var validated string
+	m.validateSessionDirFn = func(path string) (string, error) {
+		validated = path
+		return path, nil
+	}
+
+	m2, _ := m.Update(tea.KeyPressMsg{Code: 's'})
+	// Move cursor off the pinned "root" onto the candidate, then select.
+	m3, _ := m2.(Model).Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	m4, _ := m3.(Model).Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m5 := m4.(Model)
+
+	if validated != "/tmp/project" {
+		t.Errorf("expected validateSessionDirFn called with the candidate, got %q", validated)
+	}
+	if m5.sessionWorkdir != "/tmp/project" {
+		t.Errorf("expected workdir to be the validated candidate, got %q", m5.sessionWorkdir)
+	}
+	if m5.sessionMode != sessionNameInput {
+		t.Errorf("expected to advance to sessionNameInput, got mode %d", m5.sessionMode)
+	}
+}
+
+func TestNewSessionFolderPickFreeTypedPath(t *testing.T) {
+	m := makeTestModel(testStatuses())
+	m.repoCandidatesFn = func(_ string) ([]string, error) { return nil, nil }
+	var validated string
+	m.validateSessionDirFn = func(path string) (string, error) {
+		validated = path
+		return path + "/resolved", nil
+	}
+
+	m2, _ := m.Update(tea.KeyPressMsg{Code: 's'})
+	m = m2.(Model)
+	for _, ch := range "/tmp/typed" {
+		mm, _ := m.Update(tea.KeyPressMsg{Code: ch})
+		m = mm.(Model)
+	}
+	m3, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m4 := m3.(Model)
+
+	if validated != "/tmp/typed" {
+		t.Errorf("expected validateSessionDirFn called with the typed query, got %q", validated)
+	}
+	if m4.sessionWorkdir != "/tmp/typed/resolved" {
+		t.Errorf("expected workdir to be the resolved path, got %q", m4.sessionWorkdir)
+	}
+}
+
+func TestNewSessionFolderPickInvalidPathStaysInPicker(t *testing.T) {
+	m := makeTestModel(testStatuses())
+	m.repoCandidatesFn = func(_ string) ([]string, error) { return nil, nil }
+	m.validateSessionDirFn = func(path string) (string, error) {
+		return "", fmt.Errorf("path does not exist: %s", path)
+	}
+
+	m2, _ := m.Update(tea.KeyPressMsg{Code: 's'})
+	m = m2.(Model)
+	for _, ch := range "/nope" {
+		mm, _ := m.Update(tea.KeyPressMsg{Code: ch})
+		m = mm.(Model)
+	}
+	m3, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m4 := m3.(Model)
+
+	if m4.sessionMode != sessionFolderPick {
+		t.Errorf("an invalid path should keep the folder picker open, got mode %d", m4.sessionMode)
+	}
+	if !strings.Contains(m4.status, "does not exist") {
+		t.Errorf("expected a validation error status, got %q", m4.status)
+	}
+}
+
+func TestNewSessionFolderPickEscCancels(t *testing.T) {
+	m := makeTestModel(testStatuses())
+	m2, _ := m.Update(tea.KeyPressMsg{Code: 's'})
+	m3, _ := m2.(Model).Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	m4 := m3.(Model)
+	if m4.sessionMode != sessionNone {
+		t.Error("esc in the folder picker should exit the session flow")
+	}
+	if m4.sessionFolderPicker != nil {
+		t.Error("esc should drop the folder picker")
 	}
 }
 
 func TestNewSessionTypingAccumulates(t *testing.T) {
-	m := makeTestModel(testStatuses())
-	m.creatingSession = true
-
+	m := atSessionNameStep(t, makeTestModel(testStatuses()))
 	for _, ch := range "scratch" {
 		m2, _ := m.Update(tea.KeyPressMsg{Code: ch})
 		m = m2.(Model)
@@ -347,9 +472,7 @@ func TestNewSessionTypingAccumulates(t *testing.T) {
 }
 
 func TestNewSessionPasteInsertsInOneShot(t *testing.T) {
-	m := makeTestModel(testStatuses())
-	m.creatingSession = true
-
+	m := atSessionNameStep(t, makeTestModel(testStatuses()))
 	m2, _ := m.Update(tea.PasteMsg{Content: "pasted-session"})
 	m3 := m2.(Model)
 	if m3.sessionNameInput.Value != "pasted-session" {
@@ -363,8 +486,7 @@ func TestNewSessionPasteInsertsInOneShot(t *testing.T) {
 
 func TestNewSessionEscCancels(t *testing.T) {
 	createCalled := false
-	m := makeTestModel(testStatuses())
-	m.creatingSession = true
+	m := atSessionNameStep(t, makeTestModel(testStatuses()))
 	m.sessionNameInput.SetValue("scratch")
 	m.createSessionFn = func(_, _ string) error {
 		createCalled = true
@@ -373,7 +495,7 @@ func TestNewSessionEscCancels(t *testing.T) {
 
 	m2, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
 	m3 := m2.(Model)
-	if m3.creatingSession {
+	if m3.sessionMode != sessionNone {
 		t.Error("esc should exit the session-name-prompt mode")
 	}
 	if m3.sessionNameInput.Value != "" {
@@ -384,32 +506,39 @@ func TestNewSessionEscCancels(t *testing.T) {
 	}
 }
 
-func TestNewSessionEnterEmptyIsNoop(t *testing.T) {
-	createCalled := false
-	m := makeTestModel(testStatuses())
-	m.creatingSession = true
-	m.createSessionFn = func(_, _ string) error {
-		createCalled = true
+func TestNewSessionEnterEmptyAutoGeneratesName(t *testing.T) {
+	t.Setenv("TMUX", "")
+	m := atSessionNameStep(t, makeTestModel(testStatuses()))
+	// goku is taken, so the collision check must pick a different character.
+	m.listSessionNamesFn = func() ([]string, error) {
+		return []string{"devgita-goku"}, nil
+	}
+	var createdName string
+	m.createSessionFn = func(name, _ string) error {
+		createdName = name
 		return nil
 	}
 
 	m2, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	m3 := m2.(Model)
-	if cmd != nil {
-		cmd()
+	if m3.sessionMode != sessionNone {
+		t.Error("enter with a blank name should still dispatch and close the prompt")
 	}
-	if createCalled {
-		t.Error("enter with an empty name must not call createSessionFn")
+	if cmd == nil {
+		t.Fatal("expected a command to run the async create")
 	}
-	if !m3.creatingSession {
-		t.Error("enter with an empty name should stay in the session-name-prompt mode")
+	cmd()
+	if !strings.HasPrefix(createdName, "devgita-") {
+		t.Errorf("expected an auto-generated 'devgita-*' name, got %q", createdName)
+	}
+	if createdName == "devgita-goku" {
+		t.Error("auto-name must not collide with the existing 'devgita-goku' session")
 	}
 }
 
 func TestNewSessionCreateAndSwitchInsideTmux(t *testing.T) {
 	t.Setenv("TMUX", "1")
-	m := makeTestModel(testStatuses())
-	m.creatingSession = true
+	m := atSessionNameStep(t, makeTestModel(testStatuses()))
 	m.sessionNameInput.SetValue("scratch")
 
 	var createdName, createdWorkdir, switchedTo string
@@ -425,7 +554,7 @@ func TestNewSessionCreateAndSwitchInsideTmux(t *testing.T) {
 
 	m2, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	m3 := m2.(Model)
-	if m3.creatingSession {
+	if m3.sessionMode != sessionNone {
 		t.Error("enter with a name should close the session-name prompt")
 	}
 	if cmd == nil {
@@ -436,7 +565,11 @@ func TestNewSessionCreateAndSwitchInsideTmux(t *testing.T) {
 		t.Errorf("expected createSessionFn called with 'scratch', got %q", createdName)
 	}
 	if createdWorkdir != paths.Paths.Home.Root {
-		t.Errorf("expected workdir %q (home), got %q", paths.Paths.Home.Root, createdWorkdir)
+		t.Errorf(
+			"expected workdir %q (home from root pick), got %q",
+			paths.Paths.Home.Root,
+			createdWorkdir,
+		)
 	}
 	if _, ok := msg.(tea.QuitMsg); !ok {
 		t.Errorf("expected tea.QuitMsg after create+switch inside tmux, got %T: %+v", msg, msg)
@@ -448,8 +581,7 @@ func TestNewSessionCreateAndSwitchInsideTmux(t *testing.T) {
 
 func TestNewSessionCreateDetachedOutsideTmuxReportsWithoutSwitching(t *testing.T) {
 	t.Setenv("TMUX", "")
-	m := makeTestModel(testStatuses())
-	m.creatingSession = true
+	m := atSessionNameStep(t, makeTestModel(testStatuses()))
 	m.sessionNameInput.SetValue("scratch")
 
 	createdName := ""
@@ -492,8 +624,7 @@ func TestNewSessionCreateDetachedOutsideTmuxReportsWithoutSwitching(t *testing.T
 
 func TestNewSessionCreateDuplicateNameErrorShowsStatusAndClearsPrompt(t *testing.T) {
 	t.Setenv("TMUX", "1")
-	m := makeTestModel(testStatuses())
-	m.creatingSession = true
+	m := atSessionNameStep(t, makeTestModel(testStatuses()))
 	m.sessionNameInput.SetValue("dup")
 
 	switchCalled := false
@@ -507,7 +638,7 @@ func TestNewSessionCreateDuplicateNameErrorShowsStatusAndClearsPrompt(t *testing
 
 	m2, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	m3 := m2.(Model)
-	if m3.creatingSession {
+	if m3.sessionMode != sessionNone {
 		t.Error(
 			"prompt state should be cleared once the create is dispatched, even though it later fails",
 		)

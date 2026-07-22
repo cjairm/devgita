@@ -123,13 +123,17 @@ type Model struct {
 	pendingKillSession   string // armed session name (sessions have no repo) or ""
 	showHelp             bool
 
-	// creatingSession/sessionNameInput back the s → name-prompt → CreateSession
-	// flow, kept deliberately separate from createMode/createInput: that
-	// machinery belongs to the n/N worktree flow (repo-pick, hook-check,
-	// layout-pick) and none of those steps apply to a plain session. See
-	// session_flow.go.
-	creatingSession  bool
-	sessionNameInput tuicomponents.TextInput
+	// sessionMode and its companion fields back the s → folder-pick →
+	// name-prompt → CreateSession flow, kept deliberately separate from
+	// createMode/createInput: that machinery belongs to the n/N worktree flow
+	// (repo-pick, hook-check, layout-pick) and none of those steps apply to a
+	// plain session. See session_flow.go. sessionWorkdir holds the folder
+	// resolved in sessionFolderPick, carried into the create dispatched from
+	// sessionNameInput.
+	sessionMode         sessionMode
+	sessionFolderPicker *tuicomponents.FuzzyPicker
+	sessionWorkdir      string
+	sessionNameInput    tuicomponents.TextInput
 
 	createMode         createMode
 	repoPicker         *tuicomponents.FuzzyPicker
@@ -150,8 +154,10 @@ type Model struct {
 	createSessionFn          func(name, workdir string) error
 	switchToSessionFn        func(name string) error
 	killSessionFn            func(name string) error
+	listSessionNamesFn       func() ([]string, error)
 	repoCandidatesFn         func(cursorRepoSlug string) ([]string, error)
 	validateRepoPathFn       func(path string) (string, error)
+	validateSessionDirFn     func(path string) (string, error)
 	checkHookCompatibilityFn func(repoPath string) []string
 	createFn                 func(repoPath, name, layoutName string) (warning string, err error)
 	prTitleFn                func(branch, path string) string
@@ -193,8 +199,24 @@ func newModel(
 	m.createSessionFn = tmuxApp.CreateSession
 	m.switchToSessionFn = tmuxApp.SwitchToSession
 	m.killSessionFn = tmuxApp.KillSession
+	// listSessionNamesFn feeds the blank-name auto-namer's collision check: it
+	// needs every session on the tmux server (not just the standalone ones the
+	// dashboard shows), so it goes through tmuxApp.ListSessions directly rather
+	// than mgr.ListSessions, which filters to standalone sessions.
+	m.listSessionNamesFn = func() ([]string, error) {
+		sessions, err := tmuxApp.ListSessions()
+		if err != nil {
+			return nil, err
+		}
+		names := make([]string, len(sessions))
+		for i, s := range sessions {
+			names[i] = s.Name
+		}
+		return names, nil
+	}
 	m.repoCandidatesFn = mgr.RepoCandidates
 	m.validateRepoPathFn = mgr.ValidateRepoPath
+	m.validateSessionDirFn = mgr.ValidateDirPath
 	// CheckHookCompatibility only stats/reads hook files (and reads
 	// core.hooksPath via a read-only git config --get) — no prints, no
 	// prompts, no writes — so it's safe to call directly from the TUI, unlike
@@ -602,7 +624,11 @@ func (m Model) handlePaste(text string) (tea.Model, tea.Cmd) {
 		m.layoutPicker.InsertText(text)
 		return m, nil
 	}
-	if m.creatingSession {
+	if m.sessionMode == sessionFolderPick {
+		m.sessionFolderPicker.InsertText(text)
+		return m, nil
+	}
+	if m.sessionMode == sessionNameInput {
 		return m.handleSessionNameInputPaste(text)
 	}
 
@@ -636,7 +662,10 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if m.createMode == createLayoutPick {
 		return m.handleLayoutPickKey(key)
 	}
-	if m.creatingSession {
+	if m.sessionMode == sessionFolderPick {
+		return m.handleSessionFolderPickKey(key)
+	}
+	if m.sessionMode == sessionNameInput {
 		return m.handleSessionNameInputKey(key)
 	}
 
@@ -1044,7 +1073,15 @@ func (m Model) renderContent() string {
 	if m.createMode == createLayoutPick {
 		return tuicomponents.Overlay(background, m.renderLayoutPickPopup(), m.width, m.height)
 	}
-	if m.creatingSession {
+	if m.sessionMode == sessionFolderPick {
+		return tuicomponents.Overlay(
+			background,
+			m.renderSessionFolderPickPopup(),
+			m.width,
+			m.height,
+		)
+	}
+	if m.sessionMode == sessionNameInput {
 		return tuicomponents.Overlay(background, m.renderSessionNameInputPopup(), m.width, m.height)
 	}
 	return background
@@ -1401,7 +1438,7 @@ func (m Model) renderHelpPopup() string {
 		},
 		{Key: "n", Desc: "create a new worktree (repo picker → name prompt)"},
 		{Key: "N", Desc: "create a new worktree (repo picker → name prompt → layout picker)"},
-		{Key: "s", Desc: "create a new tmux session (name prompt)"},
+		{Key: "s", Desc: "create a new tmux session (folder picker → name prompt)"},
 		{Key: "j / k", Desc: "move cursor down / up"},
 		{Key: "h / l", Desc: "collapse / expand repo"},
 		{Key: "z", Desc: "toggle collapse all repos"},

@@ -271,6 +271,12 @@ is replaced by opening `dg ws`.
     (`"session created: <name>"`) without switching — `tmux new-session -d` works without a
     client, so `s` is **not** blocked outside tmux; only the switch is skipped. This mirrors
     the worktree-create-outside-tmux path (`model.go:407-412`).
+
+    > **Superseded (2026-07-22):** `s` now opens a folder-pick step first (`root` = home pinned,
+    > plus the repo candidates and a free-typed path, validated as a directory via
+    > `ValidateDirPath`), so the workdir is no longer always home. The name prompt now also
+    > auto-generates a `devgita-<character>` name on a blank Enter, collision-checked against the
+    > live tmux sessions. See `session_flow.go` / `session_name.go` and `docs/spec.md`.
 - **Duplicate session names (Q2):** rely on tmux's own error — `tmux new-session -s <name>`
   fails when the name exists — surfaced via the status line, the same way worktree
   create-failures surface (`createFailedMsg`/`statusMsg`). No prompt-layer `HasSession`

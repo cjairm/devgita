@@ -41,8 +41,10 @@ func makeTestModel(statuses []worktree.WorktreeStatus) Model {
 	m.createSessionFn = func(_, _ string) error { return nil }
 	m.switchToSessionFn = func(_ string) error { return nil }
 	m.killSessionFn = func(_ string) error { return nil }
+	m.listSessionNamesFn = func() ([]string, error) { return nil, nil }
 	m.repoCandidatesFn = func(_ string) ([]string, error) { return nil, nil }
 	m.validateRepoPathFn = func(path string) (string, error) { return path, nil }
+	m.validateSessionDirFn = func(path string) (string, error) { return path, nil }
 	m.checkHookCompatibilityFn = func(_ string) []string { return nil }
 	m.createFn = func(_, _, _ string) (string, error) { return "", nil }
 	m.prTitleFn = func(_, _ string) string { return "" }

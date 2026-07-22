@@ -1,9 +1,9 @@
-// The s → name-prompt → CreateSession flow for standalone tmux sessions.
-// Deliberately separate from create_flow.go's n/N worktree flow: a plain
-// session has no repo pick, no hook-compatibility check, and no layout pick,
-// so reusing createMode/createInput here would conflate two flows whose
-// invariants (createRepo, dispatchCreate's layout handling) don't apply to a
-// session at all.
+// The s → folder-pick → name-prompt → CreateSession flow for standalone tmux
+// sessions. Deliberately separate from create_flow.go's n/N worktree flow: a
+// plain session has no hook-compatibility check and no layout pick, and its
+// folder is any directory (not necessarily a git repo), so reusing
+// createMode/createInput here would conflate two flows whose invariants
+// (createRepo, dispatchCreate's layout handling) don't apply to a session.
 
 package tuiworktree
 
@@ -12,8 +12,29 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	tuicomponents "github.com/cjairm/devgita/internal/tui/components"
 	"github.com/cjairm/devgita/pkg/paths"
 )
+
+// sessionMode tracks progress through the s → folder-pick → name-input →
+// create flow, mirroring create_flow.go's createMode: a small explicit field
+// checked early in handleKey, not a deep state machine. sessionNone means the
+// flow is inactive (the dashboard is in its normal state).
+type sessionMode int
+
+const (
+	sessionNone sessionMode = iota
+	sessionFolderPick
+	sessionNameInput
+)
+
+// sessionRootLabel is the pinned first entry of the folder picker: selecting
+// it opens the session in the user's home directory. It's a display label, not
+// a path — resolveSessionFolder maps it to paths.Paths.Home.Root. A bare
+// "root" can never collide with a real candidate, since every candidate path
+// from repoCandidatesFn is absolute (e.g. "/Users/x/dev"), so this sentinel is
+// unambiguous.
+const sessionRootLabel = "root"
 
 // sessionCreatedMsg reports a successful createSessionFn call made outside
 // tmux, where there is no attached client to switch - so Update sets the
@@ -31,22 +52,97 @@ type sessionKilledMsg struct {
 	name string
 }
 
-// handleNewSession opens the floating name prompt for the s keybinding, from
-// any row (a plain session isn't scoped to whatever row the cursor happens to
-// be on). No re-entry guard is needed: while m.creatingSession is true,
-// handleKey's early interception routes every key (including another "s") to
-// handleSessionNameInputKey instead of back through this dispatch.
+// handleNewSession opens the folder picker for the s keybinding, from any row.
+// It offers "root" (the user's home) pinned first, then the same ranked repo
+// candidates the worktree flow uses (repoCandidatesFn), and — like that flow —
+// also accepts a free-typed path that matches no candidate. A plain session
+// isn't scoped to a repo, so the picked folder is validated as a directory
+// only (validateSessionDirFn), not a git repo. The cursor row's repo is passed
+// as the candidate hint so, if you're sitting on a repo, its folder ranks high.
 func (m Model) handleNewSession() (tea.Model, tea.Cmd) {
-	m.creatingSession = true
-	m.sessionNameInput.Reset()
+	var cursorRepoSlug string
+	if sel, ok := m.selectedStatus(); ok {
+		cursorRepoSlug = sel.Repo
+	} else if m.cursor >= 0 && m.cursor < len(m.rows) && m.rows[m.cursor].kind == rowRepo {
+		cursorRepoSlug = m.rows[m.cursor].repo
+	}
+
+	candidates, err := m.repoCandidatesFn(cursorRepoSlug)
+	if err != nil {
+		m.status = "failed to list folders: " + err.Error()
+		return m, nil
+	}
+
+	// "root" is pinned at index 0 so FuzzyPicker's cursor (always starting at
+	// 0 of an unfiltered list) lands on home by default — the common case for a
+	// scratch session. Its Hint shows "~" so it's clear where root points.
+	items := make([]tuicomponents.PaletteItem, 0, len(candidates)+1)
+	items = append(items, tuicomponents.PaletteItem{Command: sessionRootLabel, Hint: "~"})
+	for _, c := range candidates {
+		items = append(items, tuicomponents.PaletteItem{Command: c})
+	}
+
+	m.sessionFolderPicker = tuicomponents.NewFuzzyPicker("New session — pick a folder", items)
+	m.sessionMode = sessionFolderPick
 	return m, nil
 }
 
+// handleSessionFolderPickKey mirrors create_flow.go's handleRepoPickKey: it
+// delegates to the FuzzyPicker for list selection and cancellation, and
+// handles the free-typed-path case itself (a query matching no candidate makes
+// enter report FuzzyPickerNone). resolveSessionFolder validates whichever path
+// was chosen and, on success, advances to the name prompt.
+func (m Model) handleSessionFolderPickKey(key string) (tea.Model, tea.Cmd) {
+	result := m.sessionFolderPicker.HandleKey(key)
+	switch result.Action {
+	case tuicomponents.FuzzyPickerCancelled:
+		m.clearSessionState()
+
+	case tuicomponents.FuzzyPickerSelected:
+		m.resolveSessionFolder(result.Item.Command)
+
+	case tuicomponents.FuzzyPickerNone:
+		if key != "enter" {
+			break
+		}
+		query := m.sessionFolderPicker.Query()
+		if query == "" {
+			break
+		}
+		m.resolveSessionFolder(query)
+	}
+	return m, nil
+}
+
+// resolveSessionFolder maps the picked entry to a directory and, on success,
+// records it as sessionWorkdir and advances to the name prompt. The
+// sessionRootLabel sentinel resolves to the user's home; anything else is
+// treated as a path (a picked candidate or a free-typed query). Both are run
+// through validateSessionDirFn so a non-existent or non-directory path is
+// rejected immediately with a status message, leaving the picker open — the
+// same shape as create_flow.go's resolveAndValidateRepoPath, minus the git
+// requirement.
+func (m *Model) resolveSessionFolder(candidate string) {
+	path := candidate
+	if candidate == sessionRootLabel {
+		path = paths.Paths.Home.Root
+	}
+	dir, err := m.validateSessionDirFn(path)
+	if err != nil {
+		m.status = err.Error()
+		return
+	}
+	m.sessionWorkdir = dir
+	m.sessionMode = sessionNameInput
+	m.sessionNameInput.Reset()
+}
+
 // handleSessionNameInputKey drives the floating single-line session-name
-// prompt: esc cancels, enter with a non-empty name kicks off
-// dispatchSessionCreate, and every other key is a name edit delegated to the
-// shared TextInput - the same shape as handleNameInputKey, minus the hook-
-// compatibility confirm and layout-pick branching that don't apply here.
+// prompt: esc cancels the whole flow, and every other key is a name edit
+// delegated to the shared TextInput. Unlike create_flow.go's name step, enter
+// with a blank name is NOT a no-op: it auto-generates a Dragon Ball name (see
+// autoSessionName) so a user can create a scratch session by just pressing
+// enter twice.
 func (m Model) handleSessionNameInputKey(key string) (tea.Model, tea.Cmd) {
 	switch key {
 	case "esc":
@@ -54,10 +150,11 @@ func (m Model) handleSessionNameInputKey(key string) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case "enter":
-		if m.sessionNameInput.Value == "" {
-			return m, nil
+		name := m.sessionNameInput.Value
+		if name == "" {
+			name = m.autoSessionName()
 		}
-		return m.dispatchSessionCreate()
+		return m.dispatchSessionCreate(name)
 
 	default:
 		m.sessionNameInput.HandleKey(key)
@@ -72,32 +169,51 @@ func (m Model) handleSessionNameInputPaste(text string) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// clearSessionState resets the s → name-prompt flow back to normal mode, used
-// on cancellation and once a create has been dispatched.
+// autoSessionName returns a "devgita-<character>" name for a blank prompt,
+// checked against the live tmux sessions so it never collides with an existing
+// one (see nextFreeSessionName). Listing is best-effort: if it fails (tmux
+// unreachable for a real reason), we fall back to an empty taken-set and let
+// tmux's own "new-session -s" duplicate check be the final guard — the same
+// philosophy as the rest of this file, where create failures surface via
+// statusMsg rather than being pre-checked. The listing error is folded into
+// that best-effort fallback rather than blocking the user from creating.
+func (m Model) autoSessionName() string {
+	taken := map[string]bool{}
+	if names, err := m.listSessionNamesFn(); err == nil {
+		for _, n := range names {
+			taken[n] = true
+		}
+	}
+	return nextFreeSessionName(taken, randomSessionNameOrder())
+}
+
+// clearSessionState resets the s → folder-pick → name-prompt flow back to
+// normal mode, used on cancellation and once a create has been dispatched.
 func (m *Model) clearSessionState() {
-	m.creatingSession = false
+	m.sessionMode = sessionNone
+	m.sessionFolderPicker = nil
+	m.sessionWorkdir = ""
 	m.sessionNameInput.Reset()
 }
 
-// dispatchSessionCreate captures the entered name, closes the prompt, and
-// kicks off the async createSessionFn call. Workdir is always the user's home
-// directory (paths.Paths.Home.Root): a plain session is deliberately not tied
-// to any repo, so a selected-row-derived path would contradict the concept,
-// and the TUI's own cwd is just wherever dg ws happened to launch from.
+// dispatchSessionCreate captures the entered (or auto-generated) name and the
+// folder chosen in the folder-pick step, closes the prompt, and kicks off the
+// async createSessionFn call in that directory.
 //
-// Duplicate session names are not pre-checked here (Q2 in the cycle plan):
-// tmux's own "new-session -s <name>" already fails when the name exists, and
-// a prompt-layer HasSession check would both duplicate that enforcement and
-// add a TOCTOU gap between the check and the create. The failure just
-// surfaces via statusMsg, same as every other action failure in this file.
-func (m Model) dispatchSessionCreate() (tea.Model, tea.Cmd) {
-	name := m.sessionNameInput.Value
+// Duplicate session names are not pre-checked here (Q2 in the original cycle
+// plan): tmux's own "new-session -s <name>" already fails when the name
+// exists, and a prompt-layer HasSession check would both duplicate that
+// enforcement and add a TOCTOU gap between the check and the create. The
+// failure just surfaces via statusMsg, same as every other action failure in
+// this file. (autoSessionName's collision check is a convenience for the blank
+// case, not the enforcement — a typed name still relies on tmux here.)
+func (m Model) dispatchSessionCreate(name string) (tea.Model, tea.Cmd) {
+	workdir := m.sessionWorkdir
 	m.clearSessionState()
 	m.status = actionStatus("creating session", name)
 
 	createFn := m.createSessionFn
 	switchFn := m.switchToSessionFn
-	workdir := paths.Paths.Home.Root
 	insideTmux := os.Getenv("TMUX") != ""
 
 	return m, func() tea.Msg {
@@ -173,11 +289,23 @@ func (m Model) handleKillSession() (tea.Model, tea.Cmd) {
 	}
 }
 
+// renderSessionFolderPickPopup builds the raw (uncentered) folder-picker popup
+// content; composited over the dashboard background via Overlay, mirroring
+// renderRepoPickPopup's shape.
+func (m Model) renderSessionFolderPickPopup() string {
+	maxW := min(m.width-2, 64)
+	return m.sessionFolderPicker.View(maxW)
+}
+
 // renderSessionNameInputPopup builds the raw (uncentered) session-name-prompt
 // popup content; composited over the dashboard background via Overlay,
-// mirroring renderNameInputPopup's shape.
+// mirroring renderNameInputPopup's shape. The hint spells out that a blank
+// name auto-generates one, so the empty-enter path is discoverable.
 func (m Model) renderSessionNameInputPopup() string {
 	maxW := min(m.width-2, 64)
-	lines := []string{"> " + m.sessionNameInput.RenderPlain()}
+	lines := []string{
+		"> " + m.sessionNameInput.RenderPlain(),
+		m.palette.Inactive.Render("(blank = random devgita-* name)"),
+	}
 	return m.palette.BorderedPane("New session — name", maxW, lines)
 }

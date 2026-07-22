@@ -391,12 +391,21 @@ Session rows add:
   same guard message as attaching to a worktree) and quit the dashboard.
 - `d` `d` — kill the session (two-press confirm, same "press again" hint style as worktree
   delete).
-- `s` (works from any row, not just a session row) — floating name prompt; on Enter, creates a
-  new standalone tmux session in the user's home directory (a plain session is deliberately not
-  tied to any repo). Inside tmux, the client switches to the new session and the dashboard
-  quits; outside tmux, the session is created detached and reported (`session created: <name>`)
-  without switching. A duplicate name surfaces tmux's own "duplicate session" error on the
-  status line — there's no separate pre-check.
+- `s` (works from any row, not just a session row) — opens a two-step create flow:
+  1. **Pick a folder** — a fuzzy picker with `root` (the user's home `~`) pinned at the top,
+     then the same ranked repo candidates the worktree flow offers, and — like that flow — a
+     free-typed path is also accepted. A session isn't tied to a repo, so the chosen folder is
+     validated as an existing directory only (not a git repo).
+  2. **Name prompt** — on Enter with a name, creates the session in the chosen folder. Enter with
+     a **blank** name auto-generates a `devgita-<character>` name (Dragon Ball characters, e.g.
+     `devgita-goku`), checked against the live tmux sessions so a blank-name create never collides
+     with an existing one.
+
+  Inside tmux, the client switches to the new session and the dashboard quits; outside tmux, the
+  session is created detached and reported (`session created: <name>`) without switching. A
+  duplicate typed name surfaces tmux's own "duplicate session" error on the status line — there's
+  no separate pre-check.
+
 - `D`/`r` are worktree-only actions and are no-ops on a session row.
 
 Bare `ctrl+t` (no tmux prefix) opens `dg ws` (see `configs/tmux/tmux.conf`) — it previously
