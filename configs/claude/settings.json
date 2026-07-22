@@ -85,6 +85,17 @@
           }
         ]
       }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/task-redirect.sh"
+          }
+        ]
+      }
     ]
   }
 }

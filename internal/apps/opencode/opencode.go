@@ -125,6 +125,24 @@ func (o *OpenCode) ForceConfigure() error {
 	); err != nil {
 		return fmt.Errorf("failed to copy opencode shared config: %w", err)
 	}
+
+	// The task-redirect plugin (and any future local OpenCode plugins) ships
+	// from configs/opencode/plugin/, not configs/shared/ — plugins are an
+	// OpenCode-specific mechanism, outside SharedConfigParts' skills/commands/
+	// agents sync surface. OpenCode loads plugin files from
+	// ~/.config/opencode/plugin/ (or the singular/plural "plugins" variant;
+	// see task-redirect.js's header comment).
+	// CopyDir creates its destination directory itself (see pkg/files.CopyDir),
+	// same as every other CopyDir call site in this codebase — no explicit
+	// MkdirAll needed here.
+	pluginDst := filepath.Join(paths.Paths.Config.OpenCode, "plugin")
+	if err := files.CopyDir(
+		filepath.Join(paths.Paths.App.Configs.OpenCode, "plugin"),
+		pluginDst,
+	); err != nil {
+		return fmt.Errorf("failed to copy opencode plugins: %w", err)
+	}
+
 	gc.ReconcileShellFeatures()
 	gc.AddToInstalled(constants.OpenCode, "package")
 	gc.Shell.Opencode = true

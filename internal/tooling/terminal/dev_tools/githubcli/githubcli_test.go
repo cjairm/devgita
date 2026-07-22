@@ -762,7 +762,7 @@ func TestPRChecks(t *testing.T) {
 		if !argSeq(call.Args, "pr", "checks", "7") {
 			t.Fatalf("expected 'pr checks 7', got %v", call.Args)
 		}
-		if !argSeq(call.Args, "--json", "name,state,link,workflow") {
+		if !argSeq(call.Args, "--json", "name,state,link,workflow,bucket") {
 			t.Fatalf("expected --json fields, got %v", call.Args)
 		}
 	})

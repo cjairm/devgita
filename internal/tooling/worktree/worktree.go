@@ -46,9 +46,9 @@ func isWorktreeWindow(name string) bool {
 	return strings.HasPrefix(name, windowPrefix)
 }
 
-// flattenName converts a branch-style name (with slashes) to a flat directory name.
+// FlattenName converts a branch-style name (with slashes) to a flat directory name.
 // e.g. "feat/search-specs" → "feat-search-specs"
-func flattenName(name string) string {
+func FlattenName(name string) string {
 	return strings.ReplaceAll(name, "/", "-")
 }
 
@@ -115,7 +115,7 @@ func New() *WorktreeManager {
 // directly under the repo slug. This ensures the parent directory is always
 // the repo slug (important for tools that display the parent dir, e.g. Claude Code).
 func (w *WorktreeManager) worktreePath(repoSlug, name string) string {
-	return filepath.Join(paths.Paths.Data.Root, "devgita", "worktrees", repoSlug, flattenName(name))
+	return filepath.Join(paths.Paths.Data.Root, "devgita", "worktrees", repoSlug, FlattenName(name))
 }
 
 // GetWorktreeBasePath returns the base path for all devgita worktrees
@@ -532,7 +532,7 @@ func (w *WorktreeManager) findRepoForWorktree(name string) string {
 			continue
 		}
 		if _, err := os.Stat(
-			filepath.Join(GetWorktreeBasePath(), e.Name(), flattenName(name)),
+			filepath.Join(GetWorktreeBasePath(), e.Name(), FlattenName(name)),
 		); err == nil {
 			matches = append(matches, e.Name())
 		}
@@ -568,7 +568,7 @@ func (w *WorktreeManager) Remove(name string, force bool) error {
 	// window name (wt-<repo>-<flat-name>). Match orphan windows by their trailing
 	// "-<flat-name>" segment, keeping only those with the wt- prefix.
 	var orphans []string
-	for _, window := range w.Tmux.FindWindowsBySuffix("-" + flattenName(name)) {
+	for _, window := range w.Tmux.FindWindowsBySuffix("-" + FlattenName(name)) {
 		if isWorktreeWindow(window) {
 			orphans = append(orphans, window)
 		}
@@ -876,7 +876,7 @@ func confirmFromTTY() bool {
 // The repo prefix is sanitized with tmuxSessionName so it matches the session name
 // used in ensureWindow, keeping window and session naming consistent.
 func GetWindowName(repoSlug, name string) string {
-	return windowPrefix + tmuxSessionName(repoSlug) + "-" + flattenName(name)
+	return windowPrefix + tmuxSessionName(repoSlug) + "-" + FlattenName(name)
 }
 
 // WindowNameFor resolves the repo that owns the given worktree and returns its

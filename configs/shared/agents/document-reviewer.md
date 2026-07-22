@@ -10,7 +10,7 @@ permission:
     "git show*": allow
     "git rev-parse*": allow
     "git symbolic-ref*": allow
-    "git branch*": allow
+    "git branch --show-current": allow
     "git status*": allow
     "git fetch*": allow
     "devgita task review-scope": allow
@@ -21,7 +21,6 @@ permission:
     "cat *": allow
     "grep *": allow
     "rg *": allow
-    "sed *": allow
     "head *": allow
     "tail *": allow
     "wc *": allow

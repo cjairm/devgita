@@ -289,13 +289,149 @@ func (p *PRManager) PRView(prNumber string) (string, error) {
 	return p.Jq.FormatPRView(raw)
 }
 
+// failingCheckLogMaxLines bounds how many deduplicated log lines are kept
+// per failing check's digest.
+//
+// This is a documented ESTIMATE, not a real-failing-log measurement: gh's
+// log-download API only serves log content to users with write access to
+// the check's repo (verified empirically against real failing runs on
+// junegunn/fzf and BurntSushi/ripgrep — both returned empty, error-free
+// output for `gh run view --log-failed` despite a genuine failing step
+// existing), so a real third-party failing-run log could not be fetched
+// from this environment. 60 sits at the top of the cycle plan's own
+// suggested 40-60 line range, and matches the order of magnitude observed
+// for a single ordinary CI step's full log on this repo's own successful
+// runs (30-90 lines per step) — the same rough size a failure's relevant
+// tail should need. Revisit with a real measurement once one is reachable.
+const failingCheckLogMaxLines = 60
+
+// totalDigestLineBudget bounds the combined digest size across every
+// failing check in one PRChecks call, so a PR with many failing checks
+// can't produce an unbounded response. Once the budget is spent, remaining
+// failing checks get a one-line note instead of a fetched digest — no gh
+// call is made for them. 240 = 4 checks' worth of failingCheckLogMaxLines,
+// a reasonable ceiling for "several checks failing at once" without being
+// so large a genuinely bad PR (dozens of failing checks) blows the budget.
+const totalDigestLineBudget = 240
+
+// prCheck mirrors the fields githubcli.PRChecks requests (see its doc
+// comment): name/state/link/workflow feed jq.FormatPRChecks's one-line
+// rendering, and bucket is gh's own authoritative pass/fail/pending/
+// skipping/cancel categorization of state, used here to decide which
+// checks get a log digest appended.
+type prCheck struct {
+	Name     string `json:"name"`
+	State    string `json:"state"`
+	Bucket   string `json:"bucket"`
+	Link     string `json:"link"`
+	Workflow string `json:"workflow"`
+}
+
+// isFailingCheck reports whether a check should get a log digest appended.
+func isFailingCheck(c prCheck) bool {
+	return strings.EqualFold(strings.TrimSpace(c.Bucket), "fail")
+}
+
 // PRChecks returns a compact, one-line-per-check CI status for a PR.
+// Passing/pending checks keep exactly today's one-line format (jq's
+// prChecksFilter, unchanged — this is the sentinel-adjacent contract
+// task-design.md calls out). Failing checks get extra indented lines
+// appended underneath: a bounded, deduplicated tail of the failing job's
+// log (see digestLogTail), or an honest "log unavailable" note when no
+// digest could be produced.
+//
+// This breaks the pure "gh fetches JSON → jq formats it" split the other
+// PRManager methods use, because producing a digest needs a SEPARATE gh
+// call per failing check (RunFailedJobLog) — genuine orchestration with
+// per-item side effects, not just reshaping one JSON payload. jq still owns
+// the base one-line-per-check rendering; only the digest lines are Go-side,
+// per task-design.md's "line-oriented text processing is a pure Go
+// function's job" guidance.
 func (p *PRManager) PRChecks(prNumber string) (string, error) {
 	raw, err := p.Gh.PRChecks(prNumber)
 	if err != nil {
 		return "", err
 	}
-	return p.Jq.FormatPRChecks(raw)
+	formatted, err := p.Jq.FormatPRChecks(raw)
+	if err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(formatted) == "" || formatted == "No checks." {
+		return formatted, nil
+	}
+
+	var checks []prCheck
+	if err := json.Unmarshal([]byte(raw), &checks); err != nil {
+		// The base formatting already succeeded via jq; don't fail the whole
+		// command over a payload shape only the digest enrichment can't parse.
+		return formatted, nil
+	}
+
+	lines := strings.Split(strings.TrimRight(formatted, "\n"), "\n")
+	if len(lines) != len(checks) {
+		// jq's filter emits exactly one line per element of the same array,
+		// in order, with no filtering — this should never happen. If it
+		// somehow does, don't guess which line belongs to which check.
+		return formatted, nil
+	}
+
+	budget := totalDigestLineBudget
+	out := make([]string, 0, len(lines))
+	for i, line := range lines {
+		out = append(out, line)
+		if !isFailingCheck(checks[i]) {
+			continue
+		}
+		digestLines, spent := p.failingCheckDigest(checks[i], budget)
+		budget -= spent
+		out = append(out, digestLines...)
+	}
+	return strings.Join(out, "\n"), nil
+}
+
+// failingCheckDigestIndent prefixes every digest line appended under a
+// failing check's one-line summary, visually nesting it as a sub-line
+// without markdown scaffolding (plain text, per task-design.md principle 1).
+const failingCheckDigestIndent = "    "
+
+// failingCheckDigest fetches and formats one failing check's log digest.
+// budget caps how many lines this call may still spend (see
+// totalDigestLineBudget); it returns the rendered, indented lines plus how
+// many lines of budget they spent, so PRChecks can track the running total
+// across every failing check.
+func (p *PRManager) failingCheckDigest(check prCheck, budget int) ([]string, int) {
+	if budget <= 0 {
+		return []string{
+			failingCheckDigestIndent + "log digest omitted: total digest size bound reached",
+		}, 0
+	}
+
+	jobID, ok := parseActionsJobID(check.Link)
+	if !ok {
+		return []string{failingCheckDigestIndent + "log unavailable: external check"}, 0
+	}
+
+	rawLog, err := p.Gh.RunFailedJobLog(jobID)
+	if err != nil {
+		return []string{failingCheckDigestIndent + "log unavailable: " + err.Error()}, 0
+	}
+	if strings.TrimSpace(rawLog) == "" {
+		return []string{
+			failingCheckDigestIndent + "log unavailable: no failed-step log returned",
+		}, 0
+	}
+
+	perCheckMax := failingCheckLogMaxLines
+	if budget < perCheckMax {
+		perCheckMax = budget
+	}
+	digest := digestLogTail(rawLog, perCheckMax)
+	digestLines := strings.Split(digest, "\n")
+	rendered := make([]string, len(digestLines))
+	for i, l := range digestLines {
+		rendered[i] = failingCheckDigestIndent + l
+	}
+	return rendered, len(rendered)
 }
 
 // CurrentPR returns the PR number for the current branch.

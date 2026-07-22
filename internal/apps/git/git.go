@@ -294,9 +294,15 @@ func dirArgs(dir string, args ...string) []string {
 // CurrentBranch returns the checked-out branch name, or "" when HEAD is
 // detached (mirrors `git branch --show-current`).
 func (g *Git) CurrentBranch() (string, error) {
+	return g.CurrentBranchIn("")
+}
+
+// CurrentBranchIn is CurrentBranch evaluated against the repository at dir
+// ("" = current directory).
+func (g *Git) CurrentBranchIn(dir string) (string, error) {
 	stdout, _, err := g.Base.ExecCommand(cmd.CommandParams{
 		Command: constants.Git,
-		Args:    []string{"branch", "--show-current"},
+		Args:    dirArgs(dir, "branch", "--show-current"),
 	})
 	if err != nil {
 		return "", fmt.Errorf("failed to get current branch: %w", err)

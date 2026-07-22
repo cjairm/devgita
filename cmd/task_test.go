@@ -28,6 +28,7 @@ type mockTaskRunner struct {
 	deleteBranchErr    error
 
 	reviewScopeCalled bool
+	reviewScopeBodies bool
 	reviewScopeRet    string
 	reviewScopeErr    error
 
@@ -35,6 +36,34 @@ type mockTaskRunner struct {
 	branchDiffCalled bool
 	branchDiffRet    string
 	branchDiffErr    error
+
+	reviewPackageBaseArg string
+	reviewPackageHeadArg string
+	reviewPackageFileArg string
+	reviewPackageCalled  bool
+	reviewPackageRet     string
+	reviewPackageErr     error
+
+	worktreeStartNameArg string
+	worktreeStartBaseArg string
+	worktreeStartCalled  bool
+	worktreeStartRet     string
+	worktreeStartErr     error
+
+	worktreeFinishNameArg    string
+	worktreeFinishMergeArg   bool
+	worktreeFinishDiscardArg bool
+	worktreeFinishForceArg   bool
+	worktreeFinishCalled     bool
+	worktreeFinishRet        string
+	worktreeFinishErr        error
+
+	releaseVersionArg     string
+	releaseMessageFileArg string
+	releasePushArg        bool
+	releaseCalled         bool
+	releaseRet            string
+	releaseErr            error
 }
 
 func (m *mockTaskRunner) RefreshBranch(target string) error {
@@ -65,8 +94,9 @@ func (m *mockTaskRunner) DeleteBranch(target string) error {
 	return m.deleteBranchErr
 }
 
-func (m *mockTaskRunner) ReviewScope() (string, error) {
+func (m *mockTaskRunner) ReviewScope(bodies bool) (string, error) {
 	m.reviewScopeCalled = true
+	m.reviewScopeBodies = bodies
 	return m.reviewScopeRet, m.reviewScopeErr
 }
 
@@ -74,6 +104,38 @@ func (m *mockTaskRunner) BranchDiff(file string) (string, error) {
 	m.branchDiffCalled = true
 	m.branchDiffArg = file
 	return m.branchDiffRet, m.branchDiffErr
+}
+
+func (m *mockTaskRunner) ReviewPackage(base, head, file string) (string, error) {
+	m.reviewPackageCalled = true
+	m.reviewPackageBaseArg = base
+	m.reviewPackageHeadArg = head
+	m.reviewPackageFileArg = file
+	return m.reviewPackageRet, m.reviewPackageErr
+}
+
+func (m *mockTaskRunner) WorktreeStart(name, base string) (string, error) {
+	m.worktreeStartCalled = true
+	m.worktreeStartNameArg = name
+	m.worktreeStartBaseArg = base
+	return m.worktreeStartRet, m.worktreeStartErr
+}
+
+func (m *mockTaskRunner) WorktreeFinish(name string, merge, discard, force bool) (string, error) {
+	m.worktreeFinishCalled = true
+	m.worktreeFinishNameArg = name
+	m.worktreeFinishMergeArg = merge
+	m.worktreeFinishDiscardArg = discard
+	m.worktreeFinishForceArg = force
+	return m.worktreeFinishRet, m.worktreeFinishErr
+}
+
+func (m *mockTaskRunner) Release(version, messageFile string, push bool) (string, error) {
+	m.releaseCalled = true
+	m.releaseVersionArg = version
+	m.releaseMessageFileArg = messageFile
+	m.releasePushArg = push
+	return m.releaseRet, m.releaseErr
 }
 
 func setupTaskMock(t *testing.T, mock taskRunner) func() {
@@ -262,6 +324,7 @@ func TestTask_ReviewScope(t *testing.T) {
 		}
 		restore := setupTaskMock(t, mock)
 		defer restore()
+		taskReviewScopeBodiesFlag = false
 
 		err := taskReviewScopeCmd.RunE(taskReviewScopeCmd, []string{})
 		if err != nil {
@@ -269,6 +332,27 @@ func TestTask_ReviewScope(t *testing.T) {
 		}
 		if !mock.reviewScopeCalled {
 			t.Error("expected ReviewScope to be called")
+		}
+		if mock.reviewScopeBodies {
+			t.Error("expected bodies=false when --bodies not passed")
+		}
+	})
+
+	t.Run("passes --bodies flag", func(t *testing.T) {
+		mock := &mockTaskRunner{
+			reviewScopeRet: "branch: feat/x -> main (default)  [ahead 1, behind 0]",
+		}
+		restore := setupTaskMock(t, mock)
+		defer restore()
+		taskReviewScopeBodiesFlag = true
+		defer func() { taskReviewScopeBodiesFlag = false }()
+
+		err := taskReviewScopeCmd.RunE(taskReviewScopeCmd, []string{})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !mock.reviewScopeBodies {
+			t.Error("expected bodies=true when --bodies passed")
 		}
 	})
 
@@ -326,6 +410,257 @@ func TestTask_BranchDiff(t *testing.T) {
 		taskBranchDiffFileFlag = ""
 
 		err := taskBranchDiffCmd.RunE(taskBranchDiffCmd, []string{})
+		if err == nil {
+			t.Fatal("expected error")
+		}
+	})
+}
+
+func TestTask_ReviewPackage(t *testing.T) {
+	t.Run("passes positional base/head and empty file arg", func(t *testing.T) {
+		mock := &mockTaskRunner{reviewPackageRet: "range: main..feat"}
+		restore := setupTaskMock(t, mock)
+		defer restore()
+		taskReviewPackageFileFlag = ""
+
+		err := taskReviewPackageCmd.RunE(taskReviewPackageCmd, []string{"main", "feat"})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !mock.reviewPackageCalled {
+			t.Error("expected ReviewPackage to be called")
+		}
+		if mock.reviewPackageBaseArg != "main" || mock.reviewPackageHeadArg != "feat" {
+			t.Errorf(
+				"expected base=main head=feat, got base=%q head=%q",
+				mock.reviewPackageBaseArg, mock.reviewPackageHeadArg,
+			)
+		}
+		if mock.reviewPackageFileArg != "" {
+			t.Errorf("expected empty file arg, got %q", mock.reviewPackageFileArg)
+		}
+	})
+
+	t.Run("passes --file flag", func(t *testing.T) {
+		mock := &mockTaskRunner{reviewPackageRet: "diff --git a/go.sum b/go.sum"}
+		restore := setupTaskMock(t, mock)
+		defer restore()
+		taskReviewPackageFileFlag = "go.sum"
+		defer func() { taskReviewPackageFileFlag = "" }()
+
+		err := taskReviewPackageCmd.RunE(taskReviewPackageCmd, []string{"main", "feat"})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if mock.reviewPackageFileArg != "go.sum" {
+			t.Errorf("expected file arg 'go.sum', got %q", mock.reviewPackageFileArg)
+		}
+	})
+
+	t.Run("propagates error", func(t *testing.T) {
+		mock := &mockTaskRunner{reviewPackageErr: fmt.Errorf("unrecognized ref")}
+		restore := setupTaskMock(t, mock)
+		defer restore()
+		taskReviewPackageFileFlag = ""
+
+		err := taskReviewPackageCmd.RunE(taskReviewPackageCmd, []string{"bogus", "feat"})
+		if err == nil {
+			t.Fatal("expected error")
+		}
+	})
+
+	t.Run("requires exactly two positional args", func(t *testing.T) {
+		if err := taskReviewPackageCmd.Args(taskReviewPackageCmd, []string{"main"}); err == nil {
+			t.Fatal("expected error for one arg")
+		}
+		if err := taskReviewPackageCmd.Args(
+			taskReviewPackageCmd,
+			[]string{"main", "feat", "extra"},
+		); err == nil {
+			t.Fatal("expected error for three args")
+		}
+		if err := taskReviewPackageCmd.Args(
+			taskReviewPackageCmd,
+			[]string{"main", "feat"},
+		); err != nil {
+			t.Fatalf("expected no error for two args, got: %v", err)
+		}
+	})
+}
+
+func TestTask_WorktreeStart(t *testing.T) {
+	t.Run("passes name and default (empty) base", func(t *testing.T) {
+		mock := &mockTaskRunner{
+			worktreeStartRet: "Created worktree /path (branch x, base origin/main)",
+		}
+		restore := setupTaskMock(t, mock)
+		defer restore()
+		taskWorktreeStartBaseFlag = ""
+
+		err := taskWorktreeStartCmd.RunE(taskWorktreeStartCmd, []string{"add-retry"})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !mock.worktreeStartCalled {
+			t.Error("expected WorktreeStart to be called")
+		}
+		if mock.worktreeStartNameArg != "add-retry" {
+			t.Errorf("expected name arg 'add-retry', got %q", mock.worktreeStartNameArg)
+		}
+		if mock.worktreeStartBaseArg != "" {
+			t.Errorf("expected empty base arg, got %q", mock.worktreeStartBaseArg)
+		}
+	})
+
+	t.Run("passes --base flag", func(t *testing.T) {
+		mock := &mockTaskRunner{
+			worktreeStartRet: "Created worktree /path (branch x, base origin/release)",
+		}
+		restore := setupTaskMock(t, mock)
+		defer restore()
+		taskWorktreeStartBaseFlag = "origin/release"
+		defer func() { taskWorktreeStartBaseFlag = "" }()
+
+		err := taskWorktreeStartCmd.RunE(taskWorktreeStartCmd, []string{"hotfix"})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if mock.worktreeStartBaseArg != "origin/release" {
+			t.Errorf("expected base arg 'origin/release', got %q", mock.worktreeStartBaseArg)
+		}
+	})
+
+	t.Run("propagates error", func(t *testing.T) {
+		mock := &mockTaskRunner{worktreeStartErr: fmt.Errorf("dirty tree")}
+		restore := setupTaskMock(t, mock)
+		defer restore()
+		taskWorktreeStartBaseFlag = ""
+
+		err := taskWorktreeStartCmd.RunE(taskWorktreeStartCmd, []string{"add-retry"})
+		if err == nil {
+			t.Fatal("expected error")
+		}
+	})
+}
+
+func TestTask_WorktreeFinish(t *testing.T) {
+	t.Run("no name, --merge", func(t *testing.T) {
+		mock := &mockTaskRunner{worktreeFinishRet: "Merged x into main; removed worktree /path"}
+		restore := setupTaskMock(t, mock)
+		defer restore()
+		taskWorktreeFinishMergeFlag = true
+		taskWorktreeFinishDiscardFlag = false
+		taskWorktreeFinishForceFlag = false
+		defer func() { taskWorktreeFinishMergeFlag = false }()
+
+		err := taskWorktreeFinishCmd.RunE(taskWorktreeFinishCmd, []string{})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !mock.worktreeFinishCalled {
+			t.Error("expected WorktreeFinish to be called")
+		}
+		if mock.worktreeFinishNameArg != "" {
+			t.Errorf("expected empty name arg, got %q", mock.worktreeFinishNameArg)
+		}
+		if !mock.worktreeFinishMergeArg || mock.worktreeFinishDiscardArg {
+			t.Errorf("expected merge=true discard=false, got merge=%v discard=%v",
+				mock.worktreeFinishMergeArg, mock.worktreeFinishDiscardArg)
+		}
+	})
+
+	t.Run("name + --discard --force", func(t *testing.T) {
+		mock := &mockTaskRunner{worktreeFinishRet: "Discarded worktree /path (branch x deleted)"}
+		restore := setupTaskMock(t, mock)
+		defer restore()
+		taskWorktreeFinishMergeFlag = false
+		taskWorktreeFinishDiscardFlag = true
+		taskWorktreeFinishForceFlag = true
+		defer func() {
+			taskWorktreeFinishDiscardFlag = false
+			taskWorktreeFinishForceFlag = false
+		}()
+
+		err := taskWorktreeFinishCmd.RunE(taskWorktreeFinishCmd, []string{"stale-spike"})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if mock.worktreeFinishNameArg != "stale-spike" {
+			t.Errorf("expected name arg 'stale-spike', got %q", mock.worktreeFinishNameArg)
+		}
+		if !mock.worktreeFinishDiscardArg || !mock.worktreeFinishForceArg {
+			t.Errorf("expected discard=true force=true, got discard=%v force=%v",
+				mock.worktreeFinishDiscardArg, mock.worktreeFinishForceArg)
+		}
+	})
+
+	t.Run("propagates error", func(t *testing.T) {
+		mock := &mockTaskRunner{worktreeFinishErr: fmt.Errorf("ambiguous target")}
+		restore := setupTaskMock(t, mock)
+		defer restore()
+		taskWorktreeFinishMergeFlag = true
+		defer func() { taskWorktreeFinishMergeFlag = false }()
+
+		err := taskWorktreeFinishCmd.RunE(taskWorktreeFinishCmd, []string{})
+		if err == nil {
+			t.Fatal("expected error")
+		}
+	})
+}
+
+func TestTask_Release(t *testing.T) {
+	t.Run("passes version, message-file, and push flags", func(t *testing.T) {
+		mock := &mockTaskRunner{releaseRet: "Tagged v0.12.0 (squashed 3 commits)."}
+		restore := setupTaskMock(t, mock)
+		defer restore()
+		taskReleaseMessageFileFlag, taskReleasePushFlag = "release-notes.txt", true
+		defer func() { taskReleaseMessageFileFlag, taskReleasePushFlag = "", false }()
+
+		err := taskReleaseCmd.RunE(taskReleaseCmd, []string{"v0.12.0"})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !mock.releaseCalled {
+			t.Error("expected Release to be called")
+		}
+		if mock.releaseVersionArg != "v0.12.0" {
+			t.Errorf("expected version 'v0.12.0', got %q", mock.releaseVersionArg)
+		}
+		if mock.releaseMessageFileArg != "release-notes.txt" {
+			t.Errorf(
+				"expected message-file 'release-notes.txt', got %q",
+				mock.releaseMessageFileArg,
+			)
+		}
+		if !mock.releasePushArg {
+			t.Error("expected push=true to be passed through")
+		}
+	})
+
+	t.Run("defaults push to false", func(t *testing.T) {
+		mock := &mockTaskRunner{}
+		restore := setupTaskMock(t, mock)
+		defer restore()
+		taskReleaseMessageFileFlag, taskReleasePushFlag = "release-notes.txt", false
+		defer func() { taskReleaseMessageFileFlag, taskReleasePushFlag = "", false }()
+
+		err := taskReleaseCmd.RunE(taskReleaseCmd, []string{"v0.12.0"})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if mock.releasePushArg {
+			t.Error("expected push=false by default")
+		}
+	})
+
+	t.Run("propagates error", func(t *testing.T) {
+		mock := &mockTaskRunner{releaseErr: fmt.Errorf("dirty tree")}
+		restore := setupTaskMock(t, mock)
+		defer restore()
+		taskReleaseMessageFileFlag = "release-notes.txt"
+		defer func() { taskReleaseMessageFileFlag = "" }()
+
+		err := taskReleaseCmd.RunE(taskReleaseCmd, []string{"v0.12.0"})
 		if err == nil {
 			t.Fatal("expected error")
 		}

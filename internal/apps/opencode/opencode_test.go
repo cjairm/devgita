@@ -232,6 +232,18 @@ func TestForceConfigure(t *testing.T) {
 			t.Fatal(err)
 		}
 
+		pluginDir := filepath.Join(appConfigDir, "plugin")
+		if err := os.MkdirAll(pluginDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(
+			filepath.Join(pluginDir, "task-redirect.js"),
+			[]byte(`export const TaskRedirect = async () => ({});`),
+			0o644,
+		); err != nil {
+			t.Fatal(err)
+		}
+
 		setupSharedDir(t, tc.AppDir)
 
 		oldAppConfigs := paths.Paths.App.Configs.OpenCode
@@ -278,6 +290,12 @@ func TestForceConfigure(t *testing.T) {
 			t.Error("Expected theme file to contain Gruvbox theme")
 		}
 
+		// task-redirect.js plugin deployed
+		pluginPath := filepath.Join(userConfigDir, "plugin", "task-redirect.js")
+		if _, err := os.Stat(pluginPath); err != nil {
+			t.Fatalf("Expected plugin file at %s: %v", pluginPath, err)
+		}
+
 		testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
 	})
 
@@ -293,6 +311,9 @@ func TestForceConfigure(t *testing.T) {
 			t.Fatal(err)
 		}
 		if err := os.MkdirAll(filepath.Join(appConfigDir, "themes"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.MkdirAll(filepath.Join(appConfigDir, "plugin"), 0o755); err != nil {
 			t.Fatal(err)
 		}
 
@@ -396,6 +417,9 @@ func TestSoftConfigure(t *testing.T) {
 		if err := os.MkdirAll(filepath.Join(appConfigDir, "themes"), 0o755); err != nil {
 			t.Fatal(err)
 		}
+		if err := os.MkdirAll(filepath.Join(appConfigDir, "plugin"), 0o755); err != nil {
+			t.Fatal(err)
+		}
 
 		templatePath := filepath.Join(appConfigDir, "opencode.json.tmpl")
 		if err := os.WriteFile(
@@ -463,6 +487,9 @@ shell:
 			t.Fatal(err)
 		}
 		if err := os.MkdirAll(filepath.Join(appConfigDir, "themes"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.MkdirAll(filepath.Join(appConfigDir, "plugin"), 0o755); err != nil {
 			t.Fatal(err)
 		}
 		templatePath := filepath.Join(appConfigDir, "opencode.json.tmpl")

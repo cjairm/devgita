@@ -11,6 +11,29 @@ import (
 // remote can't block a caller expecting a fast, single-call response.
 const reviewScopeFetchTimeout = 10 * time.Second
 
+// commitFieldSep and commitRecordSep delimit commitLog's git log format:
+// %h/%as/%s/%b are joined with commitFieldSep and each commit is terminated
+// with commitRecordSep. Subjects and (especially) bodies can contain spaces
+// and newlines, so a plain-space/newline join would be ambiguous to parse
+// back apart — these ASCII unit/record separators can't appear in commit
+// text, so the format is unambiguous regardless of --bodies.
+const (
+	commitFieldSep  = "\x1f"
+	commitRecordSep = "\x1e"
+)
+
+// commitLogFormat requests short SHA, ISO author date (%as — git formats
+// this for us, no Go-side date parsing needed), subject, and body per commit.
+const commitLogFormat = "%h" + commitFieldSep + "%as" + commitFieldSep + "%s" + commitFieldSep + "%b" + commitRecordSep
+
+// commit is one commit from a base..HEAD range.
+type commit struct {
+	SHA     string
+	Date    string
+	Subject string
+	Body    string
+}
+
 // fileChange is one file's row from a merged --numstat / --name-status pair.
 // Status is left empty until merged with --name-status output. Binary files
 // report Added/Removed as 0 (numstat uses "-" for both, per its format).
@@ -35,7 +58,8 @@ type scopeData struct {
 	Behind int
 	Ahead  int
 
-	Commits []string
+	Commits []commit
+	Bodies  bool
 
 	Files    []fileChange
 	Excluded []fileChange
@@ -43,9 +67,10 @@ type scopeData struct {
 
 // ReviewScope fetches origin (best-effort, bounded), resolves the comparison
 // base against the repo's default branch, and returns a compact orientation
-// report: ahead/behind, commit subjects, and a per-file stat table with
-// lockfile-style noise pulled into a separate excluded-files note.
-func (tm *TaskManager) ReviewScope() (string, error) {
+// report: ahead/behind, commit subjects (with dates, and bodies when
+// requested), and a per-file stat table with lockfile-style noise pulled into
+// a separate excluded-files note.
+func (tm *TaskManager) ReviewScope(bodies bool) (string, error) {
 	fetchFailed := tm.Git.FetchOriginTimeout(reviewScopeFetchTimeout) != nil
 
 	currentBranch, err := tm.Git.CurrentBranch()
@@ -79,7 +104,7 @@ func (tm *TaskManager) ReviewScope() (string, error) {
 		return "", fmt.Errorf("review-scope: %w", err)
 	}
 
-	commits, err := tm.commitSubjects(base)
+	commits, err := tm.commitLog(base)
 	if err != nil {
 		return "", fmt.Errorf("review-scope: %w", err)
 	}
@@ -97,13 +122,14 @@ func (tm *TaskManager) ReviewScope() (string, error) {
 		Behind:        behind,
 		Ahead:         ahead,
 		Commits:       commits,
+		Bodies:        bodies,
 		Files:         reviewable,
 		Excluded:      excluded,
 	}), nil
 }
 
 // mergeBase resolves the merge-base between origin/<defaultBranch> and HEAD —
-// the comparison base reused for ahead/behind, commit subjects, and the diff.
+// the comparison base reused for ahead/behind, commit log, and the diff.
 func (tm *TaskManager) mergeBase(defaultBranch string) (string, error) {
 	out, err := tm.Git.RunCapture("merge-base", "origin/"+defaultBranch, "HEAD")
 	if err != nil {
@@ -142,17 +168,38 @@ func parseAheadBehind(raw string) (behind, ahead int, err error) {
 	return behind, ahead, nil
 }
 
-// commitSubjects returns one-line commit subjects for base..HEAD, oldest first.
-func (tm *TaskManager) commitSubjects(base string) ([]string, error) {
-	out, err := tm.Git.RunCapture("log", "--format=%s", "--reverse", base+"..HEAD")
+// commitLog returns commits for base..HEAD, oldest first, each with its short
+// SHA, ISO author date, subject, and body. The body is always fetched (one
+// git invocation regardless of --bodies); formatReviewScope decides whether
+// to render it.
+func (tm *TaskManager) commitLog(base string) ([]commit, error) {
+	out, err := tm.Git.RunCapture("log", "--format="+commitLogFormat, "--reverse", base+"..HEAD")
 	if err != nil {
 		return nil, err
 	}
-	out = strings.TrimSpace(out)
-	if out == "" {
-		return nil, nil
+	return parseCommitLog(out)
+}
+
+// parseCommitLog parses commitLogFormat's delimited output into commits.
+func parseCommitLog(raw string) ([]commit, error) {
+	var out []commit
+	for _, rec := range strings.Split(raw, commitRecordSep) {
+		rec = strings.Trim(rec, "\n")
+		if rec == "" {
+			continue
+		}
+		parts := strings.SplitN(rec, commitFieldSep, 4)
+		if len(parts) != 4 {
+			return nil, fmt.Errorf("malformed commit log record: %q", rec)
+		}
+		out = append(out, commit{
+			SHA:     parts[0],
+			Date:    parts[1],
+			Subject: parts[2],
+			Body:    strings.Trim(parts[3], "\n"),
+		})
 	}
-	return strings.Split(out, "\n"), nil
+	return out, nil
 }
 
 // fileChanges runs numstat + name-status over rangeSpec (both --no-renames,
@@ -262,6 +309,54 @@ func partitionExcluded(changes []fileChange) (reviewable, excluded []fileChange)
 	return reviewable, excluded
 }
 
+// formatFileStats renders one row per file (status, path, and either
+// "binary" or "+added/-removed") followed by a running "total: +X/-Y" line,
+// with no leading or trailing newline. Shared by formatReviewScope and
+// formatReviewPackage, whose only difference is what each does for an empty
+// file list: formatReviewScope always wants the "total: +0/-0" line, so an
+// empty list here just yields that with no rows above it; formatReviewPackage
+// wants a sentinel line instead of any of this, so it skips calling this
+// function entirely when there are no included files rather than passing a
+// flag through it.
+func formatFileStats(files []fileChange) string {
+	var b strings.Builder
+	var totalAdded, totalRemoved int
+	for _, f := range files {
+		if f.Binary {
+			fmt.Fprintf(&b, "%-2s %s  binary\n", f.Status, f.Path)
+			continue
+		}
+		fmt.Fprintf(&b, "%-2s %s  +%d/-%d\n", f.Status, f.Path, f.Added, f.Removed)
+		totalAdded += f.Added
+		totalRemoved += f.Removed
+	}
+	fmt.Fprintf(&b, "total: +%d/-%d", totalAdded, totalRemoved)
+	return b.String()
+}
+
+// formatExclusionNotes renders the "excluded (see `<hint>` to inspect): ..."
+// line listing every excluded file (binary files noted as such, others with
+// their +added/-removed counts), with no leading or trailing newline. Returns
+// "" when excluded is empty so callers can test the result instead of the
+// input slice. hint is the follow-up command to print inside the backticks —
+// it differs per call site (review-package needs its own base/head range;
+// branch-diff and review-scope both point at `dg task branch-diff --file`),
+// so callers own their surrounding whitespace and pass their own hint text.
+func formatExclusionNotes(excluded []fileChange, hint string) string {
+	if len(excluded) == 0 {
+		return ""
+	}
+	notes := make([]string, len(excluded))
+	for i, f := range excluded {
+		if f.Binary {
+			notes[i] = fmt.Sprintf("%s (binary)", f.Path)
+		} else {
+			notes[i] = fmt.Sprintf("%s (+%d/-%d)", f.Path, f.Added, f.Removed)
+		}
+	}
+	return fmt.Sprintf("excluded (see `%s` to inspect): %s", hint, strings.Join(notes, ", "))
+}
+
 // formatReviewScope renders scopeData as the compact, LLM-oriented report
 // (or one of the two stable edge sentinels). Output is payload-only: no
 // leading prose, no markdown headers/tables — see the cycle doc's output
@@ -293,35 +388,25 @@ func formatReviewScope(s scopeData) string {
 		b.WriteString("(none)\n")
 	} else {
 		for _, c := range s.Commits {
-			fmt.Fprintf(&b, "- %s\n", c)
+			fmt.Fprintf(&b, "- %s %s %s\n", c.SHA, c.Date, c.Subject)
+			if s.Bodies && c.Body != "" {
+				for _, line := range strings.Split(c.Body, "\n") {
+					if line == "" {
+						b.WriteString("\n")
+						continue
+					}
+					fmt.Fprintf(&b, "    %s\n", line)
+				}
+			}
 		}
 	}
 
 	fmt.Fprintf(&b, "files (%d):\n", len(s.Files))
-	var totalAdded, totalRemoved int
-	for _, f := range s.Files {
-		if f.Binary {
-			fmt.Fprintf(&b, "%-2s %s  binary\n", f.Status, f.Path)
-			continue
-		}
-		fmt.Fprintf(&b, "%-2s %s  +%d/-%d\n", f.Status, f.Path, f.Added, f.Removed)
-		totalAdded += f.Added
-		totalRemoved += f.Removed
-	}
-	fmt.Fprintf(&b, "total: +%d/-%d", totalAdded, totalRemoved)
+	b.WriteString(formatFileStats(s.Files))
 
-	if len(s.Excluded) > 0 {
+	if note := formatExclusionNotes(s.Excluded, "dg task branch-diff --file <path>"); note != "" {
 		b.WriteString("\n")
-		notes := make([]string, len(s.Excluded))
-		for i, f := range s.Excluded {
-			if f.Binary {
-				notes[i] = fmt.Sprintf("%s (binary)", f.Path)
-			} else {
-				notes[i] = fmt.Sprintf("%s (+%d/-%d)", f.Path, f.Added, f.Removed)
-			}
-		}
-		fmt.Fprintf(&b, "excluded (see `dg task branch-diff --file <path>` to inspect): %s",
-			strings.Join(notes, ", "))
+		b.WriteString(note)
 	}
 
 	return b.String()

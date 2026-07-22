@@ -45,6 +45,7 @@ Read these **in order** before starting work:
 5. **Modular architecture** — Each app is independent; failures in one app don't cascade to others
 6. **Transparent state** — All installation state tracked in `~/.config/devgita/global_config.yaml`; users can inspect what was installed
 7. **Visual consistency** — Alacritty, tmux, Neovim, and the AI-coder configs share one palette (Gruvbox dark) and a transparency convention; a color/theme change in one must be mirrored in the others. See [docs/guides/theming.md](docs/guides/theming.md)
+8. **Everything general, never bespoke** — Every feature devgita ships — commands, installers, app modules, configs, TUIs, `dg task` subcommands, hooks, plugins, aliases — is built to be general-purpose and reusable by anyone. We never add a custom, one-off feature that only serves a single person, repo, or situation. This protects every user's experience: what ships has to work for all of them, not just whoever asked for it. (Opinionated _defaults_ are not "custom" and are expected — a curated tool set, the Gruvbox palette, ready-made app configs — because those are a general setup anyone can adopt; what's forbidden is a feature whose value exists only for one narrow case.) Where devgita's own internal process is unavoidably specific (e.g. the §9 release flow), gate it so it never imposes itself on a user's environment — see the `release` redirect's `go.mod` gate in `configs/claude/task-redirect.sh` — never ship it as a global default. When a change would only help one narrow case: generalize it, or don't build it.
 
 ---
 
@@ -293,37 +294,36 @@ Devgita follows [Semantic Versioning](https://semver.org/) strictly: **`vMAJOR.M
 
 ### Push & tag workflow
 
-When pushing commits and creating a tag, **always squash multiple unpushed commits into one before tagging.** This keeps the git history clean and makes it easy for developers to understand what each tag/release includes.
+When pushing commits and creating a tag, **always squash multiple unpushed commits into one before tagging.** This keeps the git history clean and makes it easy for developers to understand what each tag/release includes. `devgita task release` automates this flow — do not run the raw `git reset --soft` / `git tag` / `git push` sequence by hand.
 
 **Steps:**
 
-1. Check how many commits are ahead of remote: `git log --oneline origin/main..HEAD`
-2. If **2+ unpushed commits** exist:
-   - Squash them into a single commit: `git reset --soft HEAD~N && git commit -m "..."`
-   - The squashed commit message should **preserve context from all original commits** — copy the bullet points from each commit message into the body. Only summarize if the combined list is too long to be readable.
-3. Create an **annotated tag** (`git tag -a`) with the same bullet points in the tag message, so developers can see what the release includes directly from the tag.
-4. Push commit and tag together: `git push origin main --tags`
+1. Write the release message to a file, preserving context from each original commit as bullet points (summarize only if the combined list is too long to be readable).
+2. From a clean working tree on the default branch, run:
 
-**Example squashed commit + tag:**
+   ```bash
+   devgita task release <version> --message-file <file>
+   ```
+
+   This verifies the tree is clean, you're on the default branch, the message file is non-empty, and the tag doesn't already exist; counts commits ahead of `origin/<default>`; squashes 2+ of them into one commit using the message file; and creates an annotated tag with that same message. Nothing is pushed yet.
+
+3. Review the result, then push the commit and tag together — either re-run with `--push`, or run the `git push` command the tool prints.
+
+**Example:**
 
 ```bash
-# Squash 3 commits into one
-git reset --soft HEAD~3
-git commit -m "feat: add user profile and caching
+cat > release-notes.txt <<'EOF'
+feat: add user profile and caching
 
 - Add user profile page with avatar upload
 - Implement Redis caching layer with 5-min TTL
-- Add profile API endpoints with validation"
+- Add profile API endpoints with validation
+EOF
 
-# Tag with the same context
-git tag -a v0.11.0 -m "v0.11.0 — User profile and caching
-
-- Add user profile page with avatar upload
-- Implement Redis caching layer with 5-min TTL
-- Add profile API endpoints with validation"
-
-git push origin main --tags
+devgita task release v0.11.0 --message-file release-notes.txt --push
 ```
+
+`version` must match `vMAJOR.MINOR.PATCH` exactly (no prerelease suffixes) — this is the tag policy from the table above, machine-enforced. Without `--push`, the final line states exactly what remains, e.g. `Tagged v0.12.0 (squashed 3 commits). Not pushed — run: git push origin main --tags`.
 
 GitHub Actions builds and publishes automatically. See [docs/guides/releasing.md](docs/guides/releasing.md) for the full release process.
 

@@ -464,12 +464,20 @@ func (g *GithubCli) PRTitleAt(dir string, timeout time.Duration) string {
 // stdout directly: a non-zero exit with JSON present is returned as success, a
 // "no checks" message returns an empty array, and only a genuinely empty
 // failure surfaces as an error.
+//
+// `bucket` is requested alongside the fields jq.FormatPRChecks projects
+// (name, state, link, workflow) because it is gh's own authoritative
+// pass/fail/pending/skipping/cancel categorization of `state` (see `gh pr
+// checks --help` and task.isFailingCheck) — cheaper and more future-proof
+// than re-deriving "is this failing" from state's larger enum. jq's filter
+// only reads name/state/link, so this extra field never changes the rendered
+// per-check line.
 func (g *GithubCli) PRChecks(prNumber string) (string, error) {
 	args := []string{"pr", "checks"}
 	if prNumber != "" {
 		args = append(args, prNumber)
 	}
-	args = append(args, "--json", "name,state,link,workflow")
+	args = append(args, "--json", "name,state,link,workflow,bucket")
 
 	stdout, stderr, err := g.Base.ExecCommand(cmd.CommandParams{
 		Command: constants.GithubCli,
@@ -489,6 +497,27 @@ func (g *GithubCli) PRChecks(prNumber string) (string, error) {
 		return "", fmt.Errorf("failed to get pr checks: %w", err)
 	}
 	return stdout, nil
+}
+
+// RunFailedJobLog returns the log for a single job's failed steps
+// ("gh run view --job <jobID> --log-failed"), for embedding under a failing
+// check's digest (see task.PRManager.PRChecks). It operates on the current
+// repo (no owner/repo argument), matching PRChecks/PRView's convention of
+// relying on gh's cwd-based repo resolution.
+//
+// Verified empirically against several public repos with real failing runs
+// (junegunn/fzf, BurntSushi/ripgrep): gh's log-download API returns an
+// empty, error-free stdout when the authenticated user has only read access
+// to the check's repo — log archives are gated behind write access even for
+// public repos. This method does not treat that as an error; the caller
+// (task.PRManager) distinguishes "fetched but empty" from "failed to fetch"
+// and reports both as an honest "log unavailable" note rather than a
+// fabricated digest.
+func (g *GithubCli) RunFailedJobLog(jobID string) (string, error) {
+	if strings.TrimSpace(jobID) == "" {
+		return "", fmt.Errorf("run failed job log requires a job id")
+	}
+	return g.RunWithOutput("run", "view", "--job", jobID, "--log-failed")
 }
 
 // CommentPR posts a top-level comment on a pull request (distinct from a

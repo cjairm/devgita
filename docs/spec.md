@@ -471,9 +471,9 @@ dg installed                        # Same as 'dg list'
 
 #### `dg task`
 
-Developer utility commands for git branch management and npm dependency management.
-These commands are callable by both agents (Claude Code, CI, any non-interactive process)
-and humans (via the `dge` shell wrapper or directly).
+Developer utility commands for git branch management, npm dependency management,
+PR review, and releasing. These commands are callable by both agents (Claude Code,
+CI, any non-interactive process) and humans (via the `dge` shell wrapper or directly).
 
 ```
 dg task <subcommand> [args]
@@ -491,34 +491,141 @@ dg t <subcommand> [args]   # alias
 **Review scope subcommands** (compact, noise-filtered git context for agents — the
 `review-threads` pattern applied to git; `git` plumbing is fetched, Go formatters render):
 
-| Subcommand     | Args / Flags    | Description                                                                                                                                                                                                                                                                                         |
-| -------------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `review-scope` | —               | Fetch origin (bounded, best-effort), then print branch, default branch, ahead/behind, commit subjects, and a per-file stat table. Lockfile-style noise (`package-lock.json`, `go.sum`, `*.min.js`, …) is excluded from the table and noted separately with its own counts — never silently dropped. |
-| `branch-diff`  | `--file <path>` | Diff against the merge-base with the default branch, same default exclusions applied in one `git diff` call. Does **not** fetch (reuses `review-scope`'s comparison base within the same review session). `--file` bypasses exclusions for that one file.                                           |
+| Subcommand       | Args / Flags                     | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ---------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `review-scope`   | `--bodies`                       | Fetch origin (bounded, best-effort), then print branch, default branch, ahead/behind, commit lines (short SHA, ISO date, subject), and a per-file stat table. `--bodies` appends each commit's body as indented lines beneath its subject. Lockfile-style noise (`package-lock.json`, `go.sum`, `*.min.js`, …) is excluded from the table and noted separately with its own counts — never silently dropped.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `branch-diff`    | `--file <path>`                  | Diff against the merge-base with the default branch, same default exclusions applied in one `git diff` call. Does **not** fetch (reuses `review-scope`'s comparison base within the same review session). `--file` bypasses exclusions for that one file.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `review-package` | `<base> <head>`, `--file <path>` | Verify both refs resolve (`rev-parse --verify`, an actionable error names whichever ref failed), then in one call print `range: <base>..<head>`, the commit list (short SHA, date, subject), a noise-filtered per-file stat table with exclusion receipts, and the full `-U10`-context diff of the included files as a fenced ` ```diff ` block. Unlike `review-scope`/`branch-diff`, base and head are not tied to the current branch's default-branch merge-base — this is for reviewing an arbitrary historical range or a PR that isn't checked out. `--file` bypasses exclusions and returns just that file's `-U10` diff. Sentinels: `No commits in range.` when the commit list is empty, `No file changes in range.` when the stat table is empty. Replaces a 6-call raw dance (`rev-parse --verify` x2, `log --oneline`, `diff --stat`, `diff -U10`, `rev-list --count`) that measured 793,426 bytes on a representative 10-commit range (`b0e98fd..main` in this repo); the one-call equivalent on the same range measured 792,704 bytes — the byte savings come from applying the same default lockfile exclusions as `review-scope`/`branch-diff`, not from compressing the diff itself (which review-package still prints in full); the real win is collapsing 6 round-trips into 1, per the "collapse round-trips" justification in `docs/guides/task-design.md`. |
+
+**Worktree lifecycle subcommands** (start/finish a git worktree in one call each —
+same base path `dg wt` uses, `~/.local/share/devgita/worktrees/<repo-slug>/<flat-name>`,
+so `dg wt list` and worktrees created here are the same population, never two parallel
+trackers):
+
+| Subcommand        | Args / Flags                              | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ----------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `worktree-start`  | `<name>`, `--base <ref>`                  | Refuse on a dirty tree, fetch origin, then create a worktree + branch at `dg wt`'s shared location. Without `--base`, the branch is based on the freshly-fetched default branch (reusing the same local/remote-branch-reuse logic as `dg wt create`); with `--base`, the branch starts fresh from exactly that ref. Prints `Created worktree <path> (branch <name>, base <ref>)`.                                                                                                                                                                                                                                                                                                                       |
+| `worktree-finish` | `[name]`, `--merge\|--discard`, `--force` | Tear down a worktree. Target resolution is deterministic: an explicit `name` wins; otherwise the current directory resolves to the linked worktree it's inside; otherwise the command errors and lists the worktrees it found — it never guesses from a main checkout. `--merge` rebases onto the default branch if diverged, fast-forward-merges from the main checkout, then removes the worktree and deletes the branch (safe only once the fast-forward landed the branch's commits). `--discard` refuses on a dirty worktree unless `--force`, then removes the worktree and deletes the branch unconditionally. Does not run a build or test suite — verification is the caller's responsibility. |
 
 **Pull request subcommands** (via `gh`; data-returning ones are formatted by `jq`
 into compact, LLM-oriented output — `gh` fetches/acts, `jq` renders):
 
-| Subcommand              | Args / Flags                                  | Description                                                          |
-| ----------------------- | --------------------------------------------- | -------------------------------------------------------------------- |
-| `review-threads`        | `--pr N`, `--state unresolved\|resolved\|all` | Render PR review threads as compact markdown (default: unresolved)   |
-| `resolve-thread`        | `<id>`                                        | Mark a review thread resolved                                        |
-| `unresolve-thread`      | `<id>`                                        | Reopen a resolved review thread                                      |
-| `reply-thread`          | `<id> <body>`                                 | Reply to a review thread                                             |
-| `create-pr`             | `--title` (req), `--body`, `--base`           | Open a PR from the current branch; prints the URL                    |
-| `update-pr-description` | `--pr N`, `--body` (req)                      | Replace a PR's description                                           |
-| `approve-pr`            | `--pr N`, `--body`                            | Approve a PR                                                         |
-| `request-changes-pr`    | `--pr N`, `--body` (req)                      | Request changes on a PR                                              |
-| `request-review`        | `--pr N`, `<reviewer>...` (req)               | Re-request review (adds reviewers back to the requested list)        |
-| `comment-pr`            | `--pr N`, `--body` (req)                      | Post a top-level PR comment                                          |
-| `merge-pr`              | `--pr N`, `--method squash\|merge\|rebase`    | Merge a PR (default: squash)                                         |
-| `pr-view`               | `--pr N`                                      | Compact PR summary (number, title, state, mergeable, review, branch) |
-| `pr-checks`             | `--pr N`                                      | CI check status, one line per check (returns data even when red)     |
-| `current-pr`            | —                                             | PR number for the current branch                                     |
-| `current-repo`          | —                                             | Current repository as `owner/name`                                   |
+| Subcommand              | Args / Flags                                  | Description                                                                                         |
+| ----------------------- | --------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `review-threads`        | `--pr N`, `--state unresolved\|resolved\|all` | Render PR review threads as compact markdown (default: unresolved)                                  |
+| `resolve-thread`        | `<id>`                                        | Mark a review thread resolved                                                                       |
+| `unresolve-thread`      | `<id>`                                        | Reopen a resolved review thread                                                                     |
+| `reply-thread`          | `<id> <body>`                                 | Reply to a review thread                                                                            |
+| `create-pr`             | `--title` (req), `--body`, `--base`           | Open a PR from the current branch; prints the URL                                                   |
+| `update-pr-description` | `--pr N`, `--body` (req)                      | Replace a PR's description                                                                          |
+| `approve-pr`            | `--pr N`, `--body`                            | Approve a PR                                                                                        |
+| `request-changes-pr`    | `--pr N`, `--body` (req)                      | Request changes on a PR                                                                             |
+| `request-review`        | `--pr N`, `<reviewer>...` (req)               | Re-request review (adds reviewers back to the requested list)                                       |
+| `comment-pr`            | `--pr N`, `--body` (req)                      | Post a top-level PR comment                                                                         |
+| `merge-pr`              | `--pr N`, `--method squash\|merge\|rebase`    | Merge a PR (default: squash)                                                                        |
+| `pr-view`               | `--pr N`                                      | Compact PR summary (number, title, state, mergeable, review, branch)                                |
+| `pr-checks`             | `--pr N`                                      | CI check status, one line per check; failing checks get an indented log digest appended (see below) |
+| `current-pr`            | —                                             | PR number for the current branch                                                                    |
+| `current-repo`          | —                                             | Current repository as `owner/name`                                                                  |
 
 For every PR subcommand, `--pr` defaults to the current branch's PR when omitted.
 Review-thread output is paginated across all threads (`gh api graphql --paginate`).
+
+**`pr-checks` failure digest.** Passing and pending checks stay exactly one
+line each, in `gh pr checks`'s own format (`<STATE>\t<name>  <link>`) —
+unchanged from before this digest existed. A failing check (`bucket ==
+"fail"` in `gh pr checks --json ...,bucket`) gets extra indented lines
+appended under its one-liner:
+
+- If the check's `link` matches a GitHub Actions job URL
+  (`.../actions/runs/<run-id>/job/<job-id>`, optionally with a
+  `#step:N:M` fragment), devgita fetches that job's failed-step log
+  (`gh run view --job <job-id> --log-failed`) and appends a bounded,
+  deduplicated tail: consecutive identical log lines collapse into one
+  line with a `(×N)` suffix (CI retry/poll loops routinely repeat a line
+  dozens of times), then only the last ~60 lines are kept — the tail,
+  since the real failure is almost always at the end. When lines are cut
+  this way a receipt is prepended: `… 214 earlier lines omitted`. This
+  receipt is never emitted when nothing was cut.
+- If the link doesn't match that exact shape (external checks, commit
+  statuses), devgita never guesses a job id — it appends `log unavailable:
+external check` instead.
+- If the job id parses but the log fetch comes back empty or errors
+  (verified in practice: `gh`'s log-download API only serves log content
+  to users with write access to the check's repo, even for public repos),
+  it appends an honest `log unavailable: ...` note rather than fabricating
+  content.
+
+The combined digest size across every failing check in one call is capped
+at 240 lines total; once that budget is spent, remaining failing checks get
+a one-line `log digest omitted: total digest size bound reached` note
+instead of a fetched digest (no further `gh` calls are made once the budget
+runs out).
+
+The 60-lines-per-check figure is a documented estimate, not a measurement
+against a real failing-run log: fetching a real third-party failing job's
+log was attempted (`junegunn/fzf`, `BurntSushi/ripgrep`) and blocked by the
+same write-access gating above. 60 sits at the top of this feature's
+originally suggested 40-60 line range and matches the order of magnitude
+observed for one ordinary CI step's full log on this repo's own successful
+runs (30-90 lines/step).
+
+**Release management subcommand** (automates the CLAUDE.md §9 push-and-tag flow):
+
+| Subcommand | Args / Flags                                | Description                                                                   |
+| ---------- | ------------------------------------------- | ----------------------------------------------------------------------------- |
+| `release`  | `<version>`, `--message-file <f>`, `--push` | Squash 2+ unpushed commits into one, tag, and (with `--push`) push commit+tag |
+
+`release` runs five guards, in order, before any mutation — each refuses with an
+actionable one-liner and nothing is changed if any of them fails:
+
+1. `<version>` matches `vMAJOR.MINOR.PATCH` exactly (strict semver, no prerelease
+   or build-metadata suffixes — CLAUDE.md §9's tag policy, machine-enforced).
+2. The working tree is clean (`git status --porcelain` empty).
+3. HEAD is on the repository's default branch.
+4. `--message-file` exists and is non-empty.
+5. `<version>` is not already an existing tag.
+
+Once all guards pass: count commits ahead of `origin/<default>`
+(`git rev-list --count`); if 2 or more, `git reset --soft HEAD~N` followed by
+`git commit -F <message-file>`; then `git tag -a <version> -F <message-file>`.
+Only when `--push` is passed: `git push origin <default> --tags`.
+
+Without `--push`, nothing is pushed — the final line states exactly what remains,
+e.g. `Tagged v0.12.0 (squashed 3 commits). Not pushed — run: git push origin main --tags`.
+A failure partway through a mutation (reset, commit, tag, or push) reports the exact
+state left behind and the raw git command to finish or undo it by hand, since these
+steps are hard to reverse once they run.
+
+**Redirect hook** (steers agents from raw git to the task equivalents above):
+a Claude Code `PreToolUse` hook (`configs/claude/task-redirect.sh`, deployed to
+`~/.claude/task-redirect.sh` and registered on the `Bash` tool in
+`settings.json`) and an OpenCode plugin equivalent
+(`configs/opencode/plugin/task-redirect.js`, deployed to
+`~/.config/opencode/plugin/`, a `tool.execute.before` hook) intercept a narrow
+set of raw-git and `gh` patterns and deny with the exact `devgita task`
+replacement. **Global rules** (fire in every repo, since these hooks deploy to
+the user's global config): `git diff <ref>..<ref>` / `git log <ref>..<ref>`
+(any flags) → `review-package`; `git worktree add` → `worktree-start`; `git
+worktree remove` → `worktree-finish`; `gh pr checks` → `pr-checks`; `gh api
+graphql ... reviewThreads` → `review-threads`; `gh pr review` → `submit-review`.
+**Devgita-repo-only rules**: `git reset --soft HEAD~N` (N ≥ 1) and `git tag -a
+v<semver>` → `release` — these encode devgita's own release policy, so they
+fire only when the command runs inside the devgita repo (detected by walking up
+from the payload's `.cwd`, falling back to `$PWD`, to a `go.mod` with module
+`github.com/cjairm/devgita`); the check runs only after a release pattern
+matches and fails toward not firing, so a general `git reset`/`git tag` in any
+other repo is never blocked. Matching checks every command segment (split on
+unquoted `&&`, `||`, `;`, `|`, and tolerant of a leading `VAR=value` prefix), so
+`cd x && git worktree add y` and `git fetch && git diff a..b` are caught too —
+while a bare `git diff`, `git log`, `git tag` (list), `git reset --soft HEAD`
+(no `~N`), `gh pr view`, or a bare `gh api graphql` is still never intercepted.
+Deny is exit-code-based (exit 2 + a one-line stderr reason for
+Claude Code; a thrown `Error` for OpenCode), never a silent rewrite, and every
+deny message states the bypass: set `DEVGITA_SKIP_TASK_REDIRECT=1` for the
+session to let raw git through when genuinely needed. See
+[docs/apps/claude.md](apps/claude.md#command-redirect-pretooluse-hook) for the
+full contract.
 
 `dge` (the shell function in `devgita.zsh`) is now a thin wrapper that forwards to `dg task`:
 

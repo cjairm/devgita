@@ -215,6 +215,13 @@ func TestForceConfigure(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(
+		filepath.Join(appConfigDir, "task-redirect.sh"),
+		[]byte(`#!/bin/bash`),
+		0o644,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(
 		filepath.Join(appConfigDir, "themes", "default.json"),
 		[]byte(`{}`),
 		0o644,
@@ -255,8 +262,8 @@ func TestForceConfigure(t *testing.T) {
 		t.Errorf("Expected settings.json at %s: %v", userConfigDir, err)
 	}
 
-	// statusline.sh and format.sh deployed and executable
-	for _, script := range []string{"statusline.sh", "format.sh"} {
+	// statusline.sh, format.sh, and task-redirect.sh deployed and executable
+	for _, script := range []string{"statusline.sh", "format.sh", "task-redirect.sh"} {
 		info, err := os.Stat(filepath.Join(userConfigDir, script))
 		if err != nil {
 			t.Fatalf("Expected %s: %v", script, err)

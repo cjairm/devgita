@@ -17,6 +17,7 @@ terminal AI CLI, as a first-class terminal tool and deploys a curated config to
 | `configs/claude/settings.json`             | `~/.claude/settings.json`             | theme, permissions, statusline, hooks |
 | `configs/claude/statusline.sh`             | `~/.claude/statusline.sh`             | `chmod 0755`                          |
 | `configs/claude/format.sh`                 | `~/.claude/format.sh`                 | `chmod 0755`                          |
+| `configs/claude/task-redirect.sh`          | `~/.claude/task-redirect.sh`          | `chmod 0755`                          |
 | `configs/claude/themes/`                   | `~/.claude/themes/`                   |                                       |
 | `configs/shared/{skills,commands,agents}/` | `~/.claude/{skills,commands,agents}/` | shared with OpenCode                  |
 
@@ -85,6 +86,94 @@ Notes:
   run while it builds its cache).
 - `eslint_d` on a project without an ESLint config will report a config error as
   a "finding"; this is expected outside configured JS/TS repos.
+
+## Command redirect (PreToolUse hook)
+
+`settings.json` registers a `PreToolUse` hook on the `Bash` tool that runs
+`~/.claude/task-redirect.sh` before every Bash command Claude runs. The script
+reads the command from the hook payload (`.tool_input.command`) and denies a
+narrow set of raw-git patterns that have a dedicated `devgita task` equivalent
+— it never rewrites or runs anything itself, only denies with the exact
+replacement to run instead:
+
+| Raw pattern                                                                              | Replacement                                                     | Scope             |
+| ---------------------------------------------------------------------------------------- | --------------------------------------------------------------- | ----------------- |
+| `git diff <ref>..<ref>` / `git log <ref>..<ref>` (any flags, e.g. `--stat`, `--oneline`) | `devgita task review-package <base> <head>`                     | global            |
+| `git worktree add ...`                                                                   | `devgita task worktree-start <name> [--base <ref>]`             | global            |
+| `git worktree remove ...`                                                                | `devgita task worktree-finish [<name>] --merge\|--discard`      | global            |
+| `gh pr checks ...`                                                                       | `devgita task pr-checks`                                        | global            |
+| `gh api graphql ... reviewThreads ...`                                                   | `devgita task review-threads`                                   | global            |
+| `gh pr review ...`                                                                       | `devgita task submit-review --event ...`                        | global            |
+| `git reset --soft HEAD~N` (N ≥ 1)                                                        | `devgita task release <version> --message-file <file> [--push]` | devgita repo only |
+| `git tag -a v<semver> ...`                                                               | `devgita task release <version> --message-file <file> [--push]` | devgita repo only |
+
+**Scope.** These hooks deploy to the user's global config, so they fire on
+every Bash call in every repo. The `review-package`, `worktree-start`,
+`worktree-finish`, `pr-checks`, `review-threads`, and `submit-review` rules are
+**global**: each is a better/compressed form of a universal git or `gh`
+operation that imposes no devgita-specific convention, so redirecting it
+everywhere is correct. The two **release** rules (`git reset --soft HEAD~N` and
+`git tag -a v<semver>`) are **devgita-repo-only**: they encode devgita's own
+release policy (§9 squash-before-tag, strict `vX.Y.Z`), which would be wrong to
+steer in any other project. A release rule fires only when the command is
+running inside the devgita repo — detected by walking up from the payload's
+working directory (`.cwd`, falling back to the shell's `$PWD`) to the first
+`go.mod` and confirming its module path is `github.com/cjairm/devgita`. This
+check runs only after a release pattern has already matched (the common allow
+path pays no lookup cost) and it **fails toward not firing**: if the working
+directory is indeterminate, no `go.mod` is found, or the module doesn't match,
+the raw git command is allowed through — the acceptable failure is "the release
+redirect didn't help here", never "a general `git reset`/`git tag` got blocked
+in another repo". The gh rules are narrow: `gh pr checks` and `gh pr review`
+match only those exact subcommands (never `gh pr view`/`status`/`list`), and
+the review-threads rule requires a `gh` invocation carrying both `api` and
+`graphql` plus the literal `reviewThreads` (a bare `gh api graphql` or `gh api`
+never matches).
+
+Matching is deliberately narrow but not limited to the start of the whole
+command string: the script splits the command into segments on unquoted
+`&&`, `||`, `;`, and `|`, and checks every segment — so `cd some/dir && git
+worktree add ../wt`, `git status; git worktree remove ../wt`, and `git fetch
+&& git diff main..feature` are all caught, not just a bare `git ...` with
+nothing else on the line. Each segment's `git` anchor also tolerates a
+leading run of shell `VAR=value` assignments (e.g. `GIT_PAGER=cat git diff
+a..b`). Splitting respects single- and double-quoted spans (a separator
+character inside a commit message is not treated as a boundary), but it is a
+best-effort, non-adversarial split — it does not handle backslash-escaped
+quotes, command substitution (`$(...)`/`` `...` ``), or heredocs; a command
+deliberately crafted to defeat quote tracking is out of scope.
+
+Within all of that, matching is still anchored and narrow: a bare `git diff`,
+`git diff HEAD~1` (single ref, no range), `git log`, `git log -5`, `git tag`
+(list, no `-a`), `git reset --soft HEAD` (no `~N`), and a commit message that
+merely contains a trigger word (e.g. `git commit -m "fix: worktree stuff"`)
+are never intercepted — only the exact multi-step dances these tasks
+replace.
+
+The hook denies via exit code 2 with a one-line reason on stderr (Claude Code's
+simpler PreToolUse deny mechanism, chosen over the structured
+`hookSpecificOutput`/`permissionDecision` JSON form to avoid any JSON-escaping
+failure mode). A missing/unparseable command, or jq itself being unavailable,
+falls through to exit 0 (allow) — this hook must never accidentally block all
+Bash calls.
+
+**Bypass:** every deny message ends with `set DEVGITA_SKIP_TASK_REDIRECT=1 to
+bypass this session if raw git is genuinely needed`. Set that environment
+variable for the session to let raw git through unconditionally, or edit
+`~/.claude/settings.json` to remove the `PreToolUse` entry entirely if you
+never want this hook active.
+
+The OpenCode plugin equivalent (`~/.config/opencode/plugin/task-redirect.js`,
+a `tool.execute.before` hook) mirrors the same pattern table, the same
+global-vs-devgita scoping, and the same `DEVGITA_SKIP_TASK_REDIRECT` bypass. It
+reads the working directory for the release gate from the plugin context's
+`directory` (falling back to `worktree`, then `process.cwd()`) and applies the
+identical fail-toward-not-firing `go.mod` check — see that file's header
+comment.
+
+Upstream-synced skills under `configs/shared/skills/` still hand-roll these raw
+git sequences in their prose (they can't be edited without conflicting with
+upstream syncs); this hook is the durable, runtime answer for those flows.
 
 ## Statusline
 

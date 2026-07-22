@@ -8,8 +8,6 @@ permission:
     "*": deny
     "devgita task *": allow
     "git branch*": allow
-    "git log*": allow
-    "git diff*": allow
     "git push*": allow
     "git status": allow
     "cat .github/*": allow
@@ -23,14 +21,10 @@ Open a pull request describing the branch's overall impact. Commits are granular
 ### 1. Gather context
 
 ```bash
-devgita task review-scope
+devgita task review-scope --bodies
 ```
 
-This reports the branch, the repo's actual default branch (never assume `main`), ahead/behind, commit subjects, and a per-file stat table (lockfile-style noise excluded and noted). For commit bodies (not just subjects), run one more command using the default branch review-scope just reported:
-
-```bash
-git log <default>..HEAD --format="%s%n%b%n---"
-```
+This reports the branch, the repo's actual default branch (never assume `main`), ahead/behind, commit lines (short SHA, ISO date, subject) each with its commit body indented beneath it, and a per-file stat table (lockfile-style noise excluded and noted).
 
 If the stat isn't enough to understand the change, read the full diff: `devgita task branch-diff` (or `--file <path>` for one file). Self-review it here — catch the obvious before a reviewer spends attention on it.
 

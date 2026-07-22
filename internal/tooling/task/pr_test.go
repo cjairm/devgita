@@ -290,6 +290,242 @@ func TestPRViewAndChecks(t *testing.T) {
 	})
 }
 
+// TestPRChecksDigest covers the failing-check log digest enrichment: the
+// passing/pending one-line format must stay byte-identical to today's (the
+// sentinel-adjacent contract task-design.md calls out), and failing checks
+// get extra indented lines appended — a fetched log digest, or an honest
+// "log unavailable" note when no digest could be produced.
+func TestPRChecksDigest(t *testing.T) {
+	t.Run("all passing: output unchanged, no extra gh calls", func(t *testing.T) {
+		pm, ghBase, jqBase := newPRSetup()
+		raw := `[{"name":"build","state":"SUCCESS","bucket":"pass","link":""}]`
+		ghBase.SetExecCommandResult(raw, "", nil)
+		jqBase.SetExecCommandResult("SUCCESS\tbuild", "", nil)
+
+		out, err := pm.PRChecks("42")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if out != "SUCCESS\tbuild" {
+			t.Fatalf("unexpected output: %q", out)
+		}
+		if ghBase.GetExecCommandCallCount() != 1 {
+			t.Fatalf("expected exactly 1 gh call (PRChecks only), got %d",
+				ghBase.GetExecCommandCallCount())
+		}
+	})
+
+	t.Run("failing check with a parseable Actions link gets a digest appended", func(t *testing.T) {
+		pm, ghBase, jqBase := newPRSetup()
+		raw := `[
+			{"name":"build","state":"SUCCESS","bucket":"pass","link":""},
+			{"name":"test","state":"FAILURE","bucket":"fail","link":"https://github.com/octocat/hello/actions/runs/111/job/222"}
+		]`
+		formatted := "SUCCESS\tbuild\n" +
+			"FAILURE\ttest  https://github.com/octocat/hello/actions/runs/111/job/222"
+		logContent := "job\tstep\t2026-07-22T18:32:18.0000000Z compile error: undefined foo\n" +
+			"job\tstep\t2026-07-22T18:32:19.0000000Z exit status 1\n"
+
+		ghBase.SetExecCommandResults(
+			commands.ExecCommandResult(raw, "", nil),
+			commands.ExecCommandResult(logContent, "", nil),
+		)
+		jqBase.SetExecCommandResult(formatted, "", nil)
+
+		out, err := pm.PRChecks("42")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		wantLines := []string{
+			"SUCCESS\tbuild",
+			"FAILURE\ttest  https://github.com/octocat/hello/actions/runs/111/job/222",
+			"    compile error: undefined foo",
+			"    exit status 1",
+		}
+		if out != strings.Join(wantLines, "\n") {
+			t.Fatalf("unexpected output:\n%s", out)
+		}
+		if ghBase.GetExecCommandCallCount() != 2 {
+			t.Fatalf("expected 2 gh calls (PRChecks + RunFailedJobLog), got %d",
+				ghBase.GetExecCommandCallCount())
+		}
+		// The second gh call must target the parsed job id.
+		logCall := ghBase.ExecCommandCalls[1]
+		if !strings.Contains(strings.Join(logCall.Args, " "), "222") {
+			t.Fatalf("expected job id 222 in log-fetch args, got: %v", logCall.Args)
+		}
+	})
+
+	t.Run("failing check with a non-Actions link falls back cleanly, no crash", func(t *testing.T) {
+		pm, ghBase, jqBase := newPRSetup()
+		raw := `[{"name":"external","state":"FAILURE","bucket":"fail","link":"https://ci.example.com/build/1"}]`
+		formatted := "FAILURE\texternal  https://ci.example.com/build/1"
+
+		ghBase.SetExecCommandResult(raw, "", nil)
+		jqBase.SetExecCommandResult(formatted, "", nil)
+
+		out, err := pm.PRChecks("42")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		want := "FAILURE\texternal  https://ci.example.com/build/1\n" +
+			"    log unavailable: external check"
+		if out != want {
+			t.Fatalf("unexpected output:\n%s", out)
+		}
+		// No RunFailedJobLog call should be attempted for an unparseable link.
+		if ghBase.GetExecCommandCallCount() != 1 {
+			t.Fatalf("expected exactly 1 gh call, got %d", ghBase.GetExecCommandCallCount())
+		}
+	})
+
+	t.Run(
+		"mixed pass, pending, and fail: only the failing check gets a digest",
+		func(t *testing.T) {
+			pm, ghBase, jqBase := newPRSetup()
+			raw := `[
+			{"name":"build","state":"SUCCESS","bucket":"pass","link":""},
+			{"name":"deploy","state":"PENDING","bucket":"pending","link":""},
+			{"name":"test","state":"FAILURE","bucket":"fail","link":"https://github.com/octocat/hello/actions/runs/1/job/2"}
+		]`
+			formatted := "SUCCESS\tbuild\n" +
+				"PENDING\tdeploy\n" +
+				"FAILURE\ttest  https://github.com/octocat/hello/actions/runs/1/job/2"
+			logContent := "job\tstep\t2026-07-22T18:32:18.0000000Z it broke\n"
+
+			ghBase.SetExecCommandResults(
+				commands.ExecCommandResult(raw, "", nil),
+				commands.ExecCommandResult(logContent, "", nil),
+			)
+			jqBase.SetExecCommandResult(formatted, "", nil)
+
+			out, err := pm.PRChecks("42")
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			wantLines := []string{
+				"SUCCESS\tbuild",
+				"PENDING\tdeploy",
+				"FAILURE\ttest  https://github.com/octocat/hello/actions/runs/1/job/2",
+				"    it broke",
+			}
+			if out != strings.Join(wantLines, "\n") {
+				t.Fatalf("unexpected output:\n%s", out)
+			}
+		},
+	)
+
+	t.Run(
+		"log fetch error falls back to a note instead of failing the whole call",
+		func(t *testing.T) {
+			pm, ghBase, jqBase := newPRSetup()
+			raw := `[{"name":"test","state":"FAILURE","bucket":"fail","link":"https://github.com/o/r/actions/runs/1/job/2"}]`
+			formatted := "FAILURE\ttest  https://github.com/o/r/actions/runs/1/job/2"
+
+			ghBase.SetExecCommandResults(
+				commands.ExecCommandResult(raw, "", nil),
+				commands.ExecCommandResult("", "boom", fmt.Errorf("exit 1")),
+			)
+			jqBase.SetExecCommandResult(formatted, "", nil)
+
+			out, err := pm.PRChecks("42")
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !strings.Contains(out, "log unavailable:") {
+				t.Fatalf("expected a log-unavailable note, got: %q", out)
+			}
+		},
+	)
+
+	t.Run(
+		"empty but error-free log fetch (permission-gated) falls back to a note",
+		func(t *testing.T) {
+			pm, ghBase, jqBase := newPRSetup()
+			raw := `[{"name":"test","state":"FAILURE","bucket":"fail","link":"https://github.com/o/r/actions/runs/1/job/2"}]`
+			formatted := "FAILURE\ttest  https://github.com/o/r/actions/runs/1/job/2"
+
+			ghBase.SetExecCommandResults(
+				commands.ExecCommandResult(raw, "", nil),
+				commands.ExecCommandResult("", "", nil),
+			)
+			jqBase.SetExecCommandResult(formatted, "", nil)
+
+			out, err := pm.PRChecks("42")
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			want := "FAILURE\ttest  https://github.com/o/r/actions/runs/1/job/2\n" +
+				"    log unavailable: no failed-step log returned"
+			if out != want {
+				t.Fatalf("unexpected output:\n%s", out)
+			}
+		},
+	)
+
+	t.Run("no checks sentinel passes through untouched", func(t *testing.T) {
+		pm, ghBase, jqBase := newPRSetup()
+		ghBase.SetExecCommandResult("[]", "", nil)
+		jqBase.SetExecCommandResult("No checks.", "", nil)
+
+		out, err := pm.PRChecks("42")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if out != "No checks." {
+			t.Fatalf("unexpected output: %q", out)
+		}
+		if ghBase.GetExecCommandCallCount() != 1 {
+			t.Fatalf("expected exactly 1 gh call, got %d", ghBase.GetExecCommandCallCount())
+		}
+	})
+}
+
+// TestFailingCheckDigestBudget exercises the per-check/total digest size
+// bounding directly against the unexported orchestration helper.
+func TestFailingCheckDigestBudget(t *testing.T) {
+	t.Run("budget already spent: no gh call, one-line note", func(t *testing.T) {
+		pm, ghBase, _ := newPRSetup()
+		check := prCheck{
+			Name: "test", State: "FAILURE", Bucket: "fail",
+			Link: "https://github.com/o/r/actions/runs/1/job/2",
+		}
+
+		lines, spent := pm.failingCheckDigest(check, 0)
+		if spent != 0 {
+			t.Fatalf("expected 0 lines spent, got %d", spent)
+		}
+		if len(lines) != 1 || !strings.Contains(lines[0], "total digest size bound reached") {
+			t.Fatalf("unexpected lines: %v", lines)
+		}
+		if ghBase.GetExecCommandCallCount() != 0 {
+			t.Fatal("expected no gh call once budget is exhausted")
+		}
+	})
+
+	t.Run("budget smaller than per-check max caps the digest", func(t *testing.T) {
+		pm, ghBase, _ := newPRSetup()
+		check := prCheck{
+			Name: "test", State: "FAILURE", Bucket: "fail",
+			Link: "https://github.com/o/r/actions/runs/1/job/2",
+		}
+		var b strings.Builder
+		for i := 0; i < 50; i++ {
+			b.WriteString("job\tstep\t2026-07-22T18:32:18.0000000Z log line\n")
+		}
+		ghBase.SetExecCommandResult(b.String(), "", nil)
+
+		lines, spent := pm.failingCheckDigest(check, 3)
+		if spent > 3 {
+			t.Fatalf("expected spent <= budget (3), got %d", spent)
+		}
+		if len(lines) != spent {
+			t.Fatalf("expected returned line count to equal spent, got %d lines vs spent=%d",
+				len(lines), spent)
+		}
+	})
+}
+
 func TestPRConfirmations(t *testing.T) {
 	t.Run("resolve thread", func(t *testing.T) {
 		pm, ghBase, _ := newPRSetup()

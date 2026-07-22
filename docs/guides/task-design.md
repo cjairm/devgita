@@ -37,6 +37,15 @@ from raw commands. The three justifications, strongest first:
   general-purpose tool's job, not bespoke Go code — see [rtk](#future-rtk) below.
 - The output feeds a human only. Streaming raw output (`Stream: true`) is fine there.
 
+**Keep every task (and any redirect that steers agents to it) generic.** This is the
+task-specific case of a repo-wide rule — CLAUDE.md §3 principle 8 (_Everything general,
+never bespoke_): a `dg task` subcommand runs in whatever repo the agent is in, so its
+behavior must make sense in any of them and must not encode devgita's own internal
+process. When a task genuinely does encode devgita-specific policy (e.g. `release`
+implements the CLAUDE.md §9 flow), any hook/plugin that redirects raw commands to it
+must be gated so it never fires outside this repo — see the `go.mod` gate in
+`configs/claude/task-redirect.sh`.
+
 ## Output principles
 
 1. **Labeled plain text, not markdown scaffolding.** Line-oriented `key: value`

@@ -283,11 +283,23 @@ func (b *BaseCommand) ExecCommand(cmd CommandParams) (string, string, error) {
 			_, _ = io.Copy(io.MultiWriter(buf, live), pipe)
 			return
 		}
-		scanner := bufio.NewScanner(pipe)
-		for scanner.Scan() {
-			line := scanner.Text()
-			buf.WriteString(line + "\n")
-			logger.L().Debugw(label, "line", line)
+		// Read line-by-line via bufio.Reader (not bufio.Scanner) so a single
+		// line longer than bufio's 64KB token limit does not abort the read.
+		// A Scanner returns an error and stops on an over-long line, which
+		// leaves the pipe undrained — the child then blocks writing to a full
+		// pipe and Wait() deadlocks forever. gh's compact JSON is emitted as
+		// one long line and routinely exceeds 64KB on busy PRs, so this path
+		// must handle arbitrarily long lines.
+		reader := bufio.NewReader(pipe)
+		for {
+			line, err := reader.ReadString('\n')
+			if len(line) > 0 {
+				buf.WriteString(line)
+				logger.L().Debugw(label, "line", strings.TrimRight(line, "\n"))
+			}
+			if err != nil {
+				return
+			}
 		}
 	}
 

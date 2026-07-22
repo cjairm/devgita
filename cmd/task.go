@@ -32,8 +32,12 @@ type taskRunner interface {
 	ReinstallLibraries() error
 	ReinstallLibrary(name string) error
 	DeleteBranch(target string) error
-	ReviewScope() (string, error)
+	ReviewScope(bodies bool) (string, error)
 	BranchDiff(file string) (string, error)
+	ReviewPackage(base, head, file string) (string, error)
+	WorktreeStart(name, base string) (string, error)
+	WorktreeFinish(name string, merge, discard, force bool) (string, error)
+	Release(version, messageFile string, push bool) (string, error)
 }
 
 // newTaskManager is the factory used by task subcommands; overridden in tests.
@@ -46,17 +50,19 @@ var taskCmd = &cobra.Command{
 	Long: `Developer utility commands callable by agents (Claude Code, CI, any
 non-interactive process) and humans (via the dge() shell wrapper or directly).
 
-Four families:
+Six families:
   - git branch:  refresh-branch, reset-main-branch, delete-branch
-  - review scope: review-scope, branch-diff
+  - review scope: review-scope, branch-diff, review-package
+  - worktree lifecycle: worktree-start, worktree-finish
+  - release:     release
   - npm deps:    reinstall-libraries, reinstall-library
   - GitHub PRs:  review-threads, resolve/unresolve/reply-thread, submit-review,
                  create-pr, update-pr-description, approve-pr, request-changes-pr,
                  comment-pr, merge-pr, pr-view, pr-checks, current-pr, current-repo
 
 review-scope and PR data commands return compact, LLM-oriented output
-(review-scope/branch-diff parse git plumbing; PR commands run gh + jq).
-Run "dg task <subcommand> --help" for flags and examples.`,
+(review-scope/branch-diff/review-package parse git plumbing; PR commands run
+gh + jq). Run "dg task <subcommand> --help" for flags and examples.`,
 	Example: `  dg task review-threads --state unresolved
   dg task pr-view
   dg task refresh-branch
@@ -139,23 +145,32 @@ This is equivalent to the dge reinstall-library shell utility.`,
 // taskBranchDiffFileFlag is branch-diff's --file flag.
 var taskBranchDiffFileFlag string
 
+// taskReviewPackageFileFlag is review-package's --file flag.
+var taskReviewPackageFileFlag string
+
+// taskReviewScopeBodiesFlag is review-scope's --bodies flag.
+var taskReviewScopeBodiesFlag bool
+
 var taskReviewScopeCmd = &cobra.Command{
 	Use:   "review-scope",
 	Short: "Fetch + orient in one call: branch, ahead/behind, commits, file stats (for agents)",
 	Long: `Fetch origin (bounded, best-effort), resolve the default branch, and print a
-compact orientation report: ahead/behind counts, commit subjects, and a
-per-file stat table. Lockfile-style noise (package-lock.json, go.sum,
-*.min.js, ...) is excluded from the table and noted separately with its own
-stat counts, never silently dropped.
+compact orientation report: ahead/behind counts, commit lines (short SHA, ISO
+date, subject), and a per-file stat table. Lockfile-style noise
+(package-lock.json, go.sum, *.min.js, ...) is excluded from the table and
+noted separately with its own stat counts, never silently dropped.
+
+--bodies appends each commit's body as indented lines beneath its subject.
 
 Run "dg task branch-diff" next to see the full (noise-filtered) diff, or
 "dg task branch-diff --file <path>" to inspect one file, including an
 otherwise-excluded one.`,
 	Example: `  dg task review-scope
+  dg task review-scope --bodies
   dg task review-scope && dg task branch-diff`,
 	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		out, err := newTaskManager().ReviewScope()
+		out, err := newTaskManager().ReviewScope(taskReviewScopeBodiesFlag)
 		return emitPRResult(cmd, out, err)
 	},
 }
@@ -181,6 +196,131 @@ since re-fetching per file pull could shift the comparison base mid-review.`,
 	},
 }
 
+var taskReviewPackageCmd = &cobra.Command{
+	Use:   "review-package <base> <head>",
+	Short: "Verify a range, then print commits, noise-filtered stats, and the full diff (for agents)",
+	Long: `Verify base and head both resolve to real commits, then print, in one call:
+the base..head range, the commit list (short SHA, date, subject), a per-file
+stat table, and the full -U10-context diff of the included files, fenced as
+` + "```diff" + `.
+
+Lockfile-style noise (package-lock.json, go.sum, *.min.js, ...) is excluded
+from the stat table and diff, and noted separately with its own stat counts —
+never silently dropped.
+
+Unlike review-scope/branch-diff, base and head are not tied to the current
+branch's default-branch merge-base: this is for reviewing an arbitrary
+historical range or a PR that isn't checked out.
+
+--file bypasses exclusions and returns just that file's -U10 diff, including
+an otherwise-excluded file.`,
+	Example: `  dg task review-package main feature-branch
+  dg task review-package v1.2.0 v1.3.0
+  dg task review-package main feature-branch --file internal/tooling/task/reviewpackage.go`,
+	Args: cobra.ExactArgs(2),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		out, err := newTaskManager().ReviewPackage(args[0], args[1], taskReviewPackageFileFlag)
+		return emitPRResult(cmd, out, err)
+	},
+}
+
+// taskWorktreeStartBaseFlag is worktree-start's --base flag.
+var taskWorktreeStartBaseFlag string
+
+// taskWorktreeFinishMergeFlag/DiscardFlag/ForceFlag are worktree-finish's flags.
+var (
+	taskWorktreeFinishMergeFlag   bool
+	taskWorktreeFinishDiscardFlag bool
+	taskWorktreeFinishForceFlag   bool
+)
+
+var taskWorktreeStartCmd = &cobra.Command{
+	Use:   "worktree-start <name> [--base <ref>]",
+	Short: "Create a git worktree + branch in dg wt's shared location (for agents)",
+	Long: `Refuse to run from a dirty tree, fetch origin, then create a new git worktree
+with a new branch, in the same location "dg wt" uses
+(~/.local/share/devgita/worktrees/<repo-slug>/<flat-name>) — so "dg wt list" sees
+it and vice versa.
+
+--base sets the branch's starting point explicitly (any ref: a branch, tag, or
+SHA). Without --base, the new branch is based on the repo's freshly-fetched
+default branch (or an existing local/remote branch of the same name, if one
+already exists).`,
+	Example: `  dg task worktree-start add-retry-logic
+  dg task worktree-start hotfix-123 --base origin/release-2.0`,
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		out, err := newTaskManager().WorktreeStart(args[0], taskWorktreeStartBaseFlag)
+		return emitPRResult(cmd, out, err)
+	},
+}
+
+var taskWorktreeFinishCmd = &cobra.Command{
+	Use:   "worktree-finish [name] --merge|--discard",
+	Short: "Tear down a git worktree via merge or discard (for agents)",
+	Long: `Tear down a worktree created by "worktree-start" (or "dg wt"). Exactly one of
+--merge or --discard is required.
+
+Target resolution is deterministic: an explicit name wins; otherwise the
+current directory resolves to the linked worktree it's inside; otherwise the
+command errors and lists the worktrees it found — it never guesses from a
+main checkout.
+
+--merge rebases the worktree's branch onto the default branch if it has
+diverged, fast-forward-merges it into the default branch from the main
+checkout, then removes the worktree and deletes the branch (safe only once
+the fast-forward has landed the branch's commits on the default branch).
+
+--discard refuses on a dirty worktree unless --force is passed, then removes
+the worktree and deletes the branch unconditionally. This does not run a
+build or test suite — verification is the caller's responsibility.`,
+	Example: `  dg task worktree-finish add-retry-logic --merge
+  dg task worktree-finish --discard          # resolves from the current directory
+  dg task worktree-finish stale-spike --discard --force`,
+	Args: cobra.MaximumNArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		name := ""
+		if len(args) > 0 {
+			name = args[0]
+		}
+		out, err := newTaskManager().WorktreeFinish(
+			name, taskWorktreeFinishMergeFlag, taskWorktreeFinishDiscardFlag, taskWorktreeFinishForceFlag,
+		)
+		return emitPRResult(cmd, out, err)
+	},
+}
+
+// taskReleaseMessageFileFlag / taskReleasePushFlag are release's flags.
+var (
+	taskReleaseMessageFileFlag string
+	taskReleasePushFlag        bool
+)
+
+var taskReleaseCmd = &cobra.Command{
+	Use:   "release <version> --message-file <file> [--push]",
+	Short: "Automate the CLAUDE.md §9 squash-and-tag release flow",
+	Long: `Automate the CLAUDE.md §9 push-and-tag workflow: verify a clean working tree
+on the default branch, count commits ahead of origin/<default>, squash 2+ of
+them into one commit using --message-file, create an annotated tag with the
+same message, and push commit+tag together only when --push is passed.
+
+version must match vMAJOR.MINOR.PATCH (e.g. v0.12.0) — strict semver only, no
+prerelease suffixes. Every guard (version format, clean tree, default branch,
+message file, tag-not-exists) runs before any mutation.
+
+Without --push, nothing is pushed: the final line states exactly what remains
+to run, e.g. "Tagged v0.12.0 (squashed 3 commits). Not pushed — run: git push
+origin main --tags".`,
+	Example: `  dg task release v0.12.0 --message-file release-notes.txt
+  dg task release v0.12.0 --message-file release-notes.txt --push`,
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		out, err := newTaskManager().
+			Release(args[0], taskReleaseMessageFileFlag, taskReleasePushFlag)
+		return emitPRResult(cmd, out, err)
+	},
+}
+
 func init() {
 	rootCmd.AddCommand(taskCmd)
 	// Standard Cobra help for the whole task subtree (overrides the branded
@@ -194,7 +334,41 @@ func init() {
 	taskCmd.AddCommand(taskReinstallLibraryCmd)
 	taskCmd.AddCommand(taskReviewScopeCmd)
 	taskCmd.AddCommand(taskBranchDiffCmd)
+	taskCmd.AddCommand(taskReviewPackageCmd)
+	taskCmd.AddCommand(taskWorktreeStartCmd)
+	taskCmd.AddCommand(taskWorktreeFinishCmd)
+	taskCmd.AddCommand(taskReleaseCmd)
 
 	taskBranchDiffCmd.Flags().
 		StringVar(&taskBranchDiffFileFlag, "file", "", "Diff only this file, bypassing exclusions")
+	taskReviewPackageCmd.Flags().
+		StringVar(&taskReviewPackageFileFlag, "file", "", "Diff only this file, bypassing exclusions")
+	taskReviewScopeCmd.Flags().
+		BoolVar(&taskReviewScopeBodiesFlag, "bodies", false, "Append each commit's body beneath its subject")
+
+	taskWorktreeStartCmd.Flags().
+		StringVar(&taskWorktreeStartBaseFlag, "base", "", "Starting ref for the new branch (default: repo default branch)")
+
+	taskWorktreeFinishCmd.Flags().
+		BoolVar(&taskWorktreeFinishMergeFlag, "merge", false, "Fast-forward-merge the branch into default, then remove")
+	taskWorktreeFinishCmd.Flags().
+		BoolVar(&taskWorktreeFinishDiscardFlag, "discard", false, "Remove the worktree and branch without merging")
+	taskWorktreeFinishCmd.Flags().
+		BoolVar(&taskWorktreeFinishForceFlag, "force", false, "With --discard, remove even if the worktree has uncommitted changes")
+	taskWorktreeFinishCmd.MarkFlagsMutuallyExclusive("merge", "discard")
+	taskWorktreeFinishCmd.MarkFlagsOneRequired("merge", "discard")
+
+	taskReleaseCmd.Flags().StringVar(
+		&taskReleaseMessageFileFlag,
+		"message-file",
+		"",
+		"File containing the squash-commit/tag message (required)",
+	)
+	taskReleaseCmd.Flags().BoolVar(
+		&taskReleasePushFlag,
+		"push",
+		false,
+		"Push the commit and tag to origin after tagging (default: false, tag-only)",
+	)
+	_ = taskReleaseCmd.MarkFlagRequired("message-file")
 }

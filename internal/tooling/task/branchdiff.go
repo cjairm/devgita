@@ -192,18 +192,9 @@ func formatBranchDiff(rangeSpec, diff string, excluded []fileChange) string {
 		fmt.Fprintf(&b, "No changes in %s.", rangeSpec)
 	}
 
-	if len(excluded) > 0 {
+	if note := formatExclusionNotes(excluded, "dg task branch-diff --file <path>"); note != "" {
 		b.WriteString("\n")
-		notes := make([]string, len(excluded))
-		for i, f := range excluded {
-			if f.Binary {
-				notes[i] = fmt.Sprintf("%s (binary)", f.Path)
-			} else {
-				notes[i] = fmt.Sprintf("%s (+%d/-%d)", f.Path, f.Added, f.Removed)
-			}
-		}
-		fmt.Fprintf(&b, "excluded (see `dg task branch-diff --file <path>` to inspect): %s",
-			strings.Join(notes, ", "))
+		b.WriteString(note)
 	}
 
 	return b.String()
