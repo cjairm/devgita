@@ -13,7 +13,7 @@ permission:
     "git branch*": allow
 ---
 
-Post review feedback to a PR as **one cohesive review**. Findings often already sit in the conversation — produced by a `code-reviewer`/`document-reviewer` agent or another model (gpt, qwen, kimi, …). Use those; if context is thin, review directly with the lens below. The repo is the current working directory.
+Post review feedback to a PR as **one cohesive review**. Findings often already sit in the conversation — produced by a `code-reviewer`/`document-reviewer`/`skill-reviewer` agent or another model (gpt, qwen, kimi, …). Use those; if context is thin, review directly with the lens below. The repo is the current working directory.
 
 ## Usage
 
@@ -147,6 +147,8 @@ Post the body and the inline comments together as a single review, choosing the 
 | Approve         | No blockers; leaves the codebase healthier | `approve`         |
 | Comment         | Suggestions only, nothing blocking         | `comment`         |
 
+When approving **with** comments the author should look at before merging (non-blocking, but worth addressing), open the body's Summary with `LGWC; <one short clause>`. A clean approve with no comments opens with `LGTM.` instead.
+
 ```bash
 devgita task submit-review \
   --event request-changes \
@@ -158,7 +160,7 @@ Add `--pr PR_NUMBER` when you resolved a number in step 1. The review posts atom
 
 **Re-review with nothing new to add** — split by whether prior feedback is actually settled:
 
-- **Every prior thread was addressed and you have no new findings → approve.** Don't post a comment saying "nothing to add" — a comment doesn't dismiss a prior request-changes review, so it leaves the PR blocked for no reason. Submit `--event approve` with a short, warm one-liner acknowledging the work, e.g. "LGTM. Thanks for working on the suggestions 🔥" or "LGTM. I appreciate the work — all my comments were addressed." Vary the phrasing; keep it to one line.
+- **Every prior thread was addressed and you have no new findings → approve.** Don't post a comment saying "nothing to add" — a comment doesn't dismiss a prior request-changes review, so it leaves the PR blocked for no reason. Submit `--event approve` with a one-line body that matches what actually happened: if feedback was raised and addressed, acknowledge it warmly ("LGTM. Thanks for working on the suggestions 🔥" — vary the phrasing); if nothing was ever raised, plain `LGTM.` — never thank the author for addressing feedback that was never given.
 - **Unresolved threads remain unaddressed and that's the main issue → don't approve.** Flag it in one brief `comment-pr` rather than re-listing each thread.
 
 ## Output

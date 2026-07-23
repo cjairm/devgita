@@ -74,10 +74,18 @@ A failing or errored check is often flaky, an unrelated job, or otherwise still 
 **Approve when both gates hold:** the PR is open and there are no unresolved threads (and any resolved one you spot-checked holds up). Failing checks are noted, not blocking.
 
 ```bash
-devgita task approve-pr --body "LGTM. Thanks for working on the suggestions 🔥"
+devgita task approve-pr --body "<body picked below>"
 ```
 
-Keep the approval body to a short, warm one-liner acknowledging the work — e.g. "LGTM. Thanks for working on the suggestions 🔥" or "LGTM. I appreciate the work — all my comments were addressed." Vary the phrasing. Don't paste the gate summary or per-thread detail into the PR — that belongs in the report to the user, not the review. If checks are red, mention it in one short clause (e.g. "LGTM — all feedback addressed; CI has a failing job worth a look") rather than withholding approval.
+**The body must match what actually happened on this PR — never thank the author for addressing feedback that was never given.** Pick by situation:
+
+| Situation                                                       | Body                                                                                            |
+| --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| No feedback was ever raised (no threads, no prior review notes) | `LGTM.` — plain, nothing more                                                                   |
+| Feedback was raised and addressed                               | `LGTM. Thanks for working on the suggestions 🔥` — vary the phrasing, keep it one line          |
+| Approving while flagging something non-blocking                 | `LGWC; <one short clause naming it>` — comments worth addressing before merge, but not blockers |
+
+Don't paste the gate summary or per-thread detail into the PR — that belongs in the report to the user, not the review. If checks are red, mention it in one short clause (e.g. "LGTM — CI has a failing job worth a look") rather than withholding approval.
 
 **If a real gate blocks** (an unresolved thread, or a resolution that doesn't hold up), do **not** approve. Report it to the user; the author can clear it with `/address-feedback`. If a note on the PR is warranted, post one terse comment — not a per-thread recap:
 
