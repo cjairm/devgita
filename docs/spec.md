@@ -84,12 +84,13 @@ dg install --only neovim --only docker    # neovim (terminal) + docker (desktop)
 - `InstallDevTools` and `InstallCoreLibs` are skipped (user asked for a specific app, not a full setup)
 - Fonts installation is also skipped in the desktop coordinator
 
-**Individually targetable apps** (registry-managed, 18 apps):
+**Individually targetable apps** (registry-managed, 19 apps):
 
 | Coordinator | Apps                                                                         |
 | ----------- | ---------------------------------------------------------------------------- |
 | terminal    | claude, fastfetch, git, lazydocker, lazygit, mise, neovim, opencode, tmux    |
 | desktop     | aerospace, alacritty, brave, docker, flameshot, gimp, i3, raycast, ulauncher |
+| ai-tools    | rtk                                                                          |
 
 **Note on alacritty:** `alacritty` has `KindTerminal` in the registry but is installed by the desktop coordinator. Use `--only alacritty` (not `--only terminal`) to target it specifically.
 
@@ -151,6 +152,12 @@ _Linux (Debian/Ubuntu)_:
 - GIMP
 - Flameshot
 
+**AI Tools** (no selection, installed with full setup or via `--only ai-tools`)
+
+- rtk — token-compressing CLI proxy for coding agents (binary only; its
+  command-rewriting hook is opt-in — see [docs/apps/rtk.md](apps/rtk.md) and
+  [ADR-0004](decisions/ADR-0004-ai-tools-install-category.md))
+
 ---
 
 ### 2. Configuration Management
@@ -198,18 +205,20 @@ See [Installation Command](#1-installation-command-dg-install) above.
 Re-applies configuration files for a named app without reinstalling the app itself.
 
 ```
-dg configure <app> [--force]
+dg configure <app> [--force] [--only=<parts>]
 ```
 
 **Flags**:
 
 - `--force` — Overwrite existing configuration files. Without this flag, configuration is only applied if files do not already exist (soft mode).
+- `--only=<parts>` — Refresh only the named app-defined parts; requires `--force` and an app implementing `SelectiveConfigurer`. The AI coders (`claude`, `opencode`) expose their shared config subtrees (`skills`, `commands`, `agents`) plus an `rtk` part that runs the matching `rtk init` to wire rtk's command-rewriting hook into that coder — the explicit opt-in required by ADR-0004. The Claude opt-in is recorded in `global_config.yaml` (`integrations.rtk_claude_hook`) and claude's `settings.json` is rendered from a template honoring it, so the hook survives later `--force` re-renders; `dg uninstall rtk` clears it.
 
 **Behavior**:
 
-- Exact app name required (case-sensitive). Supported apps: `aerospace`, `alacritty`, `brave`, `claude`, `devgita`, `docker`, `fastfetch`, `flameshot`, `gimp`, `git`, `i3`, `lazydocker`, `lazygit`, `mise`, `neovim`, `opencode`, `raycast`, `tmux`, `ulauncher`.
+- Exact app name required (case-sensitive). Supported apps: `aerospace`, `alacritty`, `brave`, `claude`, `devgita`, `docker`, `fastfetch`, `flameshot`, `gimp`, `git`, `i3`, `lazydocker`, `lazygit`, `mise`, `neovim`, `opencode`, `raycast`, `rtk`, `tmux`, `ulauncher`.
 - Apps that have no configuration to deploy (e.g., `brave`) return `ErrConfigureNotSupported` — the command prints an info message and exits zero.
 - Unknown app names print a sorted list of supported apps and exit non-zero.
+- Unknown `--only` values list the app's valid parts and exit non-zero; `--only` without `--force` is an error; apps without parts reject `--only`.
 
 **Examples**:
 
@@ -218,6 +227,9 @@ dg configure git            # Apply git config if not already present
 dg configure neovim --force # Overwrite existing neovim config
 dg configure brave          # Info: configure not supported for brave (exit 0)
 dg configure foo            # Error: unknown app "foo" + supported list (exit non-zero)
+dg configure claude --force --only=skills          # Refresh only the skills folder
+dg configure claude --force --only=rtk             # Opt into rtk's hook for Claude Code
+dg configure opencode --force --only=rtk           # Install rtk's OpenCode plugin
 ```
 
 **Planned commands**: See [ROADMAP.md](ROADMAP.md) for planned features and future commands.

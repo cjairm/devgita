@@ -13,7 +13,7 @@ func init() { testutil.InitLogger() }
 var expectedApps = []string{
 	"aerospace", "alacritty", "brave", "claude", "devgita", "docker",
 	"fastfetch", "flameshot", "gimp", "git", "i3", "lazydocker",
-	"lazygit", "mise", "neovim", "opencode", "raycast", "tmux", "ulauncher",
+	"lazygit", "mise", "neovim", "opencode", "raycast", "rtk", "tmux", "ulauncher",
 }
 
 func TestGetApp_KnownApp(t *testing.T) {
@@ -55,9 +55,26 @@ func TestGetApp_AllRegisteredApps(t *testing.T) {
 
 func TestGetAppsByKind_Terminal(t *testing.T) {
 	names := GetAppsByKind(apps.KindTerminal)
-	expected := []string{"alacritty", "claude", "fastfetch", "git", "lazydocker", "lazygit", "mise", "neovim", "opencode", "tmux"}
+	expected := []string{
+		"alacritty",
+		"claude",
+		"fastfetch",
+		"git",
+		"lazydocker",
+		"lazygit",
+		"mise",
+		"neovim",
+		"opencode",
+		"rtk",
+		"tmux",
+	}
 	if len(names) != len(expected) {
-		t.Errorf("GetAppsByKind(KindTerminal) returned %d names, want %d: %v", len(names), len(expected), names)
+		t.Errorf(
+			"GetAppsByKind(KindTerminal) returned %d names, want %d: %v",
+			len(names),
+			len(expected),
+			names,
+		)
 	}
 	if !sort.StringsAreSorted(names) {
 		t.Error("GetAppsByKind(KindTerminal) is not sorted")
@@ -75,9 +92,23 @@ func TestGetAppsByKind_Terminal(t *testing.T) {
 
 func TestGetAppsByKind_Desktop(t *testing.T) {
 	names := GetAppsByKind(apps.KindDesktop)
-	expected := []string{"aerospace", "brave", "docker", "flameshot", "gimp", "i3", "raycast", "ulauncher"}
+	expected := []string{
+		"aerospace",
+		"brave",
+		"docker",
+		"flameshot",
+		"gimp",
+		"i3",
+		"raycast",
+		"ulauncher",
+	}
 	if len(names) != len(expected) {
-		t.Errorf("GetAppsByKind(KindDesktop) returned %d names, want %d: %v", len(names), len(expected), names)
+		t.Errorf(
+			"GetAppsByKind(KindDesktop) returned %d names, want %d: %v",
+			len(names),
+			len(expected),
+			names,
+		)
 	}
 	got := make(map[string]bool, len(names))
 	for _, n := range names {
@@ -107,7 +138,11 @@ func TestMeta_ConsistencyWithFactories(t *testing.T) {
 			continue // devgita sentinel — no factory requirement
 		}
 		if _, ok := factories[name]; !ok {
-			t.Errorf("Meta entry %q has Coordinator %q but no factory entry", name, meta.Coordinator)
+			t.Errorf(
+				"Meta entry %q has Coordinator %q but no factory entry",
+				name,
+				meta.Coordinator,
+			)
 		}
 	}
 	for name := range factories {
@@ -148,7 +183,11 @@ func TestAppsByCoordinator(t *testing.T) {
 	}
 	for _, name := range terminal {
 		if Meta[name].Coordinator != "terminal" {
-			t.Errorf("AppsByCoordinator(terminal) includes %q which has coordinator %q", name, Meta[name].Coordinator)
+			t.Errorf(
+				"AppsByCoordinator(terminal) includes %q which has coordinator %q",
+				name,
+				Meta[name].Coordinator,
+			)
 		}
 	}
 	if !sort.StringsAreSorted(terminal) {

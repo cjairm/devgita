@@ -96,7 +96,7 @@ the 2026-07-14 cycle: a 25-file branch diff was 192 KB (~50k tokens) raw vs 3.3 
 
 ---
 
-## Future: rtk
+## rtk
 
 [rtk](https://github.com/rtk-ai/rtk) ("Rust Token Killer", Apache-2.0) is a CLI proxy
 that compresses the output of 100+ common commands (`git`, test runners, `docker`,
@@ -111,14 +111,16 @@ compression_ of whatever command runs; `dg task` is _semantic orchestration + po
 proxy can provide. rtk would cover the long tail this guide says **not** to build
 tasks for: test-runner output, `docker ps`, `cat`/`grep` noise.
 
-Adoption stance (tracked in [ROADMAP.md](../../ROADMAP.md) under AI & Development
-Tools):
+Adoption stance (decided in
+[ADR-0004](../decisions/ADR-0004-ai-tools-install-category.md), shipped
+2026-07-23):
 
-- Candidate app installer for the planned `ai-tools` category — brew on macOS,
-  install-script or GitHub-release strategy on Debian.
-- **Install the binary; make the hook opt-in.** `rtk init -g` rewrites _every_ agent
-  Bash call, including inside our carefully designed flows; per CLAUDE.md's security
-  non-negotiables the install script and hook behavior must be reviewed before we
-  automate them, and lossy compression must never silently apply to a reviewer's
-  diff payload (principle 5).
-- Revisit once the project stabilizes (it is six months old and moving fast).
+- Shipped as the first app of the `ai-tools` category — `dg install --only rtk`;
+  brew on macOS, GitHub-release binary on Debian. See
+  [docs/apps/rtk.md](../apps/rtk.md).
+- **The binary is installed; the hook stays opt-in.** `rtk init -g` rewrites
+  _every_ agent Bash call, including inside our carefully designed flows, and
+  lossy compression must never silently apply to a reviewer's diff payload
+  (principle 5). Users run `rtk init -g` themselves if they want it.
+- Revisit automating the hook once the project stabilizes (created 2026-01 and
+  moving fast).

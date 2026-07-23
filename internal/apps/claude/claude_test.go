@@ -1,14 +1,20 @@
 package claude
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/cjairm/devgita/internal/apps"
+	"github.com/cjairm/devgita/internal/apps/baseapp"
+	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/internal/testutil"
 	"github.com/cjairm/devgita/pkg/constants"
+	"github.com/cjairm/devgita/pkg/files"
 	"github.com/cjairm/devgita/pkg/paths"
 )
 
@@ -130,6 +136,133 @@ func TestForceConfigureParts(t *testing.T) {
 	}
 }
 
+func TestConfigurableParts_IncludesRtk(t *testing.T) {
+	app := &Claude{}
+	parts := app.ConfigurableParts()
+	if parts[len(parts)-1] != "rtk" {
+		t.Errorf("expected rtk as a configurable part, got %v", parts)
+	}
+	// The shared slice must not be mutated by the append.
+	for _, p := range baseapp.SharedConfigParts {
+		if p == "rtk" {
+			t.Fatal("baseapp.SharedConfigParts was mutated to include rtk")
+		}
+	}
+}
+
+func TestForceConfigureParts_Rtk(t *testing.T) {
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
+	testutil.IsolateXDGDirs(t)
+
+	claudeDir := filepath.Join(tc.ConfigDir, ".claude")
+	oldClaude := paths.Paths.Config.Claude
+	t.Cleanup(func() { paths.Paths.Config.Claude = oldClaude })
+	paths.Paths.Config.Claude = claudeDir
+
+	rtkInitCalled := 0
+	app := &Claude{rtkInit: func() error {
+		rtkInitCalled++
+		return nil
+	}}
+
+	if err := app.ForceConfigureParts([]string{"rtk"}); err != nil {
+		t.Fatalf("ForceConfigureParts(rtk) error: %v", err)
+	}
+
+	if rtkInitCalled != 1 {
+		t.Errorf("expected rtk init to run once, got %d", rtkInitCalled)
+	}
+	// Opt-in recorded so future settings renders keep the hook entry.
+	gc := &config.GlobalConfig{}
+	if err := gc.Load(); err != nil {
+		t.Fatalf("failed to load global config: %v", err)
+	}
+	if !gc.Integrations.RtkClaudeHook {
+		t.Error("expected RtkClaudeHook opt-in to be recorded in global config")
+	}
+	// A hand-written settings.json must survive --only=rtk untouched.
+	if _, err := os.Stat(filepath.Join(claudeDir, "settings.json")); !os.IsNotExist(err) {
+		t.Error("ForceConfigureParts(rtk) should not write settings.json")
+	}
+}
+
+func TestForceConfigureParts_RtkInitFailure(t *testing.T) {
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
+	testutil.IsolateXDGDirs(t)
+
+	claudeDir := filepath.Join(tc.ConfigDir, ".claude")
+	oldClaude := paths.Paths.Config.Claude
+	t.Cleanup(func() { paths.Paths.Config.Claude = oldClaude })
+	paths.Paths.Config.Claude = claudeDir
+
+	app := &Claude{rtkInit: func() error { return fmt.Errorf("rtk not found") }}
+
+	err := app.ForceConfigureParts([]string{"rtk"})
+	if err == nil {
+		t.Fatal("expected error when rtk init fails")
+	}
+	if !strings.Contains(err.Error(), "dg install --only rtk") {
+		t.Errorf("expected install hint in error, got: %v", err)
+	}
+
+	// A failed init must not persist the opt-in — otherwise the next
+	// settings render would emit a hook entry for an integration that
+	// never succeeded. (Create first: the failure path returns before
+	// enableRtkHook ever creates the global config file.)
+	gc := &config.GlobalConfig{}
+	if err := gc.Create(); err != nil {
+		t.Fatal(err)
+	}
+	if err := gc.Load(); err != nil {
+		t.Fatal(err)
+	}
+	if gc.Integrations.RtkClaudeHook {
+		t.Fatal("rtk hook opt-in must remain false when rtk init fails")
+	}
+}
+
+// TestEmbeddedSettingsTemplate renders the real embedded settings.json.tmpl in
+// both opt-in states and asserts the output is valid JSON — the constraint the
+// external consumer (Claude Code) imposes on the rendered file (CLAUDE.md §12).
+func TestEmbeddedSettingsTemplate(t *testing.T) {
+	tmplPath := filepath.Join("..", "..", "..", "configs", "claude", "settings.json.tmpl")
+
+	for _, tt := range []struct {
+		name    string
+		flags   config.IntegrationsConfig
+		wantRtk bool
+	}{
+		{"hook opted in", config.IntegrationsConfig{RtkClaudeHook: true}, true},
+		{"hook not opted in", config.IntegrationsConfig{}, false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			out := filepath.Join(t.TempDir(), "settings.json")
+			if err := files.GenerateFromTemplate(tmplPath, out, tt.flags); err != nil {
+				t.Fatalf("failed to render template: %v", err)
+			}
+			data, err := os.ReadFile(out)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !json.Valid(data) {
+				t.Fatalf("rendered settings.json is not valid JSON:\n%s", data)
+			}
+			gotRtk := strings.Contains(string(data), "rtk hook claude")
+			if gotRtk != tt.wantRtk {
+				t.Errorf("rtk hook entry present=%v, want %v", gotRtk, tt.wantRtk)
+			}
+			// devgita's own hooks must be present in every rendering.
+			for _, hook := range []string{"task-redirect.sh", "format.sh"} {
+				if !strings.Contains(string(data), hook) {
+					t.Errorf("rendered settings.json is missing %s", hook)
+				}
+			}
+		})
+	}
+}
+
 func TestUninstall(t *testing.T) {
 	tc := testutil.SetupCompleteTest(t)
 	defer tc.Cleanup()
@@ -194,8 +327,8 @@ func TestForceConfigure(t *testing.T) {
 		}
 	}
 	if err := os.WriteFile(
-		filepath.Join(appConfigDir, "settings.json"),
-		[]byte(`{"theme":"default"}`),
+		filepath.Join(appConfigDir, "settings.json.tmpl"),
+		[]byte(`{"theme":"default"{{if .RtkClaudeHook}},"rtk":true{{end}}}`),
 		0o644,
 	); err != nil {
 		t.Fatal(err)
@@ -257,9 +390,13 @@ func TestForceConfigure(t *testing.T) {
 		t.Fatalf("ForceConfigure error: %v", err)
 	}
 
-	// settings.json deployed
-	if _, err := os.Stat(filepath.Join(userConfigDir, "settings.json")); err != nil {
+	// settings.json rendered from the template; opt-in flag unset → no rtk entry
+	rendered, err := os.ReadFile(filepath.Join(userConfigDir, "settings.json"))
+	if err != nil {
 		t.Errorf("Expected settings.json at %s: %v", userConfigDir, err)
+	}
+	if string(rendered) != `{"theme":"default"}` {
+		t.Errorf("unexpected rendered settings.json: %s", rendered)
 	}
 
 	// statusline.sh, format.sh, and task-redirect.sh deployed and executable

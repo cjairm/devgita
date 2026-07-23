@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/cjairm/devgita/internal/apps"
+	"github.com/cjairm/devgita/internal/apps/baseapp"
 	"github.com/cjairm/devgita/internal/testutil"
 	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/paths"
@@ -573,5 +574,67 @@ func TestExecuteCommand(t *testing.T) {
 func TestDefaultThemeName(t *testing.T) {
 	if DEFAULT_THEME_NAME != "default" {
 		t.Errorf("Expected DEFAULT_THEME_NAME to be 'default', got %q", DEFAULT_THEME_NAME)
+	}
+}
+
+func TestConfigurablePartsIncludesRtk(t *testing.T) {
+	app := &OpenCode{}
+	parts := app.ConfigurableParts()
+	if parts[len(parts)-1] != "rtk" {
+		t.Errorf("expected rtk as a configurable part, got %v", parts)
+	}
+	for _, p := range baseapp.SharedConfigParts {
+		if p == "rtk" {
+			t.Fatal("baseapp.SharedConfigParts was mutated to include rtk")
+		}
+	}
+}
+
+func TestForceConfigurePartsRtk(t *testing.T) {
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
+	testutil.IsolateXDGDirs(t)
+
+	opencodeDir := filepath.Join(tc.ConfigDir, "opencode")
+	oldOpenCode := paths.Paths.Config.OpenCode
+	t.Cleanup(func() { paths.Paths.Config.OpenCode = oldOpenCode })
+	paths.Paths.Config.OpenCode = opencodeDir
+
+	rtkInitCalled := 0
+	app := &OpenCode{rtkInit: func() error {
+		rtkInitCalled++
+		return nil
+	}}
+
+	if err := app.ForceConfigureParts([]string{"rtk"}); err != nil {
+		t.Fatalf("ForceConfigureParts(rtk) error: %v", err)
+	}
+	if rtkInitCalled != 1 {
+		t.Errorf("expected rtk init to run once, got %d", rtkInitCalled)
+	}
+	// The --only=rtk path must not touch opencode.json.
+	if _, err := os.Stat(filepath.Join(opencodeDir, "opencode.json")); !os.IsNotExist(err) {
+		t.Error("ForceConfigureParts(rtk) should not write opencode.json")
+	}
+}
+
+func TestForceConfigurePartsRtkInitFailure(t *testing.T) {
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
+	testutil.IsolateXDGDirs(t)
+
+	opencodeDir := filepath.Join(tc.ConfigDir, "opencode")
+	oldOpenCode := paths.Paths.Config.OpenCode
+	t.Cleanup(func() { paths.Paths.Config.OpenCode = oldOpenCode })
+	paths.Paths.Config.OpenCode = opencodeDir
+
+	app := &OpenCode{rtkInit: func() error { return fmt.Errorf("rtk not found") }}
+
+	err := app.ForceConfigureParts([]string{"rtk"})
+	if err == nil {
+		t.Fatal("expected error when rtk init fails")
+	}
+	if !strings.Contains(err.Error(), "dg install --only rtk") {
+		t.Errorf("expected install hint in error, got: %v", err)
 	}
 }

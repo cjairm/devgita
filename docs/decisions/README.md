@@ -23,3 +23,4 @@ This directory contains decisions about significant technical choices, trade-off
 - [ADR-0001](ADR-0001-in-tui-overlays-over-external-pickers.md) — In-TUI floating overlays instead of external picker processes
 - [ADR-0002](ADR-0002-recent-repos-store-in-global-config.md) — Recent-repos store in global config
 - [ADR-0003](ADR-0003-sessions-in-workspace-dashboard.md) — A single `dg ws` dashboard for sessions and worktrees
+- [ADR-0004](ADR-0004-ai-tools-install-category.md) — New `ai-tools` install category, rtk as first app

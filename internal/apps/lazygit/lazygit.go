@@ -95,9 +95,19 @@ func (lg *LazyGit) installDebianLazygit() error {
 		"https://github.com/jesseduffield/lazygit/releases/download/v%s/lazygit_%s_Linux_%s.tar.gz",
 		version, version, linuxArch(),
 	)
+	checksumsURL := fmt.Sprintf(
+		"https://github.com/jesseduffield/lazygit/releases/download/v%s/checksums.txt",
+		version,
+	)
 	logger.L().Infow("Downloading lazygit for Debian", "version", version, "url", url)
 
-	if err := cmd.InstallGitHubBinary(lg.Base, constants.LazyGit, url, lg.downloadFn); err != nil {
+	if err := cmd.InstallGitHubBinary(
+		lg.Base,
+		constants.LazyGit,
+		url,
+		checksumsURL,
+		lg.downloadFn,
+	); err != nil {
 		return fmt.Errorf("lazygit installation failed: %w", err)
 	}
 

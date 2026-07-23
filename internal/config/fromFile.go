@@ -56,6 +56,15 @@ type ShellFeatures struct {
 	Claude                bool `yaml:"claude"`
 }
 
+// IntegrationsConfig tracks explicit cross-app opt-ins that devgita must
+// preserve when re-rendering another app's config. RtkClaudeHook records that
+// the user opted into rtk's command-rewriting hook (ADR-0004: the hook is
+// never enabled automatically), so claude's settings.json template keeps the
+// hook entry across every `dg configure claude --force`.
+type IntegrationsConfig struct {
+	RtkClaudeHook bool `yaml:"rtk_claude_hook,omitempty"`
+}
+
 // FailedInstallation tracks packages that failed to install
 type FailedInstallation struct {
 	PackageName  string    `yaml:"package_name"`
@@ -149,6 +158,7 @@ type GlobalConfig struct {
 	Shell               ShellFeatures          `yaml:"shell"`
 	FailedInstallations []FailedInstallation   `yaml:"failed_installations,omitempty"`
 	Worktree            WorktreeConfig         `yaml:"worktree"`
+	Integrations        IntegrationsConfig     `yaml:"integrations,omitempty"`
 }
 
 func getGlobalConfigFilePath() string {

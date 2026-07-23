@@ -12,14 +12,21 @@ terminal AI CLI, as a first-class terminal tool and deploys a curated config to
 
 `ForceConfigure` copies the following into `~/.claude/`:
 
-| Source                                     | Destination                           | Notes                                 |
-| ------------------------------------------ | ------------------------------------- | ------------------------------------- |
-| `configs/claude/settings.json`             | `~/.claude/settings.json`             | theme, permissions, statusline, hooks |
-| `configs/claude/statusline.sh`             | `~/.claude/statusline.sh`             | `chmod 0755`                          |
-| `configs/claude/format.sh`                 | `~/.claude/format.sh`                 | `chmod 0755`                          |
-| `configs/claude/task-redirect.sh`          | `~/.claude/task-redirect.sh`          | `chmod 0755`                          |
-| `configs/claude/themes/`                   | `~/.claude/themes/`                   |                                       |
-| `configs/shared/{skills,commands,agents}/` | `~/.claude/{skills,commands,agents}/` | shared with OpenCode                  |
+| Source                                     | Destination                           | Notes                                        |
+| ------------------------------------------ | ------------------------------------- | -------------------------------------------- |
+| `configs/claude/settings.json.tmpl`        | `~/.claude/settings.json`             | rendered template: theme, permissions, hooks |
+| `configs/claude/statusline.sh`             | `~/.claude/statusline.sh`             | `chmod 0755`                                 |
+| `configs/claude/format.sh`                 | `~/.claude/format.sh`                 | `chmod 0755`                                 |
+| `configs/claude/task-redirect.sh`          | `~/.claude/task-redirect.sh`          | `chmod 0755`                                 |
+| `configs/claude/themes/`                   | `~/.claude/themes/`                   |                                              |
+| `configs/shared/{skills,commands,agents}/` | `~/.claude/{skills,commands,agents}/` | shared with OpenCode                         |
+
+`settings.json` is rendered from a template so tracked opt-ins survive a
+`--force` re-render: when `integrations.rtk_claude_hook` is set in
+`global_config.yaml` (via `dg configure claude --force --only=rtk`, the
+explicit opt-in required by [ADR-0004](../decisions/ADR-0004-ai-tools-install-category.md)),
+the rendered file includes rtk's `PreToolUse` hook entry alongside devgita's
+own hooks. `dg uninstall rtk` clears the flag. See [rtk.md](rtk.md).
 
 ## Permissions model
 

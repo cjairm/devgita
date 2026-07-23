@@ -2,10 +2,15 @@ package commands
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
+	"strings"
 
 	"github.com/cjairm/devgita/pkg/apt"
 	"github.com/cjairm/devgita/pkg/constants"
@@ -13,13 +18,22 @@ import (
 	"github.com/cjairm/devgita/pkg/logger"
 )
 
-// InstallGitHubBinary downloads binaryName from a GitHub release tar.gz, extracts the
-// root-level binary, and installs it to /usr/local/bin/<binaryName> with 755 permissions.
+// InstallGitHubBinary downloads binaryName from a GitHub release tar.gz, verifies
+// its SHA-256 against the release's checksums file, extracts the root-level binary,
+// and installs it to /usr/local/bin/<binaryName> with 755 permissions.
+//
+// checksumsURL must point to the release's sha256sum-format checksums file (the
+// conventional checksums.txt asset); the archive's expected hash is looked up by
+// its file name (path.Base of archiveURL). Verification is mandatory — the binary
+// is installed with sudo, so an unverifiable download is refused outright
+// (CLAUDE.md §4: never execute arbitrary downloaded code without verification).
+//
 // downloadFn is injectable for tests; pass nil to use the default retry downloader.
 func InstallGitHubBinary(
 	base BaseCommandExecutor,
 	binaryName string,
 	archiveURL string,
+	checksumsURL string,
 	downloadFn func(ctx context.Context, url, dest string, cfg downloader.RetryConfig) error,
 ) error {
 	if downloadFn == nil {
@@ -27,8 +41,10 @@ func InstallGitHubBinary(
 	}
 
 	tarPath := filepath.Join("/tmp", binaryName+".tar.gz")
+	checksumsPath := filepath.Join("/tmp", binaryName+"-checksums.txt")
 	extractDir := filepath.Join("/tmp", binaryName+"-extract")
 	defer os.Remove(tarPath)
+	defer os.Remove(checksumsPath)
 	defer os.RemoveAll(extractDir)
 
 	ctx := context.Background()
@@ -36,7 +52,27 @@ func InstallGitHubBinary(
 		return fmt.Errorf("failed to download %s: %w", binaryName, err)
 	}
 
-	if err := os.MkdirAll(extractDir, 0755); err != nil {
+	if err := downloadFn(
+		ctx,
+		checksumsURL,
+		checksumsPath,
+		downloader.DefaultRetryConfig(),
+	); err != nil {
+		return fmt.Errorf(
+			"failed to download checksums for %s — refusing to install unverified binary: %w",
+			binaryName, err,
+		)
+	}
+
+	if err := verifySHA256(tarPath, checksumsPath, path.Base(archiveURL)); err != nil {
+		return fmt.Errorf(
+			"%s failed checksum verification — refusing to install: %w",
+			binaryName,
+			err,
+		)
+	}
+
+	if err := os.MkdirAll(extractDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create extract directory: %w", err)
 	}
 
@@ -59,6 +95,52 @@ func InstallGitHubBinary(
 	return nil
 }
 
+// verifySHA256 checks that the SHA-256 of filePath matches the entry for
+// assetName in a sha256sum-format checksums file (lines of
+// "<hex-hash>  <file name>"; a leading "*" on the name marks sha256sum's
+// binary mode and is ignored).
+func verifySHA256(filePath, checksumsPath, assetName string) error {
+	data, err := os.ReadFile(checksumsPath)
+	if err != nil {
+		return fmt.Errorf("failed to read checksums file: %w", err)
+	}
+
+	var expected string
+	for line := range strings.SplitSeq(string(data), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+		if strings.TrimPrefix(fields[1], "*") == assetName {
+			expected = fields[0]
+			break
+		}
+	}
+	if expected == "" {
+		return fmt.Errorf("no checksum entry for %s", assetName)
+	}
+
+	f, err := os.Open(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to open %s for hashing: %w", filePath, err)
+	}
+	// Close error is non-actionable for a read-only file.
+	defer func() { _ = f.Close() }()
+
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return fmt.Errorf("failed to hash %s: %w", filePath, err)
+	}
+	actual := hex.EncodeToString(h.Sum(nil))
+	if !strings.EqualFold(actual, expected) {
+		return fmt.Errorf(
+			"SHA-256 mismatch for %s: expected %s, got %s",
+			assetName, expected, actual,
+		)
+	}
+	return nil
+}
+
 // InstallationStrategy defines the contract for different package installation methods
 type InstallationStrategy interface {
 	// Install installs the package using the strategy's specific method
@@ -78,7 +160,8 @@ func (s *AptStrategy) Install(packageName string) error {
 	// Translate package name using mapping (e.g., gdbm -> libgdbm-dev)
 	debianName := constants.GetDebianPackageName(packageName)
 
-	logger.L().Infow("Installing package via apt",
+	logger.L().Infow(
+		"Installing package via apt",
 		"original_name", packageName,
 		"debian_name", debianName,
 	)
@@ -100,7 +183,8 @@ type PPAStrategy struct {
 
 // Install adds the PPA and then installs the package
 func (s *PPAStrategy) Install(packageName string) error {
-	logger.L().Infow("Installing package via PPA",
+	logger.L().Infow(
+		"Installing package via PPA",
 		"package", packageName,
 		"ppa", s.ppaConfig.Name,
 	)
@@ -130,7 +214,8 @@ type LaunchpadPPAStrategy struct {
 
 // Install adds the Launchpad PPA and installs the package
 func (s *LaunchpadPPAStrategy) Install(packageName string) error {
-	logger.L().Infow("Installing package via Launchpad PPA",
+	logger.L().Infow(
+		"Installing package via Launchpad PPA",
 		"package", packageName,
 		"ppa", s.ppaRef,
 	)
@@ -141,7 +226,11 @@ func (s *LaunchpadPPAStrategy) Install(packageName string) error {
 		Args:    []string{"install", "-y", "software-properties-common"},
 		IsSudo:  true,
 	}); err != nil {
-		return fmt.Errorf("failed to install software-properties-common: %w\nOutput: %s", err, stderr)
+		return fmt.Errorf(
+			"failed to install software-properties-common: %w\nOutput: %s",
+			err,
+			stderr,
+		)
 	}
 
 	if _, stderr, err := s.cmd.ExecCommand(CommandParams{
@@ -176,7 +265,8 @@ type InstallScriptStrategy struct {
 
 // Install downloads and executes an install script via curl | sh
 func (s *InstallScriptStrategy) Install(packageName string) error {
-	logger.L().Infow("Installing package via install script",
+	logger.L().Infow(
+		"Installing package via install script",
 		"package", packageName,
 		"script_url", s.scriptURL,
 	)
@@ -184,7 +274,12 @@ func (s *InstallScriptStrategy) Install(packageName string) error {
 	curlCmd := exec.Command("sh", "-c", fmt.Sprintf("curl -fsSL %s | sh", s.scriptURL))
 	output, err := curlCmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("install script failed for %s: %w\nOutput: %s", packageName, err, string(output))
+		return fmt.Errorf(
+			"install script failed for %s: %w\nOutput: %s",
+			packageName,
+			err,
+			string(output),
+		)
 	}
 
 	return nil
@@ -208,7 +303,8 @@ type NerdFontStrategy struct {
 // Install downloads a Nerd Font tar.xz archive, extracts fonts to ~/.local/share/fonts/,
 // and runs fc-cache to register them
 func (s *NerdFontStrategy) Install(packageName string) error {
-	logger.L().Infow("Installing Nerd Font from GitHub releases",
+	logger.L().Infow(
+		"Installing Nerd Font from GitHub releases",
 		"package", packageName,
 		"url", s.archiveURL,
 	)
@@ -219,7 +315,7 @@ func (s *NerdFontStrategy) Install(packageName string) error {
 	}
 
 	fontsDir := filepath.Join(homeDir, ".local", "share", "fonts")
-	if err := os.MkdirAll(fontsDir, 0755); err != nil {
+	if err := os.MkdirAll(fontsDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create fonts directory: %w", err)
 	}
 
@@ -263,7 +359,8 @@ type GitCloneStrategy struct {
 
 // Install clones a Git repository to the specified path
 func (s *GitCloneStrategy) Install(packageName string) error {
-	logger.L().Infow("Installing package via Git clone",
+	logger.L().Infow(
+		"Installing package via Git clone",
 		"package", packageName,
 		"repo", s.repoURL,
 		"path", s.installPath,

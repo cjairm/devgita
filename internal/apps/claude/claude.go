@@ -5,9 +5,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 
 	"github.com/cjairm/devgita/internal/apps"
 	"github.com/cjairm/devgita/internal/apps/baseapp"
+	"github.com/cjairm/devgita/internal/apps/rtk"
 	cmd "github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/pkg/constants"
@@ -23,6 +25,9 @@ var (
 type Claude struct {
 	Cmd  cmd.Command
 	Base cmd.BaseCommandExecutor
+	// rtkInit overrides the `rtk init` invocation used by the rtk part
+	// (used in tests).
+	rtkInit func() error
 }
 
 func (c *Claude) Name() string       { return constants.Claude }
@@ -90,11 +95,14 @@ func (c *Claude) ForceConfigure() error {
 		return fmt.Errorf("failed to load global config: %w", err)
 	}
 
-	if err := files.CopyFile(
-		filepath.Join(paths.Paths.App.Configs.Claude, "settings.json"),
+	// settings.json is rendered from a template so tracked opt-ins (the rtk
+	// hook — ADR-0004) survive a --force re-render instead of being wiped.
+	if err := files.GenerateFromTemplate(
+		filepath.Join(paths.Paths.App.Configs.Claude, "settings.json.tmpl"),
 		filepath.Join(paths.Paths.Config.Claude, "settings.json"),
+		gc.Integrations,
 	); err != nil {
-		return fmt.Errorf("failed to copy claude settings: %w", err)
+		return fmt.Errorf("failed to render claude settings: %w", err)
 	}
 
 	for _, script := range []string{"statusline.sh", "format.sh", "task-redirect.sh"} {
@@ -161,17 +169,75 @@ func (c *Claude) SoftConfigure() error {
 	return c.ForceConfigure()
 }
 
-// ConfigurableParts lists the shared config subtrees that --only can refresh.
-func (c *Claude) ConfigurableParts() []string { return baseapp.SharedConfigParts }
+// ConfigurableParts lists the parts --only can refresh: the shared config
+// subtrees plus the rtk integration (wires rtk's command-rewriting hook —
+// the explicit opt-in required by ADR-0004).
+func (c *Claude) ConfigurableParts() []string {
+	return append(slices.Clone(baseapp.SharedConfigParts), constants.Rtk)
+}
 
-// ForceConfigureParts overwrites only the named shared subtrees (skills,
-// commands, agents) under the Claude config dir, leaving settings.json, the
-// scripts, and themes untouched. This is the `--force --only=...` path.
+// ForceConfigureParts refreshes only the named parts, leaving settings.json,
+// the scripts, and themes untouched. Shared subtrees (skills, commands,
+// agents) are overwritten from the embedded configs; the rtk part opts into
+// rtk's hook via enableRtkHook. This is the `--force --only=...` path.
 func (c *Claude) ForceConfigureParts(parts []string) error {
 	if err := os.MkdirAll(paths.Paths.Config.Claude, 0o755); err != nil {
 		return err
 	}
-	return baseapp.SyncSharedParts(paths.Paths.Config.Claude, parts)
+	shared := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if part == constants.Rtk {
+			if err := c.enableRtkHook(); err != nil {
+				return err
+			}
+			continue
+		}
+		shared = append(shared, part)
+	}
+	if len(shared) == 0 {
+		return nil
+	}
+	return baseapp.SyncSharedParts(paths.Paths.Config.Claude, shared)
+}
+
+// enableRtkHook wires rtk's command-rewriting hook via `rtk init` — which
+// owns the integration formats (settings.json hook entry, RTK.md, the global
+// CLAUDE.md reference) and patches in place rather than overwriting — and
+// then records the opt-in in the global config so every future settings.json
+// render keeps the hook entry. Wiring runs BEFORE persisting: a failed init
+// must not leave a false "enabled" flag behind, or the next render would emit
+// a hook entry for an integration that never succeeded. (The inverse failure
+// — init succeeded, save failed — is benign: re-running the command
+// converges.) It deliberately does NOT render settings.json here: a
+// hand-written settings.json must survive `--only=rtk` untouched.
+func (c *Claude) enableRtkHook() error {
+	if err := c.runRtkInit(); err != nil {
+		return fmt.Errorf(
+			"failed to wire rtk into claude (is rtk installed? try `dg install --only rtk`): %w",
+			err,
+		)
+	}
+	gc := &config.GlobalConfig{}
+	if err := gc.Create(); err != nil {
+		return fmt.Errorf("failed to create global config: %w", err)
+	}
+	if err := gc.Load(); err != nil {
+		return fmt.Errorf("failed to load global config: %w", err)
+	}
+	gc.Integrations.RtkClaudeHook = true
+	if err := gc.Save(); err != nil {
+		return fmt.Errorf("failed to save global config: %w", err)
+	}
+	return nil
+}
+
+// runRtkInit executes rtk's Claude Code integration through the rtk app
+// wrapper; injectable for tests.
+func (c *Claude) runRtkInit() error {
+	if c.rtkInit != nil {
+		return c.rtkInit()
+	}
+	return rtk.New().ExecuteCommand("init", "-g", "--auto-patch")
 }
 
 func (c *Claude) ExecuteCommand(args ...string) error {

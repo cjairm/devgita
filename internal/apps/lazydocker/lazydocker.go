@@ -95,11 +95,23 @@ func (ld *LazyDocker) installDebianLazydocker() error {
 
 	url := fmt.Sprintf(
 		"https://github.com/jesseduffield/lazydocker/releases/download/v%s/lazydocker_%s_Linux_%s.tar.gz",
-		version, version, linuxArch(),
+		version,
+		version,
+		linuxArch(),
+	)
+	checksumsURL := fmt.Sprintf(
+		"https://github.com/jesseduffield/lazydocker/releases/download/v%s/checksums.txt",
+		version,
 	)
 	logger.L().Infow("Downloading lazydocker for Debian", "version", version, "url", url)
 
-	if err := cmd.InstallGitHubBinary(ld.Base, constants.LazyDocker, url, ld.downloadFn); err != nil {
+	if err := cmd.InstallGitHubBinary(
+		ld.Base,
+		constants.LazyDocker,
+		url,
+		checksumsURL,
+		ld.downloadFn,
+	); err != nil {
 		return fmt.Errorf("lazydocker installation failed: %w", err)
 	}
 

@@ -1,22 +1,21 @@
-package lazygit
+package rtk
 
 import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 	"testing"
 
 	"github.com/cjairm/devgita/internal/apps"
 	"github.com/cjairm/devgita/internal/commands"
+	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/internal/testutil"
 	"github.com/cjairm/devgita/pkg/constants"
 	"github.com/cjairm/devgita/pkg/downloader"
 )
 
 func init() {
-	// Initialize logger for tests
 	testutil.InitLogger()
 }
 
@@ -29,9 +28,9 @@ func TestNew(t *testing.T) {
 }
 
 func TestNameAndKind(t *testing.T) {
-	a := &LazyGit{}
-	if a.Name() != constants.LazyGit {
-		t.Errorf("expected Name() %q, got %q", constants.LazyGit, a.Name())
+	a := &Rtk{}
+	if a.Name() != constants.Rtk {
+		t.Errorf("expected Name() %q, got %q", constants.Rtk, a.Name())
 	}
 	if a.Kind() != apps.KindTerminal {
 		t.Errorf("expected Kind() KindTerminal, got %v", a.Kind())
@@ -41,13 +40,13 @@ func TestNameAndKind(t *testing.T) {
 func TestInstall(t *testing.T) {
 	mockApp := testutil.NewMockApp()
 	mockApp.Base.IsMacResult = true // simulate macOS so test uses Homebrew path
-	app := &LazyGit{Cmd: mockApp.Cmd, Base: mockApp.Base}
+	app := &Rtk{Cmd: mockApp.Cmd, Base: mockApp.Base}
 
 	if err := app.Install(); err != nil {
 		t.Fatalf("Install error: %v", err)
 	}
-	if mockApp.Cmd.InstalledPkg != "lazygit" {
-		t.Fatalf("expected InstallPackage(%s), got %q", "lazygit", mockApp.Cmd.InstalledPkg)
+	if mockApp.Cmd.InstalledPkg != "rtk" {
+		t.Fatalf("expected InstallPackage(%s), got %q", "rtk", mockApp.Cmd.InstalledPkg)
 	}
 
 	testutil.VerifyNoRealCommands(t, mockApp.Base)
@@ -60,18 +59,21 @@ func TestInstallDebian(t *testing.T) {
 	mockApp.Base.SetExecCommandResult("", "", nil)
 
 	dl := testutil.ChecksumAwareDownloadFn(t)
-	app := &LazyGit{
+	app := &Rtk{
 		Cmd:  mockApp.Cmd,
 		Base: mockApp.Base,
 		fetchVersion: func(owner, repo string) (string, error) {
-			if owner != "jesseduffield" || repo != "lazygit" {
+			if owner != "rtk-ai" || repo != "rtk" {
 				t.Errorf("unexpected version fetch: owner=%s repo=%s", owner, repo)
 			}
-			return "0.44.1", nil
+			return "0.43.0", nil
 		},
 		downloadFn: func(ctx context.Context, url, dest string, cfg downloader.RetryConfig) error {
-			if !strings.Contains(url, "0.44.1") {
-				t.Errorf("download URL does not contain version: %s", url)
+			if !strings.Contains(url, "v0.43.0") {
+				t.Errorf("download URL does not contain tag: %s", url)
+			}
+			if !strings.Contains(url, "linux") && !strings.Contains(url, "checksums.txt") {
+				t.Errorf("download URL is not a Linux artifact: %s", url)
 			}
 			return dl(ctx, url, dest, cfg)
 		},
@@ -100,12 +102,12 @@ func TestForceInstall(t *testing.T) {
 	defer tc.Cleanup()
 
 	tc.MockApp.Base.IsMacResult = true // macOS path: brew uninstall
-	app := &LazyGit{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
+	app := &Rtk{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
 
 	if err := app.ForceInstall(); err != nil {
 		t.Fatalf("ForceInstall() error: %v", err)
 	}
-	if tc.MockApp.Cmd.InstalledPkg != constants.LazyGit {
+	if tc.MockApp.Cmd.InstalledPkg != constants.Rtk {
 		t.Errorf("expected Install to be called, got %q", tc.MockApp.Cmd.InstalledPkg)
 	}
 
@@ -115,13 +117,13 @@ func TestForceInstall(t *testing.T) {
 func TestSoftInstall(t *testing.T) {
 	mockApp := testutil.NewMockApp()
 	mockApp.Base.IsMacResult = true // macOS path uses MaybeInstallPackage
-	app := &LazyGit{Cmd: mockApp.Cmd, Base: mockApp.Base}
+	app := &Rtk{Cmd: mockApp.Cmd, Base: mockApp.Base}
 
 	if err := app.SoftInstall(); err != nil {
 		t.Fatalf("SoftInstall error: %v", err)
 	}
-	if mockApp.Cmd.MaybeInstalled != "lazygit" {
-		t.Fatalf("expected MaybeInstallPackage(%s), got %q", "lazygit", mockApp.Cmd.MaybeInstalled)
+	if mockApp.Cmd.MaybeInstalled != "rtk" {
+		t.Fatalf("expected MaybeInstallPackage(%s), got %q", "rtk", mockApp.Cmd.MaybeInstalled)
 	}
 
 	testutil.VerifyNoRealCommands(t, mockApp.Base)
@@ -132,10 +134,10 @@ func TestSoftInstallDebian_AlreadyInstalled(t *testing.T) {
 	mockApp.Base.IsMacResult = false
 
 	orig := commands.LookPathFn
-	commands.LookPathFn = func(string) (string, error) { return "/usr/local/bin/lazygit", nil }
+	commands.LookPathFn = func(string) (string, error) { return "/usr/local/bin/rtk", nil }
 	defer func() { commands.LookPathFn = orig }()
 
-	app := &LazyGit{Cmd: mockApp.Cmd, Base: mockApp.Base}
+	app := &Rtk{Cmd: mockApp.Cmd, Base: mockApp.Base}
 	if err := app.SoftInstall(); err != nil {
 		t.Fatalf("SoftInstall (already installed) error: %v", err)
 	}
@@ -156,10 +158,10 @@ func TestSoftInstallDebian_NotInstalled(t *testing.T) {
 	commands.LookPathFn = func(string) (string, error) { return "", fmt.Errorf("not found") }
 	defer func() { commands.LookPathFn = orig }()
 
-	app := &LazyGit{
+	app := &Rtk{
 		Cmd:          mockApp.Cmd,
 		Base:         mockApp.Base,
-		fetchVersion: func(_, _ string) (string, error) { return "0.44.1", nil },
+		fetchVersion: func(_, _ string) (string, error) { return "0.43.0", nil },
 		downloadFn:   testutil.ChecksumAwareDownloadFn(t),
 	}
 
@@ -178,15 +180,15 @@ func TestUninstall(t *testing.T) {
 		defer tc.Cleanup()
 
 		tc.MockApp.Base.IsMacResult = true
-		app := &LazyGit{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
+		app := &Rtk{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
 
 		if err := app.Uninstall(); err != nil {
 			t.Fatalf("Uninstall error: %v", err)
 		}
-		if tc.MockApp.Cmd.UninstalledPkg != constants.LazyGit {
+		if tc.MockApp.Cmd.UninstalledPkg != constants.Rtk {
 			t.Errorf(
 				"expected UninstallPackage(%s), got %q",
-				constants.LazyGit,
+				constants.Rtk,
 				tc.MockApp.Cmd.UninstalledPkg,
 			)
 		}
@@ -200,7 +202,7 @@ func TestUninstall(t *testing.T) {
 
 		tc.MockApp.Base.IsMacResult = false
 		tc.MockApp.Base.SetExecCommandResult("", "", nil)
-		app := &LazyGit{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
+		app := &Rtk{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
 
 		if err := app.Uninstall(); err != nil {
 			t.Fatalf("Uninstall error: %v", err)
@@ -217,15 +219,15 @@ func TestUninstall(t *testing.T) {
 				lastCall.IsSudo,
 			)
 		}
-		if len(lastCall.Args) < 2 || lastCall.Args[1] != "/usr/local/bin/lazygit" {
-			t.Errorf("expected /usr/local/bin/lazygit in args, got %v", lastCall.Args)
+		if len(lastCall.Args) < 2 || lastCall.Args[1] != "/usr/local/bin/rtk" {
+			t.Errorf("expected /usr/local/bin/rtk in args, got %v", lastCall.Args)
 		}
 	})
 }
 
 func TestUpdate(t *testing.T) {
 	mockApp := testutil.NewMockApp()
-	app := &LazyGit{Cmd: mockApp.Cmd, Base: mockApp.Base}
+	app := &Rtk{Cmd: mockApp.Cmd, Base: mockApp.Base}
 
 	err := app.Update()
 	if err == nil {
@@ -238,56 +240,19 @@ func TestUpdate(t *testing.T) {
 	testutil.VerifyNoRealCommands(t, mockApp.Base)
 }
 
-func TestForceConfigure(t *testing.T) {
+func TestConfigure(t *testing.T) {
 	tc := testutil.SetupCompleteTest(t)
 	defer tc.Cleanup()
 
-	app := &LazyGit{Cmd: tc.MockApp.Cmd}
+	app := &Rtk{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
 
-	// Test ForceConfigure - should enable shell feature
-	err := app.ForceConfigure()
-	if err != nil {
-		t.Fatalf("ForceConfigure error: %v", err)
-	}
-
-	// Verify shell config was generated
-	content, err := os.ReadFile(tc.ZshConfigPath)
-	if err != nil {
-		t.Fatalf("Failed to read shell config: %v", err)
-	}
-
-	if !strings.Contains(string(content), "# LazyGit enabled") {
-		t.Error("Expected shell config to contain LazyGit feature")
-	}
-
-	testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
-}
-
-func TestSoftConfigure(t *testing.T) {
-	tc := testutil.SetupCompleteTest(t)
-	defer tc.Cleanup()
-
-	app := &LazyGit{Cmd: tc.MockApp.Cmd}
-
-	// First call should configure
-	err := app.SoftConfigure()
-	if err != nil {
+	// First SoftConfigure records rtk in the global config
+	if err := app.SoftConfigure(); err != nil {
 		t.Fatalf("SoftConfigure error: %v", err)
 	}
 
-	// Verify shell config was generated
-	content, err := os.ReadFile(tc.ZshConfigPath)
-	if err != nil {
-		t.Fatalf("Failed to read shell config: %v", err)
-	}
-
-	if !strings.Contains(string(content), "# LazyGit enabled") {
-		t.Error("Expected shell config to contain LazyGit feature on first call")
-	}
-
-	// Second call should skip (feature already enabled)
-	err = app.SoftConfigure()
-	if err != nil {
+	// Second call is a no-op (already recorded) and must not error
+	if err := app.SoftConfigure(); err != nil {
 		t.Fatalf("SoftConfigure should not error on second call: %v", err)
 	}
 
@@ -296,29 +261,22 @@ func TestSoftConfigure(t *testing.T) {
 
 func TestExecuteCommand(t *testing.T) {
 	mockApp := testutil.NewMockApp()
-	app := &LazyGit{Cmd: mockApp.Cmd, Base: mockApp.Base}
+	app := &Rtk{Cmd: mockApp.Cmd, Base: mockApp.Base}
 
-	// Test 1: Successful execution
 	t.Run("successful execution", func(t *testing.T) {
-		mockApp.Base.SetExecCommandResult("lazygit version 0.40.0", "", nil)
+		mockApp.Base.SetExecCommandResult("rtk 0.43.0", "", nil)
 
 		err := app.ExecuteCommand("--version")
 		if err != nil {
 			t.Fatalf("ExecuteCommand failed: %v", err)
 		}
 
-		// Verify ExecCommand was called once
-		if mockApp.Base.GetExecCommandCallCount() != 1 {
-			t.Fatalf("Expected 1 ExecCommand call, got %d", mockApp.Base.GetExecCommandCallCount())
-		}
-
-		// Verify command parameters
 		lastCall := mockApp.Base.GetLastExecCommandCall()
 		if lastCall == nil {
 			t.Fatal("No ExecCommand call recorded")
 		}
-		if lastCall.Command != "lazygit" {
-			t.Fatalf("Expected command 'lazygit', got %q", lastCall.Command)
+		if lastCall.Command != "rtk" {
+			t.Fatalf("Expected command 'rtk', got %q", lastCall.Command)
 		}
 		if len(lastCall.Args) != 1 || lastCall.Args[0] != "--version" {
 			t.Fatalf("Expected args ['--version'], got %v", lastCall.Args)
@@ -328,42 +286,51 @@ func TestExecuteCommand(t *testing.T) {
 		}
 	})
 
-	// Test 2: Error handling
 	t.Run("command execution error", func(t *testing.T) {
 		mockApp.Base.ResetExecCommand()
 		mockApp.Base.SetExecCommandResult(
 			"",
 			"command not found",
-			fmt.Errorf("command not found: lazygit"),
+			fmt.Errorf("command not found: rtk"),
 		)
 
-		err := app.ExecuteCommand("--invalid-flag")
+		err := app.ExecuteCommand("gain")
 		if err == nil {
 			t.Fatal("Expected ExecuteCommand to return error")
 		}
-		if !strings.Contains(err.Error(), "failed to run lazygit command") {
-			t.Fatalf("Expected error to contain 'failed to run lazygit command', got: %v", err)
-		}
-
-		// Verify the error was properly wrapped
-		if !strings.Contains(err.Error(), "command not found: lazygit") {
-			t.Fatalf("Expected error to contain original error message, got: %v", err)
+		if !strings.Contains(err.Error(), "failed to run rtk command") {
+			t.Fatalf("Expected error to contain 'failed to run rtk command', got: %v", err)
 		}
 	})
+}
 
-	// Test 3: No arguments (launch TUI)
-	t.Run("launch without arguments", func(t *testing.T) {
-		mockApp.Base.ResetExecCommand()
-		mockApp.Base.SetExecCommandResult("TUI launched", "", nil)
+func TestUninstallClearsClaudeHookOptIn(t *testing.T) {
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
 
-		err := app.ExecuteCommand()
-		if err != nil {
-			t.Fatalf("ExecuteCommand failed: %v", err)
-		}
+	gc := &config.GlobalConfig{}
+	if err := gc.Create(); err != nil {
+		t.Fatal(err)
+	}
+	if err := gc.Load(); err != nil {
+		t.Fatal(err)
+	}
+	gc.Integrations.RtkClaudeHook = true
+	if err := gc.Save(); err != nil {
+		t.Fatal(err)
+	}
 
-		lastCall := mockApp.Base.GetLastExecCommandCall()
-		if len(lastCall.Args) != 0 {
-			t.Fatalf("Expected no args, got %v", lastCall.Args)
-		}
-	})
+	tc.MockApp.Base.IsMacResult = true
+	app := &Rtk{Cmd: tc.MockApp.Cmd, Base: tc.MockApp.Base}
+	if err := app.Uninstall(); err != nil {
+		t.Fatalf("Uninstall error: %v", err)
+	}
+
+	after := &config.GlobalConfig{}
+	if err := after.Load(); err != nil {
+		t.Fatal(err)
+	}
+	if after.Integrations.RtkClaudeHook {
+		t.Error("expected Uninstall to clear the rtk Claude hook opt-in")
+	}
 }

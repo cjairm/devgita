@@ -76,7 +76,7 @@ inferred."
   `global_config.yaml` beyond the built-in `opencode`/`claude`/`claude-nvim`/`nvim` set,
   once that built-in set and the pane model have proven out in practice.
 - ⚪ **Per-worktree layout memory** — Have `dg wt repair` (and TUI auto-repair) rebuild the
-  layout a worktree was originally *created* with, instead of always re-resolving via
+  layout a worktree was originally _created_ with, instead of always re-resolving via
   `--layout`/`--ai`/env/`default_layout`/`default_ai`. Requires storing a layout name per
   worktree in `global_config.yaml`.
 
@@ -86,17 +86,17 @@ inferred."
 
 ### AI & Development Tools
 
-**New Category: `ai-tools`**
+**Category `ai-tools`** — shipped 2026-07-23 with rtk as first app ([ADR-0004](docs/decisions/ADR-0004-ai-tools-install-category.md))
 
+- ~~**rtk** — Token-compressing CLI proxy~~ ✅ Shipped: `dg install --only rtk` (brew on macOS, GitHub release binary on Debian); the command-rewriting hook (`rtk init -g`) stays opt-in — see [docs/apps/rtk.md](docs/apps/rtk.md). Revisit automating the hook once the project stabilizes.
 - **Ollama** — Local LLM inference engine
-- **rtk** — Token-compressing CLI proxy (https://github.com/rtk-ai/rtk); complements `dg task` by covering the long tail of commands we deliberately don't wrap (test runners, docker, cat/grep). Install the binary via brew/install-script; keep its command-rewriting hook (`rtk init -g`) opt-in. See [docs/guides/task-design.md](docs/guides/task-design.md) for the adoption stance; revisit once the project stabilizes.
 - Gemini CLI integration
 - IDE AI integrations (Claude Code, Opencode configuration)
 - Terminal app for running AI commands (TBD)
 
 **Related Questions:**
 
-- Should this be a separate category or extend existing categories?
+- ~~Should this be a separate category or extend existing categories?~~ Answered: separate `ai-tools` category (ADR-0004)
 - How to integrate with Opencode / Claude Code setup?
 
 ### Alternative Tools

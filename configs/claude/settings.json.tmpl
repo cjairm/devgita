@@ -95,7 +95,16 @@
             "command": "~/.claude/task-redirect.sh"
           }
         ]
-      }
+      }{{if .RtkClaudeHook}},
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "rtk hook claude"
+          }
+        ]
+      }{{end}}
     ]
   }
 }

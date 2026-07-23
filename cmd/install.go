@@ -10,6 +10,7 @@ import (
 
 	"github.com/cjairm/devgita/internal/apps/devgita"
 	"github.com/cjairm/devgita/internal/commands"
+	"github.com/cjairm/devgita/internal/tooling/aitools"
 	"github.com/cjairm/devgita/internal/tooling/databases"
 	"github.com/cjairm/devgita/internal/tooling/desktop"
 	"github.com/cjairm/devgita/internal/tooling/languages"
@@ -26,7 +27,7 @@ var (
 )
 
 // knownCategories are the install categories accepted by --only/--skip.
-var knownCategories = []string{"terminal", "languages", "databases", "desktop"}
+var knownCategories = []string{"terminal", "languages", "databases", "desktop", "ai-tools"}
 
 // appToCoordinator maps each registry app to the coordinator that installs it.
 // alacritty has KindTerminal but is installed by the desktop coordinator.
@@ -37,6 +38,7 @@ var appToCoordinator = map[string]string{
 	"git":        "terminal",
 	"lazydocker": "terminal",
 	"lazygit":    "terminal",
+	"rtk":        "ai-tools",
 	"mise":       "terminal",
 	"neovim":     "terminal",
 	"opencode":   "terminal",
@@ -59,11 +61,14 @@ type installConfig struct {
 	runLanguages bool
 	runDatabases bool
 	runDesktop   bool
+	runAITools   bool
 	// Per-coordinator filters (nil = no filter, non-nil = only these apps)
 	terminalAppFilter  map[string]bool
 	terminalSkipFilter map[string]bool
 	desktopAppFilter   map[string]bool
 	desktopSkipFilter  map[string]bool
+	aiToolsAppFilter   map[string]bool
+	aiToolsSkipFilter  map[string]bool
 }
 
 var installCmd = &cobra.Command{
@@ -75,7 +80,7 @@ This command performs the following steps:
   - Validates your OS version
   - Installs the package manager (Homebrew on macOS, apt on Debian/Ubuntu)
   - Extracts embedded configuration templates
-  - Installs terminal tools, programming languages, and databases
+  - Installs terminal tools, programming languages, databases, and AI tools
   - Optionally installs desktop applications and shell configuration
 
 Supported platforms:
@@ -154,6 +159,12 @@ func run(cmd *cobra.Command, args []string) error {
 		utils.PrintInfo("Skipping desktop applications installation")
 	}
 
+	if cfg.runAITools {
+		installAITools(cfg.aiToolsAppFilter, cfg.aiToolsSkipFilter)
+	} else {
+		utils.PrintInfo("Skipping AI tools installation")
+	}
+
 	return nil
 }
 
@@ -172,8 +183,12 @@ func parseInstallFlags(onlyFlags, skipFlags []string) (*installConfig, error) {
 		case isKnownApp(item):
 			onlyAppSet[item] = true
 		default:
-			return nil, fmt.Errorf("unknown value %q for --only\n\nValid categories: %s\nValid apps: %s",
-				item, strings.Join(knownCategories, ", "), formatAppNames())
+			return nil, fmt.Errorf(
+				"unknown value %q for --only\n\nValid categories: %s\nValid apps: %s",
+				item,
+				strings.Join(knownCategories, ", "),
+				formatAppNames(),
+			)
 		}
 	}
 
@@ -184,8 +199,12 @@ func parseInstallFlags(onlyFlags, skipFlags []string) (*installConfig, error) {
 		case isKnownApp(item):
 			skipAppSet[item] = true
 		default:
-			return nil, fmt.Errorf("unknown value %q for --skip\n\nValid categories: %s\nValid apps: %s",
-				item, strings.Join(knownCategories, ", "), formatAppNames())
+			return nil, fmt.Errorf(
+				"unknown value %q for --skip\n\nValid categories: %s\nValid apps: %s",
+				item,
+				strings.Join(knownCategories, ", "),
+				formatAppNames(),
+			)
 		}
 	}
 
@@ -193,26 +212,66 @@ func parseInstallFlags(onlyFlags, skipFlags []string) (*installConfig, error) {
 
 	terminalAppFilter := buildAppFilter("terminal", onlyCategorySet, onlyAppSet, skipAppSet)
 	desktopAppFilter := buildAppFilter("desktop", onlyCategorySet, onlyAppSet, skipAppSet)
+	aiToolsAppFilter := buildAppFilter("ai-tools", onlyCategorySet, onlyAppSet, skipAppSet)
 	terminalSkipFilter := buildSkipFilter("terminal", skipAppSet)
 	desktopSkipFilter := buildSkipFilter("desktop", skipAppSet)
+	aiToolsSkipFilter := buildSkipFilter("ai-tools", skipAppSet)
 
 	hasTerminalApps := hasAppsForCoordinator("terminal", onlyAppSet)
 	hasDesktopApps := hasAppsForCoordinator("desktop", onlyAppSet)
+	hasAIToolsApps := hasAppsForCoordinator("ai-tools", onlyAppSet)
 
 	return &installConfig{
-		runTerminal:        shouldRunCategory("terminal", onlyCategorySet, skipCategorySet, hasAnyOnly, hasTerminalApps),
-		runLanguages:       shouldRunCategory("languages", onlyCategorySet, skipCategorySet, hasAnyOnly, false),
-		runDatabases:       shouldRunCategory("databases", onlyCategorySet, skipCategorySet, hasAnyOnly, false),
-		runDesktop:         shouldRunCategory("desktop", onlyCategorySet, skipCategorySet, hasAnyOnly, hasDesktopApps),
+		runTerminal: shouldRunCategory(
+			"terminal",
+			onlyCategorySet,
+			skipCategorySet,
+			hasAnyOnly,
+			hasTerminalApps,
+		),
+		runLanguages: shouldRunCategory(
+			"languages",
+			onlyCategorySet,
+			skipCategorySet,
+			hasAnyOnly,
+			false,
+		),
+		runDatabases: shouldRunCategory(
+			"databases",
+			onlyCategorySet,
+			skipCategorySet,
+			hasAnyOnly,
+			false,
+		),
+		runDesktop: shouldRunCategory(
+			"desktop",
+			onlyCategorySet,
+			skipCategorySet,
+			hasAnyOnly,
+			hasDesktopApps,
+		),
+		runAITools: shouldRunCategory(
+			"ai-tools",
+			onlyCategorySet,
+			skipCategorySet,
+			hasAnyOnly,
+			hasAIToolsApps,
+		),
 		terminalAppFilter:  terminalAppFilter,
 		terminalSkipFilter: terminalSkipFilter,
 		desktopAppFilter:   desktopAppFilter,
 		desktopSkipFilter:  desktopSkipFilter,
+		aiToolsAppFilter:   aiToolsAppFilter,
+		aiToolsSkipFilter:  aiToolsSkipFilter,
 	}, nil
 }
 
 // shouldRunCategory returns true if the given category should execute.
-func shouldRunCategory(category string, onlyCategorySet, skipCategorySet map[string]bool, hasAnyOnly, hasAppsForCategory bool) bool {
+func shouldRunCategory(
+	category string,
+	onlyCategorySet, skipCategorySet map[string]bool,
+	hasAnyOnly, hasAppsForCategory bool,
+) bool {
 	if skipCategorySet[category] {
 		return false
 	}
@@ -227,7 +286,10 @@ func shouldRunCategory(category string, onlyCategorySet, skipCategorySet map[str
 
 // buildAppFilter returns the app-level only-filter for a coordinator.
 // Returns nil when the category is explicitly selected (full install) or no apps belong to it.
-func buildAppFilter(coordinator string, onlyCategorySet, onlyAppSet, skipAppSet map[string]bool) map[string]bool {
+func buildAppFilter(
+	coordinator string,
+	onlyCategorySet, onlyAppSet, skipAppSet map[string]bool,
+) map[string]bool {
 	if onlyCategorySet[coordinator] {
 		return nil
 	}
@@ -329,4 +391,9 @@ func installDatabases(ctx context.Context) {
 func installDesktopTools(appFilter, skipFilter map[string]bool) {
 	desktopTool := desktop.New()
 	desktopTool.InstallAndConfigure(appFilter, skipFilter)
+}
+
+func installAITools(appFilter, skipFilter map[string]bool) {
+	a := aitools.New()
+	a.InstallAndConfigure(appFilter, skipFilter)
 }

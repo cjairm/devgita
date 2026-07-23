@@ -53,7 +53,11 @@ func TestInstall(t *testing.T) {
 		t.Fatalf("Install error: %v", err)
 	}
 	if mockApp.Cmd.InstalledPkg != expectedPackageName {
-		t.Fatalf("expected InstallPackage(%s), got %q", expectedPackageName, mockApp.Cmd.InstalledPkg)
+		t.Fatalf(
+			"expected InstallPackage(%s), got %q",
+			expectedPackageName,
+			mockApp.Cmd.InstalledPkg,
+		)
 	}
 
 	testutil.VerifyNoRealCommands(t, mockApp.Base)
@@ -65,6 +69,7 @@ func TestInstallDebian(t *testing.T) {
 	// Both ExecCommand calls (tar + install) succeed
 	mockApp.Base.SetExecCommandResult("", "", nil)
 
+	dl := testutil.ChecksumAwareDownloadFn(t)
 	app := &LazyDocker{
 		Cmd:  mockApp.Cmd,
 		Base: mockApp.Base,
@@ -74,11 +79,11 @@ func TestInstallDebian(t *testing.T) {
 			}
 			return "0.23.1", nil
 		},
-		downloadFn: func(_ context.Context, url, _ string, _ downloader.RetryConfig) error {
+		downloadFn: func(ctx context.Context, url, dest string, cfg downloader.RetryConfig) error {
 			if !strings.Contains(url, "0.23.1") {
 				t.Errorf("download URL does not contain version: %s", url)
 			}
-			return nil
+			return dl(ctx, url, dest, cfg)
 		},
 	}
 
@@ -126,7 +131,11 @@ func TestSoftInstall(t *testing.T) {
 		t.Fatalf("SoftInstall error: %v", err)
 	}
 	if mockApp.Cmd.MaybeInstalled != expectedPackageName {
-		t.Fatalf("expected MaybeInstallPackage(%s), got %q", expectedPackageName, mockApp.Cmd.MaybeInstalled)
+		t.Fatalf(
+			"expected MaybeInstallPackage(%s), got %q",
+			expectedPackageName,
+			mockApp.Cmd.MaybeInstalled,
+		)
 	}
 
 	testutil.VerifyNoRealCommands(t, mockApp.Base)
@@ -164,7 +173,7 @@ func TestSoftInstallDebian_NotInstalled(t *testing.T) {
 		Cmd:          mockApp.Cmd,
 		Base:         mockApp.Base,
 		fetchVersion: func(_, _ string) (string, error) { return "0.23.1", nil },
-		downloadFn:   func(_ context.Context, _, _ string, _ downloader.RetryConfig) error { return nil },
+		downloadFn:   testutil.ChecksumAwareDownloadFn(t),
 	}
 
 	if err := app.SoftInstall(); err != nil {
@@ -187,7 +196,11 @@ func TestUninstall(t *testing.T) {
 			t.Fatalf("Uninstall error: %v", err)
 		}
 		if tc.MockApp.Cmd.UninstalledPkg != expectedPackageName {
-			t.Errorf("expected UninstallPackage(%s), got %q", expectedPackageName, tc.MockApp.Cmd.UninstalledPkg)
+			t.Errorf(
+				"expected UninstallPackage(%s), got %q",
+				expectedPackageName,
+				tc.MockApp.Cmd.UninstalledPkg,
+			)
 		}
 
 		testutil.VerifyNoRealCommands(t, tc.MockApp.Base)
@@ -211,7 +224,11 @@ func TestUninstall(t *testing.T) {
 			t.Fatal("expected ExecCommand call for rm")
 		}
 		if lastCall.Command != "rm" || !lastCall.IsSudo {
-			t.Errorf("expected sudo rm, got command=%q IsSudo=%v", lastCall.Command, lastCall.IsSudo)
+			t.Errorf(
+				"expected sudo rm, got command=%q IsSudo=%v",
+				lastCall.Command,
+				lastCall.IsSudo,
+			)
 		}
 		if len(lastCall.Args) < 2 || lastCall.Args[1] != "/usr/local/bin/lazydocker" {
 			t.Errorf("expected /usr/local/bin/lazydocker in args, got %v", lastCall.Args)

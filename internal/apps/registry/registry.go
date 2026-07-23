@@ -23,6 +23,7 @@ import (
 	"github.com/cjairm/devgita/internal/apps/neovim"
 	"github.com/cjairm/devgita/internal/apps/opencode"
 	"github.com/cjairm/devgita/internal/apps/raycast"
+	"github.com/cjairm/devgita/internal/apps/rtk"
 	"github.com/cjairm/devgita/internal/apps/tmux"
 	"github.com/cjairm/devgita/internal/apps/ulauncher"
 	"github.com/cjairm/devgita/pkg/constants"
@@ -31,7 +32,7 @@ import (
 // AppMeta holds metadata for uninstall orchestration.
 // ItemType must match what MaybeInstall* stored in global_config.yaml.
 type AppMeta struct {
-	Coordinator     string // "terminal" | "desktop" | ""
+	Coordinator     string // "terminal" | "desktop" | "ai-tools" | ""
 	ItemType        string // "package" | "desktop_app" — must match actual tracking
 	HasShellFeature bool
 }
@@ -54,6 +55,7 @@ var Meta = map[string]AppMeta{
 	constants.Neovim:     {Coordinator: "terminal", ItemType: "package", HasShellFeature: true},
 	constants.OpenCode:   {Coordinator: "terminal", ItemType: "package", HasShellFeature: true},
 	constants.Raycast:    {Coordinator: "desktop", ItemType: "desktop_app", HasShellFeature: false},
+	constants.Rtk:        {Coordinator: "ai-tools", ItemType: "package", HasShellFeature: false},
 	constants.Tmux:       {Coordinator: "terminal", ItemType: "package", HasShellFeature: true},
 	constants.Ulauncher:  {Coordinator: "desktop", ItemType: "desktop_app", HasShellFeature: false},
 	constants.DevgitaApp: {Coordinator: "", ItemType: "", HasShellFeature: false},
@@ -63,6 +65,7 @@ var Meta = map[string]AppMeta{
 var knownCategories = map[string]bool{
 	"terminal": true,
 	"desktop":  true,
+	"ai-tools": true,
 }
 
 // IsKnownApp reports whether name is a registered app (excluding devgita itself).
@@ -117,6 +120,7 @@ var factories = map[string]func() apps.App{
 	constants.Neovim:     func() apps.App { return neovim.New() },
 	constants.OpenCode:   func() apps.App { return opencode.New() },
 	constants.Raycast:    func() apps.App { return raycast.New() },
+	constants.Rtk:        func() apps.App { return rtk.New() },
 	constants.Tmux:       func() apps.App { return tmux.New() },
 	constants.Ulauncher:  func() apps.App { return ulauncher.New() },
 }

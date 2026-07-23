@@ -260,6 +260,7 @@ Verify these before changing code in these areas:
 - Languages: Node.js, Python, Go, Rust, PHP (via Mise or native)
 - Databases: PostgreSQL, Redis, MySQL, MongoDB, SQLite
 - Desktop apps: Platform-specific GUIs (Docker, browsers, window managers, etc.)
+- AI tools: agent-support CLIs (rtk today; Ollama, Gemini CLI planned)
 
 **Single-command installation:**
 

@@ -13,9 +13,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/cjairm/devgita/internal/apps"
 	"github.com/cjairm/devgita/internal/apps/baseapp"
+	"github.com/cjairm/devgita/internal/apps/rtk"
 	cmd "github.com/cjairm/devgita/internal/commands"
 	"github.com/cjairm/devgita/internal/config"
 	"github.com/cjairm/devgita/pkg/constants"
@@ -33,6 +35,9 @@ const DEFAULT_THEME_NAME = "default"
 type OpenCode struct {
 	Cmd  cmd.Command
 	Base cmd.BaseCommandExecutor
+	// rtkInit overrides the `rtk init` invocation used by the rtk part
+	// (used in tests).
+	rtkInit func() error
 }
 
 func (o *OpenCode) Name() string       { return constants.OpenCode }
@@ -183,18 +188,51 @@ func (o *OpenCode) SoftConfigure() error {
 	return o.ForceConfigure()
 }
 
-// ConfigurableParts lists the shared config subtrees that --only can refresh.
-func (o *OpenCode) ConfigurableParts() []string { return baseapp.SharedConfigParts }
+// ConfigurableParts lists the parts --only can refresh: the shared config
+// subtrees plus the rtk integration (installs rtk's OpenCode plugin — the
+// explicit opt-in required by ADR-0004).
+func (o *OpenCode) ConfigurableParts() []string {
+	return append(slices.Clone(baseapp.SharedConfigParts), constants.Rtk)
+}
 
-// ForceConfigureParts overwrites only the named shared subtrees (skills,
-// commands, agents) under the OpenCode config dir. Unlike full ForceConfigure
-// it does not remove or regenerate opencode.json or themes, so a hand-edited
-// config survives. This is the `--force --only=...` path.
+// ForceConfigureParts refreshes only the named parts. Shared subtrees
+// (skills, commands, agents) are overwritten from the embedded configs;
+// the rtk part runs `rtk init -g --opencode`, which installs rtk's plugin
+// as its own file (plugins/rtk.ts) — devgita never touches that file, so no
+// opt-in state needs tracking here, unlike claude's settings.json hook.
+// Unlike full ForceConfigure this does not remove or regenerate
+// opencode.json or themes, so a hand-edited config survives. This is the
+// `--force --only=...` path.
 func (o *OpenCode) ForceConfigureParts(parts []string) error {
 	if err := os.MkdirAll(paths.Paths.Config.OpenCode, 0o755); err != nil {
 		return err
 	}
-	return baseapp.SyncSharedParts(paths.Paths.Config.OpenCode, parts)
+	shared := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if part == constants.Rtk {
+			if err := o.runRtkInit(); err != nil {
+				return fmt.Errorf(
+					"failed to wire rtk into opencode (is rtk installed? try `dg install --only rtk`): %w",
+					err,
+				)
+			}
+			continue
+		}
+		shared = append(shared, part)
+	}
+	if len(shared) == 0 {
+		return nil
+	}
+	return baseapp.SyncSharedParts(paths.Paths.Config.OpenCode, shared)
+}
+
+// runRtkInit executes rtk's OpenCode integration through the rtk app
+// wrapper; injectable for tests.
+func (o *OpenCode) runRtkInit() error {
+	if o.rtkInit != nil {
+		return o.rtkInit()
+	}
+	return rtk.New().ExecuteCommand("init", "-g", "--opencode")
 }
 
 func (o *OpenCode) ExecuteCommand(args ...string) error {

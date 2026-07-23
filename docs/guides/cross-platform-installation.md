@@ -238,6 +238,7 @@ func InstallGitHubBinary(
     base BaseCommandExecutor,
     binaryName string,
     archiveURL string,
+    checksumsURL string,
     downloadFn func(ctx, url, dest, cfg) error,
 ) error
 ```
@@ -245,10 +246,18 @@ func InstallGitHubBinary(
 **Key behavior:**
 
 1. Downloads tar.gz from GitHub
-2. Extracts the binary
-3. Installs to `/usr/local/bin/` with sudo
+2. Downloads the release's sha256sum-format checksums file and verifies the
+   archive's SHA-256 against it — verification is mandatory (the binary is
+   installed with sudo), so a missing or mismatched checksum aborts the
+   install (CLAUDE.md §4)
+3. Extracts the binary
+4. Installs to `/usr/local/bin/` with sudo
 
-**Example packages:** lazygit, lazydocker, btop
+The upstream project must publish a checksums asset (rtk, lazygit, and
+lazydocker all ship `checksums.txt`); a release without one cannot be
+installed through this helper.
+
+**Example packages:** lazygit, lazydocker, rtk
 
 ---
 

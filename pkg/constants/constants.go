@@ -135,6 +135,7 @@ const (
 	Raycast            = "raycast"
 	Readline           = "readline"
 	Ripgrep            = "rg"
+	Rtk                = "rtk"
 	Syntaxhighlighting = "zsh-syntax-highlighting"
 	Tldr               = "tldr"
 	Tmux               = "tmux"
