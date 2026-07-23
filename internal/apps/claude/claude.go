@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"testing"
 
 	"github.com/cjairm/devgita/internal/apps"
 	"github.com/cjairm/devgita/internal/apps/baseapp"
@@ -232,12 +233,21 @@ func (c *Claude) enableRtkHook() error {
 }
 
 // runRtkInit executes rtk's Claude Code integration through the rtk app
-// wrapper; injectable for tests.
+// wrapper; injectable for tests. InitClaude streams output so rtk's one-time
+// interactive consent prompt is visible instead of hanging in a captured
+// buffer.
 func (c *Claude) runRtkInit() error {
 	if c.rtkInit != nil {
 		return c.rtkInit()
 	}
-	return rtk.New().ExecuteCommand("init", "-g", "--auto-patch")
+	// Same philosophy as pkg/paths' test sandbox: a test that forgets to
+	// inject rtkInit must fail loudly, never execute the real rtk binary.
+	if testing.Testing() {
+		return fmt.Errorf(
+			"refusing to run real `rtk init` under go test — inject rtkInit in the test",
+		)
+	}
+	return rtk.New().InitClaude()
 }
 
 func (c *Claude) ExecuteCommand(args ...string) error {

@@ -638,3 +638,21 @@ func TestForceConfigurePartsRtkInitFailure(t *testing.T) {
 		t.Errorf("expected install hint in error, got: %v", err)
 	}
 }
+
+func TestForceConfigurePartsRtkRefusesRealExecInTests(t *testing.T) {
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
+	testutil.IsolateXDGDirs(t)
+
+	opencodeDir := filepath.Join(tc.ConfigDir, "opencode")
+	oldOpenCode := paths.Paths.Config.OpenCode
+	t.Cleanup(func() { paths.Paths.Config.OpenCode = oldOpenCode })
+	paths.Paths.Config.OpenCode = opencodeDir
+
+	// No rtkInit injected: the guard must refuse instead of executing rtk.
+	app := &OpenCode{}
+	err := app.ForceConfigureParts([]string{"rtk"})
+	if err == nil || !strings.Contains(err.Error(), "refusing to run real") {
+		t.Fatalf("expected test-guard refusal, got: %v", err)
+	}
+}

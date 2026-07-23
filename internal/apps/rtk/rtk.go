@@ -26,6 +26,7 @@ import (
 	"context"
 	"fmt"
 	"runtime"
+	"strings"
 
 	"github.com/cjairm/devgita/internal/apps"
 	"github.com/cjairm/devgita/internal/apps/baseapp"
@@ -190,6 +191,36 @@ func (r *Rtk) ExecuteCommand(args ...string) error {
 	}
 	if _, _, err := r.Base.ExecCommand(execCommand); err != nil {
 		return fmt.Errorf("failed to run rtk command: %w", err)
+	}
+	return nil
+}
+
+// InitClaude wires rtk's Claude Code integration (hook + RTK.md + global
+// CLAUDE.md reference). See initAgent for why this must stream.
+func (r *Rtk) InitClaude() error {
+	return r.initAgent("init", "-g", "--auto-patch")
+}
+
+// InitOpenCode installs rtk's OpenCode plugin. See initAgent for why this
+// must stream.
+func (r *Rtk) InitOpenCode() error {
+	return r.initAgent("init", "-g", "--opencode")
+}
+
+// initAgent runs an `rtk init` invocation with streamed output. `rtk init`
+// asks a one-time interactive question when stdin is a terminal — its GDPR
+// telemetry consent, which --auto-patch does NOT suppress. The executor
+// passes the caller's stdin through, so with captured (non-streamed) output
+// the question lands in an invisible buffer while rtk blocks on the answer
+// forever. Streaming makes the prompt visible and answerable; without a
+// terminal rtk skips the question on its own.
+func (r *Rtk) initAgent(args ...string) error {
+	if _, _, err := r.Base.ExecCommand(cmd.CommandParams{
+		Command: constants.Rtk,
+		Args:    args,
+		Stream:  true,
+	}); err != nil {
+		return fmt.Errorf("failed to run rtk %s: %w", strings.Join(args, " "), err)
 	}
 	return nil
 }

@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"testing"
 
 	"github.com/cjairm/devgita/internal/apps"
 	"github.com/cjairm/devgita/internal/apps/baseapp"
@@ -227,12 +228,21 @@ func (o *OpenCode) ForceConfigureParts(parts []string) error {
 }
 
 // runRtkInit executes rtk's OpenCode integration through the rtk app
-// wrapper; injectable for tests.
+// wrapper; injectable for tests. InitOpenCode streams output so rtk's
+// one-time interactive consent prompt is visible instead of hanging in a
+// captured buffer.
 func (o *OpenCode) runRtkInit() error {
 	if o.rtkInit != nil {
 		return o.rtkInit()
 	}
-	return rtk.New().ExecuteCommand("init", "-g", "--opencode")
+	// Same philosophy as pkg/paths' test sandbox: a test that forgets to
+	// inject rtkInit must fail loudly, never execute the real rtk binary.
+	if testing.Testing() {
+		return fmt.Errorf(
+			"refusing to run real `rtk init` under go test — inject rtkInit in the test",
+		)
+	}
+	return rtk.New().InitOpenCode()
 }
 
 func (o *OpenCode) ExecuteCommand(args ...string) error {

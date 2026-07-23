@@ -474,3 +474,21 @@ func TestExecuteCommand(t *testing.T) {
 		t.Errorf("Expected args [--version], got %v", last.Args)
 	}
 }
+
+func TestForceConfigureParts_RtkRefusesRealExecInTests(t *testing.T) {
+	tc := testutil.SetupCompleteTest(t)
+	defer tc.Cleanup()
+	testutil.IsolateXDGDirs(t)
+
+	claudeDir := filepath.Join(tc.ConfigDir, ".claude")
+	oldClaude := paths.Paths.Config.Claude
+	t.Cleanup(func() { paths.Paths.Config.Claude = oldClaude })
+	paths.Paths.Config.Claude = claudeDir
+
+	// No rtkInit injected: the guard must refuse instead of executing rtk.
+	app := &Claude{}
+	err := app.ForceConfigureParts([]string{"rtk"})
+	if err == nil || !strings.Contains(err.Error(), "refusing to run real") {
+		t.Fatalf("expected test-guard refusal, got: %v", err)
+	}
+}

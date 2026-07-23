@@ -334,3 +334,37 @@ func TestUninstallClearsClaudeHookOptIn(t *testing.T) {
 		t.Error("expected Uninstall to clear the rtk Claude hook opt-in")
 	}
 }
+
+func TestInitAgentMethods(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		call     func(r *Rtk) error
+		wantArgs string
+	}{
+		{"InitClaude", func(r *Rtk) error { return r.InitClaude() }, "init -g --auto-patch"},
+		{"InitOpenCode", func(r *Rtk) error { return r.InitOpenCode() }, "init -g --opencode"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			mockApp := testutil.NewMockApp()
+			mockApp.Base.SetExecCommandResult("", "", nil)
+			app := &Rtk{Cmd: mockApp.Cmd, Base: mockApp.Base}
+
+			if err := tt.call(app); err != nil {
+				t.Fatalf("%s error: %v", tt.name, err)
+			}
+			lastCall := mockApp.Base.GetLastExecCommandCall()
+			if lastCall == nil {
+				t.Fatal("no ExecCommand call recorded")
+			}
+			if lastCall.Command != "rtk" || strings.Join(lastCall.Args, " ") != tt.wantArgs {
+				t.Errorf("expected `rtk %s`, got %q %v", tt.wantArgs, lastCall.Command, lastCall.Args)
+			}
+			// Streaming is load-bearing: rtk init may show a one-time
+			// interactive consent prompt; a captured (non-streamed) run
+			// hides the prompt and hangs forever on a terminal.
+			if !lastCall.Stream {
+				t.Error("rtk init must run with Stream: true")
+			}
+		})
+	}
+}
