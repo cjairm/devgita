@@ -509,9 +509,11 @@ func TestNewSessionEscCancels(t *testing.T) {
 func TestNewSessionEnterEmptyAutoGeneratesName(t *testing.T) {
 	t.Setenv("TMUX", "")
 	m := atSessionNameStep(t, makeTestModel(testStatuses()))
-	// goku is taken, so the collision check must pick a different character.
+	// atSessionNameStep picks the pinned "root" folder (home), so the label is
+	// "home". home-goku is taken, so the collision check must pick a different
+	// character.
 	m.listSessionNamesFn = func() ([]string, error) {
-		return []string{"devgita-goku"}, nil
+		return []string{"home-goku"}, nil
 	}
 	var createdName string
 	m.createSessionFn = func(name, _ string) error {
@@ -528,11 +530,14 @@ func TestNewSessionEnterEmptyAutoGeneratesName(t *testing.T) {
 		t.Fatal("expected a command to run the async create")
 	}
 	cmd()
-	if !strings.HasPrefix(createdName, "devgita-") {
-		t.Errorf("expected an auto-generated 'devgita-*' name, got %q", createdName)
+	if !strings.HasPrefix(createdName, "home-") {
+		t.Errorf(
+			"expected an auto-generated 'home-*' name for the home folder, got %q",
+			createdName,
+		)
 	}
-	if createdName == "devgita-goku" {
-		t.Error("auto-name must not collide with the existing 'devgita-goku' session")
+	if createdName == "home-goku" {
+		t.Error("auto-name must not collide with the existing 'home-goku' session")
 	}
 }
 

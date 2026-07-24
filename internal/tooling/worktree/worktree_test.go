@@ -755,7 +755,7 @@ func TestCreateAt(t *testing.T) {
 		for _, call := range mockTmuxBase.ExecCommandCalls {
 			joined := strings.Join(call.Args, " ")
 			if strings.HasPrefix(joined, "new-session") &&
-				strings.Contains(joined, "-s "+tmuxSessionName(repoSlug)) &&
+				strings.Contains(joined, "-s "+TmuxSessionName(repoSlug)) &&
 				strings.Contains(joined, "-n "+windowName) {
 				sawNewSession = true
 			}

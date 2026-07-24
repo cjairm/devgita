@@ -1,26 +1,55 @@
 // Auto-generation of a standalone-session name when the user leaves the name
-// prompt blank. Names are "devgita-<character>" for a Dragon Ball character —
-// a nod to devgita itself, whose name comes from Vegeta — and are always
-// checked against the live tmux sessions so a blank-name create can never
-// collide with an existing session (tmux new-session -s fails on a duplicate).
+// prompt blank. Names are "<folder>-<character>": the folder the session opens
+// in, followed by a Dragon Ball character — a nod to devgita itself, whose name
+// comes from Vegeta. They are always checked against the live tmux sessions so
+// a blank-name create can never collide with an existing session (tmux
+// new-session -s fails on a duplicate).
 
 package tuiworktree
 
 import (
 	"fmt"
 	"math/rand"
+	"path/filepath"
+
+	"github.com/cjairm/devgita/internal/config"
+	"github.com/cjairm/devgita/internal/tooling/worktree"
+	"github.com/cjairm/devgita/pkg/paths"
 )
 
-// sessionNamePrefix prefixes every auto-generated session name. Kept separate
-// from the character pool so both the primary "devgita-goku" form and the
-// "devgita-goku-2" collision fallback share one source of truth.
-const sessionNamePrefix = "devgita-"
+// defaultSessionLabel is the fallback prefix when a chosen folder yields no
+// usable label (its name flattens to empty, or is the filesystem root). It can
+// never be tmux-hostile, so a generated name is always valid.
+const defaultSessionLabel = "root"
+
+// sessionLabelForDir derives the auto-session-name prefix from the folder the
+// session opens in: the folder's own name, with the characters tmux treats
+// specially in a target name (".", ":", whitespace) flattened via
+// worktree.TmuxSessionName, so "<label>-<character>" is always a valid session
+// name. The home directory maps to "home" — its basename is the opaque account
+// name, useless as a label — and a folder whose name flattens to nothing (empty
+// or the filesystem root) falls back to defaultSessionLabel.
+func sessionLabelForDir(workdir string) string {
+	if workdir == config.CanonicalRepoPath(paths.Paths.Home.Root) {
+		return "home"
+	}
+	// Guard the raw basename before flattening: filepath.Base("") is "." and
+	// Base("/") is "/", neither of which is a usable label — flattening would
+	// turn "." into "_" and hide the fallback.
+	base := filepath.Base(workdir)
+	if base == "" || base == "/" || base == "." {
+		return defaultSessionLabel
+	}
+	return worktree.TmuxSessionName(base)
+}
 
 // dragonBallNames is the pool the auto-namer draws from. Every entry is
-// already lowercase and free of spaces, dots, and colons, so "devgita-<name>"
-// is a valid tmux session name with no sanitizing needed (tmux treats "." and
-// ":" specially in target names). Kept short and recognizable on purpose — a
-// generated name should read as a friendly label, not a random string.
+// already lowercase and free of spaces, dots, and colons, so the character half
+// of a "<label>-<character>" name needs no sanitizing (tmux treats "." and ":"
+// specially in target names); the label half comes from sessionLabelForDir,
+// which sanitizes it via worktree.TmuxSessionName. Kept short and recognizable
+// on purpose — a generated name should read as a friendly label, not a random
+// string.
 var dragonBallNames = []string{
 	"goku", "vegeta", "gohan", "piccolo", "trunks", "goten",
 	"krillin", "bulma", "roshi", "beerus", "whis", "frieza",
@@ -29,20 +58,21 @@ var dragonBallNames = []string{
 }
 
 // nextFreeSessionName returns a session name that is not present in taken,
-// preferring "devgita-<character>" for a Dragon Ball character (tried in the
+// preferring "<label>-<character>" for a Dragon Ball character (tried in the
 // order given, so callers control randomness/determinism), and falling back to
-// "devgita-<character>-<n>" with an incrementing n only if every bare
+// "<label>-<character>-<n>" with an incrementing n only if every bare
 // character name is already taken. It is guaranteed to return a name absent
 // from taken, so the caller's blank-name create can always proceed without
 // clashing with a live session.
 //
-// order indexes into dragonBallNames; callers pass a shuffled order for a
-// random pick (see randomSessionNameOrder) or a fixed one in tests. It must be
-// non-empty — dragonBallNames is a non-empty package var, so its randomSessionNameOrder
+// label is the folder-derived prefix (see sessionLabelForDir). order indexes
+// into dragonBallNames; callers pass a shuffled order for a random pick (see
+// randomSessionNameOrder) or a fixed one in tests. It must be non-empty —
+// dragonBallNames is a non-empty package var, so its randomSessionNameOrder
 // output always is too.
-func nextFreeSessionName(taken map[string]bool, order []int) string {
+func nextFreeSessionName(label string, taken map[string]bool, order []int) string {
 	for _, i := range order {
-		if name := sessionNamePrefix + dragonBallNames[i]; !taken[name] {
+		if name := label + "-" + dragonBallNames[i]; !taken[name] {
 			return name
 		}
 	}
@@ -50,7 +80,7 @@ func nextFreeSessionName(taken map[string]bool, order []int) string {
 	// sessions named after the pool): disambiguate the first-ordered character
 	// with an incrementing numeric suffix. Bounded by taken's size, so it
 	// always terminates on a free name rather than looping forever.
-	base := sessionNamePrefix + dragonBallNames[order[0]]
+	base := label + "-" + dragonBallNames[order[0]]
 	for n := 2; ; n++ {
 		if name := fmt.Sprintf("%s-%d", base, n); !taken[name] {
 			return name

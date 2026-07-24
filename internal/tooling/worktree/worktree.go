@@ -52,10 +52,11 @@ func FlattenName(name string) string {
 	return strings.ReplaceAll(name, "/", "-")
 }
 
-// tmuxSessionName derives a valid tmux session name from a repo slug. tmux treats
-// "." and ":" as target separators, so they are replaced with "_".
-func tmuxSessionName(repoSlug string) string {
-	return strings.NewReplacer(".", "_", ":", "_").Replace(repoSlug)
+// TmuxSessionName derives a valid tmux session name from a repo slug or folder
+// name. tmux treats ".", ":", and whitespace specially in target names, so each
+// is replaced with "_".
+func TmuxSessionName(repoSlug string) string {
+	return strings.NewReplacer(".", "_", ":", "_", " ", "_", "\t", "_").Replace(repoSlug)
 }
 
 // WorktreeStatus contains information about a worktree and its associated window
@@ -741,7 +742,7 @@ func (w *WorktreeManager) ensureWindow(repoSlug, windowName, wtPath string, layo
 		return nil
 	}
 
-	session = tmuxSessionName(repoSlug)
+	session = TmuxSessionName(repoSlug)
 	if w.Tmux.HasSession(session) {
 		if err := w.Tmux.CreateWindowInSession(session, windowName, wtPath); err != nil {
 			return fmt.Errorf("failed to create tmux window: %w", err)
@@ -873,10 +874,10 @@ func confirmFromTTY() bool {
 // ticket ID (e.g. "CXE-35") collides across repos: a leftover window from one repo
 // makes `dg wt new CXE-35` in another repo fail with a false "orphan window" error.
 //
-// The repo prefix is sanitized with tmuxSessionName so it matches the session name
+// The repo prefix is sanitized with TmuxSessionName so it matches the session name
 // used in ensureWindow, keeping window and session naming consistent.
 func GetWindowName(repoSlug, name string) string {
-	return windowPrefix + tmuxSessionName(repoSlug) + "-" + FlattenName(name)
+	return windowPrefix + TmuxSessionName(repoSlug) + "-" + FlattenName(name)
 }
 
 // WindowNameFor resolves the repo that owns the given worktree and returns its

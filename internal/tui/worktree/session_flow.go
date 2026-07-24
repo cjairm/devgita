@@ -169,14 +169,16 @@ func (m Model) handleSessionNameInputPaste(text string) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// autoSessionName returns a "devgita-<character>" name for a blank prompt,
-// checked against the live tmux sessions so it never collides with an existing
-// one (see nextFreeSessionName). Listing is best-effort: if it fails (tmux
-// unreachable for a real reason), we fall back to an empty taken-set and let
-// tmux's own "new-session -s" duplicate check be the final guard — the same
-// philosophy as the rest of this file, where create failures surface via
-// statusMsg rather than being pre-checked. The listing error is folded into
-// that best-effort fallback rather than blocking the user from creating.
+// autoSessionName returns a "<folder>-<character>" name for a blank prompt,
+// prefixed with the label of the folder the session opens in (see
+// sessionLabelForDir) and checked against the live tmux sessions so it never
+// collides with an existing one (see nextFreeSessionName). Listing is
+// best-effort: if it fails (tmux unreachable for a real reason), we fall back
+// to an empty taken-set and let tmux's own "new-session -s" duplicate check be
+// the final guard — the same philosophy as the rest of this file, where create
+// failures surface via statusMsg rather than being pre-checked. The listing
+// error is folded into that best-effort fallback rather than blocking the user
+// from creating.
 func (m Model) autoSessionName() string {
 	taken := map[string]bool{}
 	if names, err := m.listSessionNamesFn(); err == nil {
@@ -184,7 +186,11 @@ func (m Model) autoSessionName() string {
 			taken[n] = true
 		}
 	}
-	return nextFreeSessionName(taken, randomSessionNameOrder())
+	return nextFreeSessionName(
+		sessionLabelForDir(m.sessionWorkdir),
+		taken,
+		randomSessionNameOrder(),
+	)
 }
 
 // clearSessionState resets the s → folder-pick → name-prompt flow back to
@@ -305,7 +311,7 @@ func (m Model) renderSessionNameInputPopup() string {
 	maxW := min(m.width-2, 64)
 	lines := []string{
 		"> " + m.sessionNameInput.RenderPlain(),
-		m.palette.Inactive.Render("(blank = random devgita-* name)"),
+		m.palette.Inactive.Render("(blank = random <folder>-* name)"),
 	}
 	return m.palette.BorderedPane("New session — name", maxW, lines)
 }
